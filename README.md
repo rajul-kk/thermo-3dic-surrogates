@@ -1,6 +1,6 @@
-# FourierPINN — 3D-IC Thermal Surrogate
+# Thermo — 3D-IC Thermal Surrogate Benchmark
 
-A Physics-Informed Neural Network surrogate for steady-state thermal analysis of 3D integrated circuit package stacks. Trained on [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) simulation data across five benchmark geometries. Includes post-training explainability: PDE residual maps, engineering sensitivity maps, targeted Integrated Gradients, and MC Dropout uncertainty.
+A benchmark suite for neural thermal surrogates in 3D/2.5D IC packaging. Includes **8 realistic geometries** (single-die, 3%/5%/10% TSV-density 3D stacks, server die, chiplet-on-interposer, CoWoS+HBM, 6×HBM MI300X-like) with real [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) finite-element ground truth — not synthetic data — and implements/compares **five surrogate model families**: physics-informed neural networks (with pluggable adaptive collocation sampling), Fourier/Walsh-Hadamard/CNO neural operators, physics-informed DeepONet, an autoregressive z-layer operator, and few-shot fine-tuning across geometries. Includes zero-retraining explainability tooling for every model family.
 
 ---
 
@@ -10,30 +10,30 @@ A Physics-Informed Neural Network surrogate for steady-state thermal analysis of
 Thermo/
 ├── src/
 │   ├── core/               # Geometry, material, mesh
-│   ├── pinn/               # FourierPINN model, trainer, data loader,
-│   │                       # physics losses, evaluation, explainability
-│   ├── fno/                # FNO3d model, trainer, data loader, hybrid
-│   ├── simulators/         # 3D-ICE and HotSpot wrappers
+│   ├── simulators/         # 3D-ICE, HotSpot, and low-fidelity analytical simulators
 │   ├── scenario/           # Scenario parameter sweep generator
 │   ├── export/             # NPZ exporter, statistics
 │   ├── visualization/      # Temperature field plots
-│   └── main.py             # End-to-end data generation orchestrator
+│   ├── pinn/                # FourierPINN: model, physics, losses, sampling
+│   │                        # strategies, trainer, data loader, evaluate, explain
+│   ├── fno/                 # FNO3d, CondFNO3d, CNOFNOHybrid, WHNO (Walsh-Hadamard),
+│   │                        # physics loss, FNO+PINN hybrid, mode-importance XAI
+│   ├── deeponet/             # PI-DeepONet (MLP and CNO-FNO branch variants)
+│   ├── aro/                  # Autoregressive z-layer operator with RNO-style training
+│   └── main.py               # End-to-end data generation orchestrator
 ├── scripts/
-│   ├── train_pinn.py       # PINN training CLI
-│   ├── train_fno.py        # FNO training CLI
-│   ├── eval_pinn.py        # Post-training evaluation
-│   └── explain_pinn.py     # Explainability analysis CLI
-├── notebooks/
-│   ├── kaggle_pinn_geometry1.ipynb   # Kaggle GPU training (geometry1)
-│   └── kaggle_pinn_geometry2.ipynb   # Kaggle GPU training (geometry2a/b/c)
-├── configs/                # 3D-ICE and HotSpot config files, scenario YAMLs
-├── data/                   # .npz training data (generated separately)
-├── docs/
-│   ├── report.md           # Paper draft
-│   ├── assumptions.md      # Simplifying assumptions vs. real hardware
-│   ├── references.md       # Literature cross-check and citations
-│   ├── installation.md     # 3D-ICE / HotSpot setup guide
-│   └── geometry_reference.md
+│   ├── train_pinn.py / eval_pinn.py / explain_pinn.py
+│   ├── train_fno.py / explain_fno.py
+│   ├── train_deeponet.py
+│   ├── train_aro.py
+│   ├── finetune_therm_fm.py / explain_therm_fm.py   # few-shot cross-geometry fine-tuning
+│   ├── generate_lf_data.py                            # low-fidelity dataset generation
+│   └── validate_dataset.py / regenerate_failed.py / test_ice_connection.py
+├── notebooks/               # Kaggle GPU training + model-comparison notebooks
+├── app/                     # FastAPI web app for interactive scenario submission
+├── configs/                 # 3D-ICE / HotSpot config files, scenario YAMLs
+├── data/                    # .npz training data (generated separately, gitignored)
+├── docs/                    # Reference documentation (see below)
 └── requirements.txt
 ```
 
@@ -41,36 +41,20 @@ Thermo/
 
 ## Geometries
 
-All geometries include a TIM2 layer (50 µm, k=4 W/m·K) as the topmost layer, placing the convective boundary condition at the physically correct die-to-cooler interface.
+| Geometry | Type | Footprint | Layers | TSV density | Mesh | Points/file |
+|---|---|---|---|---|---|---|
+| `geometry1` | Single die | 10 × 10 mm | 6 | — | 100×100×40 | 60,000 |
+| `geometry2a` | 3D TSV stack | 8 × 8 mm | 10 | 3% | 80×80×72 | 64,000 |
+| `geometry2b` | 3D TSV stack | 8 × 8 mm | 10 | 5% | 80×80×72 | 64,000 |
+| `geometry2c` | 3D TSV stack | 8 × 8 mm | 10 | 10% | 80×80×72 | 64,000 |
+| `geometry3` | Server die | 25 × 25 mm | 6 | — | 100×100×40 | 60,000 |
+| `geometry4` | 2.5D chiplet-on-interposer | 25 × 14 mm | 6 | — | 100×56×40 | 33,600 |
+| `geometry5` | CoWoS-style compute + HBM stack | 25 × 14 mm | 11 | 3% | 100×56×50 | 61,600 |
+| `geometry6` | CoWoS + 6× HBM (MI300X-like) | 42 × 14 mm | 11 | 3% | 56×168×50 | 103,488 |
 
-| Geometry | Type | Die size | Layers | Mesh | Training points |
-|---|---|---|---|---|---|
-| geometry1 | Single die | 10 × 10 mm | 6 | 100×100×40 | 400k |
-| geometry2a | 3D stack | 8 × 8 mm | 10 | 80×80×72 | 461k |
-| geometry2b | 3D stack | 8 × 8 mm | 10 | 80×80×72 | 461k |
-| geometry2c | 3D stack | 8 × 8 mm | 10 | 80×80×72 | 461k |
-| geometry3 | Server die | 25 × 25 mm | 6 | 100×100×40 | 400k |
+Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer), matching 3D-ICE's ground-truth `bottom heat sink` directive. Full layer stacks, material properties, and scenario details are in [`docs/geometry_reference.md`](docs/geometry_reference.md).
 
-**geometry1 / geometry3 layer stack (bottom → top):**
-```
-Heat sink (Cu)  5000 µm  k=400 W/m·K
-TIM             100 µm   k=4 W/m·K
-Spreader (Cu)   1000–2000 µm
-TIM             100 µm
-Die (Si)        150–200 µm  k(T)=148×(300/T)^1.3
-TIM2            50 µm   ← convective BC applied here
-```
-
-**geometry2a/b/c additional layers (stacked die + TSV):**
-```
-Die 2 Active (Si)   50 µm
-Die 2 TSV region    100 µm  k_eff = (1−φ)·k_Si + φ·k_Cu
-Bonding layer       25 µm   k=50 W/m·K  (micro-bump)
-Die 1 TSV region    100 µm
-Die 1 Active (Si)   50 µm
-```
-
-TSV densities: 2a → 3% (k_eff=155 W/m·K), 2b → 5% (163 W/m·K), 2c → 10% (184 W/m·K).
+**Dataset**: 320 real 3D-ICE `.npz` files (280 train + 40 test) across all 8 geometries, sweeping power density (0.1–20 W/cm² across 9 spatial patterns), HTC (500–200,000 W/m²·K), and ambient temperature (25–85 °C). HBM/memory-stack power blocks are capped below compute-logic power density to keep memory-stack dies within their realistic thermal envelope regardless of scenario pattern.
 
 ---
 
@@ -82,125 +66,101 @@ TSV densities: 2a → 3% (k_eff=155 W/m·K), 2b → 5% (163 W/m·K), 2c → 10% 
 pip install -r requirements.txt
 ```
 
-Requires Python 3.8+, PyTorch, NumPy, SciPy, PyYAML, Matplotlib.
+Requires Python 3.8+, PyTorch, NumPy, SciPy, PyYAML, Matplotlib. See [`docs/installation.md`](docs/installation.md) for 3D-ICE/WSL2 setup.
 
-### 2. Generate training data (requires 3D-ICE in WSL2)
+### 2. Generate training data (requires 3D-ICE, WSL2 on Windows)
 
-```powershell
-python src/main.py --all-geometries --simulator 3d-ice `
-    --ice-executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator" `
+```bash
+python src/main.py --all-geometries --simulator 3d-ice \
+    --ice-executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator" \
     --output data/3d-ice --verbose
 ```
 
 For development without 3D-ICE (synthetic data):
-```powershell
+```bash
 python src/main.py --all-geometries --simulator mock --output data/3d-ice-mock
 ```
 
-### 3. Train the PINN
-
-**On CPU (i7, ~2–3 hr per geometry):**
-```powershell
-python scripts/train_pinn.py --geometry geometry1 `
-    --data data/3d-ice --output checkpoints --cpu-fast
+For a fast, dependency-free low-fidelity dataset (analytical 1D-resistance + 2D-Gaussian model, used for ARO multi-fidelity pretraining):
+```bash
+python scripts/generate_lf_data.py --output data/lf
 ```
 
-**On Kaggle P100 GPU (~1.5–2 hr per geometry):**
-Upload `src/` and `data/3d-ice/` as Kaggle datasets, then run `notebooks/kaggle_pinn_geometry1.ipynb`. See `notebooks/KAGGLE_SETUP.md`.
+### 3. Train a model
 
-**Full settings (GPU):**
-```powershell
-python scripts/train_pinn.py --geometry geometry1 `
-    --data data/3d-ice --output checkpoints `
-    --epochs 8000 --fourier-sigma 10.0
+```bash
+# PINN (curriculum-staged, adaptive collocation sampling)
+python scripts/train_pinn.py --geometry geometry1 --data data/3d-ice --output checkpoints
+
+# CNO-FNO (recommended FNO variant: local conv + spectral FNO + FiLM conditioning)
+python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --output checkpoints/fno
+
+# WHNO (Walsh-Hadamard basis — no Gibbs ringing at material-conductivity discontinuities)
+python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --model whno
+
+# PI-DeepONet (one model across uniform-stack geometries: g1/2a/2b/2c/g3)
+python scripts/train_deeponet.py --data data/3d-ice --output checkpoints/deeponet
+
+# ARO (autoregressive z-layer operator)
+python scripts/train_aro.py --hf-data data/3d-ice --geometries geometry1 --output checkpoints/aro
+
+# Therm-FM (few-shot fine-tune a pretrained CNO-FNO on a new geometry)
+python scripts/finetune_therm_fm.py --pretrained checkpoints/fno/geometry1_best.pt \
+    --new-data data/3d-ice --geometry geometry3 --shots 10 --output checkpoints/therm_fm
 ```
 
-Use `--fourier-sigma 20.0` for geometry2 variants (captures TSV-scale features).
+CPU-only: add `--cpu-fast` to `train_pinn.py`/`train_fno.py` for reduced-capacity defaults. See [`docs/compute.md`](docs/compute.md) for measured/estimated training costs across all model families on CPU and 2×T4 GPU.
 
-### 4. Evaluate
+### 4. Evaluate and explain
 
-```powershell
-python scripts/eval_pinn.py `
-    --checkpoint checkpoints/geometry1/geometry1_best.pt `
+```bash
+python scripts/eval_pinn.py --checkpoint checkpoints/geometry1/geometry1_best.pt \
     --data data/3d-ice --output results/geometry1 --plots
-```
 
-### 5. Explainability
-
-```powershell
-python scripts/explain_pinn.py `
-    --checkpoint checkpoints/geometry1/geometry1_best.pt `
+python scripts/explain_pinn.py --checkpoint checkpoints/geometry1/geometry1_best.pt \
     --data data/3d-ice --output results/explain/geometry1
-```
 
-Outputs per test scenario: PDE residual map, per-block thermal influence map, HTC sensitivity map, Integrated Gradients at hotspot + z-profile, MC Dropout uncertainty map.
+python scripts/explain_fno.py --model-a checkpoints/fno/geometry1_best.pt --model-a-type cno-fno \
+    --model-b checkpoints/fno/geometry1_whno_best.pt --model-b-type whno \
+    --geometry geometry1 --output results/explain/fno_comparison
+```
 
 ---
 
-## Model Architecture
+## Model Families
 
-**FourierPINN** — 807k parameters.
+| Model | Params | Cross-geometry? | Notes |
+|---|---|---|---|
+| **FourierPINN** | ~807k | No | Fourier + layer embedding, 6 residual MLP blocks, hard adiabatic BC via cosine coordinate fold, optional region embedding (2.5D chiplets) and TIM-k scalar input. Four pluggable collocation-sampling strategies (`rar`, `hessian`, `importance`, `curriculum`). |
+| **FNO3d / CondFNO3d / CNOFNOHybrid** | 1.6M–12.6M | No (per grid) | CNOFNOHybrid combines a CNN encoder/decoder with a FiLM-conditioned latent FNO, optionally with axial self-attention (SAU-FNO style). Physics loss uses harmonic-mean face conductivity (accurate across the large conductivity contrasts at material interfaces) plus an interface-isolated flux-continuity term. |
+| **WHNO** | ~similar to FNO | No (per grid) | Walsh-Hadamard spectral basis instead of Fourier — piecewise-constant basis functions produce zero Gibbs ringing at sharp material-conductivity discontinuities (validated against a synthetic step function: 0% overshoot vs Fourier's ~8.7%). |
+| **PI-DeepONet** | 538k | Yes (g1/2a/2b/2c/g3) | Branch (MLP or CNO-FNO spatial encoder) + Fourier-encoded trunk; scoped to uniform-stack geometries where the trunk's `(x,y,z,layer_id)` coordinate system is physically valid. |
+| **ARO** | ~1M | No (per grid) | Shared 2D FiLM-FNO block applied autoregressively over z-layers (O(nx·ny) memory instead of O(nx·ny·nz)). Trained with RNO-style windowed self-rollout — the model predicts a growing window of consecutive layers using only its own prior outputs, closing the exposure-bias gap between teacher-forced training and autoregressive inference. Supports multi-fidelity pretraining on the low-fidelity analytical dataset. |
+| **Therm-FM** | ~10% of CNOFNOHybrid | Few-shot | Freezes the CNN encoder, fine-tunes the FiLM generator + tail latent-FNO blocks + decoder on 5–20 shots of a new geometry. |
 
-| Stage | Operation | Output dim |
+Compute costs, parameter counts, and architecture comparisons across all families: [`docs/compute.md`](docs/compute.md).
+
+---
+
+## Explainability
+
+All XAI tooling is zero-retraining — run on any trained checkpoint without modifying the training pipeline.
+
+| Method | Model(s) | What it shows |
 |---|---|---|
-| Input | (x̂, ŷ, ẑ) ∈ [0,1]³ | 3 |
-| Fourier encoding | B ~ N(0,σ²), [sin, cos] | 32 |
-| Layer embedding | Embedding(n_layers, 8) | 8 |
-| Scalar inputs | Q_norm, htc_norm, t_amb_norm, tsv_frac | 4 |
-| MLP input | concat | 44 |
-| Residual MLP | 6 × ResBlock(256) + Dropout(0.1) | 256 |
-| Output | Linear(1) → T̂ ∈ [0,1] | 1 |
-
-Training uses a three-stage curriculum: data-only (epochs 0–1000) → fixed physics weights (1000–3000) → NTK-adaptive weights (3000–8000). PDE residual enforces `∇·(k∇T) + Q = 0`; convective and adiabatic boundary conditions are separate loss terms.
-
----
-
-## Training Flags
-
-```
---geometry       geometry1 | geometry2a | geometry2b | geometry2c | geometry3
---fourier-sigma  10.0 (geometry1/3) | 20.0 (geometry2*)
---epochs         8000 (default) | 3000 (--cpu-fast)
---hidden-dim     256 (default) | 128 (--cpu-fast)
---n-res-blocks   6 (default)   | 4   (--cpu-fast)
---n-col          20000 (default) | 5000 (--cpu-fast)
---cpu-fast       Apply all CPU-optimised defaults (~2–3 hr per geometry on i7)
-```
-
----
-
-## Dataset
-
-Each geometry: **15 training + 5 test scenarios** sweeping:
-- Power density: 0.1–20 W/cm², six spatial patterns (uniform, hotspot, checkerboard, gradient, dual-hotspot, extreme-hotspot)
-- HTC: 500–10,000 W/m²·K
-- Ambient temperature: 25–85 °C
-
-Ground truth from **3D-ICE Emulator** (WSL2). Data format: compressed `.npz` with arrays `coords (N,3)`, `temp (N,)`, `power (N,)`, `layer (N,)`, and a metadata dict including per-block power densities.
-
----
-
-## Explainability Methods
-
-| Method | What it shows | Cost (i7 CPU) |
-|---|---|---|
-| PDE residual map | Where the heat equation is violated | ~8 s/scenario |
-| Power block sensitivity | dT/dQ — thermal influence coefficients | ~20 s/scenario |
-| HTC sensitivity | dT/dHTC — where cooling matters most | ~4 s/scenario |
-| Integrated Gradients | Feature attribution at hotspot + z-profile | ~2 s/scenario |
-| MC Dropout uncertainty | Predictive std — where model is uncertain | ~200 s/scenario |
+| PDE residual map | PINN, FNO/WHNO | Where the heat equation is locally violated |
+| Power block / HTC sensitivity | PINN | dT/dQ, dT/dHTC — thermal influence coefficients |
+| Integrated Gradients | PINN | Feature attribution at the hotspot + z-profile |
+| MC Dropout uncertainty | PINN | Predictive std — where the model is uncertain (also usable for sensor-placement guidance) |
+| Spectral mode-importance | FNO, WHNO | Per-mode energy read directly off trained weights (no forward pass); compares Fourier's frequency-ordered vs WHNO's sequency-ordered basis on the same low-to-high-mode-index axis |
+| Interface-distance-bucketed error | FNO, WHNO | Whether accuracy differences concentrate near material interfaces |
+| Weight-drift analysis | Therm-FM | Diffs pretrained vs fine-tuned checkpoints by parameter group; confirms frozen layers show exactly zero drift |
 
 ---
 
 ## Key Design Decisions and Assumptions
 
-See [`docs/assumptions.md`](docs/assumptions.md) for the complete list. Notable items:
-
-- **Steady-state only** — transient peak temperatures can be 10–40% higher
-- **Uniform HTC** — spatially varying cooling (e.g., jet impingement) not modelled
-- **Micro-bump bonding** in geometry2 — not hybrid bonding (Cu-Cu direct)
-- **Arithmetic-mean TSV k** — upper bound, consistent with 3D-ICE, ~10% over actual at 10% density
-- **k(T) quasi-linearised** in PDE loss — Picard iteration, valid approximation at data loss weight 1.0 vs PDE weight 0.1
+See [`docs/assumptions.md`](docs/assumptions.md) for the complete list, including known modeling limitations (steady-state only, uniform HTC, TSV effective-medium approximation, and the 2.5D lateral-material-heterogeneity gap between the Python geometry model and the actual 3D-ICE ground truth).
 
 ---
 
@@ -216,5 +176,19 @@ See [`docs/assumptions.md`](docs/assumptions.md) for the complete list. Notable 
 | Wang et al., SIAM J. Sci. Comput. 2021 | NTK adaptive loss weights |
 | Li et al., ICLR 2021 | Fourier Neural Operator |
 | Sundararajan et al., ICML 2017 | Integrated Gradients |
+| Yang et al. 2025 (Recurrent Neural Operators) | ARO's windowed self-rollout training |
 
-Full citations in [`docs/references.md`](docs/references.md).
+Full citations, including geometry-specific literature cross-checks and recent (2025) adaptive-sampling / neural-operator prior art, in [`docs/references.md`](docs/references.md).
+
+---
+
+## Notebooks
+
+Kaggle GPU training and model-comparison notebooks — see [`notebooks/KAGGLE_SETUP.md`](notebooks/KAGGLE_SETUP.md) for dataset upload instructions.
+
+| Notebook | What it does |
+|---|---|
+| `kaggle_pinn_geometry1.ipynb` / `kaggle_pinn_geometry2.ipynb` | Standalone PINN training per geometry |
+| `kaggle_pinn_sampling_comparison.ipynb` | Head-to-head comparison of two collocation-sampling strategies on identical architecture/seed |
+| `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO, with mode-importance XAI and interface-distance error analysis |
+| `kaggle_therm_fm.ipynb` | Pretrain-then-few-shot-fine-tune across geometries, with weight-drift analysis |
