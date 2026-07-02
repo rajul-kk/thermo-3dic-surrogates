@@ -1,0 +1,285 @@
+geometry: geometry2c
+num_scenarios: 20
+num_train: 15
+num_test: 5
+scenarios:
+- name: geometry2c_train_001
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 1.0
+    core2_d1: 1.0
+    tsv_array_d1: 1.0
+    core1_d2: 1.0
+    core2_d2: 1.0
+    tsv_array_d2: 1.0
+  htc: 5000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Uniform 1.0 W/cm\xB2 across all blocks"
+- name: geometry2c_train_002
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 5.0
+    core2_d1: 0.5
+    tsv_array_d1: 0.5
+    core1_d2: 0.5
+    core2_d2: 0.5
+    tsv_array_d2: 0.5
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: hotspot
+  description: "Single hotspot at 5.0 W/cm\xB2, others at 0.1 W/cm\xB2"
+- name: geometry2c_train_003
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 2.0
+    core2_d1: 1.0
+    tsv_array_d1: 2.0
+    core1_d2: 1.0
+    core2_d2: 2.0
+    tsv_array_d2: 1.0
+  htc: 5000.0
+  t_ambient: 25.0
+  pattern: checkerboard
+  description: "Checkerboard: alternating 2.0 and 0.5 W/cm\xB2"
+- name: geometry2c_train_004
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 1.0
+    core2_d1: 1.2
+    tsv_array_d1: 1.4
+    core1_d2: 1.6
+    core2_d2: 1.8
+    tsv_array_d2: 2.0
+  htc: 1000.0
+  t_ambient: 45.0
+  pattern: gradient
+  description: "Linear gradient from 0.5 to 2.0 W/cm\xB2"
+- name: geometry2c_train_005
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 5.0
+    core2_d1: 5.0
+    tsv_array_d1: 1.0
+    core1_d2: 1.0
+    core2_d2: 1.0
+    tsv_array_d2: 1.0
+  htc: 10000.0
+  t_ambient: 65.0
+  pattern: dual_hotspot
+  description: "Two hotspots at 5.0 W/cm\xB2, others at 0.2 W/cm\xB2"
+- name: geometry2c_train_006
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 0.1
+    core2_d1: 0.1
+    tsv_array_d1: 0.1
+    core1_d2: 0.1
+    core2_d2: 0.1
+    tsv_array_d2: 0.1
+  htc: 1000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Uniform low power 0.1 W/cm\xB2"
+- name: geometry2c_train_007
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 2.0
+    core2_d1: 0.2
+    tsv_array_d1: 0.2
+    core1_d2: 0.2
+    core2_d2: 0.2
+    tsv_array_d2: 0.2
+  htc: 5000.0
+  t_ambient: 45.0
+  pattern: hotspot
+  description: "Single hotspot 2.0 W/cm\xB2 at elevated ambient"
+- name: geometry2c_train_008
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 5.0
+    core2_d1: 5.0
+    tsv_array_d1: 5.0
+    core1_d2: 5.0
+    core2_d2: 5.0
+    tsv_array_d2: 5.0
+  htc: 10000.0
+  t_ambient: 65.0
+  pattern: uniform
+  description: "High uniform power 5.0 W/cm\xB2 at high temperature"
+- name: geometry2c_train_009
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 0.5
+    core2_d1: 0.6
+    tsv_array_d1: 0.7
+    core1_d2: 0.8
+    core2_d2: 0.9
+    tsv_array_d2: 1.0
+  htc: 1000.0
+  t_ambient: 25.0
+  pattern: gradient
+  description: Gradient pattern with poor cooling (low HTC)
+- name: geometry2c_train_010
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 0.5
+    core2_d1: 0.5
+    tsv_array_d1: 0.5
+    core1_d2: 0.5
+    core2_d2: 0.5
+    tsv_array_d2: 0.5
+  htc: 5000.0
+  t_ambient: 45.0
+  pattern: uniform
+  description: Medium power baseline scenario
+- name: geometry2c_train_011
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 10.0
+    core2_d1: 10.0
+    tsv_array_d1: 10.0
+    core1_d2: 10.0
+    core2_d2: 10.0
+    tsv_array_d2: 10.0
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Extreme power 10.0 W/cm\xB2 - stress test scenario"
+- name: geometry2c_train_012
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 2.0
+    core2_d1: 2.0
+    tsv_array_d1: 2.0
+    core1_d2: 2.0
+    core2_d2: 2.0
+    tsv_array_d2: 2.0
+  htc: 500.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Poor cooling (HTC=500 W/m\xB2\xB7K) - natural convection"
+- name: geometry2c_train_013
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 5.0
+    core2_d1: 5.0
+    tsv_array_d1: 5.0
+    core1_d2: 5.0
+    core2_d2: 5.0
+    tsv_array_d2: 5.0
+  htc: 5000.0
+  t_ambient: 85.0
+  pattern: uniform
+  description: "Elevated ambient 85\xB0C - automotive/industrial conditions"
+- name: geometry2c_train_014
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 20.0
+    core2_d1: 0.2
+    tsv_array_d1: 0.2
+    core1_d2: 0.2
+    core2_d2: 0.2
+    tsv_array_d2: 0.2
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: extreme_hotspot
+  description: "Extreme hotspot 20.0 W/cm\xB2 in one block - maximum gradient"
+- name: geometry2c_train_015
+  geometry: geometry2c
+  type: train
+  power_blocks:
+    core1_d1: 1.5
+    core2_d1: 1.7999999999999998
+    tsv_array_d1: 2.0999999999999996
+    core1_d2: 2.4000000000000004
+    core2_d2: 2.7
+    tsv_array_d2: 3.0
+  htc: 7500.0
+  t_ambient: 55.0
+  pattern: gradient
+  description: Mixed extremes - gradient pattern with intermediate parameters
+- name: geometry2c_test_001
+  geometry: geometry2c
+  type: test
+  power_blocks:
+    core1_d1: 1.5
+    core2_d1: 1.5
+    tsv_array_d1: 1.5
+    core1_d2: 1.5
+    core2_d2: 1.5
+    tsv_array_d2: 1.5
+  htc: 7500.0
+  t_ambient: 35.0
+  pattern: uniform
+  description: "Test interpolation: 1.5 W/cm\xB2, 7500 W/m\xB2\xB7K HTC, 35\xB0C"
+- name: geometry2c_test_002
+  geometry: geometry2c
+  type: test
+  power_blocks:
+    core1_d1: 3.0
+    core2_d1: 0.30000000000000004
+    tsv_array_d1: 0.30000000000000004
+    core1_d2: 0.30000000000000004
+    core2_d2: 0.30000000000000004
+    tsv_array_d2: 0.30000000000000004
+  htc: 3000.0
+  t_ambient: 55.0
+  pattern: hotspot
+  description: "Test hotspot: 3.0 W/cm\xB2 peak, 3000 W/m\xB2\xB7K HTC, 55\xB0C"
+- name: geometry2c_test_003
+  geometry: geometry2c
+  type: test
+  power_blocks:
+    core1_d1: 1.5
+    core2_d1: 0.75
+    tsv_array_d1: 1.5
+    core1_d2: 0.75
+    core2_d2: 1.5
+    tsv_array_d2: 0.75
+  htc: 7500.0
+  t_ambient: 35.0
+  pattern: checkerboard
+  description: Test checkerboard with interpolated parameters
+- name: geometry2c_test_004
+  geometry: geometry2c
+  type: test
+  power_blocks:
+    core1_d1: 0.3
+    core2_d1: 0.3
+    tsv_array_d1: 0.3
+    core1_d2: 0.3
+    core2_d2: 0.3
+    tsv_array_d2: 0.3
+  htc: 3000.0
+  t_ambient: 35.0
+  pattern: uniform
+  description: "Test low power: 0.3 W/cm\xB2 at 35\xB0C"
+- name: geometry2c_test_005
+  geometry: geometry2c
+  type: test
+  power_blocks:
+    core1_d1: 1.5
+    core2_d1: 1.7999999999999998
+    tsv_array_d1: 2.0999999999999996
+    core1_d2: 2.4000000000000004
+    core2_d2: 2.7
+    tsv_array_d2: 3.0
+  htc: 7500.0
+  t_ambient: 55.0
+  pattern: gradient
+  description: Test gradient with high HTC and elevated temperature

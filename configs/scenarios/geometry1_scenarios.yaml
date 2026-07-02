@@ -1,0 +1,245 @@
+geometry: geometry1
+num_scenarios: 20
+num_train: 15
+num_test: 5
+scenarios:
+- name: geometry1_train_001
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 1.0
+    block2: 1.0
+    block3: 1.0
+    block4: 1.0
+  htc: 5000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Uniform 1.0 W/cm\xB2 across all blocks"
+- name: geometry1_train_002
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 5.0
+    block2: 0.5
+    block3: 0.5
+    block4: 0.5
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: hotspot
+  description: "Single hotspot at 5.0 W/cm\xB2, others at 0.1 W/cm\xB2"
+- name: geometry1_train_003
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 2.0
+    block2: 1.0
+    block3: 2.0
+    block4: 1.0
+  htc: 5000.0
+  t_ambient: 25.0
+  pattern: checkerboard
+  description: "Checkerboard: alternating 2.0 and 0.5 W/cm\xB2"
+- name: geometry1_train_004
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 1.0
+    block2: 1.3333333333333333
+    block3: 1.6666666666666665
+    block4: 2.0
+  htc: 1000.0
+  t_ambient: 45.0
+  pattern: gradient
+  description: "Linear gradient from 0.5 to 2.0 W/cm\xB2"
+- name: geometry1_train_005
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 5.0
+    block2: 5.0
+    block3: 1.0
+    block4: 1.0
+  htc: 10000.0
+  t_ambient: 65.0
+  pattern: dual_hotspot
+  description: "Two hotspots at 5.0 W/cm\xB2, others at 0.2 W/cm\xB2"
+- name: geometry1_train_006
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 0.1
+    block2: 0.1
+    block3: 0.1
+    block4: 0.1
+  htc: 1000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Uniform low power 0.1 W/cm\xB2"
+- name: geometry1_train_007
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 2.0
+    block2: 0.2
+    block3: 0.2
+    block4: 0.2
+  htc: 5000.0
+  t_ambient: 45.0
+  pattern: hotspot
+  description: "Single hotspot 2.0 W/cm\xB2 at elevated ambient"
+- name: geometry1_train_008
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 5.0
+    block2: 5.0
+    block3: 5.0
+    block4: 5.0
+  htc: 10000.0
+  t_ambient: 65.0
+  pattern: uniform
+  description: "High uniform power 5.0 W/cm\xB2 at high temperature"
+- name: geometry1_train_009
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 0.5
+    block2: 0.6666666666666666
+    block3: 0.8333333333333333
+    block4: 1.0
+  htc: 1000.0
+  t_ambient: 25.0
+  pattern: gradient
+  description: Gradient pattern with poor cooling (low HTC)
+- name: geometry1_train_010
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 0.5
+    block2: 0.5
+    block3: 0.5
+    block4: 0.5
+  htc: 5000.0
+  t_ambient: 45.0
+  pattern: uniform
+  description: Medium power baseline scenario
+- name: geometry1_train_011
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 10.0
+    block2: 10.0
+    block3: 10.0
+    block4: 10.0
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Extreme power 10.0 W/cm\xB2 - stress test scenario"
+- name: geometry1_train_012
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 2.0
+    block2: 2.0
+    block3: 2.0
+    block4: 2.0
+  htc: 500.0
+  t_ambient: 25.0
+  pattern: uniform
+  description: "Poor cooling (HTC=500 W/m\xB2\xB7K) - natural convection"
+- name: geometry1_train_013
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 5.0
+    block2: 5.0
+    block3: 5.0
+    block4: 5.0
+  htc: 5000.0
+  t_ambient: 85.0
+  pattern: uniform
+  description: "Elevated ambient 85\xB0C - automotive/industrial conditions"
+- name: geometry1_train_014
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 20.0
+    block2: 0.2
+    block3: 0.2
+    block4: 0.2
+  htc: 10000.0
+  t_ambient: 25.0
+  pattern: extreme_hotspot
+  description: "Extreme hotspot 20.0 W/cm\xB2 in one block - maximum gradient"
+- name: geometry1_train_015
+  geometry: geometry1
+  type: train
+  power_blocks:
+    block1: 1.5
+    block2: 2.0
+    block3: 2.5
+    block4: 3.0
+  htc: 7500.0
+  t_ambient: 55.0
+  pattern: gradient
+  description: Mixed extremes - gradient pattern with intermediate parameters
+- name: geometry1_test_001
+  geometry: geometry1
+  type: test
+  power_blocks:
+    block1: 1.5
+    block2: 1.5
+    block3: 1.5
+    block4: 1.5
+  htc: 7500.0
+  t_ambient: 35.0
+  pattern: uniform
+  description: "Test interpolation: 1.5 W/cm\xB2, 7500 W/m\xB2\xB7K HTC, 35\xB0C"
+- name: geometry1_test_002
+  geometry: geometry1
+  type: test
+  power_blocks:
+    block1: 3.0
+    block2: 0.30000000000000004
+    block3: 0.30000000000000004
+    block4: 0.30000000000000004
+  htc: 3000.0
+  t_ambient: 55.0
+  pattern: hotspot
+  description: "Test hotspot: 3.0 W/cm\xB2 peak, 3000 W/m\xB2\xB7K HTC, 55\xB0C"
+- name: geometry1_test_003
+  geometry: geometry1
+  type: test
+  power_blocks:
+    block1: 1.5
+    block2: 0.75
+    block3: 1.5
+    block4: 0.75
+  htc: 7500.0
+  t_ambient: 35.0
+  pattern: checkerboard
+  description: Test checkerboard with interpolated parameters
+- name: geometry1_test_004
+  geometry: geometry1
+  type: test
+  power_blocks:
+    block1: 0.3
+    block2: 0.3
+    block3: 0.3
+    block4: 0.3
+  htc: 3000.0
+  t_ambient: 35.0
+  pattern: uniform
+  description: "Test low power: 0.3 W/cm\xB2 at 35\xB0C"
+- name: geometry1_test_005
+  geometry: geometry1
+  type: test
+  power_blocks:
+    block1: 1.5
+    block2: 2.0
+    block3: 2.5
+    block4: 3.0
+  htc: 7500.0
+  t_ambient: 55.0
+  pattern: gradient
+  description: Test gradient with high HTC and elevated temperature
