@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D-ICE Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1><span class="logo-mark">3D</span>3D-ICE Pipeline</h1>
+  <nav>
+    <button class="active" onclick="showTab('tab-geometries', this)">Geometries</button>
+    <button onclick="showTab('tab-configure', this)">Configure</button>
+    <button onclick="showTab('tab-queue', this)">Queue</button>
+    <button onclick="showTab('tab-results', this)">Results</button>
+  </nav>
+  <div class="sys-status">
+    <div class="led" id="sys-led"></div>
+    <span id="sys-label">SYSTEM ONLINE</span>
+  </div>
+</header>
+
+<main>
+  <!-- Tab 1: Geometries -->
+  <section id="tab-geometries" class="tab active">
+    <p class="tab-header">Thermal Stack Geometries</p>
+    <button class="btn btn-secondary" onclick="showCustomForm()">+ Upload Custom</button>
+
+    <div id="custom-form" style="display:none" class="form-section" style="margin-top:16px">
+      <h3>Custom Geometry &mdash; YAML</h3>
+      <div style="padding:16px">
+        <div class="form-row">
+          <label>Paste your YAML spec below</label>
+          <button class="btn btn-secondary" onclick="fetchSchema()" style="width:fit-content;margin-bottom:10px;font-size:0.65rem">Get Template</button>
+          <textarea id="custom-yaml" rows="14" style="font-family:var(--mono);font-size:0.73rem"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="uploadCustomGeometry()">Register Geometry</button>
+      </div>
+    </div>
+
+    <div id="geometry-cards" class="card-grid"></div>
+  </section>
+
+  <!-- Tab 2: Configure -->
+  <section id="tab-configure" class="tab">
+    <div class="form-section">
+      <h3>Scenario Configuration</h3>
+
+      <div class="form-grid-2">
+        <div class="form-cell">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Geometry</label>
+            <select id="cfg-geometry" onchange="onGeometryChange()"></select>
+          </div>
+        </div>
+        <div class="form-cell">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Scenario Name</label>
+            <input id="cfg-name" type="text" placeholder="e.g. my_run_001">
+          </div>
+        </div>
+        <div class="form-cell">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Power Pattern</label>
+            <select id="cfg-pattern">
+              <option value="uniform">uniform</option>
+              <option value="hotspot">hotspot</option>
+              <option value="checkerboard">checkerboard</option>
+              <option value="gradient">gradient</option>
+              <option value="dual_hotspot">dual_hotspot</option>
+              <option value="extreme_hotspot">extreme_hotspot</option>
+              <option value="split_chiplet_a_hot">split_chiplet_a_hot</option>
+              <option value="split_chiplet_b_hot">split_chiplet_b_hot</option>
+              <option value="random_smooth">random_smooth</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-cell">
+          <div class="form-row" style="margin-bottom:0">
+            <label>HTC (W/m&sup2;&middot;K)</label>
+            <input id="cfg-htc" type="number" value="5000" min="500" max="20000">
+          </div>
+        </div>
+        <div class="form-cell">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Ambient Temperature (&deg;C)</label>
+            <input id="cfg-tamb" type="number" value="45" min="20" max="80">
+          </div>
+        </div>
+        <div class="form-cell full" style="background:var(--surface2)">
+          <div class="section-title" style="margin:0 0 8px">Power per Block (W/cm&sup2;)</div>
+          <div id="block-inputs" class="block-inputs"></div>
+        </div>
+        <div class="form-cell full" style="display:flex;justify-content:flex-end;gap:10px;background:#0e1012">
+          <button class="btn btn-secondary" onclick="loadGeometriesIntoSelect()">Reset</button>
+          <button class="btn btn-primary" onclick="submitJob()">Queue Job &#9655;</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab 3: Queue -->
+  <section id="tab-queue" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <p class="tab-header" style="margin:0">Job Queue</p>
+      <button class="btn btn-secondary" onclick="refreshQueue()" style="font-size:0.65rem">Refresh</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Job ID</th><th>Geometry</th><th>Scenario</th>
+        <th>Status</th><th>Created</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="queue-tbody"></tbody>
+    </table>
+
+    <div id="log-panel-container" style="display:none;margin-top:24px">
+      <div class="log-header">
+        <div class="led running" style="animation:blink 1s infinite"></div>
+        &#9658; Live Log &mdash; <span id="log-job-id"></span>
+      </div>
+      <div id="log-panel" class="log-panel"></div>
+    </div>
+  </section>
+
+  <!-- Tab 4: Results -->
+  <section id="tab-results" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <p class="tab-header" style="margin:0">Completed Results</p>
+      <button class="btn btn-secondary" onclick="refreshResults()" style="font-size:0.65rem">Refresh</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Job ID</th><th>Geometry</th><th>Scenario</th>
+        <th>Peak (&deg;C)</th><th>Finished</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="results-tbody"></tbody>
+    </table>
+
+    <div id="heatmap-section" style="display:none;margin-top:24px">
+      <div class="section-title">Temperature Field &mdash; <span id="heatmap-job-id" style="text-transform:none;letter-spacing:0;color:var(--amber-hi)"></span></div>
+      <div style="max-width:160px;margin-bottom:12px">
+        <div class="form-row">
+          <label>Layer index</label>
+          <input id="heatmap-layer" type="number" value="0" min="0" onchange="refreshHeatmap()">
+        </div>
+      </div>
+      <div class="heatmap-container"><img id="heatmap-img" src="" alt="heatmap" style="display:none"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
