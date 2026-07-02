@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Generated data / model artifacts (large, regenerable from code + this data)
+data/
+checkpoints/
+results/
+
+# Stray debug output (not project files)
+xaxis.txt
+yaxis.txt
+
+# Tool-internal state (not project documentation)
+.claude/
+.superpowers/
+docs/superpowers/
+
+# OS
+.DS_Store
+Thumbs.db

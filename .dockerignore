@@ -1,0 +1,35 @@
+# build artefacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# data outputs (can be large)
+data/
+
+# model checkpoints
+checkpoints/
+*.pt
+*.pth
+
+# docs & notebooks
+docs/
+*.ipynb
+*.md
+
+# git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# local scripts
+scripts/
+
+# FNO / DeepONet source (not needed by the web app)
+src/fno/
+src/deeponet/
+src/scenario/

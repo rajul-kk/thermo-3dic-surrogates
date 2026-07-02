@@ -1,0 +1,25 @@
+# Python dependencies for 3D-IC Thermal PINN Benchmark System
+
+# Core scientific computing
+numpy>=1.21.0          # Array operations, .npz export
+scipy>=1.7.0           # Mesh interpolation and scientific utilities
+
+# Configuration and data handling
+pyyaml>=5.4.0          # YAML scenario configuration
+pandas>=1.3.0          # Statistics tabulation and data analysis
+
+# Visualization
+matplotlib>=3.4.0      # Temperature field visualization
+seaborn>=0.11.0        # Enhanced plotting styles
+
+# PINN training (Phase 7)
+torch>=2.1.0            # Neural network training (GPU recommended: pip install torch --index-url https://download.pytorch.org/whl/cu121)
+tensorboard>=2.14.0     # Training curve visualization
+
+# Testing
+pytest>=6.2.0          # Unit and integration testing
+pytest-cov>=2.12.0     # Code coverage reporting
+
+# Development tools (optional)
+black>=21.0            # Code formatting
+flake8>=3.9.0          # Linting

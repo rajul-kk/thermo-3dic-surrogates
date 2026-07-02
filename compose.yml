@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist NPZ output and job results across restarts
+      - ./data/app:/app/data/app
+    environment:
+      ICE_EXECUTABLE: /opt/3d-ice/bin/3D-ICE-Emulator
+      HOST: 0.0.0.0
+      PORT: "8000"
+      RELOAD: "false"
+    restart: unless-stopped
