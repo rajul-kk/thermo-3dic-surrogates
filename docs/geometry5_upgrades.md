@@ -1,5 +1,15 @@
 # Geometry 5 — Upgrade Roadmap
 
+> **Status update:** Tier 0 and Tier 1 (below) are **fully implemented** in the current
+> `geometry5`/`geometry6` builders (`src/core/geometry_builders.py`) — RDL power layer,
+> low-k device layer, C4 bump array, TIM1 indium solder, TIM2 thickness, published
+> interposer dimensions, and 5 µm hybrid-bonding layer are all present, matching this
+> document's original recommendation. See [`docs/geometry_reference.md`](geometry_reference.md)
+> for the as-built layer stack. This document is kept as the design rationale / roadmap
+> record — read it for *why* each choice was made, not as a to-do list. Tier 2 remains
+> unimplemented (research-grade, 3-4 week estimated effort) and is the only section
+> below still describing future work rather than completed work.
+
 Geometry 5 is a CoWoS-style 2.5D chiplet assembly: one compute chiplet (A) and one
 HBM-like memory stack (B) on a shared silicon interposer. It is the most complex
 geometry in the benchmark suite and the natural target for incremental realism upgrades.
@@ -63,7 +73,7 @@ with one stack. Everything else is credible for a mid-range inference or FPGA-cl
 
 ## Upgrade tiers
 
-### Tier 0 — Recommended baseline (do these first)
+### Tier 0 — Recommended baseline — ✅ COMPLETE (implemented)
 
 These four changes require no new simulator, no new geometry type, and take 2–3 days
 total. They make geometry 5 the most physically complete 2.5D thermal benchmark in
@@ -80,7 +90,7 @@ public literature.
 
 ---
 
-### Tier 1 — Match Kou 2022 (A100-like fidelity)
+### Tier 1 — Match Kou 2022 (A100-like fidelity) — ✅ COMPLETE (implemented)
 
 Kou et al. 2022 is the most rigorous public 2.5D thermal benchmark, validated against
 ANSYS Icepak measurements. These additions close the gap to that baseline.
@@ -125,7 +135,7 @@ solver changes.
 
 ---
 
-### Tier 2 — Approach Blackwell GB200 fidelity
+### Tier 2 — Approach Blackwell GB200 fidelity — NOT implemented (future work)
 
 These additions are research-grade and would require 3–4 weeks total. Most have no
 published precedent in the thermal simulation literature.

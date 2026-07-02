@@ -19,12 +19,27 @@ For geometry2 notebook you need `geometry2a_*`, `geometry2b_*`, `geometry2c_*` f
 ## Step 3 — Create Kaggle notebooks
 
 1. Go to kaggle.com → Code → New Notebook
-2. Upload `kaggle_pinn_geometry1.ipynb` or `kaggle_pinn_geometry2.ipynb`
+2. Upload one of the notebooks below
 3. Under **Data** (right panel), add both datasets:
    - `thermo-pinn-src`
    - `3dice-thermal-data`
 4. Enable **GPU accelerator** (Settings → Accelerator → GPU T4 x1)
 5. Run all cells
+
+### Available notebooks
+
+| Notebook | What it trains | Data needed |
+|---|---|---|
+| `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN | geometry1 files |
+| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (2a/2b/2c) | geometry2a/b/c files |
+| `kaggle_pinn_sampling_comparison.ipynb` | Two PINNs, same architecture/seed, different collocation-sampling strategy (`rar` vs `curriculum`) — includes collocation-point evolution visualization | geometry1 files (default; any single geometry works) |
+| `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO on the same geometry — includes spectral mode-importance XAI and interface-distance-bucketed error comparison | geometry1 files (default; `geometry6` recommended for a stronger interface-discontinuity story, much slower) |
+| `kaggle_therm_fm.ipynb` | Pretrain CNO-FNO on `geometry1`, few-shot fine-tune on `geometry3` (same mesh shape, required by CNOFNOHybrid's fixed-grid architecture) — includes fine-tuned-vs-scratch shots comparison and weight-drift analysis | geometry1 AND geometry3 files (both needed) |
+
+The three comparison notebooks (`kaggle_pinn_sampling_comparison`, `kaggle_sau_cnofno_vs_whno`,
+`kaggle_therm_fm`) follow the same Kaggle dataset setup as above — no additional datasets
+needed beyond `thermo-pinn-src` and `3dice-thermal-data`, as long as the data for whichever
+geometry/geometries the notebook uses is included in the uploaded `3dice-thermal-data` dataset.
 
 ## Step 4 — Save outputs
 

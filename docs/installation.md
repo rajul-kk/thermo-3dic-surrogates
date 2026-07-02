@@ -275,7 +275,7 @@ python scripts/test_ice_connection.py --executable "wsl ~/3d-ice/bin/3D-ICE-Emul
 
 **Issue**: Long WSL startup time delays each scenario (~2-3 s per call)
 - This is normal for WSL cold start. Subsequent calls in the same session are faster.
-- For 80 scenarios it adds ~3 min total — acceptable.
+- For the full 320-scenario dataset it adds ~13 min total — acceptable.
 
 **Issue**: File path errors (`/mnt/c/...` vs `C:\...`)
 - All paths passed to the simulator run inside WSL and must use Linux paths.
@@ -445,9 +445,9 @@ hotspot -help         # Should display help
 ### Create Configuration Directories
 
 ```bash
-mkdir -p configs/3d-ice/geometry{1,2a,2b,2c}
+mkdir -p configs/3d-ice/geometry{1,2a,2b,2c,3,4,5,6}
 mkdir -p configs/scenarios
-mkdir -p data/{geometry1,geometry2{a,b,c}}/{train,test}
+mkdir -p data/3d-ice
 mkdir -p results
 ```
 
@@ -463,7 +463,9 @@ venv\Scripts\activate      # Windows
 python src/main.py --generator-only --output configs/scenarios
 ```
 
-This will create YAML scenario definitions for all 80 scenarios across 4 geometries.
+This will create YAML scenario definitions across all 8 geometries (see
+[`docs/geometry_reference.md`](geometry_reference.md) for the current per-geometry
+scenario counts — 320 total NPZ files across the full dataset, not a fixed 80).
 
 ---
 
@@ -477,17 +479,13 @@ Test with synthetic data (no 3D-ICE or HotSpot needed):
 # Activate Python environment
 source venv/bin/activate
 
-# Run Phase 4 tests
-python test_phase4.py
+# Run the test suite
+pytest tests/ -v
 
-# Expected output:
-# [OK] NPZ Exporter
-# [OK] Statistics Calculator
-# [OK] Integration
-# [SUCCESS] PHASE 4 TESTS PASSED
+# Expected: app API and smoke tests pass
 ```
 
-**Expected duration**: 2-5 seconds
+**Expected duration**: a few seconds
 
 ### 3D-ICE Verification (If Installed)
 
@@ -496,26 +494,31 @@ python test_phase4.py
 source venv/bin/activate
 
 # Run single geometry with 3D-ICE (generates 1 scenario)
-python src/main.py --simulator 3d-ice --geometry geometry1 --output test_ice
+python src/main.py --simulator 3d-ice --geometry geometry1 \
+    --ice-executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator" --output data/3d-ice_test
 
-# Expected: Creates data/geometry1/train/geometry1_train_001.npz
+# Expected: Creates data/3d-ice_test/geometry1/geometry1_train_001.npz
 # Expected duration: 10-30 seconds per scenario
 ```
 
 ### Full Benchmark Generation (Synthetic Data)
 
-Generate all 80 scenarios using synthetic thermal data (no simulators required):
+Generate the full benchmark using synthetic thermal data (no simulators required) —
+covers all 8 geometries with mock ground truth:
 
 ```bash
 # Activate Python environment
 source venv/bin/activate
 
 # Generate benchmark
-python src/main.py --all-geometries --all-scenarios --simulator mock --output data
+python src/main.py --all-geometries --simulator mock --output data/3d-ice-mock
 
-# Expected: Creates 80 .npz files across data/geometry{1,2a,2b,2c}/{train,test}/
+# Expected: 320+ .npz files across data/3d-ice-mock/<geometry>/
 # Expected duration: 5-15 minutes on modern system
 ```
+
+For real 3D-ICE ground truth (the actual benchmark dataset), see the "Data Generation
+Commands" section in [`docs/geometry_reference.md`](geometry_reference.md).
 
 **Monitor progress:**
 ```bash
@@ -682,12 +685,12 @@ After completing installation, verify each component:
 
 # Project structure
 [ ] ls src/main.py                      # Main script present
-[ ] ls test_phase4.py                   # Tests present
+[ ] ls tests/                           # Tests present
 [ ] ls configs/scenarios/               # Config directory exists
 [ ] ls data/                            # Data directory exists
 
 # Run tests
-[ ] python test_phase4.py               # All tests pass
+[ ] pytest tests/ -v                    # All tests pass
 [ ] python src/main.py --generator-only # Generates scenarios
 ```
 
@@ -697,32 +700,31 @@ After completing installation, verify each component:
 
 1. **Generate Benchmark Data**
    ```bash
-   python src/main.py --all-geometries --simulator mock --output data
+   python src/main.py --all-geometries --simulator mock --output data/3d-ice-mock
    ```
 
 2. **Inspect Generated Data**
    ```bash
-   find data -name "*.npz" | head -5 | xargs ls -lh
-   python -c "import numpy as np; d=np.load('data/geometry1/train/geometry1_train_001.npz'); print(k for k in d.keys())"
+   find data/3d-ice-mock -name "*.npz" | head -5 | xargs ls -lh
+   python -c "import numpy as np; d=np.load('data/3d-ice-mock/geometry1/geometry1_train_001.npz', allow_pickle=True); print(list(d.keys()))"
    ```
 
 3. **Review Statistics**
    ```bash
-   find data -name "*_stats.json" | head -5 | xargs head -20
+   find results -name "*_stats.json" | head -5 | xargs head -20
    ```
 
-4. **Train PINN**
-   - Use `.npz` files in PyTorch/TensorFlow PINN training loop
-   - See USAGE.md for example training scripts
+4. **Train a model**
+   - See the root [`README.md`](../README.md) Quick Start section for PINN/FNO/WHNO/
+     DeepONet/ARO/Therm-FM training commands.
 
 ---
 
 ## Support and Resources
 
-- **3D-ICE Documentation**: http://esl.epfl.ch/3d-ice
+- **3D-ICE Documentation**: https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/
 - **HotSpot Documentation**: http://lava.cs.virginia.edu/HotSpot/
-- **Project GitHub**: [Insert project URL]
-- **Issue Reporting**: [Insert issue tracker URL]
+- Project documentation: see [`docs/`](.) and the root [`README.md`](../README.md)
 
 ---
 
@@ -732,9 +734,3 @@ This benchmark system builds on:
 - **3D-ICE**: Sridhar et al. (2010), ICCAD
 - **HotSpot**: Skadron et al. (2004), TACO
 - **Material properties**: Glassbrenner & Slack (1964), Physical Review
-
----
-
-**Document Version**: 1.0
-**Last Updated**: 2026-03-27
-**Maintainer**: 3D-IC Thermal PINN Benchmark Team

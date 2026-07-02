@@ -3,8 +3,16 @@
 ================================================================================
 
 PROJECT: 3D-IC Thermal PINN Benchmark System
-PURPOSE: Training data generation for Physics-Informed Neural Networks
-DATE: 2026-03-27
+PURPOSE: General background literature (fundamental thermal physics, industry
+         standards, broad ML-for-physics landscape) compiled early in the project.
+         For CURRENT, project-specific citations (per-model, per-geometry, and
+         2025-era prior-art comparisons for WHNO/ARO/DeepONet/Therm-FM), see
+         docs/references.md instead -- that document is actively maintained;
+         this one is a static background compilation and may not reflect the
+         project's current model set (originally written when only a PINN was
+         planned; the project now also includes FNO/CondFNO/CNOFNOHybrid, WHNO,
+         PI-DeepONet, ARO, and Therm-FM fine-tuning).
+DATE: 2026-03-27 (original compilation date; not updated since)
 
 ================================================================================
 MATERIAL PROPERTIES - PRIMARY SOURCES

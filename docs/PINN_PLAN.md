@@ -1,4 +1,26 @@
-# 3D-ICE Thermal PINN Benchmark System - Full Project Analysis
+> **ARCHIVED — HISTORICAL PLANNING DOCUMENT, NOT CURRENT STATE.**
+> This document was written at a very early stage of the project (Phases 1-5 just
+> completed, no real 3D-ICE data generated yet, only 4 geometries defined, no PINN
+> code existed). Nearly everything in "BUGS - BLOCKING CORRECT RUNNING" and the
+> Phase 6-9 task lists below has since been completed or superseded:
+> - The project now has **8 geometries** (not 4), all with real 3D-ICE ground truth
+>   (320 NPZ files), not mock/synthetic data.
+> - `src/pinn/` is fully implemented (model, physics, losses, sampling strategies,
+>   trainer, evaluate, explain) — not "no PINN code currently exists" as this
+>   document's Phase 7 section claims.
+> - Five model families exist beyond the PINN this plan describes: FNO/CondFNO/
+>   CNOFNOHybrid, WHNO, PI-DeepONet, ARO, and Therm-FM few-shot fine-tuning.
+> - The specific bugs listed in "PHASE 6.5" (Die2 y-coordinate, TSV docstring,
+>   `get_layer_at_z` boundary, mesh `np.unique`) were fixed long ago; do not use
+>   this document to look for current bugs.
+>
+> Kept for historical traceability only. For current project state, see the root
+> [`README.md`](../README.md), [`docs/geometry_reference.md`](geometry_reference.md),
+> [`docs/assumptions.md`](assumptions.md), and [`docs/compute.md`](compute.md).
+
+---
+
+# 3D-ICE Thermal PINN Benchmark System - Full Project Analysis (ARCHIVED)
 
 ## Context
 

@@ -52,6 +52,53 @@ Li, Z., Kovachki, N., Azizzadenesheli, K., Liu, B., Bhattacharya, K., Stuart, A.
 *International Conference on Learning Representations (ICLR)*.
 https://openreview.net/forum?id=c8P9NQVtmnO
 
+### Walsh-Hadamard Neural Operator (src/fno/whno.py)
+**Walsh-Hadamard Neural Operators for Solving PDEs with Discontinuous Coefficients.** (Nov 2025)
+arXiv:2511.07347.
+(Motivates WHNO in this repo: Fourier's sinusoidal basis causes Gibbs ringing at sharp
+conductivity jumps — exactly the material-interface discontinuities in this dataset's
+layer stacks; the Walsh-Hadamard basis is piecewise-constant and does not suffer this.
+Validated in `src/fno/whno.py`'s module docstring against a synthetic step function:
+0% overshoot vs Fourier's ~8.7%.)
+
+### Autoregressive/recurrent training for neural operator rollout stability (src/aro/trainer.py)
+**Recurrent Neural Operators: Stable Long-Term PDE Prediction.** Yang et al. (May 2025).
+arXiv:2505.20721.
+(ARO's `forward_windowed_rollout` / RNO-style training in `src/aro/trainer.py` directly
+applies this idea: training on a window of the model's OWN autoregressive predictions,
+not just ground-truth teacher-forced inputs, closes the train/inference exposure-bias
+gap responsible for compounding error in autoregressive rollout. Originally proposed for
+*temporal* rollout; this repo's application to *spatial* z-layer rollout is a novel
+adaptation, not a direct replication.)
+
+### Adaptive collocation sampling for PINNs (src/pinn/sampling.py)
+- **Provably Accurate Adaptive Sampling for Collocation Points in Physics-Informed Neural
+  Networks.** (ECML PKDD 2025). Hessian-based sampling — motivates the `hessian` strategy.
+- **Curriculum-Enhanced Adaptive Sampling for Physics-Informed Neural Networks: A Robust
+  Framework for Stiff PDEs.** (MDPI, Dec 2025). Motivates the `curriculum` strategy —
+  argues plain residual-adaptive sampling over-trusts early-training residual signal
+  before the network has learned the bulk solution.
+- Tang et al. (2024). **Adversarial Adaptive Sampling**, combining PINNs with optimal
+  transport theory. `src/pinn/sampling.py`'s `importance` strategy (softmax-temperature
+  resampling) is an explicitly-labeled SIMPLIFIED PROXY for this — the full method uses
+  a trained generative model + Wasserstein-distance optimal transport, not implemented
+  here.
+
+### Prior art on operator learning for 3D-IC thermal simulation (closely related work)
+- **Self-Attention to Operator Learning-based 3D-IC Thermal Simulation (SAU-FNO).**
+  (Oct 2025, IEEE). arXiv:2510.15968. Self-attention + U-Net + FNO for 3D-IC thermal
+  simulation; reports 842× speedup vs COMSOL/MTA and >50% MSE reduction. Also uses
+  transfer learning (fine-tune on low-fidelity data). **This is close prior art to this
+  repo's `CNOFNOHybrid`+axial-attention architecture and Therm-FM fine-tuning approach —
+  differentiate explicitly against it if using either as a novelty claim.** Does not
+  appear to cover 2.5D chiplet/CoWoS lateral heterogeneity (this repo's geometry4/5/6).
+- **DeepOHeat / DeepOHeat-v1: Operator Learning-based Ultra-fast Thermal Simulation in
+  3D-IC Design.** Original: arXiv:2302.12949; updated: arXiv:2504.03955 (Apr 2025).
+  DeepONet applied directly to 3D-IC thermal simulation, encoding BCs/heat-source
+  configuration as branch input, coordinates as trunk input. **This is prior art for
+  "DeepONet for chip thermal" — do not present this repo's `PI-DeepONet` as a novel
+  application without citing and differentiating against DeepOHeat-v1.**
+
 ---
 
 ---
