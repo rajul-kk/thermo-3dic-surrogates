@@ -23,9 +23,12 @@ Each assumption is classified:
 **Real hardware:** Jet impingement centre h can be 3–5× higher than edges. Microchannel coolers have spatially varying h along flow direction.  
 **Impact:** ±5–15 K spatial error at surface for high-performance cooling (h > 5000 W/m²·K). Internal die temperatures are less affected because the die/spreader/TIM stack attenuates surface non-uniformity.
 
-### 1.4 Adiabatic side and bottom faces — **Simplifying**
-**What we do:** `dT/dn = 0` on all four side faces and the bottom face.  
-**Real hardware:** PCB conduction provides ~0.5–5 W/K lateral path; bottom face faces the motherboard with ~1–3 K/W interface resistance.  
+### 1.4 Adiabatic side and top faces — **Simplifying**
+**What we do:** `dT/dn = 0` on all four lateral side faces and the top face (`z=1`, nearest the die). Convective (HTC) cooling is applied at the **bottom** face (`z=0`, the `heat_sink` layer) — this matches 3D-ICE's own `bottom heat sink` boundary-condition directive.
+
+> **Correction note:** an earlier version of the PINN's physics-loss code (`trainer.py`'s `top_layer_id`) enforced the convective boundary condition at the *top* face instead of the bottom, the opposite end of the stack from where 3D-ICE actually cools. This was a real bug in the PINN's own PDE/BC loss target, not a documentation error — the 3D-ICE ground truth data was always correct. Fixed by moving the convective term to `z=0` (with the correct outward-normal sign) and adding an explicit adiabatic term at `z=1` (previously left entirely unconstrained under the default `hard_adiabatic=True` setting, since the cosine-fold hard BC only covers the lateral x/y walls, never z). Any PINN checkpoint trained before this fix was fit against the wrong physics-loss target; its data fit is unaffected but its PDE/BC-loss diagnostics should not be trusted.
+
+**Real hardware:** PCB conduction provides ~0.5–5 W/K lateral path; the die-side (top) face is not literally adiabatic in real hardware — it's simplified to be so because no lid/ambient contact is modeled there.
 **Impact:** Small for large dies (heat spreader dominates). For geometry2 (8×8 mm), lateral heat loss is ~2–5% of total; the adiabatic assumption slightly over-predicts temperature.
 
 ### 1.5 No radiation — **Simplifying**
@@ -204,8 +207,25 @@ resistance.
 | No transient | Simplifying | 10–40% peak transient | Medium for power management use cases |
 | Power density ceiling 20 W/cm² | Simplifying | N/A (extrapolation) | Medium for server geometry3 |
 | Geometry2 die size vs. 3D-ICE ref | Simplifying | N/A | Low (plausible, not published ref) |
-| Adiabatic side/bottom | Simplifying | 2–5% temperature | Low |
+| Adiabatic side/top | Simplifying | 2–5% temperature | Low |
+| HBM/memory-stack power cap (g5/g6) | Fixed (was a bug) | Max scenario T dropped 134°C→94.8°C for geometry6 | None — resolved; see §7 |
 | No radiation | Simplifying | <1% | None |
 | Uniform k in die_zone (g4/5/6) | Simplifying | 5–15 K in underfill gap | Low (data-dominant PINN) |
 | Two-die HBM model (vs. 12-die real HBM3) — geometry6 | Simplifying | ~3.5× underestimate of HBM vertical R | Low (interposer gradients unaffected) |
 | No die-height mismatch (g5/g6) | Simplifying | <3 K | Low |
+
+---
+
+## 7. Fixed Issues (Historical — kept for traceability)
+
+### 7.1 HBM/memory-stack power density was uncapped — **Fixed**
+
+**What was wrong:** The scenario generator's power patterns (`uniform`, `split_chiplet_b_hot`, etc.) assigned HBM/memory-stack dies (geometry5's `chipB_d1*`/`chipB_d2*`, geometry6's `hbm{n}_d1`/`hbm{n}_d2`) the **same power-density range as compute logic** — up to 20 W/cm² in extreme scenarios. Real HBM3 dies dissipate roughly 0.1–0.5 W/cm² under typical-to-heavy load; the uncapped scenarios pushed HBM dies well past their ~95–105°C junction-temperature reliability spec (geometry6 recorded a peak of **134°C** across the training set). This directly contradicted geometry6's own docstring claim of representing an "MI300X-like" (real-chip) configuration.
+
+**Fix:** `src/scenario/generator.py::_apply_pattern` now caps any block matching `hbm*`, `chipB_d1*`, or `chipB_d2*` to 2.0 W/cm² regardless of pattern, applied as a post-process step after every power-pattern branch. geometry5 and geometry6's full 55-scenario datasets were regenerated via 3D-ICE after the fix. **Result:** geometry6's max training-scenario temperature dropped from 134°C to 94.8°C, now inside the realistic HBM3 envelope.
+
+**Original (pre-fix) data:** backed up to `data/3d-ice_backup_pre_hbm_cap/` if a before/after comparison is needed.
+
+### 7.2 PINN convective BC was enforced at the wrong z-face — **Fixed**
+
+See §1.4 above for the full description. Summary: the PINN's own physics-loss code assumed convective cooling at `z=1` (top, near the die); 3D-ICE's real ground truth cools at `z=0` (bottom, `heat_sink`). The training data was never wrong — only the PINN's PDE/BC-loss target was. Fixed in `src/pinn/trainer.py`, `src/pinn/physics.py`, and `src/pinn/data_loader.py`; no dataset regeneration was needed since the ground truth was always correct.

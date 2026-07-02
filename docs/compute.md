@@ -119,8 +119,26 @@ Geometry6 (470k pts) adds ~2.7× overhead vs. geometry5 for FNO/CNO runs.
 | FNO baseline | 12.6M | hidden=32, modes=(16,16,12), 4 blocks |
 | CondFNO (FiLM) | 12.8M | +FiLMGenerator ~200k |
 | **CNO-FNO + PI + FiLM** | **1.6M** (g1), 2.4M (g2) | Latent FNO modes (8,8,5); 7.8× fewer params than FNO |
+| **WHNO** | **12.6M** | Same channels/modes config as FNO baseline (Walsh-Hadamard basis is a drop-in swap for the spectral conv, so equal param count by construction) |
 | PI-DeepONet | 538k | Branch 538→256×4→128 + Trunk 132→256×4→128 |
+| **ARO** | **~1.06M** | n_layers=11 (geometry5/6 default), hidden=32, 4 FiLM-FNO blocks, weight-tied across all z-layers |
 | GINO (theoretical) | ~8–12M | FNO latent + GNN encoder/decoder |
+
+> **WHNO and ARO training-time benchmarks are not yet measured at full config** (only
+> smoke-tested at reduced channels/epochs to validate correctness — see their respective
+> notebook/script validation runs). Rough estimates below are architecture-based, not
+> measured; treat with the same ±50% caveat the GPU extrapolations below already carry,
+> but with lower confidence since even the CPU baseline hasn't been measured at scale.
+> - **WHNO**: expect CPU/GPU cost roughly on par with FNO baseline — the Walsh-Hadamard
+>   transform is the same O(N log N) complexity class as FFT, with an added grid-padding-
+>   to-next-power-of-2 step (e.g. 100→128, 40→64) that FNO doesn't need, adding modest
+>   overhead proportional to the padding ratio.
+> - **ARO**: the autoregressive z-layer loop means training cost scales with `n_layers`
+>   sequential 2D-FNO forward/backward passes per sample, rather than one 3D pass — likely
+>   slower per-epoch than CNO-FNO at equal channel width despite far fewer total parameters,
+>   though each individual 2D step is far cheaper than a full 3D op. RNO-style windowed
+>   self-rollout training (see `src/aro/trainer.py`) adds a second forward/backward pass per
+>   step during pretraining, roughly doubling per-epoch cost during that phase only.
 
 ---
 
@@ -132,7 +150,9 @@ Geometry6 (470k pts) adds ~2.7× overhead vs. geometry5 for FNO/CNO runs.
 | FNO baseline | No (per grid) | Poor | Excellent | 12.6M | `--model fno` |
 | CondFNO (FiLM) | No | Poor | Excellent + BC adapt | 12.8M | `--model cond-fno` |
 | **CNO-FNO+PI+FiLM** | No | **Excellent** | **Excellent** | **1.6M** | *(default)* |
-| PI-DeepONet | **Yes (g1/2/3)** | Medium | Medium | 538k | `train_deeponet.py` |
+| **WHNO** | No (per grid) | **Excellent** (validated: 0% Gibbs overshoot vs FNO's ~8.7% on a synthetic step function) | Good | 12.6M | `--model whno` |
+| PI-DeepONet | **Yes (g1/2a/2b/2c/g3)** | Medium | Medium | 538k | `train_deeponet.py` |
+| **ARO** | No (per grid, weight-tied across z) | Good (autoregressive z-conditioning) | Good | ~1.06M | `train_aro.py` |
 | CNO-FNO+PI+FiLM (g6) | No (per grid) | **Excellent** | **Excellent** | ~2.4M | `--geometry geometry6` |
 | GINO | **Yes** | Excellent | Excellent | ~10M | Not implemented |
 

@@ -46,11 +46,11 @@ We model steady-state heat conduction in a 3D-IC package stack governed by:
 
 $$\nabla \cdot (k(T) \nabla T) + Q = 0 \quad \text{in } \Omega$$
 
-with a convective boundary condition at the top surface:
+with a convective boundary condition at the bottom surface (the `heat_sink` layer, `z=0`), matching 3D-ICE's own boundary-condition convention:
 
-$$-k \frac{\partial T}{\partial z}\bigg|_{z=z_{top}} = h \left(T - T_{amb}\right)$$
+$$-k \frac{\partial T}{\partial z}\bigg|_{z=0} = h \left(T - T_{amb}\right)$$
 
-and adiabatic conditions on all lateral and bottom faces. The domain Ω is a rectangular cuboid covering the full package stack — heat sink, spreader, TIM layers, and one or two active silicon dies. The volumetric power source Q is non-zero only in active silicon layers within designated power blocks.
+and adiabatic conditions on all lateral faces and the top surface (nearest the die). The domain Ω is a rectangular cuboid covering the full package stack — heat sink, spreader, TIM layers, and one or two active silicon dies. The volumetric power source Q is non-zero only in active silicon layers within designated power blocks.
 
 The thermal conductivity of silicon is temperature-dependent: $k_{Si}(T) = 148 \cdot (300/T)^{1.3}$ W/m·K [Glassbrenner & Slack, 1964], while copper and TIM layers use constant values.
 

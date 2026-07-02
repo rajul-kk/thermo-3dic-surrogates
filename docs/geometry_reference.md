@@ -355,6 +355,16 @@ constant per scenario.
 
 RDL blocks always receive `rdl_joule_fraction × base_power` regardless of pattern.
 
+**HBM/memory-stack power cap (geometry5/geometry6):** blocks matching `hbm*`,
+`chipB_d1*`, or `chipB_d2*` are capped to **2.0 W/cm²** after the pattern above is
+applied, regardless of `base_power` — real HBM3 dies dissipate far less power density
+than compute logic, and without this cap `split_chiplet_b_hot` and other patterns would
+push memory-stack dies into the same 0.1–20 W/cm² range as compute blocks, producing
+scenarios that exceed HBM3's realistic ~95–105°C junction-temperature envelope. This cap
+was added after the original dataset generation; geometry5/geometry6 were regenerated
+with it in place (geometry6's max training-scenario temperature dropped from 134°C to
+94.8°C as a result). See [`docs/assumptions.md`](assumptions.md) §7.1 for details.
+
 ### Test Scenarios (identical across all geometries)
 
 | # | Pattern | Peak power | HTC | T_amb | Purpose |
