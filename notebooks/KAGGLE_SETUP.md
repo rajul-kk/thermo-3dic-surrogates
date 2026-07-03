@@ -30,8 +30,8 @@ For geometry2 notebook you need `geometry2a_*`, `geometry2b_*`, `geometry2c_*` f
 
 | Notebook | What it trains | Data needed |
 |---|---|---|
-| `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN | geometry1 files |
-| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (2a/2b/2c) | geometry2a/b/c files |
+| `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry1 files |
+| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (2a/2b/2c) — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) on the first trained variant | geometry2a/b/c files |
 | `kaggle_pinn_sampling_comparison.ipynb` | Two PINNs, same architecture/seed, different collocation-sampling strategy (`rar` vs `curriculum`) — includes collocation-point evolution visualization | geometry1 files (default; any single geometry works) |
 | `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO on the same geometry — includes spectral mode-importance XAI and interface-distance-bucketed error comparison | geometry1 files (default; `geometry6` recommended for a stronger interface-discontinuity story, much slower) |
 | `kaggle_therm_fm.ipynb` | Pretrain CNO-FNO on `geometry1`, few-shot fine-tune on `geometry3` (same mesh shape, required by CNOFNOHybrid's fixed-grid architecture) — includes fine-tuned-vs-scratch shots comparison and weight-drift analysis | geometry1 AND geometry3 files (both needed) |

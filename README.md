@@ -188,7 +188,7 @@ Kaggle GPU training and model-comparison notebooks — see [`notebooks/KAGGLE_SE
 
 | Notebook | What it does |
 |---|---|
-| `kaggle_pinn_geometry1.ipynb` / `kaggle_pinn_geometry2.ipynb` | Standalone PINN training per geometry |
+| `kaggle_pinn_geometry1.ipynb` / `kaggle_pinn_geometry2.ipynb` | Standalone PINN training per geometry, with XAI (residual map, power/HTC sensitivity, integrated gradients, MC dropout uncertainty) |
 | `kaggle_pinn_sampling_comparison.ipynb` | Head-to-head comparison of two collocation-sampling strategies on identical architecture/seed |
 | `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO, with mode-importance XAI and interface-distance error analysis |
 | `kaggle_therm_fm.ipynb` | Pretrain-then-few-shot-fine-tune across geometries, with weight-drift analysis |
