@@ -127,7 +127,8 @@ def process_scenario(scenario_name: str,
                      calculator: StatisticsCalculator,
                      output_dir: Path,
                      use_synthetic: bool = False,
-                     generate_plots: bool = True) -> Dict:
+                     generate_plots: bool = True,
+                     allow_synthetic_fallback: bool = False) -> Dict:
     logger.info(f"Processing {scenario_name}...")
 
     # Step 1: Generate coordinates
@@ -158,6 +159,17 @@ def process_scenario(scenario_name: str,
                 geometry.get_layer_index_at_z(z) for z in coords[:, 2]
             ], dtype=np.int32)
         except Exception as e:
+            # A failed simulation must NOT silently become fabricated data. This
+            # fallback previously ran unconditionally and produced 155 files of
+            # synthetic garbage that were indistinguishable from real 3D-ICE output
+            # until checked by hand. Failing loudly is the only safe default when
+            # the caller asked for a real simulator.
+            if not allow_synthetic_fallback:
+                raise RuntimeError(
+                    f"Simulator failed for {scenario_name}: {e}\n"
+                    f"Refusing to substitute synthetic data. Re-run with "
+                    f"--allow-synthetic-fallback if approximate data is acceptable."
+                ) from e
             logger.warning(f"  Simulator failed, falling back to synthetic: {e}")
             temps = generate_synthetic_temperature(coords, geometry,
                                                   scenario_params.get('t_ambient', 25.0),
@@ -279,7 +291,8 @@ def process_geometry(geometry_name: str,
                     calculator,
                     train_dir,
                     use_synthetic=use_synthetic,
-                    generate_plots=(i == 1)  # Plot only first for speed
+                    generate_plots=(i == 1),  # Plot only first for speed
+                    allow_synthetic_fallback=args.allow_synthetic_fallback
                 )
                 all_stats['train'][scenario_name] = stats
                 scenario_count += 1
@@ -308,7 +321,8 @@ def process_geometry(geometry_name: str,
                     calculator,
                     test_dir,
                     use_synthetic=use_synthetic,
-                    generate_plots=(i == 1)  # Plot only first for speed
+                    generate_plots=(i == 1),  # Plot only first for speed
+                    allow_synthetic_fallback=args.allow_synthetic_fallback
                 )
                 all_stats['test'][scenario_name] = stats
                 scenario_count += 1
@@ -362,6 +376,9 @@ def main():
         action='store_true',
         help='Skip training scenarios'
     )
+    parser.add_argument(
+        '--allow-synthetic-fallback', action='store_true',
+        help='Substitute an analytical approximation when the simulator fails. OFF by default: a silent fallback once produced 155 files of synthetic data indistinguishable from real 3D-ICE output.')
     parser.add_argument(
         '--skip-test',
         action='store_true',

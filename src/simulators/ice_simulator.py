@@ -55,18 +55,80 @@ class ICESimulator(ThermalSimulator):
         cell_width = geometry.die_width / ny
         self._x_centers = np.linspace(cell_length / 2, geometry.die_length - cell_length / 2, nx)
         self._y_centers = np.linspace(cell_width / 2, geometry.die_width - cell_width / 2, ny)
+        self._sublayers = self._plan_sublayers(geometry)
         self._layer_names = [layer.name for layer in geometry.layers]
-        self._layer_z_centers = np.array([
-            (layer.z_bottom + layer.z_top) / 2 for layer in geometry.layers
-        ])
+        # One z-centre per EMITTED stack element (sub-layer), because 3D-ICE writes
+        # one Tmap per stack element and inst_N indexes that list.
+        self._layer_z_centers = np.array([s['z_center'] for s in self._sublayers])
         self._nx = nx
         self._ny = ny
 
-        # inst_N maps to layers[N] (geometry bottom-to-top order)
-        self._inst_to_layer_idx = {f"inst_{i}": i for i in range(len(geometry.layers))}
+        # inst_N maps to the ORIGINAL geometry layer a sub-layer came from.
+        self._inst_to_layer_idx = {
+            f"inst_{i}": s['layer_idx'] for i, s in enumerate(self._sublayers)
+        }
 
         self._generate_floorplan_files(geometry, scenario)
         self._generate_stack_file(geometry, scenario)
+
+    # Vertical discretisation. 3D-ICE's compact model puts ONE temperature node at
+    # the centre of each stack element, so z-resolution equals the number of elements
+    # emitted -- not the geometry's declared mesh nz. Emitting one element per
+    # geometry layer gave geometry1 six z-nodes spanning 6.4 mm, with spacing ranging
+    # 100-2550 um (25x non-uniform); geometry5/6 reached 93x. That is the direction
+    # heat actually flows in a layered stack, and it starved every downstream model:
+    # an FNO asked for 12 spectral z-modes silently got min(12, 6//2+1) = 4.
+    #
+    # Splitting a layer into N sub-layers of the same material leaves the physics
+    # untouched -- same total thickness, same conductivity -- and multiplies the
+    # nodes through it. Only non-active layers are split; active dies carry the
+    # `source` term and stay single elements so the floorplan mapping is unchanged.
+    # Chosen against the solver's real limits, measured on geometry1:
+    #
+    #   z-nodes   nodes    solve      status
+    #        6     60k      4.0 s     OK   (one element per geometry layer)
+    #        8     80k      7.8 s     OK
+    #       10    100k     13.1 s     OK
+    #       13    130k     35.7 s     OK
+    #       28    280k        --      FAILS: SuperLU "Storage for U columns
+    #                                 exceeded ... need 96441435", 3D-ICE uses a
+    #                                 direct sparse LU whose fill-in blows up.
+    #
+    # Solve cost grows roughly as nodes^2.6, so resolution is bought steeply:
+    # 1200 um gives 10-15 z-nodes across the suite for ~1.5 h of regeneration,
+    # while 800 um gives 13-18 for ~2.5 h. 1200 roughly doubles the usable FNO
+    # z-modes (4 -> 6-8) at a cost comparable to the existing pipeline.
+    MAX_SUBLAYER_UM = 1200.0
+    MAX_SUBLAYERS_PER_LAYER = 12  # bounds fill-in on very thick heat sinks
+
+    def _plan_sublayers(self, geometry: Geometry) -> List[Dict[str, Any]]:
+        """
+        Expand geometry layers into the stack elements actually emitted.
+
+        Returns one dict per element, bottom-to-top:
+            layer_idx  index of the originating geometry layer
+            thickness  element thickness in um
+            z_center   element centre in um (absolute)
+            is_active  whether this element carries the power source
+        """
+        plan: List[Dict[str, Any]] = []
+        for i, layer in enumerate(geometry.layers):
+            if layer.is_active:
+                n_sub = 1        # source layers stay whole
+            else:
+                n_sub = int(np.ceil(layer.thickness / self.MAX_SUBLAYER_UM))
+                n_sub = max(1, min(n_sub, self.MAX_SUBLAYERS_PER_LAYER))
+
+            t_sub = layer.thickness / n_sub
+            for j in range(n_sub):
+                z_bot = layer.z_bottom + j * t_sub
+                plan.append({
+                    'layer_idx': i,
+                    'thickness': t_sub,
+                    'z_center': z_bot + t_sub / 2.0,
+                    'is_active': layer.is_active,
+                })
+        return plan
 
     def _generate_stack_file(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
         """Generate 3D-ICE stack description file (.stk) with correct µm-unit syntax."""
@@ -115,33 +177,40 @@ class ICESimulator(ThermalSimulator):
 
         # ── Layer / die type definitions ──────────────────────────────────────
         # 3D-ICE grammar requires ALL layer definitions before ALL die definitions.
-        for i, layer in enumerate(geometry.layers):
-            if not layer.is_active:
-                mat_name = self._get_layer_material_name(layer, layer_k_overrides, i)
-                lines.append(f"layer type_layer_{i} :")
-                lines.append(f"   height {layer.thickness:.1f} ;")
-                lines.append(f"   material {mat_name} ;")
-                lines.append("")
+        # One definition per emitted sub-layer; several may share a geometry layer's
+        # material but each needs its own type because heights differ across layers.
+        for s_idx, sub in enumerate(self._sublayers):
+            if sub['is_active']:
+                continue
+            layer = geometry.layers[sub['layer_idx']]
+            mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
+            lines.append(f"layer type_layer_{s_idx} :")
+            lines.append(f"   height {sub['thickness']:.1f} ;")
+            lines.append(f"   material {mat_name} ;")
+            lines.append("")
 
-        for i, layer in enumerate(geometry.layers):
-            if layer.is_active:
-                mat_name = self._get_layer_material_name(layer, layer_k_overrides, i)
-                lines.append(f"die type_die_{i} :")
-                lines.append(f"   source {layer.thickness:.1f} {mat_name} ;")
-                lines.append("")
+        for s_idx, sub in enumerate(self._sublayers):
+            if not sub['is_active']:
+                continue
+            layer = geometry.layers[sub['layer_idx']]
+            mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
+            lines.append(f"die type_die_{s_idx} :")
+            lines.append(f"   source {sub['thickness']:.1f} {mat_name} ;")
+            lines.append("")
 
         # ── Stack assembly: 3D-ICE lists TOP → BOTTOM; geometry is BOTTOM → TOP
-        # Each active layer has its own per-layer floorplan file.
+        # Each active layer has its own per-layer floorplan file, keyed by the
+        # ORIGINAL geometry layer index (floorplans are unaffected by subdivision).
         lines.append("stack :")
-        for i, layer in reversed(list(enumerate(geometry.layers))):
-            inst = f"inst_{i}"
-            if layer.is_active:
-                flp_name = f'floorplan_layer{i}.flp'
+        for s_idx, sub in reversed(list(enumerate(self._sublayers))):
+            inst = f"inst_{s_idx}"
+            if sub['is_active']:
+                flp_name = f"floorplan_layer{sub['layer_idx']}.flp"
                 flp_abs  = (self.config_dir / flp_name).resolve()
                 flp_path = self._to_wsl_path(flp_abs) if getattr(self, '_use_wsl', False) else str(flp_abs)
-                lines.append(f"   die   {inst}  type_die_{i}    floorplan \"{flp_path}\" ;")
+                lines.append(f"   die   {inst}  type_die_{s_idx}    floorplan \"{flp_path}\" ;")
             else:
-                lines.append(f"   layer {inst}  type_layer_{i} ;")
+                lines.append(f"   layer {inst}  type_layer_{s_idx} ;")
         lines.append("")
 
         # ── Solver ────────────────────────────────────────────────────────────
@@ -153,7 +222,7 @@ class ICESimulator(ThermalSimulator):
         # ── Output: Tmap per stack element ────────────────────────────────────
         # Files are written to output_dir named output_inst_N.txt
         lines.append("output :")
-        for i in reversed(range(len(geometry.layers))):
+        for i in reversed(range(len(self._sublayers))):
             inst = f"inst_{i}"
             out_abs  = (self.output_dir / f"output_{inst}.txt").resolve()
             out_path = self._to_wsl_path(out_abs) if getattr(self, '_use_wsl', False) else str(out_abs)
@@ -274,13 +343,20 @@ class ICESimulator(ThermalSimulator):
         stk_arg   = self._to_wsl_path(stk_file.resolve()) if use_wsl else str(stk_file)
         cmd       = exe_parts + [stk_arg]
 
+        # Scale the timeout with problem size. A flat 300 s was fine at one stack
+        # element per geometry layer, but sub-layer discretisation multiplies the
+        # node count ~5x and the solve exceeded it -- which surfaced as a "simulator
+        # failed" fallback rather than an obvious timeout.
+        n_nodes = self._nx * self._ny * max(len(getattr(self, '_sublayers', [])), 1)
+        timeout_s = max(300.0, 300.0 + n_nodes / 400.0)
+
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 cwd=None if use_wsl else str(self.config_dir),
-                timeout=300
+                timeout=timeout_s
             )
 
             if result.returncode != 0:
