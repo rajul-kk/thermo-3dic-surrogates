@@ -15,10 +15,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.core.geometry_builders import (
-    build_geometry1, build_geometry2a, build_geometry2b, build_geometry2c,
-    build_geometry3, build_geometry4, build_geometry5,
-)
+from src.core.geometry_builders import build_all_geometries
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.simulators.ice_simulator import ICESimulator
@@ -57,15 +54,7 @@ class JobQueue:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._output_base = Path(output_base)
         self._ice_executable = ice_executable
-        self._builtin = {
-            'geometry1':  build_geometry1(),
-            'geometry2a': build_geometry2a(),
-            'geometry2b': build_geometry2b(),
-            'geometry2c': build_geometry2c(),
-            'geometry3':  build_geometry3(),
-            'geometry4':  build_geometry4(),
-            'geometry5':  build_geometry5(),
-        }
+        self._builtin = {geom.name: geom for geom in build_all_geometries()}
         self._custom: dict = {}
 
     # ── Geometry management ────────────────────────────────────────────────
