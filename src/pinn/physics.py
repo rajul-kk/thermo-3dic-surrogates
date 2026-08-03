@@ -139,11 +139,18 @@ def pde_residual(
     # Second derivatives: d(kTx)/dx via autograd
     # We need to differentiate through k*dT_dx, which itself contains T_hat
     # Use create_graph=True so higher-order gradients flow back
+    # kTx/kTy/kTz already carry T_range (it was applied in dT_dx/dy/dz above), so
+    # dividing each normalised-space gradient by its physical length is the whole
+    # chain rule. A second `* T_range` here would double-count it -- that bug was
+    # present until 2026-07-31 and inflated the conduction term by (T_max - T_min),
+    # i.e. ~65-100x, effectively driving the PDE loss to enforce div(k grad T) = 0
+    # while ignoring the source Q. Pinned by
+    # tests/test_physics.py::test_quadratic_field_matches_analytic_divergence.
     div_kT = (
         _grad(kTx, coords_col)[:, 0] / L_x
         + _grad(kTy, coords_col)[:, 1] / L_y
         + _grad(kTz, coords_col)[:, 2] / L_z
-    ) * T_range  # chain rule back to physical units
+    )
 
     # Power source term Q in W/m³, scaled to match div_kT units (W/µm³ * 1e18)
     Q_phys = power_col * power_scale * 1e-18   # W/µm³
