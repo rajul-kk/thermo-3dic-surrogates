@@ -41,6 +41,12 @@ class ScenarioParameters:
     description: str = ""
     rdl_joule_fraction: float = 0.05
     layer_k_overrides: Dict[str, float] = field(default_factory=dict)
+    # Per-cell power maps in WATTS per cell, keyed by active layer name. When set,
+    # these replace the block decomposition for that layer in the 3D-ICE floorplan.
+    # power_blocks is still populated (from the map) so downstream consumers that
+    # summarise a scenario by block keep working.
+    power_map_by_layer: Dict[str, Any] = field(default_factory=dict)
+    power_map_kind: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for YAML export."""
@@ -55,6 +61,8 @@ class ScenarioParameters:
             'description': self.description,
             'rdl_joule_fraction': self.rdl_joule_fraction,
             'layer_k_overrides': self.layer_k_overrides,
+            'power_map_by_layer': self.power_map_by_layer,
+            'power_map_kind': self.power_map_kind,
         }
 
 
@@ -264,6 +272,83 @@ class ScenarioGenerator:
             span = self.MAX_HTC - self.MIN_HTC
             frac = (s.htc - self.MIN_HTC) / span if span > 0 else 0.0
             s.htc = floor + frac * (self.MAX_HTC - floor)
+        return scenarios
+
+    def attach_power_maps(self, scenarios: List[ScenarioParameters],
+                          geometry: Geometry,
+                          kind: str = 'mixed',
+                          resolution: int = 0,
+                          seed_base: int = 0) -> List[ScenarioParameters]:
+        """
+        Replace each scenario's block powers with a per-cell power map.
+
+        The TDP budget, the silicon density ceiling and the cooling-adequacy rule
+        all still apply -- the map only changes HOW the budget is distributed in
+        space, not how much there is. `power_blocks` is recomputed from the map so
+        anything summarising a scenario by block keeps working.
+
+        Args:
+            scenarios:  Scenarios to modify in place.
+            geometry:   Geometry supplying die extents and active layers.
+            kind:       Power map family (see src/scenario/power_maps.py).
+            resolution: Map resolution per axis; defaults to the lateral mesh.
+            seed_base:  Offset so different splits get different maps.
+        """
+        from .power_maps import generate_power_map
+
+        self._set_active_geometry(geometry)
+        active = [l for l in geometry.layers if l.is_active]
+        if not active:
+            return scenarios
+
+        nx = resolution or int(geometry.mesh_resolution[0])
+        ny = resolution or int(geometry.mesh_resolution[1])
+        # Floorplan axis order is (length, width); mesh_resolution is (x=width, y=length).
+        n_l, n_w = ny, nx
+        cell_area_cm2 = (geometry.die_length / n_l) * (geometry.die_width / n_w) / 1e8
+
+        for idx, s in enumerate(scenarios):
+            # Workload fraction is recovered from the scenario's own total power so
+            # the map inherits the TDP/workload level already assigned to it.
+            prev_total_w = sum(
+                p * self._active_block_area_cm2.get(n, 0.0)
+                for n, p in s.power_blocks.items()
+            )
+            if prev_total_w <= 0:
+                continue
+
+            s.power_map_kind = kind
+            s.power_map_by_layer = {}
+            per_layer_w = prev_total_w / len(active)
+
+            for li, layer in enumerate(active):
+                shape = generate_power_map(
+                    n_l, n_w, kind=kind, seed=seed_base + 1000 * idx + li)
+
+                # Scale so the layer dissipates its share of the scenario budget.
+                dens = shape / shape.sum() * per_layer_w / cell_area_cm2   # W/cm2
+                # Absolute silicon ceiling still applies pointwise.
+                dens = np.minimum(dens, self.MAX_LOGIC_POWER_DENSITY_WCM2)
+                s.power_map_by_layer[layer.name] = dens * cell_area_cm2    # -> W/cell
+
+            # Rebuild block powers as the mean density over each block's footprint,
+            # so summaries and the cooling-adequacy rule see a faithful picture.
+            for b in geometry.power_blocks:
+                if b.is_tsv_region or b.name not in s.power_blocks:
+                    continue
+                pm = s.power_map_by_layer.get(b.layer_name)
+                if pm is None:
+                    continue
+                a0 = int(b.y / geometry.die_length * n_l)
+                a1 = max(a0 + 1, int((b.y + b.height) / geometry.die_length * n_l))
+                b0 = int(b.x / geometry.die_width * n_w)
+                b1 = max(b0 + 1, int((b.x + b.width) / geometry.die_width * n_w))
+                patch = pm[a0:a1, b0:b1]
+                s.power_blocks[b.name] = (float(patch.mean()) / cell_area_cm2
+                                          if patch.size else 0.0)
+
+        # Cooling must still match the (new) peak density.
+        self._enforce_cooling_adequacy(scenarios)
         return scenarios
 
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:

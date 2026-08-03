@@ -139,7 +139,9 @@ def process_scenario(scenario_name: str,
     # Step 2: Run simulation
     logger.debug(f"  Running thermal simulation...")
     # Always generate power and layer indices from geometry (simulator only returns coords+temp)
-    power = generate_power_density_field(coords, geometry, scenario_params['power_blocks'])
+    power = generate_power_density_field(
+        coords, geometry, scenario_params['power_blocks'],
+        power_map_by_layer=scenario_params.get('power_map_by_layer'))
 
     if use_synthetic:
         # Synthetic data for testing (no 3D-ICE required)
@@ -154,7 +156,9 @@ def process_scenario(scenario_name: str,
             coords = parsed['coords']
             temps = parsed['temperature']
             # Regenerate power and layer_indices on the simulator's output grid
-            power = generate_power_density_field(coords, geometry, scenario_params['power_blocks'])
+            power = generate_power_density_field(
+        coords, geometry, scenario_params['power_blocks'],
+        power_map_by_layer=scenario_params.get('power_map_by_layer'))
             layer_indices = np.array([
                 geometry.get_layer_index_at_z(z) for z in coords[:, 2]
             ], dtype=np.int32)
@@ -380,6 +384,15 @@ def main():
         help='Skip training scenarios'
     )
     parser.add_argument(
+        '--power-map', choices=['grf', 'floorplan', 'mixed'], default=None,
+        help='Use per-cell power maps instead of block scalars. Block power spans '
+             'only ~4 dimensions no matter how many scenarios are generated, which '
+             'is why ridge regression solves the block-scalar dataset; power maps '
+             'span ~N-1. TDP budget and density limits are preserved.')
+    parser.add_argument(
+        '--power-map-resolution', type=int, default=0,
+        help='Power map cells per axis (0 = use the lateral mesh resolution).')
+    parser.add_argument(
         '--allow-synthetic-fallback', action='store_true',
         help='Substitute an analytical approximation when the simulator fails. OFF by default: a silent fallback once produced 155 files of synthetic data indistinguishable from real 3D-ICE output.')
     parser.add_argument(
@@ -497,6 +510,14 @@ def main():
 
         # Always generate base 15 train + 5 test first
         geom_scenarios = scenario_generator.generate_all_scenarios(geom)
+        if args.power_map:
+            # Replace block scalars with per-cell power fields. Keeps the TDP
+            # budget, density ceiling and cooling rule; only redistributes power
+            # in space. This is what makes the input a function rather than ~8
+            # numbers -- see src/scenario/power_maps.py.
+            scenario_generator.attach_power_maps(
+                geom_scenarios, geom, kind=args.power_map,
+                resolution=args.power_map_resolution)
         scenario_dicts = [s.to_dict() for s in geom_scenarios]
         train = [s for s in scenario_dicts if s['type'] == 'train']
         test  = [s for s in scenario_dicts if s['type'] == 'test']
@@ -515,6 +536,10 @@ def main():
                 geom, args.extra_train, start_index=start,
                 pool_start_idx=args.pool_start,
             )
+            if args.power_map:
+                scenario_generator.attach_power_maps(
+                    extra, geom, kind=args.power_map,
+                    resolution=args.power_map_resolution, seed_base=500_000)
             train = train + [s.to_dict() for s in extra]
             logger.info(
                 "  %s: 15 base + %d extra train + 5 test  (extra indices %d-%d)",

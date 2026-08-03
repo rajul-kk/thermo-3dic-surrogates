@@ -263,6 +263,33 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"// 3D-ICE Floorplan — {geometry.name} layer {i}: {layer.name}")
             lines.append("")
 
+            # Per-cell power map, when the scenario carries one. The map replaces
+            # the block decomposition entirely for this layer: each cell becomes
+            # its own floorplan element. Solve cost is unaffected -- 3D-ICE's cost
+            # is set by the mesh, not the floorplan (measured 13.3 s for 4 elements
+            # and 13.5 s for 10,000 on geometry1) -- but the input stops being a
+            # handful of scalars, which is what makes the solution operator a
+            # genuine Green's function rather than a low-dimensional linear map.
+            pmap = (scenario.get('power_map_by_layer') or {}).get(layer.name)
+            if pmap is not None:
+                pmap = np.asarray(pmap, dtype=np.float64)
+                n_l, n_w = pmap.shape
+                tile_l = geometry.die_length / n_l
+                tile_w = geometry.die_width / n_w
+                for a in range(n_l):
+                    for b in range(n_w):
+                        p_w = float(pmap[a, b])
+                        if p_w <= 0.0:
+                            continue
+                        lines.append(f"c_{a}_{b} :")
+                        lines.append(f"   position  {a * tile_l:.1f}, {b * tile_w:.1f} ;")
+                        lines.append(f"   dimension {tile_l:.1f}, {tile_w:.1f} ;")
+                        lines.append(f"   power values  {p_w:.6f} ;")
+                        lines.append("")
+                with open(flp_file, 'w') as f:
+                    f.write('\n'.join(lines))
+                continue
+
             for block in layer_blocks:
                 power_density_wcm2 = power_scenario.get(block.name, 0.0)
                 power_w = block.power_watts(power_density_wcm2)

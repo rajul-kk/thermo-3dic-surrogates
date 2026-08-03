@@ -56,14 +56,36 @@ _log = logging.getLogger('baselines')
 # ── Data loading ───────────────────────────────────────────────────────────────
 
 def load_scenario(path: Path) -> dict:
-    """Load one NPZ into a plain dict (coords, temp, metadata)."""
+    """Load one NPZ into a plain dict (coords, temp, power, metadata)."""
     d = np.load(path, allow_pickle=True)
     return {
         'name':   path.stem,
         'coords': d['coords'].astype(np.float64),
         'temp':   d['temp'].astype(np.float64),
+        'power':  d['power'].astype(np.float64),
         'meta':   d['metadata'].item(),
     }
+
+
+def power_pca_features(train: List[dict], test: List[dict], n_comp: int
+                       ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Project each scenario's full power field onto its leading principal components.
+
+    Needed to keep ridge a FAIR baseline once power becomes a per-cell field. With
+    block-scalar power the whole source is 4-13 numbers and ridge can consume it
+    directly; with a per-cell map the source has ~10,000 degrees of freedom and
+    handing ridge only the block means would rig the comparison by hiding most of
+    the input. PCA gives the linear model the best n_comp-dimensional summary of
+    the source that exists, so if it still loses, it loses on the merits.
+    """
+    P_tr = np.stack([sc['power'] for sc in train])
+    mu = P_tr.mean(0)
+    # Economy SVD of the centred training fields; components are rows of Vt.
+    _, _, Vt = np.linalg.svd(P_tr - mu, full_matrices=False)
+    basis = Vt[:min(n_comp, Vt.shape[0])]
+    proj = lambda S: np.stack([(sc['power'] - mu) @ basis.T for sc in S])
+    return proj(train), proj(test)
 
 
 def feature_vector(meta: dict, block_keys: List[str]) -> np.ndarray:
@@ -147,9 +169,19 @@ def aggregate(per_scenario: List[Dict[str, float]]) -> Dict[str, float]:
 # ── Baselines ──────────────────────────────────────────────────────────────────
 
 def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
-                k: int, ridge_lambda: float) -> Dict[str, List[Dict[str, float]]]:
+                k: int, ridge_lambda: float, power_pca: int = 0
+                ) -> Dict[str, List[Dict[str, float]]]:
     """Run every baseline; return {baseline_name: [per-scenario metrics]}."""
     X_tr = np.stack([feature_vector(sc['meta'], block_keys) for sc in train])
+    X_te = np.stack([feature_vector(sc['meta'], block_keys) for sc in test])
+
+    if power_pca > 0:
+        # Append a linear summary of the full power field so ridge sees the actual
+        # source, not just its block averages.
+        A_tr, A_te = power_pca_features(train, test, power_pca)
+        X_tr = np.hstack([X_tr, A_tr])
+        X_te = np.hstack([X_te, A_te])
+
     Y_tr = np.stack([sc['temp'] for sc in train])           # (n_train, n_points)
 
     # Standardise features for distance-based methods (guard zero-variance cols).
@@ -167,8 +199,8 @@ def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
     mean_field = Y_tr.mean(0)
     results: Dict[str, List[Dict[str, float]]] = {n: [] for n in ('mean', 'nn', 'knn', 'ridge')}
 
-    for sc in test:
-        x = (feature_vector(sc['meta'], block_keys) - mu) / sigma
+    for ti, sc in enumerate(test):
+        x = (X_te[ti] - mu) / sigma
         true, coords = sc['temp'], sc['coords']
 
         results['mean'].append(metrics(mean_field, true, coords))
@@ -201,6 +233,10 @@ def main() -> None:
     p.add_argument('--k', type=int, default=3, help="Neighbours for knn (default: 3)")
     p.add_argument('--ridge-lambda', type=float, default=1.0,
                    help="L2 penalty for the ridge baseline (default: 1.0)")
+    p.add_argument('--power-pca', type=int, default=0,
+                   help="Give ridge/kNN this many principal components of the FULL "
+                        "power field as extra features. Required for a fair comparison "
+                        "on per-cell power data: block means hide most of the source.")
     p.add_argument('--output', type=Path, default=None, help="Write results JSON here")
     args = p.parse_args()
 
@@ -243,7 +279,8 @@ def main() -> None:
     _log.info("%s: %d train, %d %s, %d points, %d power blocks",
               args.geometry, len(train), len(test), split_label, n_pts, len(block_keys))
 
-    raw = fit_predict(train, test, block_keys, args.k, args.ridge_lambda)
+    raw = fit_predict(train, test, block_keys, args.k, args.ridge_lambda,
+                      power_pca=args.power_pca)
     summary = {name: aggregate(m) for name, m in raw.items()}
 
     spatial_std = float(np.mean([m['true_spatial_std_K'] for m in raw['mean']]))
