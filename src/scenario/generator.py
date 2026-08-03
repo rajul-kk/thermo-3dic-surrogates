@@ -124,6 +124,21 @@ class ScenarioGenerator:
     }
     TDP_DEFAULT_W = 150.0
 
+    # Fraction of package TDP dissipated by the MODELLED power blocks.
+    #
+    # The blocks represent compute cores and cover only 20-62% of the die area.
+    # The rest of a real die -- cache, IO, uncore, memory controllers -- also
+    # dissipates, but is not modelled as a separate source here. Assigning the full
+    # package TDP to the blocks therefore concentrates all of it into a minority of
+    # the area: geometry1 got 125 W into 0.36 cm2 = 347 W/cm2 average, above the
+    # 300 W/cm2 silicon ceiling before any hotspot pattern was applied, and produced
+    # junctions up to 165 C with 10 of 45 scenarios past 125 C.
+    #
+    # Compute cores are typically 60-70% of package power in desktop and server
+    # parts, with the balance in uncore and IO. 0.65 puts every geometry's peak
+    # junction back inside a plausible envelope.
+    CORE_FRACTION_OF_TDP = 0.65
+
     # A pattern's `base_power` argument now selects a WORKLOAD FRACTION of TDP rather
     # than an absolute W/cm2: base_power = 10 means 100% of TDP, 20 means a 120%
     # boost excursion, and low values represent idle/light load. The pattern itself
@@ -741,7 +756,7 @@ class ScenarioGenerator:
         no known area (or a degenerate map) are left untouched rather than silently
         divided by zero.
         """
-        target_w = self._active_tdp_w * workload
+        target_w = self._active_tdp_w * workload * self.CORE_FRACTION_OF_TDP
         current_w = sum(p * self._active_block_area_cm2.get(n, 0.0)
                         for n, p in power_map.items())
         if current_w <= 0.0:
