@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import torch
 
 from src.core.geometry_builders import get_geometry_by_name, build_all_geometries
+from src.reproducibility import set_seed, add_seed_args
 from src.pinn.data_loader import NormStats, compute_norm_stats
 from src.fno.model import build_fno, build_cond_fno, build_cno_fno
 from src.fno.whno import build_whno
@@ -113,12 +114,12 @@ def parse_args():
                    help='Number of FNO blocks')
     p.add_argument('--attention', action='store_true', default=False,
                    help='(cno-fno only) Add axial self-attention (SAU-FNO style) to '
-                        'each latent FiLM-FNO block. Uses x→y→z factorised attention '
+                        'each latent FiLM-FNO block. Uses x->y->z factorised attention '
                         '(~112 KB/sample) + FlashAttention on CUDA via PyTorch 2.x. '
                         'Adds ~1M params and ~20%% compute overhead.')
     p.add_argument('--n-heads', type=int, default=4,
                    help='(--attention only) Number of attention heads. '
-                        'Must divide --channels evenly (default 4 → head_dim = ch/4).')
+                        'Must divide --channels evenly (default 4 -> head_dim = ch/4).')
 
     # --- Physics loss ---
     p.add_argument('--physics', action=argparse.BooleanOptionalAction, default=None,
@@ -161,6 +162,7 @@ def parse_args():
     p.add_argument('--norm-stats', type=Path, default=None,
                    help='Path to existing norm_stats.json (skip recomputation)')
 
+    add_seed_args(p)
     return p.parse_args()
 
 
@@ -324,6 +326,7 @@ def run_single(geom_names: list, args, device: torch.device, model_name: str) ->
 
 def main():
     args = parse_args()
+    set_seed(args.seed, deterministic=args.deterministic)
     _resolve_defaults(args)
 
     device = torch.device(args.device) if args.device else (

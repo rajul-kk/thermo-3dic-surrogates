@@ -48,6 +48,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.reproducibility import set_seed
 from src.fno.model import CNOFNOHybrid, build_cno_fno
 from src.fno.data_loader import FNODataset
 from src.pinn.data_loader import NormStats
@@ -236,7 +237,7 @@ def main():
                         format='%(asctime)s %(levelname)s: %(message)s',
                         datefmt='%H:%M:%S')
 
-    torch.manual_seed(args.seed)
+    set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     _log.info("Device: %s", device)
 

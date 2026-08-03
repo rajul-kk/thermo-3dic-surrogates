@@ -58,6 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import torch
 
 from src.core.geometry_builders import get_geometry_by_name
+from src.reproducibility import set_seed, add_seed_args
 from src.pinn.data_loader import NormStats, compute_norm_stats
 from src.deeponet.model import build_deeponet
 from src.deeponet.cno_model import build_cno_deeponet
@@ -159,6 +160,7 @@ def parse_args():
                    help='Training device: cuda, cpu (default: auto-detect)')
     p.add_argument('--norm-stats', type=Path, default=None,
                    help='Path to existing norm_stats.json (skip recomputation)')
+    add_seed_args(p)
     return p.parse_args()
 
 
@@ -181,6 +183,7 @@ def collect_files(data_dir: Path, geom_name: str, split: str) -> list:
 
 def main():
     args = parse_args()
+    set_seed(args.seed, deterministic=args.deterministic)
 
     # Resolve geometry list based on model type and flags
     if args.geometries is None:

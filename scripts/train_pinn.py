@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import torch
 
 from src.core.geometry_builders import get_geometry_by_name
+from src.reproducibility import set_seed, add_seed_args
 from src.pinn.data_loader import ThermalDataset, NormStats, compute_norm_stats
 from src.pinn.model import build_model
 from src.pinn.trainer import Trainer
@@ -125,6 +126,7 @@ def parse_args():
                         'autograd create_graph=True. Eliminates retained '
                         'computation graphs: ~1.5-2x memory reduction and '
                         '1.5-2x faster PDE step on CUDA. Requires PyTorch 2.0+.')
+    add_seed_args(p)
     return p.parse_args()
 
 
@@ -151,6 +153,7 @@ def collect_npz_files(data_dir: Path, geom_name: str, split: str) -> list:
 
 def main():
     args = parse_args()
+    set_seed(args.seed, deterministic=args.deterministic)
     if args.cpu_fast:
         _apply_cpu_fast(args)
     geom_name = args.geometry

@@ -35,6 +35,7 @@ import torch
 # Make project root importable when run as a script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.reproducibility import set_seed
 from src.aro.model import build_aro
 from src.aro.data_loader import ARODataset
 from src.aro.trainer import AROTrainer
@@ -112,7 +113,7 @@ def main():
                         format='%(asctime)s %(levelname)s %(name)s: %(message)s',
                         datefmt='%H:%M:%S')
 
-    torch.manual_seed(args.seed)
+    set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     _log.info("Device: %s", device)
 
