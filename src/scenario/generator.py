@@ -247,9 +247,23 @@ class ScenarioGenerator:
         for s in scenarios:
             if not s.power_blocks:
                 continue
-            required = self.HTC_PER_WCM2 * max(s.power_blocks.values())
-            if required > s.htc:
-                s.htc = min(required, self.MAX_HTC)
+            floor = min(self.HTC_PER_WCM2 * max(s.power_blocks.values()), self.MAX_HTC)
+            if floor <= s.htc:
+                continue
+
+            # Rescale into the feasible band [floor, MAX_HTC] instead of collapsing
+            # onto the floor. Clamping made HTC a near-deterministic function of
+            # power -- 58% of geometry1 scenarios landed exactly on the floor,
+            # correlation +0.82 -- which handed a linear model the relationship for
+            # free and destroyed the benchmark's hardest axis: ridge went from
+            # spatial R2 -16.7 to +0.98 on the HTC extrapolation split.
+            #
+            # Preserving each scenario's relative position in the sweep keeps the
+            # cooling variation independent while still guaranteeing that no
+            # scenario asks for less cooling than its power density requires.
+            span = self.MAX_HTC - self.MIN_HTC
+            frac = (s.htc - self.MIN_HTC) / span if span > 0 else 0.0
+            s.htc = floor + frac * (self.MAX_HTC - floor)
         return scenarios
 
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:
