@@ -11,12 +11,30 @@ Each dataset item is a dict so the trainer can access fields by name without
 positional index bugs. No custom collation required; torch's default collate
 handles dicts of same-shape tensors correctly.
 
-Multi-geometry training: pass files from all geometries into a single
-FNODataset. The model's grid_shape must match ALL files — mixed-geometry
-batches are rejected at load time. If you need to train across geometries
-with different grid shapes, you need either (a) separate datasets with separate
-training loops, or (b) interpolate everything to a common grid. Option (a) is
-implemented here; option (b) is out of scope.
+Multi-geometry training
+-----------------------
+The eight benchmark geometries produce five incompatible grid shapes:
+
+    (100, 100,  6)  geometry1, geometry3
+    ( 80,  80, 10)  geometry2a/b/c
+    (100,  56,  6)  geometry4
+    (100,  56, 11)  geometry5
+    ( 56, 168, 11)  geometry6
+
+FNO's spectral convolution takes an FFT over the spatial dims, so a single model
+cannot span these natively. Two options: (a) one dataset and training loop per
+grid shape, or (b) resample everything onto a common grid. BOTH are supported.
+
+Pass `target_grid` to enable (b). Every file is then built at its own native
+resolution and trilinearly resampled onto the shared grid, so one FNO can train
+across all eight geometries.
+
+Resampling alone would be lossy in a way that matters: an 8x8 mm die and a
+42x14 mm die resampled to the same array are indistinguishable, and the operator
+would be asked to learn contradictory mappings. Each item therefore also carries
+`geom_extent_norm` — the physical (width, length, height) of the package — so the
+model conditions on real spatial scale rather than array indices. That is what
+keeps each geometry's specific physics learnable after resampling.
 """
 
 import logging
@@ -30,6 +48,19 @@ from torch.utils.data import Dataset
 from ..pinn.data_loader import NormStats
 
 _log = logging.getLogger(__name__)
+
+
+def _resample(grid: torch.Tensor, target: Tuple[int, int, int],
+              mode: str) -> torch.Tensor:
+    """
+    Resample a (nx, ny, nz) grid onto `target`.
+
+    `mode` is 'trilinear' for continuous fields (power, temperature) or 'nearest'
+    for categorical ones (layer identity).
+    """
+    x = grid[None, None]                                   # (1,1,nx,ny,nz)
+    kw = {'align_corners': False} if mode != 'nearest' else {}
+    return torch.nn.functional.interpolate(x, size=tuple(target), mode=mode, **kw)[0, 0]
 
 
 class FNODataset(Dataset):
@@ -49,24 +80,49 @@ class FNODataset(Dataset):
     on Windows where pin_memory has known reliability problems with large tensors.
     """
 
+    # Normalisation constants for the physical-extent conditioning channel. Fixed
+    # rather than data-derived so a model trained on one subset stays comparable to
+    # one trained on another. Covers 8x8 mm up to 42x14 mm packages.
+    _EXTENT_XY_REF_UM = 50000.0
+    _EXTENT_Z_REF_UM = 10000.0
+
     def __init__(
         self,
         npz_files: List[Path],
         norm_stats: NormStats,
-        expected_grid: Tuple[int, int, int],   # (nx, ny, nz) — all files must match
+        expected_grid: Tuple[int, int, int],   # (nx, ny, nz)
+        target_grid: Tuple[int, int, int] = None,
     ):
+        """
+        Args:
+            expected_grid: Native grid used when `target_grid` is None. All files
+                must match it, and non-matching files are skipped.
+            target_grid: If given, each file is built at its OWN native resolution
+                (read from its metadata) and resampled onto this shared grid,
+                enabling one FNO across geometries with different mesh shapes.
+        """
         self.norm_stats = norm_stats
         self.expected_grid = expected_grid
+        self.target_grid = target_grid
+        self.grid_shape = target_grid or expected_grid
         self.items: List[Dict] = []
-
-        nx, ny, nz = expected_grid
-        n_expected_full = nx * ny * nz
 
         for path in npz_files:
             data = np.load(path, allow_pickle=True)
             meta = dict(data['metadata'][0])
             n_points = data['coords'].shape[0]
             n_layers = int(meta.get('num_layers', 1))
+
+            if target_grid is not None:
+                # Native resolution for THIS file. 3D-ICE emits one value per layer
+                # per (x,y) cell, so the native z-depth is the layer count.
+                mesh = meta.get('mesh_resolution', expected_grid)
+                nx, ny = int(mesh[0]), int(mesh[1])
+                nz = n_layers if n_points == n_layers * nx * ny else int(mesh[2])
+            else:
+                nx, ny, nz = expected_grid
+
+            n_expected_full = nx * ny * nz
             n_expected_slice = n_layers * nx * ny
 
             if n_points == n_expected_full:
@@ -156,10 +212,28 @@ class FNODataset(Dataset):
             htc = float(meta.get('htc', 5000.0))
             t_amb_c = float(meta.get('t_ambient_celsius', 40.0))
 
+            Q_t = torch.from_numpy(Q_norm.astype(np.float32))
+            L_t = torch.from_numpy(layer_id_norm.astype(np.float32))
+            T_t = torch.from_numpy(T_norm.astype(np.float32))
+
+            if target_grid is not None and (nx, ny, nz) != tuple(target_grid):
+                # Trilinear for the continuous fields; nearest for layer identity,
+                # which is categorical -- interpolating it would invent materials
+                # that do not exist between a silicon die and a copper spreader.
+                Q_t = _resample(Q_t, target_grid, 'trilinear')
+                T_t = _resample(T_t, target_grid, 'trilinear')
+                L_t = _resample(L_t, target_grid, 'nearest')
+
             self.items.append({
-                'Q_norm': torch.from_numpy(Q_norm.astype(np.float32)),
-                'layer_id_norm': torch.from_numpy(layer_id_norm.astype(np.float32)),
-                'T_norm': torch.from_numpy(T_norm.astype(np.float32)),
+                'Q_norm': Q_t,
+                'layer_id_norm': L_t,
+                'T_norm': T_t,
+                'geom_extent_norm': torch.tensor([
+                    float(meta.get('die_width_um', 0.0)) / self._EXTENT_XY_REF_UM,
+                    float(meta.get('die_length_um', 0.0)) / self._EXTENT_XY_REF_UM,
+                    float(meta.get('total_height_um', 0.0)) / self._EXTENT_Z_REF_UM,
+                ], dtype=torch.float32),
+                'geometry': meta.get('geometry', 'unknown'),
                 'htc_norm': torch.tensor(norm_stats.norm_htc(htc), dtype=torch.float32),
                 't_amb_norm': torch.tensor(norm_stats.norm_t_amb(t_amb_c), dtype=torch.float32),
                 'tsv_frac': torch.tensor(float(meta.get('tsv_density', 0.0)), dtype=torch.float32),
@@ -170,10 +244,14 @@ class FNODataset(Dataset):
         if not self.items:
             raise ValueError(
                 f"FNODataset: no valid files loaded from {len(npz_files)} candidates "
-                f"for grid {expected_grid}. Check grid shape matches mesh_resolution."
+                f"for grid {self.grid_shape}. Check grid shape matches mesh_resolution, "
+                f"or pass target_grid= to resample mixed geometries onto a common grid."
             )
 
-        _log.info("FNODataset: loaded %d scenarios, grid=%s", len(self.items), expected_grid)
+        geoms = sorted({it['geometry'] for it in self.items})
+        _log.info("FNODataset: loaded %d scenarios, grid=%s, geometries=%s%s",
+                  len(self.items), self.grid_shape, geoms,
+                  " (resampled)" if target_grid is not None else "")
 
     def __len__(self) -> int:
         return len(self.items)
