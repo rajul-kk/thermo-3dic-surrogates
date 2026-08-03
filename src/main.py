@@ -242,7 +242,8 @@ def process_geometry(geometry_name: str,
                      use_synthetic: bool = False,
                      skip_train: bool = False,
                      skip_test: bool = False,
-                     train_start_index: int = 1) -> Dict:
+                     train_start_index: int = 1,
+                     allow_synthetic_fallback: bool = False) -> Dict:
     """
     Process all scenarios for a single geometry.
 
@@ -292,7 +293,7 @@ def process_geometry(geometry_name: str,
                     train_dir,
                     use_synthetic=use_synthetic,
                     generate_plots=(i == 1),  # Plot only first for speed
-                    allow_synthetic_fallback=args.allow_synthetic_fallback
+                    allow_synthetic_fallback=allow_synthetic_fallback
                 )
                 all_stats['train'][scenario_name] = stats
                 scenario_count += 1
@@ -322,7 +323,7 @@ def process_geometry(geometry_name: str,
                     test_dir,
                     use_synthetic=use_synthetic,
                     generate_plots=(i == 1),  # Plot only first for speed
-                    allow_synthetic_fallback=args.allow_synthetic_fallback
+                    allow_synthetic_fallback=allow_synthetic_fallback
                 )
                 all_stats['test'][scenario_name] = stats
                 scenario_count += 1
@@ -574,6 +575,7 @@ def main():
             skip_train=args.skip_train,
             skip_test=(args.skip_test or args.extra_train > 0),
             train_start_index=train_start_by_geometry[geom_name],
+            allow_synthetic_fallback=args.allow_synthetic_fallback,
         )
         all_results[geom_name] = results
 
