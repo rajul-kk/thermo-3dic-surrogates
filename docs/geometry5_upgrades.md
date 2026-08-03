@@ -91,6 +91,8 @@ public literature.
 ---
 
 ### Tier 1 — Match Kou 2022 (A100-like fidelity) — ✅ COMPLETE (implemented)
+> ⚠ **Kou et al. 2022 does not verify** (checked 2026-08-03). The dimensions attributed to it below must be re-sourced before publication — see `references.md` §2b for the closest genuine paper (Zhou et al., IEEE TCPMT 12(6)).
+
 
 Kou et al. 2022 is the most rigorous public 2.5D thermal benchmark, validated against
 ANSYS Icepak measurements. These additions close the gap to that baseline.

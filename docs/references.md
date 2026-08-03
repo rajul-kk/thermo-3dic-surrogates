@@ -1,5 +1,21 @@
 # References and Geometry Cross-Check
 
+## Verification status (last checked 2026-08-03)
+
+Citations added or relied on for design decisions were checked against the literature.
+Verified: 3D-ICE (ICCAD 2010), 3D-ICE 4.0 (arXiv:2512.05823), HotSpot (TVLSI 2006),
+Raissi et al. (JCP 2019), Tancik et al. (NeurIPS 2020), Wang et al. (SIAM 2021),
+Li et al. FNO (ICLR 2021), WHNO (arXiv:2511.07347), RNO (arXiv:2505.20721),
+SAU-FNO (arXiv:2510.15968), DeepOHeat (DAC 2023) and DeepOHeat-v1 (arXiv:2504.03955),
+MFIT (DOI 10.1145/3765905), Glassbrenner & Slack (Phys. Rev. 134, A1058),
+Morrow et al. (IEEE EDL 27, 335–337).
+
+**Three citations did not verify and are marked inline with ⚠:** Kou et al. 2022
+(does not verify — do not cite), Gao et al. 2023, Liu & Park 2012. Two corrections were
+made: the RNO authors are Ye, Zhang & Wang (previously given as "Yang et al."), and
+DeepOHeat / DeepOHeat-v1 are separate papers with different titles, not one paper and its
+update.
+
 ## 1. Core Thermal Simulators
 
 ### 3D-ICE (primary ground truth)
@@ -53,16 +69,21 @@ Li, Z., Kovachki, N., Azizzadenesheli, K., Liu, B., Bhattacharya, K., Stuart, A.
 https://openreview.net/forum?id=c8P9NQVtmnO
 
 ### Walsh-Hadamard Neural Operator (src/fno/whno.py)
-**Walsh-Hadamard Neural Operators for Solving PDEs with Discontinuous Coefficients.** (Nov 2025)
-arXiv:2511.07347.
+Cavallazzi, G. M., Pérez Cuadrado, M., & Pinelli, A. (Nov 2025).
+**Walsh-Hadamard Neural Operators for Solving PDEs with Discontinuous Coefficients.**
+arXiv:2511.07347. Also published in *Journal of Computational Physics*
+(DOI: 10.1016/j.jcp.2026.114476 — see ScienceDirect S0021999126004766).
 (Motivates WHNO in this repo: Fourier's sinusoidal basis causes Gibbs ringing at sharp
 conductivity jumps — exactly the material-interface discontinuities in this dataset's
 layer stacks; the Walsh-Hadamard basis is piecewise-constant and does not suffer this.
-Validated in `src/fno/whno.py`'s module docstring against a synthetic step function:
-0% overshoot vs Fourier's ~8.7%.)
+The paper's own validation includes heat conduction with discontinuous thermal
+conductivity and reports 24–38% error reduction vs FNO at material interfaces.
+Independently checked in `src/fno/whno.py`'s module docstring against a synthetic step
+function: 0% overshoot vs Fourier's ~8.7%.)
 
 ### Autoregressive/recurrent training for neural operator rollout stability (src/aro/trainer.py)
-**Recurrent Neural Operators: Stable Long-Term PDE Prediction.** Yang et al. (May 2025).
+Ye, Z., Zhang, C.-S., & Wang, W. (May 2025).
+**Recurrent Neural Operators: Stable Long-Term PDE Prediction.**
 arXiv:2505.20721.
 (ARO's `forward_windowed_rollout` / RNO-style training in `src/aro/trainer.py` directly
 applies this idea: training on a window of the model's OWN autoregressive predictions,
@@ -105,8 +126,11 @@ adaptation, not a direct replication.)
   *surrogate* trained on laterally-heterogeneous ground truth was found. That is a much
   smaller claim and requires regenerating the dataset under 3D-ICE 4.0 first.
 
-- **MFIT: Multi-FIdelity Thermal Modeling for 2.5D and 3D Multi-Chiplet Architectures.**
-  *ACM Transactions on Design Automation of Electronic Systems* (2025). DOI: 10.1145/3765905.
+- Pfromm, L., Kanani, A., et al. **MFIT: Multi-FIdelity Thermal Modeling for 2.5D and 3D
+  Multi-Chiplet Architectures.** *ACM Transactions on Design Automation of Electronic
+  Systems* (Nov 2025). DOI: 10.1145/3765905. Preprint: arXiv:2410.09188.
+  Combines FEM, thermal-RC and data-driven surrogate models across the design cycle;
+  evaluated on 16/36/64-chiplet 2.5D and 16x3 3D systems.
   Prior art for multi-fidelity thermal modelling of chiplet stacks — relevant to this repo's
   `scripts/generate_lf_data.py` low-fidelity pipeline and the Therm-FM fine-tuning story.
   Cite before claiming multi-fidelity novelty.
@@ -124,8 +148,13 @@ adaptation, not a direct replication.)
   repo's `CNOFNOHybrid`+axial-attention architecture and Therm-FM fine-tuning approach —
   differentiate explicitly against it if using either as a novelty claim.** Does not
   appear to cover 2.5D chiplet/CoWoS lateral heterogeneity (this repo's geometry4/5/6).
-- **DeepOHeat / DeepOHeat-v1: Operator Learning-based Ultra-fast Thermal Simulation in
-  3D-IC Design.** Original: arXiv:2302.12949; updated: arXiv:2504.03955 (Apr 2025).
+- **DeepOHeat: Operator Learning-based Ultra-fast Thermal Simulation in 3D-IC Design.**
+  *DAC* 2023. arXiv:2302.12949. DOI: 10.1109/DAC56929.2023.10247998.
+  And its successor, a *separate paper with a different title*:
+  **DeepOHeat-v1: Efficient Operator Learning for Fast and Trustworthy Thermal Simulation
+  and Optimization in 3D-IC Design.** (Apr 2025). arXiv:2504.03955. Adds
+  Kolmogorov-Arnold trunk networks, separable training (62x speedup, 31x less GPU
+  memory) and a confidence score for trustworthiness; 70.6x faster optimisation overall.
   DeepONet applied directly to 3D-IC thermal simulation, encoding BCs/heat-source
   configuration as branch input, coordinates as trunk input. **This is prior art for
   "DeepONet for chip thermal" — do not present this repo's `PI-DeepONet` as a novel
@@ -145,10 +174,15 @@ Morrow, P., et al. (2006).
 DOI: 10.1109/LED.2006.872605
 (Foundational paper for direct Cu-Cu bonding; k_eff of bonded Cu interface ~300–400 W/m·K)
 
+Morrow full author list (verified): Morrow, P. R., Park, C., Ramanathan, S.,
+Kobrinsky, M. J., & Harmes, M.
+
 Gao, G., et al. (2023).
 **Hybrid bonding enabled 3D-IC integration at sub-10-µm pitch.**
 *IEDM Technical Digest*, 2023.
 (State-of-the-art production hybrid bonding: <1 µm bondline, near-zero thermal resistance)
+> ⚠ **UNVERIFIED (checked 2026-08-03).** No DOI, and a literature search did not confirm
+> this exact title/venue. Do not cite until located, or replace with a confirmed source.
 
 **k_eff used in this benchmark:** 60 W/m·K (5 µm effective layer) — represents a Cu pillar
 composite with ~15 % Cu fill at 9 µm pitch, deliberately thicker than physical bondline to
@@ -160,12 +194,25 @@ Liu, Y., & Park, S. B. (2012).
 **Thermal cycling effects on the bonding strength and electrical resistance of In-Ag soldering.**
 *Proceedings of ECTC*, 2012.
 (Indium solder TIM: fresh k ≈ 82 W/m·K; after pump-out / voiding k can drop to 5–20 W/m·K)
+> ⚠ **UNVERIFIED (checked 2026-08-03).** Not located by literature search. The k values it
+> is cited for drive the geometry5/6 TIM pump-out sweep, so this needs a confirmed source.
 
 Kou, H., et al. (2022).
 **Thermal analysis of 3D stacked memory package with through-silicon via.**
 *IEEE Transactions on Components, Packaging and Manufacturing Technology*, 12(4), 641–651.
 DOI: 10.1109/TCPMT.2022.3156289
-(Published dimension reference for Tier 1 upgrade: interposer 300 µm, indium TIM1 50 µm, TIM2 125 µm)
+> ⚠ **DOES NOT VERIFY (checked 2026-08-03) — DO NOT CITE.** Searching this DOI and this
+> journal/volume/year returns a *different* paper. The closest genuine match on the same
+> topic is:
+>
+> Zhou, M., Li, L., Hou, F., He, G., & Fan, J. (2022). **Thermal Modeling of a
+> Chiplet-Based Packaging With a 2.5-D Through-Silicon Via Interposer.** *IEEE TCPMT*,
+> 12(6), 956–963.
+>
+> This citation was used as the dimensional reference for the geometry5/6 Tier 1 upgrade
+> (interposer 300 µm, indium TIM1 50 µm, TIM2 125 µm). Those dimensions must be
+> re-sourced against Zhou et al. or another confirmed reference before publication;
+> `geometry5_upgrades.md` cites it too.
 
 ---
 

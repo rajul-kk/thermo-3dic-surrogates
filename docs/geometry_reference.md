@@ -195,7 +195,7 @@ two-die TSV stack) on a shared 25 × 14 mm silicon interposer.
 - C4 bump array (`c4_bumps`, 100 µm, k_eff = 15 W/m·K) between RDL and die_zone_1
 - TIM1 indium solder (`tim_top`, 50 µm, k = 80 W/m·K)  — **TIM pump-out sweep: k = 80/40/10/5**
 - TIM2 thickness 125 µm (`tim_sink`)
-- Interposer 300 µm bulk Si (Kou 2022 published dims)
+- Interposer 300 µm bulk Si (attributed to Kou 2022, which does not verify — see `references.md` §2b; dimension needs re-sourcing)
 
 **Hybrid bonding added:** 5 µm Cu-Cu layer between `die_zone_1` and `tsv_zone`.
 
