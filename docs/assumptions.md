@@ -150,6 +150,22 @@ so the inconsistency produces a small systematic error in the predicted lateral 
 chiplet die interiors (the regions that matter most), the error is negligible because
 heat flows predominantly vertically through the layer stack.
 
+**This is a train/target inconsistency, not merely a simplification.** The PDE residual is
+computed against a heterogeneous k that the ground-truth data does not contain, so the
+physics loss actively pulls predictions away from the data it is trained on in the gap
+region. The λ_pde = 0.1 weighting bounds the damage but does not remove it. Any result
+reported on geometry4/5/6 should either use λ_pde = 0 or disclose this.
+
+**Proper fix (not yet applied): upgrade the ground truth to 3D-ICE 4.0.**
+3D-ICE 4.0 (arXiv:2512.05823, Dec 2025 — by the original 3D-ICE authors) natively preserves
+material heterogeneity and anisotropy from layouts, which is exactly the missing capability.
+Regenerating geometry4/5/6 under it would make data and physics loss consistent, and is far
+cheaper than hand-segmenting `.stk` layers in `ice_simulator.py`. Cost: a full re-run of the
+geometry4/5/6 scenarios (~155 simulations).
+
+**Do not treat lateral heterogeneity as a novelty claim.** It is settled prior art —
+see `references.md` §"Lateral material heterogeneity in 2.5D/3D chiplet thermal modelling".
+
 ### 6.2 Single-die TSV model for chiplet B (geometry5) — **Simplifying**
 
 **What we do:** Chiplet B's TSV zone uses a spatially uniform effective conductivity

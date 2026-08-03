@@ -1,13 +1,60 @@
-# FourierPINN: A Physics-Informed Neural Surrogate for 3D-IC Thermal Analysis with Uncertainty Quantification and Explainability
+# A 3D-IC Thermal Surrogate Benchmark, and What It Reveals About Surrogate Evaluation
 
 **Rajul Kabeer**  
 *Manuscript in preparation*
+
+> **STATUS (2026-07-31) — MAJOR REFRAME IN PROGRESS.**
+> The previous version of this draft claimed FourierPINN was "the first PINN for the
+> multi-layer 3D-IC stack", "the first to treat TSV density as a continuous parametric
+> input", and reported an *expected* MAE of < 2 K. Measurements taken on 2026-07-31 with
+> `scripts/baselines.py` invalidated that framing:
+>
+> - **Closed-form ridge regression reaches spatial R² = 0.999 (geometry1) and 0.937
+>   (geometry6)**, with spatially-detrended MAE of 0.009 K. On geometry6 its raw MAE is
+>   0.616 K — already better than the < 2 K target this draft hoped a trained PINN would hit.
+> - The dataset is **spatially degenerate**: across all 335 live simulations the median
+>   within-scenario spatial temperature range is 1.10 K and the maximum anywhere is 6.40 K,
+>   while the between-scenario mean varies by 68 K. 88% of geometry1's temperature variance
+>   is explained by the ambient input alone.
+> - TSV density takes **four discrete values**, not continuous ones. That claim was false.
+> - Lateral heterogeneity is settled prior art (3D-ICE 4.0, arXiv:2512.05823).
+>
+> Sections 1–7 below are retained for reference but their novelty framing is superseded.
+> Sections 8–11 are being rewritten around the abstract below. Do not submit the old framing.
 
 ---
 
 ## Abstract
 
-Thermal analysis of three-dimensional integrated circuits (3D-ICs) is a computationally intensive bottleneck in early-stage design exploration. Compact simulators such as 3D-ICE provide fast steady-state solutions but still require seconds-to-minutes per configuration, making parametric studies over power maps and cooling conditions expensive. We present FourierPINN, a physics-informed neural network surrogate trained on 3D-ICE simulation data across five benchmark geometries spanning single-die, stacked-die with through-silicon via (TSV) arrays, and server-class configurations. The model encodes spatial coordinates via random Fourier features to overcome spectral bias, conditions on layer identity through a learned embedding, and is trained using a curriculum that transitions from supervised data-fitting through progressive physics regularisation with Neural Tangent Kernel-adaptive loss weighting. To our knowledge this is the first PINN surrogate specifically designed for the multi-layer 3D-IC thermal stack, the first to treat TSV density as a continuous parametric input, and the first to apply targeted explainability methods — PDE residual mapping, engineering sensitivity maps, integrated gradients, and Monte Carlo Dropout uncertainty — to a chip-level thermal surrogate. Training data, geometry definitions, and trained checkpoints will be released openly.
+Thermal analysis of three-dimensional integrated circuits (3D-ICs) is a bottleneck in
+early-stage design exploration, and a growing body of work applies neural surrogates —
+PINNs, Fourier neural operators, DeepONets — to accelerate it. We contribute an open
+benchmark of 335 3D-ICE simulations across eight package geometries, spanning single-die
+mobile and server stacks, dual-die stacks at three TSV densities, and 2.5D/CoWoS-style
+chiplet assemblies with up to six HBM stacks, together with the geometry definitions and
+generation pipeline needed to reproduce and extend it.
+
+Our principal finding is methodological and cautionary. Evaluating four non-neural
+baselines on this data, we find that **per-point ridge regression — a closed-form solve
+requiring no GPU and no training — reconstructs the spatial temperature field at R² = 0.999**,
+and extrapolates to unseen power patterns, unseen power magnitudes, and unseen ambient
+temperatures at R² > 0.9. This is not a defect of any particular architecture but a
+consequence of the physics: steady-state conduction is linear in the volumetric sources and
+in ambient temperature, and when a scenario space is parameterised by a handful of block
+powers and boundary scalars, the entire solution manifold is low-dimensional and nearly
+linear. We further show that raw MAE — the metric almost universally reported in this
+literature — is dominated by a per-scenario scalar offset, so a model predicting a constant
+per scenario can post a competitive MAE while capturing no spatial structure at all. We
+therefore report **spatially-detrended error** and argue it should be standard.
+
+We identify the one axis on which the benchmark is genuinely discriminative: extrapolation
+in the convective coefficient, where temperature depends on 1/h and linear extrapolation
+degrades sharply (spatial R² falling to −0.23 on a single-die stack and −6.15 on an 11-layer
+CoWoS stack, against R² > 0.9 on every other axis). We conclude with the conditions a 3D-IC thermal benchmark must
+satisfy to distinguish neural architectures at all — substantially higher power density so
+that k(T) nonlinearity is active, per-cell rather than per-block power maps, and variable
+floorplans — and release the dataset, baselines, and OOD split tooling so that future
+surrogate claims can be checked against a linear model before an architecture is credited.
 
 ---
 
@@ -21,10 +68,23 @@ Machine learning surrogates offer a different trade-off: expensive offline train
 
 This paper makes the following contributions:
 
-1. A five-geometry benchmark dataset of 100 3D-ICE simulations covering a single-die mobile stack, three stacked-die TSV variants (3%, 5%, 10% density), and a server-class large die.
-2. FourierPINN: a physics-informed surrogate with Fourier feature encoding, learned layer embedding, and curriculum training using NTK-adaptive loss weights.
-3. Monte Carlo Dropout uncertainty quantification integrated at training time.
-4. Three post-hoc explainability methods — PDE residual maps, engineering sensitivity maps (thermal influence coefficients), and targeted Integrated Gradients — applied to a chip thermal surrogate for the first time.
+1. An open **eight-geometry benchmark of 335 3D-ICE simulations** covering single-die mobile
+   and server stacks, dual-die stacks at three TSV densities (3%, 5%, 10%), and 2.5D/CoWoS
+   chiplet assemblies with up to six HBM stacks — with the full generation pipeline.
+2. **A demonstration that closed-form ridge regression solves this benchmark** (spatial
+   R² = 0.999), and that the result holds under extrapolation to unseen power patterns,
+   power magnitudes and ambient temperatures. Any neural architecture evaluated on data of
+   this kind must be compared against a linear model before its capacity is credited.
+3. **Spatially-detrended error as an evaluation metric.** We show raw MAE on 3D-IC thermal
+   data is dominated by a per-scenario scalar offset — 88% of variance here is explained by
+   the ambient input alone — and that detrending is required to measure spatial fidelity.
+4. **Identification of the discriminative axis**: extrapolation in the convective
+   coefficient h, where the 1/h dependence defeats linear extrapolation (spatial R² from
+   −0.23 to −6.15 depending on stack complexity, against > 0.9 on all other axes), and a
+   specification of what a non-degenerate 3D-IC thermal benchmark requires.
+5. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
+   autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
+   toolkit, released as infrastructure rather than as accuracy claims.
 
 ---
 
@@ -60,15 +120,26 @@ The surrogate model $\hat{T}_\theta: \mathbb{R}^7 \to \mathbb{R}$ maps per-point
 
 ## 4. Benchmark Geometries
 
-Five geometries span the design space from a mobile-class single die to a server-class large die and 3D-stacked configurations with TSV arrays. All layers are modelled with homogenised material properties. TSV regions use the arithmetic-mean effective conductivity $k_{eff} = (1-\phi) k_{Si} + \phi k_{Cu}$, consistent with the 3D-ICE ground-truth simulator.
+Eight geometries span the design space from a mobile-class single die to server-class dies,
+3D-stacked configurations with TSV arrays, and 2.5D/CoWoS chiplet assemblies. All layers are
+modelled with homogenised material properties. TSV regions use the arithmetic-mean effective
+conductivity $k_{eff} = (1-\phi) k_{Si} + \phi k_{Cu}$, consistent with the 3D-ICE
+ground-truth simulator.
 
-| Geometry | Type | Die size | Layers | Mesh | Notes |
+| Geometry | Type | Die size | Layers | Files | Notes |
 |---|---|---|---|---|---|
-| geometry1 | 2D stack | 10 × 10 mm | 6 | 100×100×40 | Mobile/desktop single die |
-| geometry2a | 3D stack | 8 × 8 mm | 10 | 80×80×72 | TSV density 3% |
-| geometry2b | 3D stack | 8 × 8 mm | 10 | 80×80×72 | TSV density 5% |
-| geometry2c | 3D stack | 8 × 8 mm | 10 | 80×80×72 | TSV density 10% |
-| geometry3 | 2D stack | 25 × 25 mm | 6 | 100×100×40 | Server-class, 8 core clusters |
+| geometry1 | 2D stack | 10 × 10 mm | 6 | 45 | Mobile/desktop single die |
+| geometry2a | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 3% |
+| geometry2b | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 5% |
+| geometry2c | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 10% |
+| geometry3 | 2D stack | 25 × 25 mm | 6 | 45 | Server-class, 8 core clusters |
+| geometry4 | 2.5D stack | 25 × 14 mm | 6 | 45 | Two chiplets on interposer |
+| geometry5 | 2.5D stack | 25 × 14 mm | 11 | 55 | CoWoS: compute + HBM stack |
+| geometry6 | 2.5D stack | 42 × 14 mm | 11 | 55 | CoWoS: 6 HBM stacks |
+
+Total: **335 simulations**. TSV density takes four discrete values (0, 3%, 5%, 10%) — it is a
+categorical variant axis, not a continuous parameter, and interpolation in TSV space cannot
+be meaningfully demonstrated from three non-zero points.
 
 Each geometry has 6 layers (geometry1, geometry3) or 10 layers (geometry2 variants): heat sink (Cu, 5000 µm) → TIM (100 µm) → spreader (Cu) → TIM (100 µm) → active die(s) (Si, 50–200 µm) → TIM2 (50 µm). TIM2 as the topmost layer ensures the convective BC is applied at the die-to-package interface with correct contact resistance.
 
@@ -94,7 +165,7 @@ Total parameters: 807,473.
 
 ## 6. Training
 
-**Dataset.** Each geometry has 15 training and 5 test scenarios. Scenarios sweep power density (0.1–20 W/cm²), HTC (500–10,000 W/m²·K), and ambient temperature (25–85°C) across six spatial power patterns (uniform, hotspot, checkerboard, gradient, dual-hotspot, extreme hotspot). Ground truth temperatures are generated by the 3D-ICE Emulator running under WSL2.
+**Dataset.** Each geometry has 25–50 training and 5 test scenarios (335 files total). Scenarios sweep power density (0.1–20 W/cm²), HTC (500–10,000 W/m²·K), and ambient temperature (25–85°C) across six spatial power patterns (uniform, hotspot, checkerboard, gradient, dual-hotspot, extreme hotspot). Ground truth temperatures are generated by the 3D-ICE Emulator running under WSL2. Note that the shipped `*_test_*` files are interpolation points inside the training sweep; extrapolation splits are generated separately by `scripts/make_ood_split.py` (§9.1).
 
 **Normalisation.** Spatial coordinates are normalised to [0,1] by domain extents. Power density is zero-mean unit-variance standardised over the training set. HTC, ambient temperature, and TSV fraction are each normalised to [0,1] over their respective physical ranges.
 
@@ -139,27 +210,143 @@ We introduce three post-hoc explainability methods for chip thermal surrogates, 
 
 ## 9. Results
 
-*Results pending training completion. Expected: mean MAE < 2 K on test scenarios for all geometries; hotspot temperature error < 3 K; hotspot location error < 500 µm.*
+### 9.1 Baselines (measured 2026-07-31, `scripts/baselines.py`)
+
+No neural model has been trained yet; every number below is from a non-neural baseline.
+`det.MAE` and `spat.R²` are computed after removing each field's mean, so they score spatial
+structure only.
+
+**In-distribution (shipped `*_test_*` split):**
+
+| Geometry | Baseline | MAE (K) | det.MAE (K) | spatial R² |
+|---|---|---|---|---|
+| geometry1 | mean | 18.629 | 0.270 | 0.586 |
+| geometry1 | knn (k=3) | 8.765 | 0.141 | 0.876 |
+| geometry1 | **ridge** | **4.110** | **0.009** | **0.999** |
+| geometry6 | mean | 10.296 | 0.244 | −3.656 |
+| geometry6 | knn (k=3) | 3.797 | 0.090 | −0.621 |
+| geometry6 | **ridge** | **0.616** | **0.020** | **0.937** |
+
+Mean spatial std of the true test fields is 0.506 K (geometry1) and 0.261 K (geometry6) —
+this is the entire signal a surrogate exists to predict. Ridge captures it to 0.009 K.
+
+**Out-of-distribution (geometry1, `scripts/make_ood_split.py`), ridge only:**
+
+| Held-out axis | MAE (K) | det.MAE (K) | spatial R² |
+|---|---|---|---|
+| power pattern (peaked patterns unseen) | 1.354 | 0.027 | 0.902 |
+| power magnitude (upper half unseen) | 4.132 | 0.010 | 0.998 |
+| ambient (upper half unseen) | 4.769 | 0.029 | 0.916 |
+| **HTC (outside interquartile range)** | 3.784 | 0.020 | **−0.231** |
+
+Linear extrapolation succeeds on three of four axes and degrades only on HTC — consistent
+with temperature depending on 1/h, a reciprocal coordinate in which linear extrapolation
+outside the training range is ill-posed.
+
+The HTC result holds across geometries but with wide spread, and is strongest on the complex
+CoWoS stacks (ridge spatial R², HTC OOD split):
+
+| g1 | g2a | g3 | g4 | g5 | g6 |
+|---|---|---|---|---|---|
+| −0.23 | 0.44 | 0.02 | 0.72 | **−6.15** | **−3.60** |
+
+Against R² > 0.9 on every other axis, HTC extrapolation is clearly the weak point, but it is
+not uniformly fatal — ridge still handles geometry2a and geometry4. The two 11-layer chiplet
+geometries (5, 6) degrade most, plausibly because more material interfaces make the
+interaction between 1/h and the spatial field harder to capture with a per-point linear fit.
+This is the axis on which a neural surrogate has the clearest opportunity to demonstrate
+value, and the one on which it should be evaluated.
+
+### 9.2 Dataset degeneracy
+
+Across all 335 live simulations:
+
+| Quantity | Value |
+|---|---|
+| Median within-scenario spatial ΔT | 1.10 K |
+| Max within-scenario spatial ΔT (anywhere) | 6.40 K |
+| Between-scenario mean-temperature range | 68.0 K |
+| Ratio | 62× |
+| Variance explained by ambient alone (geometry1) | 88.1% |
+
+The cause is the power regime. Total dissipated power is 0.4–40 W/cm² summed over blocks,
+giving 0.1–36 K of self-heating, while the ambient sweep alone spans 60 K. `references.md`
+already noted the 20 W/cm² ceiling was conservative against the 100–300 W/cm² of real CPU
+hotspots; the consequence, not previously recognised, is that the benchmark cannot
+discriminate between architectures.
+
+### 9.3 Neural results
+
+*None. No checkpoint has been trained. Any neural number added here must be reported
+alongside the ridge baseline on the same split, using detrended metrics.*
 
 ---
 
 ## 10. Discussion
 
-*To be completed after results.*
+**Why a linear model wins.** Steady-state conduction with temperature-independent $k$ is a
+linear map from sources and boundary data to the temperature field:
+$T(x) = T_{amb} + \sum_b A_b(x) Q_b$, where the impedance $A_b$ is scenario-independent. Our
+scenario space is parameterised by 4–13 block powers plus three boundary scalars, so the
+whole dataset lies on a low-dimensional, nearly-linear manifold that a per-point ridge fit
+recovers exactly. The only genuine nonlinearity, $k(T)$, is inactive here because
+within-scenario gradients are ~1 K. Neural operators are built for high-dimensional,
+nonlinear function-to-function maps; supplying them a map whose input is effectively a
+handful of scalars removes the problem they exist to solve.
 
-Key discussion points anticipated:
-- Whether TSV density generalisation holds across geometry2a/b/c from a single model
-- PDE residual map correlation with prediction error — does high residual predict high error?
-- Integrated Gradients validity: does attribution profile match physical intuition (power dominates at hotspot; z-position dominates in heat sink)?
-- MC Dropout calibration: is predictive std a reliable proxy for actual error?
+**Implications for the field.** Published 3D-IC thermal surrogates typically report raw MAE
+or RMSE against a compact simulator, on interpolation splits, without a linear baseline. Our
+results suggest such numbers can be substantially uninformative: on this dataset raw MAE is
+dominated by a scalar offset that tracks the ambient input, and a closed-form solve matches
+or beats the accuracy targets neural models are held to. We do not claim published results
+are wrong — their datasets may be richer — but the comparison is rarely made, and it is cheap
+to make. We release `scripts/baselines.py` for that purpose.
+
+**What a discriminative benchmark needs.** From §9, four changes:
+1. **Higher power density.** 100–300 W/cm² localised, so self-heating dominates the ambient
+   sweep and $k(T)$ becomes active.
+2. **Per-cell power maps** rather than a handful of uniform blocks, so the input is genuinely
+   a function and not a short vector.
+3. **Variable floorplans/geometry** across scenarios, which is where operator learning has a
+   real advantage over per-point regression.
+4. **Extrapolation splits by default**, especially in $1/h$ — the one axis here where the
+   linear model fails.
+
+Transient simulation would add a further nonlinear axis; the present dataset is steady-state
+only.
+
+**Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation;
+HotSpot cross-validation covers geometry1 only and disagrees by ~15%, and no FEM spot-check
+has been performed. The geometry4/5/6 physics loss uses a heterogeneous lateral $k$ that the
+ground truth does not contain (`assumptions.md` §6.1). Ridge's advantage is measured on
+scenario counts of 20–50; with far more scenarios and a richer power parameterisation the
+ranking could change.
+
+**Deferred.** The originally planned discussion — TSV generalisation across geometry2a/b/c,
+PDE-residual/error correlation, IG attribution plausibility, MC Dropout calibration — requires
+trained models and remains open. MC Dropout is already known to be poorly calibrated here:
+the predictive std measured during explainability validation was 8.6–13 K on fields whose
+spatial std is ~0.3 K, i.e. roughly 30× the signal.
 
 ---
 
 ## 11. Conclusion
 
-*To be completed after results.*
+We release an eight-geometry, 335-simulation 3D-IC thermal benchmark with its full generation
+pipeline, and report a negative result we believe is more useful than the surrogate accuracy
+figures we set out to produce: on this data, closed-form ridge regression reconstructs the
+spatial temperature field at R² = 0.999 and extrapolates to unseen power patterns, magnitudes
+and ambient temperatures at R² > 0.9. The benchmark is discriminative only for extrapolation
+in the convective coefficient.
 
-We have presented FourierPINN, a physics-informed thermal surrogate for 3D-IC package stacks with integrated explainability. The combination of accurate surrogate modelling with physics-residual maps, thermal influence coefficients, targeted attribution, and uncertainty quantification addresses a gap between existing ML thermal tools (accurate but opaque) and engineering design needs (fast, trustworthy, interpretable).
+Two practices follow. First, **report a linear baseline** — it costs milliseconds and bounds
+what any architecture can claim to contribute. Second, **report spatially-detrended error**:
+raw MAE on 3D-IC thermal fields is dominated by a per-scenario offset, and a constant
+predictor can look competitive while capturing no spatial structure.
+
+We also record what this benchmark would need to become discriminative — higher power
+density, per-cell power maps, variable floorplans, extrapolation splits by default — and
+release the baseline and OOD tooling so those conditions can be checked rather than assumed.
 
 ---
 
@@ -184,3 +371,13 @@ We have presented FourierPINN, a physics-informed thermal surrogate for 3D-IC pa
 9. Sundararajan, M., Taly, A. & Yan, Q. "Axiomatic Attribution for Deep Networks." *ICML*, 2017.
 
 10. Gal, Y. & Ghahramani, Z. "Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning." *ICML*, 2016.
+
+11. Zhu, K., Huang, D., Costero, L. & Atienza, D. "3D-ICE 4.0: Accurate and Efficient Thermal Modeling for 2.5D/3D Heterogeneous Chiplet Systems." arXiv:2512.05823, 2025.
+
+12. "MFIT: Multi-FIdelity Thermal Modeling for 2.5D and 3D Multi-Chiplet Architectures." *ACM TODAES*, 2025. DOI: 10.1145/3765905
+
+13. "Self-Attention to Operator Learning-based 3D-IC Thermal Simulation (SAU-FNO)." arXiv:2510.15968, 2025.
+
+14. "DeepOHeat-v1: Efficient Operator Learning for Fast and Trustworthy Thermal Simulation and Optimization in 3D-IC Design." arXiv:2504.03955, 2025.
+
+15. "Fast Thermal-Aware Chiplet Placement Assisted by Surrogate." arXiv:2504.03808, 2025.

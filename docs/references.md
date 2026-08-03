@@ -84,6 +84,38 @@ adaptation, not a direct replication.)
   a trained generative model + Wasserstein-distance optimal transport, not implemented
   here.
 
+### Lateral material heterogeneity in 2.5D/3D chiplet thermal modelling (SETTLED PRIOR ART)
+- **3D-ICE 4.0: Accurate and efficient thermal modeling for 2.5D/3D heterogeneous chiplet
+  systems.** Zhu, K., Huang, D., Costero, L., & Atienza, D. (Dec 2025). arXiv:2512.05823.
+  EPFL / Universidad Complutense de Madrid — i.e. the authors of the simulator this repo
+  uses for ground truth. Its first stated contribution is *"preservation of material
+  heterogeneity and anisotropy directly from industrial layouts"*, explicitly motivated by
+  noting that existing approaches "neglect material heterogeneity (e.g. silicon dies, epoxy
+  underfill, Cu pillars)". Also adds adaptive vertical layer partitioning and temperature-aware
+  non-uniform grids; 3.61–6.46× faster than prior tools with >23% fewer grid cells. Open source.
+
+  **Consequence for this repo: lateral heterogeneity is NOT an available novelty claim.**
+  Modelling the underfill gap between chiplets as a distinct lateral conductivity region is
+  solved, published, and shipped by the 3D-ICE authors themselves. Do not present
+  geometry4/5/6's `DiePrint` / `underfill_k` mechanism as a gap in the literature. See
+  `assumptions.md` §6.1 — this repo's 3D-ICE ground truth does not even contain the
+  heterogeneity, so the claim would be unsupported as well as unoriginal.
+
+  The narrower statement that does survive: 3D-ICE 4.0 is a *simulator*, and no neural
+  *surrogate* trained on laterally-heterogeneous ground truth was found. That is a much
+  smaller claim and requires regenerating the dataset under 3D-ICE 4.0 first.
+
+- **MFIT: Multi-FIdelity Thermal Modeling for 2.5D and 3D Multi-Chiplet Architectures.**
+  *ACM Transactions on Design Automation of Electronic Systems* (2025). DOI: 10.1145/3765905.
+  Prior art for multi-fidelity thermal modelling of chiplet stacks — relevant to this repo's
+  `scripts/generate_lf_data.py` low-fidelity pipeline and the Therm-FM fine-tuning story.
+  Cite before claiming multi-fidelity novelty.
+
+- **Fast Thermal-Aware Chiplet Placement Assisted by Surrogate.** (Apr 2025).
+  arXiv:2504.03808. Surrogate-assisted (RBF network) thermal-aware placement. Relevant to
+  this repo's claim that sensitivity maps are "actionable for floorplan decisions" — that
+  application already exists in the literature.
+
 ### Prior art on operator learning for 3D-IC thermal simulation (closely related work)
 - **Self-Attention to Operator Learning-based 3D-IC Thermal Simulation (SAU-FNO).**
   (Oct 2025, IEEE). arXiv:2510.15968. Self-attention + U-Net + FNO for 3D-IC thermal
