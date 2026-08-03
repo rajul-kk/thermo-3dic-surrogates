@@ -22,10 +22,13 @@
 > Sections 1–7 below are retained for reference but their novelty framing is superseded.
 > Sections 8–11 are being rewritten around the abstract below. Do not submit the old framing.
 >
-> **Update:** the degenerate regime has since been fixed in the generator and geometry1
-> regenerated — median spatial ΔT is now 9.51 K and ridge falls to R² 0.501 on the
-> power-pattern OOD split. See §9.3. A double-counted `T_range` in the PDE conduction term
-> was also found and fixed (§9.4). The remaining seven geometries still need regenerating.
+> **Update (2026-08-01):** the full dataset has been regenerated on a physically grounded
+> operating point (TDP budgets, core-fraction power, cooling coupled to power density,
+> sub-layer vertical resolution). Median spatial ΔT rose 1.10 K → 10.77 K and vertical
+> resolution 6–11 → 10–15 nodes. Ridge nonetheless still solves every split at
+> R² > 0.94 — see §9.3, which establishes that no parameter-range choice can make this
+> benchmark non-linear. A double-counted `T_range` in the PDE conduction term was also
+> found and fixed (§9.5).
 
 ---
 
@@ -52,13 +55,16 @@ literature — is dominated by a per-scenario scalar offset, so a model predicti
 per scenario can post a competitive MAE while capturing no spatial structure at all. We
 therefore report **spatially-detrended error** and argue it should be standard.
 
-We identify the one axis on which the benchmark is genuinely discriminative: extrapolation
-in the convective coefficient, where temperature depends on 1/h and linear extrapolation
-degrades sharply (spatial R² falling to −0.23 on a single-die stack and −6.15 on an 11-layer
-CoWoS stack, against R² > 0.9 on every other axis). We conclude with the conditions a 3D-IC thermal benchmark must
-satisfy to distinguish neural architectures at all — substantially higher power density so
-that k(T) nonlinearity is active, per-cell rather than per-block power maps, and variable
-floorplans — and release the dataset, baselines, and OOD split tooling so that future
+We further show the result is not an artefact of an unlucky parameter range. Regenerating
+the entire dataset on a physically grounded operating point — power drawn from package TDP
+budgets, cooling constrained to be adequate for the power density, and the vertical
+direction resolved by sub-layer discretisation — raises the median within-scenario spatial
+gradient tenfold, yet ridge still solves every extrapolation split at R² > 0.94. An
+intermediate version did defeat the linear model, but only by containing combinations that
+cannot physically exist, such as 150 W/cm² against air-class cooling. Escaping linearity
+requires changing *what varies* — per-cell power maps rather than a handful of block
+scalars, variable floorplans, or transient operation — not the range over which the
+existing handful varies. We release the dataset, baselines, and OOD split tooling so future
 surrogate claims can be checked against a linear model before an architecture is credited.
 
 ---
@@ -83,10 +89,11 @@ This paper makes the following contributions:
 3. **Spatially-detrended error as an evaluation metric.** We show raw MAE on 3D-IC thermal
    data is dominated by a per-scenario scalar offset — 88% of variance here is explained by
    the ambient input alone — and that detrending is required to measure spatial fidelity.
-4. **Identification of the discriminative axis**: extrapolation in the convective
-   coefficient h, where the 1/h dependence defeats linear extrapolation (spatial R² from
-   −0.23 to −6.15 depending on stack complexity, against > 0.9 on all other axes), and a
-   specification of what a non-degenerate 3D-IC thermal benchmark requires.
+4. **Evidence that the result is structural, not a parameter-range artefact.** A full
+   regeneration on a physically grounded operating point raises the median spatial
+   gradient from 1.10 K to 10.77 K and still leaves ridge at R² > 0.94 on every split.
+   Configurations that *do* defeat the linear model turn out to be physically impossible.
+   We give the conditions a non-degenerate 3D-IC thermal benchmark must satisfy.
 5. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
    autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
    toolkit, released as infrastructure rather than as accuracy claims.
@@ -280,7 +287,60 @@ already noted the 20 W/cm² ceiling was conservative against the 100–300 W/cm�
 hotspots; the consequence, not previously recognised, is that the benchmark cannot
 discriminate between architectures.
 
-### 9.3 Regime fix and its effect
+### 9.3 Final dataset, and why regime tuning cannot rescue the benchmark
+
+The dataset was regenerated end to end (2026-08-01) with a physically grounded
+operating point: power from package TDP budgets, only the core fraction of TDP assigned
+to modelled blocks, cooling coupled to power density, and the vertical direction
+resolved by sub-layer discretisation.
+
+**Dataset (335 simulations, all real 3D-ICE):**
+
+| Geometry | n | z-nodes | pts/file | median ΔT | max ΔT | median T | peak T |
+|---|---|---|---|---|---|---|---|
+| geometry1 | 45 | 10 | 100,000 | 29.05 K | 96.43 K | 78.8 °C | 158.5 °C |
+| geometry2a | 30 | 14 | 89,600 | 9.26 K | 61.06 K | 54.4 °C | 92.3 °C |
+| geometry2b | 30 | 14 | 89,600 | 9.21 K | 60.59 K | 54.3 °C | 91.8 °C |
+| geometry2c | 30 | 14 | 89,600 | 9.09 K | 59.46 K | 54.2 °C | 90.7 °C |
+| geometry3 | 45 | 11 | 110,000 | 17.74 K | 87.70 K | 62.7 °C | 134.9 °C |
+| geometry4 | 45 | 10 | 56,000 | 15.76 K | 59.16 K | 69.0 °C | 121.9 °C |
+| geometry5 | 55 | 15 | 84,000 | 7.35 K | 46.90 K | 58.5 °C | 113.2 °C |
+| geometry6 | 55 | 15 | 141,120 | 8.96 K | 79.38 K | 63.3 °C | 133.9 °C |
+
+Median within-scenario spatial ΔT rose from **1.10 K to 10.77 K**, vertical resolution
+from 6–11 to 10–15 nodes, and only 4 of 335 scenarios exceed 125 °C (all
+`extreme_hotspot` stress cases, down from 20).
+
+**Baselines on the final data (geometry1):**
+
+| Split | ridge det.MAE | ridge spatial R² |
+|---|---|---|
+| in-distribution | 0.223 K | 0.987 |
+| pattern OOD | 0.961 K | 0.944 |
+| power OOD | 0.357 K | 0.998 |
+| HTC OOD | 0.331 K | 0.964 |
+
+**This is the paper's central negative result, and it is now established rather than
+asserted.** An intermediate dataset did drive ridge to spatial R² −16.7 on the HTC
+split, which looked like a fix. It was an artefact: that version swept power and cooling
+as independent variables and so contained combinations that cannot exist — 150 W/cm²
+against air-class cooling, junctions at 165–273 °C. Once cooling was constrained to be
+adequate for the power density, the linear model recovered to R² > 0.94 on every axis.
+
+Rescaling cooling into the feasible band rather than clamping it to the minimum
+recovered only 0.980 → 0.964, confirming the effect is structural rather than a tuning
+artefact. Some correlation between power and cooling is physically obligatory, and it is
+enough for a linear model.
+
+The conclusion is therefore stronger than "this dataset happens to be easy":
+**no choice of parameter ranges makes this benchmark non-linear.** Steady-state
+conduction is linear in its sources and boundary values, and the scenario space is
+roughly eight scalars, so the solution manifold is low-dimensional and nearly linear by
+construction. Escaping that requires changing what varies — per-cell power maps instead
+of a handful of block scalars, variable floorplans, or transient operation (§10) — not
+changing the range over which the existing handful varies.
+
+### 9.4 Regime fix and its effect (intermediate result, superseded by §9.3)
 
 The degeneracy in §9.2 was a benchmark-design fault, not a property of 3D-IC thermal
 problems. `src/scenario/generator.py` was revised (2026-07-31) on three coupled axes —
@@ -309,7 +369,7 @@ the linear model is worse than useless there. Power extrapolation remains linear
 Only geometry1 has been regenerated; the other seven still carry the old regime and their
 numbers in §9.1–9.2 should be read as describing the superseded dataset.
 
-### 9.4 A physics bug found while building these tests
+### 9.5 A physics bug found while building these tests
 
 `pde_residual` applied the temperature range $(T_{max}-T_{min})$ twice — once converting
 normalised gradients to physical ones, and again as a trailing factor on the divergence.
@@ -319,7 +379,7 @@ affected because none exists, but every physics-loss run before 2026-07-31 optim
 wrong objective. It is now pinned by a manufactured-solution test that compares the residual
 against the closed-form $k \cdot 2c \cdot T_{range}/L_z^2$.
 
-### 9.5 Neural results
+### 9.6 Neural results
 
 *None. No checkpoint has been trained. Any neural number added here must be reported
 alongside the ridge baseline on the same split, using detrended metrics.*

@@ -128,8 +128,15 @@ hardest.
 **Real hardware:** TSVs occupy only the TSV array region (our power blocks `tsv_array_d1/d2`, 2×2 mm). The rest of the die in those layers is pure silicon.  
 **Impact:** The non-TSV-array area of the TSV layer is over-enhanced by k_eff − k_Si = 7–36 W/m·K. Heat spreading in the "untouched silicon" region is overestimated. This matches how 3D-ICE models TSVs, so training data and model are consistent, but both differ from detailed per-via simulations.
 
-### 3.4 Geometry3 power density ceiling (20 W/cm²) — **Simplifying**
-**What we do:** Maximum power block density = 20 W/cm² (extreme_hotspot scenario).  
+### 3.4 Geometry3 power density ceiling — **superseded 2026-08-01**
+**What we now do:** Power is no longer set as an absolute W/cm² sweep. It comes from a
+package TDP budget (`ScenarioGenerator.TDP_BY_GEOMETRY_W`, 30–700 W by package class),
+of which the modelled blocks receive `CORE_FRACTION_OF_TDP` = 0.65, subject to an absolute
+silicon ceiling `MAX_LOGIC_POWER_DENSITY_WCM2` = 300 W/cm². The 20 W/cm² ceiling described
+below was the old regime; it produced a spatially degenerate dataset (median within-scenario
+ΔT of 1.10 K) and is retained here only as history.
+
+**What we used to do:** Maximum power block density = 20 W/cm² (extreme_hotspot scenario).  
 **Real hardware:** Server CPU TDP = 300–500 W; chip area = 600–900 mm²; average = 3–8 W/cm². Peak local hotspot (L2 cache array, ALU cluster): 30–100 W/cm². High-end GPU local peaks: up to 300 W/cm².  
 **Impact:** The model is not trained on the hotspot regime relevant for thermal emergency prediction. Extending extreme_hotspot to 50–100 W/cm² would improve utility for server workloads.
 

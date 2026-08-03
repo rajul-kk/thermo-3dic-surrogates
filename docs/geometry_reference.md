@@ -355,15 +355,22 @@ constant per scenario.
 
 RDL blocks always receive `rdl_joule_fraction × base_power` regardless of pattern.
 
-**HBM/memory-stack power cap (geometry5/geometry6):** blocks matching `hbm*`,
-`chipB_d1*`, or `chipB_d2*` are capped to **2.0 W/cm²** after the pattern above is
-applied, regardless of `base_power` — real HBM3 dies dissipate far less power density
-than compute logic, and without this cap `split_chiplet_b_hot` and other patterns would
-push memory-stack dies into the same 0.1–20 W/cm² range as compute blocks, producing
-scenarios that exceed HBM3's realistic ~95–105°C junction-temperature envelope. This cap
-was added after the original dataset generation; geometry5/geometry6 were regenerated
-with it in place (geometry6's max training-scenario temperature dropped from 134°C to
-94.8°C as a result). See [`docs/assumptions.md`](assumptions.md) §7.1 for details.
+**Operating regime (revised 2026-08-01).** Power is no longer an absolute W/cm² sweep. A
+pattern's `base_power` now selects a *workload fraction* of the package TDP budget
+(`TDP_BY_GEOMETRY_W`: 30 W mobile 3D stack → 700 W six-HBM accelerator), of which the
+modelled blocks receive `CORE_FRACTION_OF_TDP` = 0.65 — the remainder representing cache,
+IO and uncore, which are not modelled as separate sources. Two absolute ceilings then
+apply: `MAX_LOGIC_POWER_DENSITY_WCM2` = 300 W/cm² (silicon limit) and an 8.0 W/cm² cap on
+HBM/memory dies (`hbm*`, `chipB_d1*`, `chipB_d2*`), which genuinely run an order of
+magnitude below logic. Finally, cooling is required to be adequate for the resulting power
+density (`HTC_PER_WCM2` = 165 W/m²·K per W/cm²), because a 300 W/cm² hotspot cannot be
+air-cooled.
+
+The old regime (0.1–20 W/cm² absolute, HTC 1000–10000, ambient 25–65 °C) produced a
+spatially degenerate dataset — median within-scenario ΔT of 1.10 K against a 68 K
+between-scenario range — which closed-form ridge regression reconstructed at spatial
+R² = 0.999. The revised regime raises the median spatial ΔT to 10.77 K. See
+[`docs/report.md`](report.md) §9.3 and [`docs/assumptions.md`](assumptions.md) §3.4.
 
 ### Test Scenarios (identical across all geometries)
 
