@@ -54,7 +54,16 @@ Thermo/
 
 Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer), matching 3D-ICE's ground-truth `bottom heat sink` directive. Full layer stacks, material properties, and scenario details are in [`docs/geometry_reference.md`](docs/geometry_reference.md).
 
-**Dataset**: 320 real 3D-ICE `.npz` files (280 train + 40 test) across all 8 geometries, sweeping power density (0.1–20 W/cm² across 9 spatial patterns), HTC (500–200,000 W/m²·K), and ambient temperature (25–85 °C). HBM/memory-stack power blocks are capped below compute-logic power density to keep memory-stack dies within their realistic thermal envelope regardless of scenario pattern.
+**Dataset**: 335 real 3D-ICE `.npz` files across all 8 geometries. Power is derived from a package TDP budget (30 W mobile 3D stack → 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance representing cache, IO and uncore. A scenario's pattern selects a workload fraction of that budget, bounded by an absolute silicon ceiling of 300 W/cm² and, for HBM/memory dies, 8 W/cm². Cooling must be adequate for the power density (165 W/m²·K per W/cm²), giving HTC 2000–50,000 W/m²·K; ambient spans 25–45 °C.
+
+> **Before training anything, run `scripts/baselines.py`.** Closed-form ridge regression
+> solves this benchmark at spatial R² ≈ 0.99 and extrapolates at R² > 0.94, because
+> steady-state conduction is linear in its sources and block-scalar power spans only ~4
+> dimensions. Judge surrogates on **hotspot localisation and spatially-detrended error**,
+> not raw MAE or field R² — both are dominated by a linear component that needs no network.
+> Passing `--power-map` makes power a per-cell field instead, which is what breaks the
+> linear model's hotspot localisation (8–1442 µm → 4547–6044 µm). See
+> [`docs/report.md`](docs/report.md) §9.
 
 ---
 
