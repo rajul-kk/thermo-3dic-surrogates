@@ -23,6 +23,51 @@ Each assumption is classified:
 **Real hardware:** Jet impingement centre h can be 3–5× higher than edges. Microchannel coolers have spatially varying h along flow direction.  
 **Impact:** ±5–15 K spatial error at surface for high-performance cooling (h > 5000 W/m²·K). Internal die temperatures are less affected because the die/spreader/TIM stack attenuates surface non-uniformity.
 
+**Note:** the BC is applied at `z=0` (the `heat_sink` layer), not the top surface — see §7.2. The heading is retained for continuity.
+
+#### Can HTC fidelity be improved? (assessed 2026-07-31)
+
+Three tiers, only the first of which is currently reachable.
+
+**Tier 1 — ground the sweep in real hardware (DONE).** The six HTC levels are now
+documented against the cooling solution each represents (active air 2000 → two-phase
+microchannel 50000) in `ScenarioGenerator`. The range is deliberately liquid-weighted:
+passive/low-profile air (~500–1500 W/m²·K) is excluded because at that level the
+convective film dominates the stack resistance and flattens the temperature field. That
+is a benchmark-discriminability choice, not a fidelity one, and is disclosed as such.
+
+**Tier 2 — spatially varying HTC: NOT POSSIBLE in 3D-ICE's bottom sink.** The grammar
+(`bison/stack_description_parser.y`) accepts exactly two scalars:
+
+```
+bottom heat sink :
+    heat transfer coefficient <value> ;
+    temperature               <value> ;
+```
+
+There is no per-cell or per-region form. Non-uniform h cannot be expressed on the bottom
+sink at any effort level short of patching the simulator.
+
+**Tier 3 — pluggable heat sink models: highest fidelity, three blockers.** 3D-ICE ships
+Modelica models of real hardware under `heatsink_plugin/heatsinks/` — `HS483` (a
+commercial air cooler with a variable fan-speed input) and `cuplex_kryos_21606` (an Aqua
+Computer liquid waterblock). These replace the scalar h with a physical cooling model.
+Blocked by:
+
+1. **Toolchain.** Requires OpenModelica (`omc`) to compile `.mo` → FMU. Not installed;
+   no prebuilt `.fmu` ships with the source.
+2. **Orientation.** The grammar exposes `top pluggable heat sink` only — there is no
+   bottom pluggable form. This repo cools at `z=0`, so adopting it means inverting every
+   stack, which renumbers all layer indices and invalidates the existing dataset.
+3. **It changes the learning problem.** The surrogate currently conditions on `htc` as a
+   scalar input, and HTC extrapolation is the benchmark's most discriminative axis
+   (`docs/report.md` §9.1). A pluggable sink replaces that axis with fan speed or coolant
+   flow rate, so the conditioning vector and the OOD story both have to be redesigned.
+
+**Recommendation:** stay at Tier 1. Tier 3 is the genuine fidelity ceiling but is a
+project in itself, and it would cost the axis on which this benchmark is currently
+hardest.
+
 ### 1.4 Adiabatic side and top faces — **Simplifying**
 **What we do:** `dT/dn = 0` on all four lateral side faces and the top face (`z=1`, nearest the die). Convective (HTC) cooling is applied at the **bottom** face (`z=0`, the `heat_sink` layer) — this matches 3D-ICE's own `bottom heat sink` boundary-condition directive.
 

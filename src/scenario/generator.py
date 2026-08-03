@@ -100,6 +100,24 @@ class ScenarioGenerator:
     # 100-300 W/cm2 peak of real CPU hotspots.
     POWER_SCALE = 15.0
 
+    # HTC levels and the real cooling hardware each one stands for. 3D-ICE's
+    # `bottom heat sink` accepts only a scalar coefficient, so a cooling solution
+    # can be represented only by its area-averaged effective HTC at the sink base:
+    #
+    #     2000  W/m2K  active air, tower cooler + fan
+    #     5000  W/m2K  entry liquid / AIO cold plate
+    #    10000  W/m2K  good liquid cold plate
+    #    20000  W/m2K  high-performance cold plate
+    #    35000  W/m2K  microchannel liquid
+    #    50000  W/m2K  aggressive microchannel / two-phase
+    #
+    # KNOWN BIAS: this range is liquid-weighted. Passive and low-profile air
+    # cooling (~500-1500 W/m2K) is deliberately excluded because at those levels
+    # the convective film dominates the stack resistance and flattens the field
+    # (see item 2 above) -- that choice serves benchmark discriminability, not
+    # fidelity, and should be disclosed rather than presented as realism.
+    # docs/assumptions.md 1.3 tracks the uniform-HTC limitation.
+
     # Training parameter ranges (pre-scale; effective power is value * POWER_SCALE)
     TRAIN_POWER_DENSITIES = [0.5, 1.0, 2.0, 4.0, 8.0]  # -> 7.5-120 W/cm²
     TRAIN_HTCS = [5000.0, 20000.0, 50000.0]  # W/m²·K
