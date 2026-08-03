@@ -197,10 +197,49 @@ def generate_coords_and_indices(
     return coords, layer_indices
 
 
+def _power_field_from_maps(
+    coords: np.ndarray,
+    geometry: Geometry,
+    power_map_by_layer: dict,
+) -> np.ndarray:
+    """
+    Sample per-cell power maps onto arbitrary coordinates.
+
+    Maps are indexed (along-length, along-width) to match the 3D-ICE floorplan
+    convention, while coords are (x=width, y=length) in the PINN convention --
+    hence the axis swap when looking up a cell.
+    """
+    power_field = np.zeros(coords.shape[0])
+
+    for layer in geometry.layers:
+        if not layer.is_active:
+            continue
+        pmap = power_map_by_layer.get(layer.name)
+        if pmap is None:
+            continue
+        pmap = np.asarray(pmap, dtype=np.float64)
+        n_l, n_w = pmap.shape
+
+        in_layer = (coords[:, 2] >= layer.z_bottom) & (coords[:, 2] < layer.z_top)
+        if not in_layer.any():
+            continue
+
+        # Cell volume in m^3: W per cell -> W/m^3
+        cell_vol_m3 = ((geometry.die_length / n_l) * (geometry.die_width / n_w)
+                       * layer.thickness) * 1e-18
+
+        ia = np.clip((coords[in_layer, 1] / geometry.die_length * n_l).astype(int), 0, n_l - 1)
+        ib = np.clip((coords[in_layer, 0] / geometry.die_width * n_w).astype(int), 0, n_w - 1)
+        power_field[in_layer] = pmap[ia, ib] / cell_vol_m3
+
+    return power_field
+
+
 def generate_power_density_field(
     coords: np.ndarray,
     geometry: Geometry,
-    power_scenario: dict
+    power_scenario: dict,
+    power_map_by_layer: dict = None,
 ) -> np.ndarray:
     """
     Generate volumetric power density field for given coordinates.
@@ -209,10 +248,18 @@ def generate_power_density_field(
         coords: (N, 3) array of (x, y, z) coordinates in μm
         geometry: Geometry object
         power_scenario: Dictionary mapping block names to power densities (W/cm²)
+        power_map_by_layer: Optional {layer_name: (n_l, n_w) array of WATTS per
+            cell}. When given it REPLACES the block decomposition, because it is
+            what the simulator actually used. Falling back to blocks here would
+            train a model on a coarse approximation of the source that produced
+            its own targets.
 
     Returns:
         (N,) array of volumetric power densities (W/m³)
     """
+    if power_map_by_layer:
+        return _power_field_from_maps(coords, geometry, power_map_by_layer)
+
     power_field = np.zeros(coords.shape[0])
 
     # Get die layers (layers with power dissipation)

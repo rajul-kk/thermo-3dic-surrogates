@@ -65,8 +65,14 @@ class NPZExporter:
                 dtype=np.int32
             )
 
-        # Generate power density field
-        power_density = generate_power_density_field(coords, geometry, scenario_params['power_blocks'])
+        # Generate power density field. When the scenario carries per-cell power
+        # maps, they take precedence over the block decomposition: the maps are
+        # what the simulator actually used, so rebuilding from blocks here would
+        # store a coarse approximation of the source that produced these very
+        # temperatures -- a silent train/target mismatch.
+        power_density = generate_power_density_field(
+            coords, geometry, scenario_params['power_blocks'],
+            power_map_by_layer=scenario_params.get('power_map_by_layer'))
 
         # Prepare metadata
         metadata = {
