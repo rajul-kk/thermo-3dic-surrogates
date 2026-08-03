@@ -21,6 +21,11 @@
 >
 > Sections 1–7 below are retained for reference but their novelty framing is superseded.
 > Sections 8–11 are being rewritten around the abstract below. Do not submit the old framing.
+>
+> **Update:** the degenerate regime has since been fixed in the generator and geometry1
+> regenerated — median spatial ΔT is now 9.51 K and ridge falls to R² 0.501 on the
+> power-pattern OOD split. See §9.3. A double-counted `T_range` in the PDE conduction term
+> was also found and fixed (§9.4). The remaining seven geometries still need regenerating.
 
 ---
 
@@ -275,7 +280,46 @@ already noted the 20 W/cm² ceiling was conservative against the 100–300 W/cm�
 hotspots; the consequence, not previously recognised, is that the benchmark cannot
 discriminate between architectures.
 
-### 9.3 Neural results
+### 9.3 Regime fix and its effect
+
+The degeneracy in §9.2 was a benchmark-design fault, not a property of 3D-IC thermal
+problems. `src/scenario/generator.py` was revised (2026-07-31) on three coupled axes —
+power scaled 15× so peak hotspots reach 300 W/cm², HTC raised to 2000–50000 W/m²·K (the
+spatial fraction of the temperature drop is $R_{cond}/(R_{cond} + 1/h)$, so low HTC was
+actively flattening the field), and ambient compressed to 25–45 °C so it no longer swamps
+self-heating.
+
+geometry1 was regenerated through 3D-ICE under the new regime:
+
+| Quantity | Old regime | New regime |
+|---|---|---|
+| Median within-scenario spatial ΔT | 1.10 K | **9.51 K** |
+| Max within-scenario spatial ΔT | 6.40 K | **80.73 K** |
+| Between-scenario / spatial ratio | 62× | **6.0×** |
+| Ridge spatial R² (in-distribution) | 0.999 | **0.954** |
+| Ridge detrended MAE | 0.009 K | **0.232 K** |
+| Ridge spatial R² (pattern OOD) | 0.902 | **0.501** |
+| Ridge spatial R² (HTC OOD) | −0.23 | **−16.7** |
+
+The benchmark now discriminates on two axes rather than none: on the power-pattern split
+ridge's detrended MAE (2.70 K) exceeds the signal's own standard deviation (1.76 K), i.e.
+the linear model is worse than useless there. Power extrapolation remains linear-solvable
+(R² 0.923), as conduction genuinely is linear in the sources.
+
+Only geometry1 has been regenerated; the other seven still carry the old regime and their
+numbers in §9.1–9.2 should be read as describing the superseded dataset.
+
+### 9.4 A physics bug found while building these tests
+
+`pde_residual` applied the temperature range $(T_{max}-T_{min})$ twice — once converting
+normalised gradients to physical ones, and again as a trailing factor on the divergence.
+The conduction term was therefore inflated by roughly 65–100×, so the PDE loss effectively
+enforced $\nabla\cdot(k\nabla T) = 0$ while ignoring the source $Q$. No trained result is
+affected because none exists, but every physics-loss run before 2026-07-31 optimised the
+wrong objective. It is now pinned by a manufactured-solution test that compares the residual
+against the closed-form $k \cdot 2c \cdot T_{range}/L_z^2$.
+
+### 9.5 Neural results
 
 *None. No checkpoint has been trained. Any neural number added here must be reported
 alongside the ridge baseline on the same split, using detrended metrics.*
