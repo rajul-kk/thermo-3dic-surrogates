@@ -96,9 +96,13 @@ def test_resampling_preserves_the_field(dataset):
     ns = compute_norm_stats(files, {g: get_geometry_by_name(g) for g in GEOMS})
     for f in files:
         import numpy as np
-        meta = dict(np.load(f, allow_pickle=True)['metadata'][0])
-        mesh, n_layers = meta['mesh_resolution'], int(meta['num_layers'])
-        native = (int(mesh[0]), int(mesh[1]), n_layers)
+        d = np.load(f, allow_pickle=True)
+        meta = dict(d['metadata'][0])
+        mesh = meta['mesh_resolution']
+        nx, ny = int(mesh[0]), int(mesh[1])
+        # Derive z-depth from the point count, not the layer count: sub-layer
+        # discretisation makes stack elements outnumber geometry layers.
+        native = (nx, ny, d['coords'].shape[0] // (nx * ny))
 
         nat = FNODataset([f], ns, expected_grid=native)
         res = FNODataset([f], ns, expected_grid=(1, 1, 1), target_grid=TARGET)

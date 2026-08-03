@@ -239,6 +239,23 @@ def run_single(geom_names: list, args, device: torch.device, model_name: str) ->
         sys.exit(1)
     logging.info("Files: %d train, %d test", len(train_files), len(test_files))
 
+    if target_grid is None:
+        # Take the z-depth from the DATA, not from geometry.mesh_resolution. 3D-ICE
+        # emits one value per stack element, which has never equalled the declared
+        # mesh nz (40 declared vs 6 emitted originally, 10 after sub-layer
+        # discretisation). Trusting the declaration made the loader reject every
+        # file once subdivision landed.
+        import numpy as _np
+        _d = _np.load(train_files[0], allow_pickle=True)
+        _n = _d['coords'].shape[0]
+        _nx, _ny = grid_shape[0], grid_shape[1]
+        if _nx * _ny > 0 and _n % (_nx * _ny) == 0:
+            data_grid = (_nx, _ny, _n // (_nx * _ny))
+            if data_grid != tuple(grid_shape):
+                logging.info("Grid from data: %s (geometry declares %s)",
+                             data_grid, tuple(grid_shape))
+                grid_shape = data_grid
+
     norm_path = output_dir / 'norm_stats.json'
     if args.norm_stats and args.norm_stats.exists():
         norm_stats = NormStats.load(args.norm_stats)

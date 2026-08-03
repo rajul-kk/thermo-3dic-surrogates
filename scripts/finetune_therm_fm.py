@@ -244,8 +244,9 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
 
     # ---- Load geometry ----
-    from src.core.geometry import build_all_geometries
-    all_geoms = build_all_geometries()
+    from src.core.geometry_builders import build_all_geometries
+    # build_all_geometries() returns a LIST; key it by name before lookup.
+    all_geoms = {g.name: g for g in build_all_geometries()}
     if args.geometry not in all_geoms:
         _log.error("Geometry '%s' not found. Available: %s", args.geometry, list(all_geoms))
         sys.exit(1)

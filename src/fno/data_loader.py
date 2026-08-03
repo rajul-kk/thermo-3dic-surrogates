@@ -114,11 +114,18 @@ class FNODataset(Dataset):
             n_layers = int(meta.get('num_layers', 1))
 
             if target_grid is not None:
-                # Native resolution for THIS file. 3D-ICE emits one value per layer
-                # per (x,y) cell, so the native z-depth is the layer count.
+                # Native resolution for THIS file. 3D-ICE emits one value per stack
+                # ELEMENT per (x,y) cell, and sub-layer discretisation makes the
+                # element count exceed the geometry's layer count (geometry1: 10
+                # elements from 6 layers). Deriving nz from n_layers therefore
+                # broke once subdivision landed, so take it from the point count,
+                # which is true regardless of how the stack was discretised.
                 mesh = meta.get('mesh_resolution', expected_grid)
                 nx, ny = int(mesh[0]), int(mesh[1])
-                nz = n_layers if n_points == n_layers * nx * ny else int(mesh[2])
+                if nx * ny > 0 and n_points % (nx * ny) == 0:
+                    nz = n_points // (nx * ny)
+                else:
+                    nz = int(mesh[2])
             else:
                 nx, ny, nz = expected_grid
 

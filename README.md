@@ -56,6 +56,12 @@ Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer),
 
 **Dataset**: 335 real 3D-ICE `.npz` files across all 8 geometries. Power is derived from a package TDP budget (30 W mobile 3D stack → 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance representing cache, IO and uncore. A scenario's pattern selects a workload fraction of that budget, bounded by an absolute silicon ceiling of 300 W/cm² and, for HBM/memory dies, 8 W/cm². Cooling must be adequate for the power density (165 W/m²·K per W/cm²), giving HTC 2000–50,000 W/m²·K; ambient spans 25–45 °C.
 
+**Dataset layout.** `data/3d-ice/` is always the current dataset — every command below
+assumes it. `data/3d-ice-percell/` holds the per-cell power variant (geometry1 only so
+far). `data/_archive/` holds superseded generations and must never be globbed into
+training: `3d-ice_pre_tdp_regime/` is the spatially degenerate dataset (median ΔT 0.77 K
+vs 29.05 K now), kept only for reproducing §9.1–9.2 of the report.
+
 > **Before training anything, run `scripts/baselines.py`.** Closed-form ridge regression
 > solves this benchmark at spatial R² ≈ 0.99 and extrapolates at R² > 0.94, because
 > steady-state conduction is linear in its sources and block-scalar power spans only ~4

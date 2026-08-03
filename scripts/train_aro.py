@@ -58,19 +58,24 @@ def _find_npz(root: Path, geometries: list, split: str = 'train') -> list:
     """Find NPZ files matching the given geometries and split tag."""
     files = []
     for geom in geometries:
-        pattern = f"{geom}_{split}_*.npz"
-        found = sorted(root.glob(pattern))
-        if not found:
-            # Try without split tag
-            found = sorted(root.glob(f"{geom}*.npz"))
-        files.extend(found)
+        # Files live in a per-geometry subdirectory (data/3d-ice/geometry1/...).
+        # Globbing only the root found nothing, so this script loaded zero files.
+        for base in (root / geom, root):
+            found = sorted(base.glob(f"{geom}_{split}_*.npz"))
+            if not found:
+                found = sorted(base.glob(f"{geom}*.npz"))
+            if found:
+                files.extend(found)
+                break
     return files
 
 
 def _load_geometries(geometry_names: list):
     """Load Geometry objects from the project's geometry factory."""
-    from src.core.geometry import build_all_geometries
-    all_geoms = build_all_geometries()
+    from src.core.geometry_builders import build_all_geometries
+    # build_all_geometries() returns a LIST; indexing it by name silently yielded
+    # nothing, so this script could never load a geometry.
+    all_geoms = {g.name: g for g in build_all_geometries()}
     return {name: all_geoms[name] for name in geometry_names if name in all_geoms}
 
 
