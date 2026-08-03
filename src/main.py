@@ -267,7 +267,7 @@ def process_geometry(geometry_name: str,
     exporter = NPZExporter(output_base)
     calculator = StatisticsCalculator()
 
-    all_stats = {'train': {}, 'test': {}}
+    all_stats = {'train': {}, 'test': {}, 'failed': []}
     scenario_count = 0
 
     # Process training scenarios
@@ -299,6 +299,7 @@ def process_geometry(geometry_name: str,
                 scenario_count += 1
             except Exception as e:
                 logger.error(f"  [FAILED] {scenario_name}: {e}")
+                all_stats['failed'].append(scenario_name)
 
     # Process test scenarios
     if not skip_test:
@@ -329,6 +330,7 @@ def process_geometry(geometry_name: str,
                 scenario_count += 1
             except Exception as e:
                 logger.error(f"  [FAILED] {scenario_name}: {e}")
+                all_stats['failed'].append(scenario_name)
 
     logger.info(f"\n{geometry_name}: {scenario_count} scenarios processed")
     return all_stats
@@ -587,6 +589,8 @@ def main():
     total_train = sum(len(all_results[g]['train']) for g in all_results)
     total_test = sum(len(all_results[g]['test']) for g in all_results)
     total_scenarios = total_train + total_test
+    failed = {g: all_results[g].get('failed', []) for g in all_results}
+    n_failed = sum(len(v) for v in failed.values())
     total_size_mb = sum(
         (args.output / g / "train").stat().st_size / (1024**2)
         for g in all_results if (args.output / g / "train").exists()
@@ -606,14 +610,34 @@ def main():
         logger.info(f"    test/   ({len(all_results[geom_name]['test'])} scenarios)")
         logger.info(f"    plots/  (optional visualizations)")
 
+    if _sim_tmpdir and Path(_sim_tmpdir).exists():
+        shutil.rmtree(_sim_tmpdir, ignore_errors=True)
+
+    # Exit non-zero on partial or empty output. Per-scenario failures used to be
+    # logged and then swallowed: a run in which EVERY scenario raised still
+    # printed "PROCESSING COMPLETE" and returned 0, so a batch script saw success
+    # while producing no files at all. Anything driving this in a loop needs the
+    # exit code to mean something.
+    if n_failed:
+        logger.error("%d scenario(s) FAILED:", n_failed)
+        for geom_name, names in failed.items():
+            if names:
+                logger.error("  %s: %s", geom_name, ', '.join(names))
+
+    if total_scenarios == 0:
+        logger.error(
+            "No scenarios were produced. Nothing was written to %s.", args.output)
+        return 1
+
+    if n_failed:
+        logger.error("Completed with failures -- dataset is INCOMPLETE.")
+        return 1
+
     logger.info("\nNext steps:")
     logger.info("1. Load .npz files for PINN training")
     logger.info("2. Compute additional statistics across dataset")
     logger.info("3. Validate physical consistency of thermal results")
     logger.info("4. Train PINNs on benchmark dataset")
-
-    if _sim_tmpdir and Path(_sim_tmpdir).exists():
-        shutil.rmtree(_sim_tmpdir, ignore_errors=True)
 
     return 0
 
