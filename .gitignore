@@ -7,8 +7,13 @@ __pycache__/
 
 # Generated data / model artifacts (large, regenerable from code + this data)
 data/
+data_*/
 checkpoints/
 results/
+regen_*.log
+
+# Code-graph output (regenerable with `graphify update .`)
+graphify-out/
 
 # Stray debug output (not project files)
 xaxis.txt
