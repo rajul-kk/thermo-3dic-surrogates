@@ -178,7 +178,20 @@ def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
     if power_pca > 0:
         # Append a linear summary of the full power field so ridge sees the actual
         # source, not just its block averages.
-        A_tr, A_te = power_pca_features(train, test, power_pca)
+        #
+        # Cap the component count against the training size. With more features
+        # than samples the normal equations are singular and the fit explodes on
+        # extrapolation splits -- an unregularised run produced detrended MAE of
+        # 3e12 K, which is a degenerate solve rather than a measurement. Keeping
+        # features well below n_train makes the baseline numerically honest, and
+        # a linear model that needs more components than it has samples has
+        # already lost on capacity grounds.
+        n_comp = max(1, min(power_pca, (len(train) - X_tr.shape[1]) // 2))
+        if n_comp < power_pca:
+            _log.info("power PCA reduced %d -> %d components for %d training "
+                      "scenarios (keeps the linear system determined)",
+                      power_pca, n_comp, len(train))
+        A_tr, A_te = power_pca_features(train, test, n_comp)
         X_tr = np.hstack([X_tr, A_tr])
         X_te = np.hstack([X_te, A_te])
 

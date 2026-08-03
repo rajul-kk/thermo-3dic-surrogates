@@ -62,10 +62,19 @@ direction resolved by sub-layer discretisation — raises the median within-scen
 gradient tenfold, yet ridge still solves every extrapolation split at R² > 0.94. An
 intermediate version did defeat the linear model, but only by containing combinations that
 cannot physically exist, such as 150 W/cm² against air-class cooling. Escaping linearity
-requires changing *what varies* — per-cell power maps rather than a handful of block
-scalars, variable floorplans, or transient operation — not the range over which the
-existing handful varies. We release the dataset, baselines, and OOD split tooling so future
-surrogate claims can be checked against a linear model before an architecture is credited.
+requires changing *what varies*, not the range over which it varies.
+
+We then test that prediction directly. Replacing block-scalar power with a per-cell power
+field — same TDP budget, same cooling, same geometry, only the spatial distribution of the
+source made function-valued — leaves the linear model's field-level R² largely intact
+(0.78–0.98) but collapses its ability to locate the hotspot, from 8–1442 µm to
+4547–6044 µm on a 10 mm die, i.e. no better than chance. With block power the peak sits at
+one of a few fixed positions and "predicting" it is memorising a short list; with a
+continuous field it must be computed. This isolates where an operator surrogate can earn
+its cost, and implies such work should be judged on **hotspot localisation rather than
+field R²**, since field R² is dominated by the linear component that needs no network. We
+release the dataset, baselines, and OOD split tooling so future surrogate claims can be
+checked against a linear model before an architecture is credited.
 
 ---
 
@@ -340,7 +349,59 @@ construction. Escaping that requires changing what varies — per-cell power map
 of a handful of block scalars, variable floorplans, or transient operation (§10) — not
 changing the range over which the existing handful varies.
 
-### 9.4 Regime fix and its effect (intermediate result, superseded by §9.3)
+### 9.4 Per-cell power: the input dimensionality, not the parameter range
+
+§9.3 concluded that no choice of parameter *ranges* makes this benchmark
+non-linear, because the source was described by ~8 scalars. That diagnosis was
+testable: replacing block scalars with a per-cell power field should change the
+result, and it does.
+
+`--power-map mixed` gives each scenario a spatially varying power field at the
+lateral mesh resolution (10,000 cells for geometry1) instead of 4 block scalars.
+The physics is untouched — same TDP budget, same silicon density ceiling, same
+cooling rule — only the *distribution* of power varies. Effective rank of a
+collection of N maps:
+
+| | N=40 | N=120 | N=200 |
+|---|---|---|---|
+| per-cell maps | 37.2 | 104.9 | 163.8 |
+| block scalars | 4.0 | 4.0 | 4.0 |
+
+Simulation cost is unchanged: 3D-ICE's solve time is set by the mesh, not the
+floorplan (13.3 s for 4 floorplan elements, 13.5 s for 10,000).
+
+**Ridge on geometry1, block-scalar vs per-cell**, in both cases given the leading
+20 principal components of the full power field so the linear model sees the real
+source rather than block averages:
+
+| OOD axis | block-scalar R² | per-cell R² | block hotspot err | per-cell hotspot err |
+|---|---|---|---|---|
+| power | 1.000 | 0.978 | 1226 µm | **4547 µm** |
+| HTC | 0.999 | 0.783 | 1442 µm | **6044 µm** |
+| pattern | 0.999 | 0.982 | 8 µm | **5044 µm** |
+
+Two things change, and the second matters more than the first.
+
+Field-level R² degrades only moderately (worst on the HTC axis, 0.999 → 0.783).
+A linear model still reconstructs most of the field's variance, and we do not
+claim otherwise: the bulk of a thermal field really is a smooth response to
+total power and boundary conditions, which is genuinely linear.
+
+**Hotspot localisation collapses.** Ridge locates the hotspot to within 8–1442 µm
+on block-scalar data and 4547–6044 µm on per-cell data — roughly half the die
+width, i.e. no better than chance. The reason is structural: with block power the
+hotspot always sits at one of a few fixed block positions, so "predicting" its
+location is memorising a short list. With a per-cell field the peak moves
+continuously, and locating it requires actually applying the Green's function
+rather than interpolating between remembered configurations.
+
+That is the opening for an operator surrogate, and it is the engineering quantity
+that matters — thermal design cares where the hot spot is, not only what the mean
+field looks like. It also sharpens what any surrogate here must be judged on:
+**hotspot location error, not field R²**, because field R² is dominated by the
+linear part that needs no network.
+
+### 9.5 Regime fix and its effect (intermediate result, superseded by §9.3)
 
 The degeneracy in §9.2 was a benchmark-design fault, not a property of 3D-IC thermal
 problems. `src/scenario/generator.py` was revised (2026-07-31) on three coupled axes —
@@ -369,7 +430,7 @@ the linear model is worse than useless there. Power extrapolation remains linear
 Only geometry1 has been regenerated; the other seven still carry the old regime and their
 numbers in §9.1–9.2 should be read as describing the superseded dataset.
 
-### 9.5 A physics bug found while building these tests
+### 9.6 A physics bug found while building these tests
 
 `pde_residual` applied the temperature range $(T_{max}-T_{min})$ twice — once converting
 normalised gradients to physical ones, and again as a trailing factor on the divergence.
@@ -379,7 +440,7 @@ affected because none exists, but every physics-loss run before 2026-07-31 optim
 wrong objective. It is now pinned by a manufactured-solution test that compares the residual
 against the closed-form $k \cdot 2c \cdot T_{range}/L_z^2$.
 
-### 9.6 Neural results
+### 9.7 Neural results
 
 *None. No checkpoint has been trained. Any neural number added here must be reported
 alongside the ridge baseline on the same split, using detrended metrics.*
