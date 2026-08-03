@@ -79,25 +79,54 @@ def test_registry_round_trips_every_geometry():
 
 # ── Scenario operating regime ──────────────────────────────────────────────────
 
-def test_every_geometry_has_an_explicit_power_scale():
+def test_every_geometry_has_an_explicit_tdp():
     """
-    Sustainable power density differs by package type, so a geometry silently
-    falling back to the default scale is a bug -- that is how geometry2a ended up
-    at a 273 C junction while geometry1 sat at a plausible 112 C.
+    Power comes from a TDP budget per package class. A geometry silently falling
+    back to the default budget would get an unjustified operating point.
     """
     from src.scenario.generator import ScenarioGenerator
-    missing = [n for n in GEOM_NAMES if n not in ScenarioGenerator.POWER_SCALE_BY_GEOMETRY]
-    assert not missing, f"geometries with no explicit POWER_SCALE: {missing}"
+    missing = [n for n in GEOM_NAMES if n not in ScenarioGenerator.TDP_BY_GEOMETRY_W]
+    assert not missing, f"geometries with no explicit TDP: {missing}"
 
 
-def test_stacked_geometries_use_a_lower_power_scale_than_single_die():
-    """Stacked dies must be power-limited relative to a single die."""
+def test_total_dissipation_respects_the_tdp_budget():
+    """
+    Total power must never exceed TDP x MAX_WORKLOAD_FRACTION. This is what makes
+    the operating point citable instead of tuned: it is a design input, not a knob
+    chosen to hit a target temperature.
+    """
     from src.scenario.generator import ScenarioGenerator
-    s = ScenarioGenerator.POWER_SCALE_BY_GEOMETRY
-    for stacked in ('geometry2a', 'geometry2b', 'geometry2c', 'geometry5', 'geometry6'):
-        assert s[stacked] < s['geometry1'], (
-            f"{stacked} is a stacked package and must not carry the same power "
-            f"density as the single-die geometry1")
+    for geom in ALL_GEOMS:
+        g = ScenarioGenerator()
+        scen = g.generate_all_scenarios(geom)
+        n_extra = 35 if geom.name in ('geometry5', 'geometry6') else 10
+        scen += g.generate_extra_training_scenarios(geom, n_extra, start_index=16)
+
+        area = {b.name: (b.width * b.height) / 1e8
+                for b in geom.power_blocks if not b.is_tsv_region}
+        budget = (ScenarioGenerator.TDP_BY_GEOMETRY_W[geom.name]
+                  * ScenarioGenerator.MAX_WORKLOAD_FRACTION)
+        for s in scen:
+            total = sum(v * area.get(k, 0.0) for k, v in s.power_blocks.items())
+            assert total <= budget * 1.01, (
+                f"{s.name}: {total:.1f} W exceeds TDP budget {budget:.1f} W")
+
+
+@pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
+def test_power_density_never_exceeds_the_silicon_ceiling(geom):
+    """
+    Silicon cannot dissipate arbitrarily much per unit area, whatever the package
+    budget. Without this ceiling, normalising to TDP let a concentrated pattern
+    pour a whole 125 W budget into one 0.09 cm2 block -- 1618 W/cm2.
+    """
+    from src.scenario.generator import ScenarioGenerator
+    g = ScenarioGenerator()
+    scen = g.generate_all_scenarios(geom)
+    scen += g.generate_extra_training_scenarios(geom, 10, start_index=16)
+    ceiling = ScenarioGenerator.MAX_LOGIC_POWER_DENSITY_WCM2
+    for s in scen:
+        peak = max(s.power_blocks.values())
+        assert peak <= ceiling + 1e-6, f"{s.name}: {peak:.1f} W/cm2 exceeds {ceiling}"
 
 
 @pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)

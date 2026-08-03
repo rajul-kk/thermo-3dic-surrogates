@@ -93,31 +93,56 @@ class ScenarioGenerator:
     tens of K, instead of ~1 K.
     """
 
-    # Multiplies every pattern's base power. Applied once, in _apply_pattern, so the
-    # relative structure designed into each pattern (hotspot vs background ratios) is
-    # preserved exactly and only the absolute regime shifts.
+    # Thermal design power per package class, in watts.
     #
-    # PER-GEOMETRY, because sustainable power density is not a constant across
-    # packages. A single die dumps its heat straight into the spreader; a dual-die
-    # stack pushes the upper die's heat through the lower die plus two bond
-    # interfaces, so the same W/cm2 per die produces a far higher junction
-    # temperature. Real stacked parts are power-limited for exactly this reason --
-    # which is also why HBM runs an order of magnitude below logic. A single global
-    # scale of 15.0 gave a plausible 112 C peak on geometry1 but 273 C on
-    # geometry2a, which is not a chip.
+    # Power is set from a TDP BUDGET rather than a per-geometry multiplier tuned to
+    # hit a target temperature. The tuned-multiplier approach was circular -- it used
+    # the output (peak junction temperature) to choose the input (power) -- and it
+    # contradicted the measured physics: geometry3 has ~3x LOWER thermal resistance
+    # than geometry2a (0.051 vs 0.164 K per summed W/cm2, measured from generated
+    # fields), so it can absorb far more power, yet the tuned scales gave it the same
+    # multiplier as geometry1.
     #
-    # Calibrated so peak junction lands in a realistic 85-120 C band per geometry.
-    POWER_SCALE_BY_GEOMETRY = {
-        'geometry1':  15.0,   # single die, 10x10 mm       -> validated peak 112 C
-        'geometry3':  15.0,   # single die, server 25x25 mm
-        'geometry2a':  6.0,   # dual-die stack + TSVs: upper die heat crosses lower die
-        'geometry2b':  6.0,
-        'geometry2c':  6.0,
-        'geometry4':  12.0,   # 2.5D, chiplets side-by-side -- lateral, little stacking penalty
-        'geometry5':   8.0,   # CoWoS: compute chiplet + stacked HBM
-        'geometry6':   8.0,   # CoWoS with 6 HBM stacks
+    # A TDP budget is a real design input, so each geometry's power is citable against
+    # shipping hardware, and the temperature differences between package types EMERGE
+    # from the geometry instead of being normalised away. That matters here because
+    # PI-DeepONet trains across all geometries at once and should be learning exactly
+    # that: stacking costs you thermally.
+    #
+    # Consequence, accepted deliberately: geometries no longer all peak near the same
+    # temperature. A dense stacked part runs hotter than a large server die at the
+    # same workload fraction, which is true of real hardware.
+    TDP_BY_GEOMETRY_W = {
+        'geometry1':  125.0,   # desktop-class single die, 10x10 mm
+        'geometry2a':  30.0,   # mobile-class 3D stack, 8x8 mm
+        'geometry2b':  30.0,
+        'geometry2c':  30.0,
+        'geometry3':  250.0,   # server CPU die, 25x25 mm
+        'geometry4':  200.0,   # 2.5D chiplet assembly on interposer
+        'geometry5':  400.0,   # CoWoS accelerator: compute chiplet + HBM stack
+        'geometry6':  700.0,   # CoWoS accelerator with 6 HBM stacks
     }
-    POWER_SCALE_DEFAULT = 12.0
+    TDP_DEFAULT_W = 150.0
+
+    # A pattern's `base_power` argument now selects a WORKLOAD FRACTION of TDP rather
+    # than an absolute W/cm2: base_power = 10 means 100% of TDP, 20 means a 120%
+    # boost excursion, and low values represent idle/light load. The pattern itself
+    # still sets the SPATIAL distribution; only the total is normalised.
+    WORKLOAD_PER_BASE_POWER = 0.1        # base_power 10 -> 1.0 x TDP
+    MIN_WORKLOAD_FRACTION = 0.10         # ~idle
+    MAX_WORKLOAD_FRACTION = 1.20         # short boost above TDP
+
+    # Absolute ceiling on logic power density [W/cm2]. Silicon cannot dissipate
+    # arbitrarily much per unit area regardless of the package budget; measured CPU
+    # hotspots peak around 100-300 W/cm2 (references.md).
+    #
+    # This is what stops a concentrated pattern from becoming unphysical. Normalising
+    # to TDP alone would let extreme_hotspot pour an entire 125 W budget into one
+    # 0.09 cm2 block -- 1618 W/cm2, which is not silicon. With the cap, that scenario
+    # instead represents one core at its density limit while the rest idle, and the
+    # chip's TOTAL falls well below TDP. That is the correct physics: a part running
+    # a single core flat-out does not draw full TDP.
+    MAX_LOGIC_POWER_DENSITY_WCM2 = 300.0
 
     # Floor applied to any HTC drawn from the extra-scenario pools. Those pools
     # predate the regime change and contain values down to 500 W/m2K, which pair
@@ -175,14 +200,26 @@ class ScenarioGenerator:
     def __init__(self):
         """Initialize scenario generator."""
         self.scenarios: List[ScenarioParameters] = []
-        # Power scale of the geometry currently being generated. Set by every public
-        # generate_* entry point via _set_active_geometry, read by _apply_pattern.
-        self._active_power_scale: float = self.POWER_SCALE_DEFAULT
+        # TDP budget and block areas of the geometry currently being generated. Set by
+        # every public generate_* entry point via _set_active_geometry, read by
+        # _apply_pattern to normalise a relative power map onto the budget.
+        self._active_tdp_w: float = self.TDP_DEFAULT_W
+        self._active_block_area_cm2: Dict[str, float] = {}
 
     def _set_active_geometry(self, geometry: Geometry) -> None:
-        """Select the power scale for `geometry`. Must precede any _apply_pattern call."""
-        self._active_power_scale = self.POWER_SCALE_BY_GEOMETRY.get(
-            geometry.name, self.POWER_SCALE_DEFAULT)
+        """
+        Select the TDP budget and block areas for `geometry`.
+
+        Must precede any _apply_pattern call: the pattern needs block areas to
+        convert a total-watt budget into per-block W/cm2.
+        """
+        self._active_tdp_w = self.TDP_BY_GEOMETRY_W.get(
+            geometry.name, self.TDP_DEFAULT_W)
+        # Block areas in cm2 (geometry dimensions are in µm; 1 cm2 = 1e8 µm2).
+        self._active_block_area_cm2 = {
+            b.name: (b.width * b.height) / 1e8
+            for b in geometry.power_blocks if not b.is_tsv_region
+        }
 
     def _enforce_cooling_adequacy(
             self, scenarios: List[ScenarioParameters]) -> List[ScenarioParameters]:
@@ -566,10 +603,13 @@ class ScenarioGenerator:
         n_blocks = len(block_names)
         power_map = {}
 
-        # Single point where the operating regime is set. See the class docstring
-        # for why the original absolute values produced a degenerate benchmark, and
-        # why the scale is per-geometry rather than global.
-        base_power = base_power * self._active_power_scale
+        # base_power now selects a workload fraction of TDP; the absolute W/cm2 is
+        # fixed later by _normalise_to_tdp. Keeping the raw value here preserves each
+        # pattern's internal ratios (hotspot vs background), which is all the code
+        # below depends on.
+        workload = min(max(base_power * self.WORKLOAD_PER_BASE_POWER,
+                           self.MIN_WORKLOAD_FRACTION),
+                       self.MAX_WORKLOAD_FRACTION)
 
         if pattern == 'uniform':
             # All blocks at same power
@@ -665,20 +705,49 @@ class ScenarioGenerator:
         # but 2.0 against a 300 W/cm² logic hotspot was an unrealistic 150x ratio.
         # 8.0 keeps HBM well under its ~95-105°C junction spec while allowing
         # legitimate worst-case coverage.
+        # Convert the relative map into absolute W/cm2 against the TDP budget. Done
+        # BEFORE the HBM cap and RDL terms so those remain absolute physical limits
+        # rather than fractions of a budget.
+        power_map = self._normalise_to_tdp(power_map, workload)
+
+        # Absolute density ceilings. Applied after TDP normalisation, so a
+        # concentrated pattern ends up below TDP rather than at an impossible density.
+        for name in list(power_map):
+            power_map[name] = min(power_map[name], self.MAX_LOGIC_POWER_DENSITY_WCM2)
+
         _HBM_POWER_CAP_WCM2 = 8.0
         for name in block_names:
             is_hbm_die = name.startswith('hbm') or name.startswith('chipB_d1') or name.startswith('chipB_d2')
             if is_hbm_die and name in power_map:
                 power_map[name] = min(power_map[name], _HBM_POWER_CAP_WCM2)
 
-        # RDL routing layers self-heat at rdl_joule_fraction of base_power.
+        # RDL routing layers self-heat at rdl_joule_fraction of the local logic power.
         # Varies 1–10% across scenarios to teach the PINN that RDL heating is a
         # free variable (pump-out degradation, routing density, current load).
+        logic = [v for n, v in power_map.items() if 'rdl' not in n.lower()]
+        ref = max(logic) if logic else 1.0
         for name in block_names:
             if 'rdl' in name.lower():
-                power_map[name] = max(0.02, base_power * rdl_joule_fraction)
+                power_map[name] = max(0.02, ref * rdl_joule_fraction)
 
         return power_map
+
+    def _normalise_to_tdp(self, power_map: Dict[str, float],
+                          workload: float) -> Dict[str, float]:
+        """
+        Rescale a relative power map so total dissipation equals workload x TDP.
+
+        The pattern fixes the spatial distribution; this fixes the total. Blocks with
+        no known area (or a degenerate map) are left untouched rather than silently
+        divided by zero.
+        """
+        target_w = self._active_tdp_w * workload
+        current_w = sum(p * self._active_block_area_cm2.get(n, 0.0)
+                        for n, p in power_map.items())
+        if current_w <= 0.0:
+            return power_map
+        factor = target_w / current_w
+        return {n: p * factor for n, p in power_map.items()}
 
     # ---------------------------------------------------------------------------
     # Extra training scenarios (extending beyond the fixed 15)
