@@ -122,6 +122,30 @@ def test_all_scenarios_stay_inside_the_declared_bc_envelope(geom):
         assert all(p >= 0 for p in s.power_blocks.values()), f"{s.name}: negative power"
 
 
+@pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
+def test_cooling_capability_matches_power_density(geom):
+    """
+    No scenario may pair a high power density with cooling that could not remove
+    the heat. Power and HTC are physically coupled -- a 300 W/cm2 hotspot cannot
+    be air-cooled -- and sweeping them independently manufactured 220-259 C
+    junctions, which are not chips.
+    """
+    from src.scenario.generator import ScenarioGenerator
+    g = ScenarioGenerator()
+    scen = g.generate_all_scenarios(geom)
+    n_extra = 35 if geom.name in ('geometry5', 'geometry6') else 10
+    scen += g.generate_extra_training_scenarios(geom, n_extra, start_index=16)
+
+    for s in scen:
+        if not s.power_blocks:
+            continue
+        required = ScenarioGenerator.HTC_PER_WCM2 * max(s.power_blocks.values())
+        allowed = min(required, ScenarioGenerator.MAX_HTC)
+        assert s.htc >= allowed - 1e-6, (
+            f"{s.name}: peak {max(s.power_blocks.values()):.1f} W/cm2 needs "
+            f"h >= {allowed:.0f} W/m2K but has {s.htc:.0f}")
+
+
 # ── Baselines ──────────────────────────────────────────────────────────────────
 
 def _synthetic_scenarios(n_scen=25, n_pts=200, n_blocks=3, seed=0, noise=0.0):

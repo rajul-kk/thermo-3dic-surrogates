@@ -126,6 +126,24 @@ class ScenarioGenerator:
     MAX_HTC = 50000.0
     MAX_AMBIENT_C = 45.0
 
+    # Minimum cooling capability per unit of peak power density [W/m2K per W/cm2].
+    #
+    # Power density and cooling are not independent in real hardware: nobody
+    # air-cools a 300 W/cm2 hotspot, because it would throttle instantly. Sweeping
+    # them as free variables manufactures design points that cannot exist, and that
+    # is what produced 220-259 C junctions on geometry1/geometry4 -- the extra
+    # scenario pools pair their highest power entries (150 W/cm2) with mid-range
+    # HTC around 3500 W/m2K.
+    #
+    # Calibrated from the validated geometry1 operating point: 300 W/cm2 peak at
+    # h = 50000 W/m2K yields a 112 C junction. 300 * 165 = 49500, just inside
+    # MAX_HTC, so the hottest legitimate scenario remains reachable.
+    #
+    # This deliberately correlates HTC with power. It costs some independence in
+    # the HTC sweep, but the excluded region is unphysical, so the benchmark loses
+    # nothing real -- and HTC still varies independently wherever power leaves headroom.
+    HTC_PER_WCM2 = 165.0
+
     # HTC levels and the real cooling hardware each one stands for. 3D-ICE's
     # `bottom heat sink` accepts only a scalar coefficient, so a cooling solution
     # can be represented only by its area-averaged effective HTC at the sink base:
@@ -166,6 +184,22 @@ class ScenarioGenerator:
         self._active_power_scale = self.POWER_SCALE_BY_GEOMETRY.get(
             geometry.name, self.POWER_SCALE_DEFAULT)
 
+    def _enforce_cooling_adequacy(
+            self, scenarios: List[ScenarioParameters]) -> List[ScenarioParameters]:
+        """
+        Raise each scenario's HTC to match its peak power density.
+
+        Applied last, after power maps exist, so it sees the true peak including
+        the per-geometry power scale. Mutates and returns the same list.
+        """
+        for s in scenarios:
+            if not s.power_blocks:
+                continue
+            required = self.HTC_PER_WCM2 * max(s.power_blocks.values())
+            if required > s.htc:
+                s.htc = min(required, self.MAX_HTC)
+        return scenarios
+
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:
         """
         Bring a pool entry's boundary conditions into the current regime.
@@ -197,6 +231,10 @@ class ScenarioGenerator:
         # Generate test scenarios
         test_scenarios = self.generate_test_scenarios(geometry)
         scenarios.extend(test_scenarios)
+
+        # Power density and cooling are physically coupled; enforce that last,
+        # once power maps (and the per-geometry scale) are final.
+        self._enforce_cooling_adequacy(scenarios)
 
         # Add to accumulated scenarios (don't replace)
         self.scenarios.extend(scenarios)
@@ -807,6 +845,7 @@ class ScenarioGenerator:
                 ),
             ))
 
+        self._enforce_cooling_adequacy(scenarios)
         self.scenarios.extend(scenarios)
         return scenarios
 
