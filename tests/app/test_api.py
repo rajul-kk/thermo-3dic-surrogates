@@ -13,8 +13,12 @@ def test_get_geometries(client):
     r = client.get('/geometries')
     assert r.status_code == 200
     data = r.json()
-    assert len(data) == 7
-    assert 'geometry1' in data
+    # Must match the canonical registry rather than a hard-coded count, so adding
+    # a geometry cannot leave the app silently unable to serve it (geometry6 was
+    # missing from the app for exactly this reason).
+    from src.core.geometry_builders import build_all_geometries
+    expected = {g.name for g in build_all_geometries()}
+    assert set(data) == expected
     assert data['geometry1']['layers'] == 6
 
 
