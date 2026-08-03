@@ -77,6 +77,51 @@ def test_registry_round_trips_every_geometry():
         assert get_geometry_by_name(name).name == name
 
 
+# ── Scenario operating regime ──────────────────────────────────────────────────
+
+def test_every_geometry_has_an_explicit_power_scale():
+    """
+    Sustainable power density differs by package type, so a geometry silently
+    falling back to the default scale is a bug -- that is how geometry2a ended up
+    at a 273 C junction while geometry1 sat at a plausible 112 C.
+    """
+    from src.scenario.generator import ScenarioGenerator
+    missing = [n for n in GEOM_NAMES if n not in ScenarioGenerator.POWER_SCALE_BY_GEOMETRY]
+    assert not missing, f"geometries with no explicit POWER_SCALE: {missing}"
+
+
+def test_stacked_geometries_use_a_lower_power_scale_than_single_die():
+    """Stacked dies must be power-limited relative to a single die."""
+    from src.scenario.generator import ScenarioGenerator
+    s = ScenarioGenerator.POWER_SCALE_BY_GEOMETRY
+    for stacked in ('geometry2a', 'geometry2b', 'geometry2c', 'geometry5', 'geometry6'):
+        assert s[stacked] < s['geometry1'], (
+            f"{stacked} is a stacked package and must not carry the same power "
+            f"density as the single-die geometry1")
+
+
+@pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
+def test_all_scenarios_stay_inside_the_declared_bc_envelope(geom):
+    """
+    Every scenario -- including those drawn from the legacy extra pools -- must
+    respect MIN_HTC/MAX_HTC/MAX_AMBIENT_C. The pools are literal tables written
+    for the old power levels and contain HTCs down to 500 W/m2K, which combined
+    with scaled power produced physically impossible temperatures.
+    """
+    from src.scenario.generator import ScenarioGenerator
+    g = ScenarioGenerator()
+    scen = g.generate_all_scenarios(geom)
+    n_extra = 35 if geom.name in ('geometry5', 'geometry6') else 10
+    scen += g.generate_extra_training_scenarios(geom, n_extra, start_index=16)
+
+    for s in scen:
+        assert ScenarioGenerator.MIN_HTC <= s.htc <= ScenarioGenerator.MAX_HTC, \
+            f"{s.name}: htc={s.htc} outside [{ScenarioGenerator.MIN_HTC}, {ScenarioGenerator.MAX_HTC}]"
+        assert s.t_ambient <= ScenarioGenerator.MAX_AMBIENT_C, \
+            f"{s.name}: ambient={s.t_ambient} above {ScenarioGenerator.MAX_AMBIENT_C} C"
+        assert all(p >= 0 for p in s.power_blocks.values()), f"{s.name}: negative power"
+
+
 # ── Baselines ──────────────────────────────────────────────────────────────────
 
 def _synthetic_scenarios(n_scen=25, n_pts=200, n_blocks=3, seed=0, noise=0.0):

@@ -95,10 +95,36 @@ class ScenarioGenerator:
 
     # Multiplies every pattern's base power. Applied once, in _apply_pattern, so the
     # relative structure designed into each pattern (hotspot vs background ratios) is
-    # preserved exactly and only the absolute regime shifts. With this scale the
-    # extreme_hotspot scenario reaches 20 * 15 = 300 W/cm2, matching the documented
-    # 100-300 W/cm2 peak of real CPU hotspots.
-    POWER_SCALE = 15.0
+    # preserved exactly and only the absolute regime shifts.
+    #
+    # PER-GEOMETRY, because sustainable power density is not a constant across
+    # packages. A single die dumps its heat straight into the spreader; a dual-die
+    # stack pushes the upper die's heat through the lower die plus two bond
+    # interfaces, so the same W/cm2 per die produces a far higher junction
+    # temperature. Real stacked parts are power-limited for exactly this reason --
+    # which is also why HBM runs an order of magnitude below logic. A single global
+    # scale of 15.0 gave a plausible 112 C peak on geometry1 but 273 C on
+    # geometry2a, which is not a chip.
+    #
+    # Calibrated so peak junction lands in a realistic 85-120 C band per geometry.
+    POWER_SCALE_BY_GEOMETRY = {
+        'geometry1':  15.0,   # single die, 10x10 mm       -> validated peak 112 C
+        'geometry3':  15.0,   # single die, server 25x25 mm
+        'geometry2a':  6.0,   # dual-die stack + TSVs: upper die heat crosses lower die
+        'geometry2b':  6.0,
+        'geometry2c':  6.0,
+        'geometry4':  12.0,   # 2.5D, chiplets side-by-side -- lateral, little stacking penalty
+        'geometry5':   8.0,   # CoWoS: compute chiplet + stacked HBM
+        'geometry6':   8.0,   # CoWoS with 6 HBM stacks
+    }
+    POWER_SCALE_DEFAULT = 12.0
+
+    # Floor applied to any HTC drawn from the extra-scenario pools. Those pools
+    # predate the regime change and contain values down to 500 W/m2K, which pair
+    # with the scaled power to produce implausible temperatures.
+    MIN_HTC = 2000.0
+    MAX_HTC = 50000.0
+    MAX_AMBIENT_C = 45.0
 
     # HTC levels and the real cooling hardware each one stands for. 3D-ICE's
     # `bottom heat sink` accepts only a scalar coefficient, so a cooling solution
@@ -131,6 +157,25 @@ class ScenarioGenerator:
     def __init__(self):
         """Initialize scenario generator."""
         self.scenarios: List[ScenarioParameters] = []
+        # Power scale of the geometry currently being generated. Set by every public
+        # generate_* entry point via _set_active_geometry, read by _apply_pattern.
+        self._active_power_scale: float = self.POWER_SCALE_DEFAULT
+
+    def _set_active_geometry(self, geometry: Geometry) -> None:
+        """Select the power scale for `geometry`. Must precede any _apply_pattern call."""
+        self._active_power_scale = self.POWER_SCALE_BY_GEOMETRY.get(
+            geometry.name, self.POWER_SCALE_DEFAULT)
+
+    def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:
+        """
+        Bring a pool entry's boundary conditions into the current regime.
+
+        The extra-scenario pools are literal tables written for the old power
+        levels; unclamped they pair scaled power with HTCs as low as 500 W/m2K
+        and ambients up to 75 C, which produced a 273 C junction on geometry2a.
+        """
+        return (min(max(htc, self.MIN_HTC), self.MAX_HTC),
+                min(ambient_c, self.MAX_AMBIENT_C))
 
     def generate_all_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
         """
@@ -142,6 +187,7 @@ class ScenarioGenerator:
         Returns:
             List of ScenarioParameters (15 training + 5 test = 20 scenarios)
         """
+        self._set_active_geometry(geometry)
         scenarios = []
 
         # Generate training scenarios
@@ -166,6 +212,7 @@ class ScenarioGenerator:
         - Include 5 extreme scenarios for PINN robustness (Tier 1 improvement)
         - Ensure good coverage of parameter space
         """
+        self._set_active_geometry(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
 
@@ -395,6 +442,7 @@ class ScenarioGenerator:
 
         Use parameter values NOT in training set to test PINN generalization.
         """
+        self._set_active_geometry(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
 
@@ -481,8 +529,9 @@ class ScenarioGenerator:
         power_map = {}
 
         # Single point where the operating regime is set. See the class docstring
-        # for why the original absolute values produced a degenerate benchmark.
-        base_power = base_power * self.POWER_SCALE
+        # for why the original absolute values produced a degenerate benchmark, and
+        # why the scale is per-geometry rather than global.
+        base_power = base_power * self._active_power_scale
 
         if pattern == 'uniform':
             # All blocks at same power
@@ -718,6 +767,7 @@ class ScenarioGenerator:
         Returns:
             List of n_extra ScenarioParameters.
         """
+        self._set_active_geometry(geometry)
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
         pool = (self._EXTRA_POOL_2P5D
                 if geometry.geometry_type == '2p5d_stack'
@@ -735,6 +785,7 @@ class ScenarioGenerator:
         scenarios = []
         for idx, entry in enumerate(pool_slice):
             pattern, power, htc, ambient = entry[:4]
+            htc, ambient = self._clamp_bc(htc, ambient)
             rdl_frac   = entry[4] if len(entry) > 4 else 0.05
             k_overrides = entry[5] if len(entry) > 5 else {}
             scenario_idx = start_index + idx
