@@ -62,25 +62,53 @@ class ScenarioGenerator:
     """
     Generate training and test scenarios for thermal benchmarks.
 
-    Creates parameter sweeps across:
-    - Power densities: 0.1, 0.5, 1.0, 2.0, 5.0 W/cm² (training)
-                      0.3, 1.5, 3.0 W/cm² (test)
-    - HTC: 1000, 5000, 10000 W/m²·K (training)
-           3000, 7500 W/m²·K (test)
-    - Ambient: 25, 45, 65 °C (training)
-               35, 55 °C (test)
-    - Patterns: uniform, hotspot, checkerboard, gradient, dual_hotspot
+    Creates parameter sweeps across power density, HTC, ambient and spatial pattern.
+
+    Operating regime (revised 2026-07-31)
+    -------------------------------------
+    The original ranges (0.1-20 W/cm2, HTC 1000-10000, ambient 25-65 C) produced a
+    SPATIALLY DEGENERATE dataset: median within-scenario spatial dT was 1.10 K against
+    a 68 K between-scenario range, and 88% of temperature variance was explained by the
+    ambient input alone. Closed-form ridge regression reconstructed the field at
+    spatial R2 = 0.999, so the benchmark could not discriminate between architectures.
+    See docs/report.md 9.2.
+
+    Three coupled changes fix the regime:
+
+    1. POWER up ~15x. Self-heating scales with total power. The old peak of 20 W/cm2
+       was far below the 100-300 W/cm2 of real CPU hotspots (references.md already
+       flagged this as conservative); the consequence was that self-heating (0.1-36 K)
+       never dominated the ambient sweep.
+
+    2. HTC up. The fraction of the temperature drop that appears as SPATIAL structure
+       (rather than a uniform offset) is R_cond / (R_cond + R_conv), and R_conv = 1/h.
+       For the geometry1 stack R_cond ~ 7.9e-5 m2K/W, so h=1000 puts only ~7% of the
+       drop inside the stack while h=50000 puts ~80% there. Low HTC was actively
+       flattening the field.
+
+    3. AMBIENT narrowed to 25-45 C. A 60 K ambient sweep swamped a 0.1-36 K
+       self-heating signal; real datacentre inlet air is 15-45 C anyway.
+
+    Together these target a junction rise of roughly 40-90 K with spatial gradients of
+    tens of K, instead of ~1 K.
     """
 
-    # Training parameter ranges
-    TRAIN_POWER_DENSITIES = [0.1, 0.5, 1.0, 2.0, 5.0]  # W/cm²
-    TRAIN_HTCS = [1000.0, 5000.0, 10000.0]  # W/m²·K
-    TRAIN_AMBIENTS = [25.0, 45.0, 65.0]  # °C
+    # Multiplies every pattern's base power. Applied once, in _apply_pattern, so the
+    # relative structure designed into each pattern (hotspot vs background ratios) is
+    # preserved exactly and only the absolute regime shifts. With this scale the
+    # extreme_hotspot scenario reaches 20 * 15 = 300 W/cm2, matching the documented
+    # 100-300 W/cm2 peak of real CPU hotspots.
+    POWER_SCALE = 15.0
+
+    # Training parameter ranges (pre-scale; effective power is value * POWER_SCALE)
+    TRAIN_POWER_DENSITIES = [0.5, 1.0, 2.0, 4.0, 8.0]  # -> 7.5-120 W/cm²
+    TRAIN_HTCS = [5000.0, 20000.0, 50000.0]  # W/m²·K
+    TRAIN_AMBIENTS = [25.0, 35.0, 45.0]  # °C
 
     # Test parameter ranges (interpolation values)
-    TEST_POWER_DENSITIES = [0.3, 1.5, 3.0]  # W/cm²
-    TEST_HTCS = [3000.0, 7500.0]  # W/m²·K
-    TEST_AMBIENTS = [35.0, 55.0]  # °C
+    TEST_POWER_DENSITIES = [0.75, 3.0, 6.0]  # -> 11.25-90 W/cm²
+    TEST_HTCS = [10000.0, 35000.0]  # W/m²·K
+    TEST_AMBIENTS = [30.0, 40.0]  # °C
 
     def __init__(self):
         """Initialize scenario generator."""
@@ -129,7 +157,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 1.0),
-            htc=5000.0,
+            htc=20000.0,
             t_ambient=25.0,
             pattern='uniform',
             description='Uniform 1.0 W/cm² across all blocks'
@@ -141,7 +169,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'hotspot', 5.0),
-            htc=10000.0,
+            htc=50000.0,
             t_ambient=25.0,
             pattern='hotspot',
             description='Single hotspot at 5.0 W/cm², others at 0.1 W/cm²'
@@ -153,7 +181,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'checkerboard', 2.0),
-            htc=5000.0,
+            htc=20000.0,
             t_ambient=25.0,
             pattern='checkerboard',
             description='Checkerboard: alternating 2.0 and 0.5 W/cm²'
@@ -165,8 +193,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'gradient', 2.0),
-            htc=1000.0,
-            t_ambient=45.0,
+            htc=5000.0,
+            t_ambient=35.0,
             pattern='gradient',
             description='Linear gradient from 0.5 to 2.0 W/cm²'
         ))
@@ -177,8 +205,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'dual_hotspot', 5.0),
-            htc=10000.0,
-            t_ambient=65.0,
+            htc=50000.0,
+            t_ambient=42.0,
             pattern='dual_hotspot',
             description='Two hotspots at 5.0 W/cm², others at 0.2 W/cm²'
         ))
@@ -189,7 +217,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 0.1),
-            htc=1000.0,
+            htc=5000.0,
             t_ambient=25.0,
             pattern='uniform',
             description='Uniform low power 0.1 W/cm²'
@@ -201,8 +229,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'hotspot', 2.0),
-            htc=5000.0,
-            t_ambient=45.0,
+            htc=20000.0,
+            t_ambient=35.0,
             pattern='hotspot',
             description='Single hotspot 2.0 W/cm² at elevated ambient'
         ))
@@ -213,8 +241,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 5.0),
-            htc=10000.0,
-            t_ambient=65.0,
+            htc=50000.0,
+            t_ambient=42.0,
             pattern='uniform',
             description='High uniform power 5.0 W/cm² at high temperature'
         ))
@@ -225,7 +253,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'gradient', 1.0),
-            htc=1000.0,
+            htc=5000.0,
             t_ambient=25.0,
             pattern='gradient',
             description='Gradient pattern with poor cooling (low HTC)'
@@ -237,8 +265,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 0.5),
-            htc=5000.0,
-            t_ambient=45.0,
+            htc=20000.0,
+            t_ambient=35.0,
             pattern='uniform',
             description='Medium power baseline scenario'
         ))
@@ -251,7 +279,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 10.0),
-            htc=10000.0,
+            htc=50000.0,
             t_ambient=25.0,
             pattern='uniform',
             description='Extreme power 10.0 W/cm² - stress test scenario'
@@ -263,7 +291,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 2.0),
-            htc=500.0,
+            htc=2000.0,
             t_ambient=25.0,
             pattern='uniform',
             description='Poor cooling (HTC=500 W/m²·K) - natural convection'
@@ -275,8 +303,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'uniform', 5.0),
-            htc=5000.0,
-            t_ambient=85.0,
+            htc=20000.0,
+            t_ambient=45.0,
             pattern='uniform',
             description='Elevated ambient 85°C - automotive/industrial conditions'
         ))
@@ -287,7 +315,7 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'extreme_hotspot', 20.0),
-            htc=10000.0,
+            htc=50000.0,
             t_ambient=25.0,
             pattern='extreme_hotspot',
             description='Extreme hotspot 20.0 W/cm² in one block - maximum gradient'
@@ -299,8 +327,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='train',
             power_blocks=self._apply_pattern(block_names, 'gradient', 3.0),
-            htc=7500.0,
-            t_ambient=55.0,
+            htc=35000.0,
+            t_ambient=38.0,
             pattern='gradient',
             description='Mixed extremes - gradient pattern with intermediate parameters'
         ))
@@ -315,7 +343,7 @@ class ScenarioGenerator:
                 geometry_name=geometry.name,
                 scenario_type='train',
                 power_blocks=self._apply_pattern(block_names, 'split_chiplet_a_hot', 5.0),
-                htc=10000.0,
+                htc=50000.0,
                 t_ambient=25.0,
                 pattern='split_chiplet_a_hot',
                 description='Chiplet A at 5 W/cm2, chiplet B at 10% - hot-neighbour coupling'
@@ -325,8 +353,8 @@ class ScenarioGenerator:
                 geometry_name=geometry.name,
                 scenario_type='train',
                 power_blocks=self._apply_pattern(block_names, 'split_chiplet_b_hot', 5.0),
-                htc=5000.0,
-                t_ambient=45.0,
+                htc=20000.0,
+                t_ambient=35.0,
                 pattern='split_chiplet_b_hot',
                 description='Chiplet B at 5 W/cm2, chiplet A at 10% - reverse hot-neighbour'
             ))
@@ -335,8 +363,8 @@ class ScenarioGenerator:
                 geometry_name=geometry.name,
                 scenario_type='train',
                 power_blocks=self._apply_pattern(block_names, 'split_chiplet_a_hot', 2.0),
-                htc=1000.0,
-                t_ambient=65.0,
+                htc=5000.0,
+                t_ambient=42.0,
                 pattern='split_chiplet_a_hot',
                 description='Hot chiplet A with poor cooling - maximum thermal stress'
             ))
@@ -358,8 +386,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='test',
             power_blocks=self._apply_pattern(block_names, 'uniform', 1.5),
-            htc=7500.0,
-            t_ambient=35.0,
+            htc=35000.0,
+            t_ambient=30.0,
             pattern='uniform',
             description='Test interpolation: 1.5 W/cm², 7500 W/m²·K HTC, 35°C'
         ))
@@ -370,8 +398,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='test',
             power_blocks=self._apply_pattern(block_names, 'hotspot', 3.0),
-            htc=3000.0,
-            t_ambient=55.0,
+            htc=10000.0,
+            t_ambient=38.0,
             pattern='hotspot',
             description='Test hotspot: 3.0 W/cm² peak, 3000 W/m²·K HTC, 55°C'
         ))
@@ -382,8 +410,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='test',
             power_blocks=self._apply_pattern(block_names, 'checkerboard', 1.5),
-            htc=7500.0,
-            t_ambient=35.0,
+            htc=35000.0,
+            t_ambient=30.0,
             pattern='checkerboard',
             description='Test checkerboard with interpolated parameters'
         ))
@@ -394,8 +422,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='test',
             power_blocks=self._apply_pattern(block_names, 'uniform', 0.3),
-            htc=3000.0,
-            t_ambient=35.0,
+            htc=10000.0,
+            t_ambient=30.0,
             pattern='uniform',
             description='Test low power: 0.3 W/cm² at 35°C'
         ))
@@ -406,8 +434,8 @@ class ScenarioGenerator:
             geometry_name=geometry.name,
             scenario_type='test',
             power_blocks=self._apply_pattern(block_names, 'gradient', 3.0),
-            htc=7500.0,
-            t_ambient=55.0,
+            htc=35000.0,
+            t_ambient=38.0,
             pattern='gradient',
             description='Test gradient with high HTC and elevated temperature'
         ))
@@ -424,13 +452,19 @@ class ScenarioGenerator:
             block_names: List of power block names
             pattern: Pattern type ('uniform', 'hotspot', 'checkerboard', 'gradient',
                                    'dual_hotspot', 'extreme_hotspot')
-            base_power: Base power level (W/cm²) to scale the pattern
+            base_power: Base power level to scale the pattern. Multiplied by
+                POWER_SCALE here, so callers keep using the original relative
+                numbers and every pattern shifts regime together.
 
         Returns:
-            Dictionary mapping block names to power densities
+            Dictionary mapping block names to power densities in W/cm²
         """
         n_blocks = len(block_names)
         power_map = {}
+
+        # Single point where the operating regime is set. See the class docstring
+        # for why the original absolute values produced a degenerate benchmark.
+        base_power = base_power * self.POWER_SCALE
 
         if pattern == 'uniform':
             # All blocks at same power
@@ -520,7 +554,13 @@ class ScenarioGenerator:
         # coverage without reaching logic-die-like power density.
         # Applies to: geometry6 hbm{n}_d1/d2, geometry5 chipB_d1_c*/chipB_d2_c*
         # (chipB is documented as "HBM-style" in that geometry too).
-        _HBM_POWER_CAP_WCM2 = 2.0
+        # Raised from 2.0 alongside the POWER_SCALE regime change (2026-07-31).
+        # HBM3E dies genuinely run at ~1-5 W/cm², far below logic, so the cap must
+        # stay an absolute physical ceiling rather than scale with compute power --
+        # but 2.0 against a 300 W/cm² logic hotspot was an unrealistic 150x ratio.
+        # 8.0 keeps HBM well under its ~95-105°C junction spec while allowing
+        # legitimate worst-case coverage.
+        _HBM_POWER_CAP_WCM2 = 8.0
         for name in block_names:
             is_hbm_die = name.startswith('hbm') or name.startswith('chipB_d1') or name.startswith('chipB_d2')
             if is_hbm_die and name in power_map:
