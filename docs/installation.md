@@ -734,3 +734,58 @@ This benchmark system builds on:
 - **3D-ICE**: Sridhar et al. (2010), ICCAD
 - **HotSpot**: Skadron et al. (2004), TACO
 - **Material properties**: Glassbrenner & Slack (1964), Physical Review
+
+---
+
+## 3D-ICE 4.0 (added 2026-08-04)
+
+Built at `/home/rajul/3d-ice-4.0`; the 3.0.0 install at `/home/rajul/3d-ice` is left
+in place so existing results stay reproducible.
+
+```bash
+git clone --depth 1 https://github.com/esl-epfl/3d-ice.git 3d-ice-4.0
+cd 3d-ice-4.0
+cp -r ../3d-ice/superlu_mt-4.0.0 .        # reuse the already-built SuperLU MT
+sed -i 's/-Wall -Wextra -Werror/-Wall -Wextra/' sources/Makefile
+sed -i 's/-Werror//g' makefile.def
+sed -i 's/typedef long LUIndex_t ;/typedef int LUIndex_t ;/' include/types.h
+make -j$(nproc)
+```
+
+Two build fixes were needed and both are deliberate:
+
+- **`-Werror` removed.** Upstream promotes warnings to errors, and `printf("%ld", ...)`
+  against a 32-bit `int_t` fails on this toolchain. The warnings are in error-reporting
+  paths only.
+- **`LUIndex_t` changed from `long` to `int`.** 4.0 declares 64-bit LU indices while our
+  SuperLU MT is built with 32-bit `int_t`; the two must agree. Our largest system is
+  ~400k nodes, far below the 2^31 limit, so 32-bit indices are ample. The alternative is
+  rebuilding SuperLU with `-D_LONGINT` and using `long long`.
+
+**Validated against 3.0.0: bit-identical.** Three geometry1 scenarios gave
+max |ΔT| = 0.0000 K, so the existing dataset remains valid and the upgrade alone does
+not require regeneration.
+
+### What 4.0 unlocks
+
+Per-floorplan-element material, which 3.0.0 could not express (one material per layer):
+
+```
+Background1 :
+  position       0,    0 ;
+  dimension   5000, 5000 ;
+  material    SILICON ;        # <-- per-element material
+  discretization  10, 10 ;     # <-- sub-grid inside the element
+  power values 12.5, 14.0 ;
+```
+
+plus anisotropic conductivity (`thermal conductivity kx, ky, kz ;`) and non-uniform
+grids (`non-uniform true;` in `dimensions`).
+
+This makes spatially varying lateral `k(x,y)` expressible for the first time, which
+unblocks two things previously recorded as impossible:
+
+- Spatially varying TSV density / conductivity maps — the canonical operator-learning
+  benchmark structure (cf. Darcy flow with a GRF permeability field).
+- The geometry4/5/6 underfill inconsistency in `assumptions.md` §6.1, where the PDE loss
+  uses a heterogeneous `k` that the ground truth does not contain.
