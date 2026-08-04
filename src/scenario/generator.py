@@ -307,6 +307,17 @@ class ScenarioGenerator:
 
         nx = resolution or int(geometry.mesh_resolution[0])
         ny = resolution or int(geometry.mesh_resolution[1])
+        if resolution == 0 and geometry.die_footprints:
+            # 3D-ICE 4.0 heap-corrupts ("corrupted size vs. prev_size") when a
+            # die's source layer is both an IDENTIFIER-referenced layout (the
+            # Si/underfill footprint mechanism in ice_simulator.py) AND carries
+            # a full-mesh-resolution per-cell floorplan (~5600 elements on
+            # geometry5). resolution=64 (4096 elements) was validated crash-free
+            # on geometry4/5/6 against the real binary; full mesh resolution was
+            # NOT, on geometry5 specifically. Cap defensively for all footprint
+            # geometries rather than special-case the one observed to fail.
+            nx = min(nx, 64)
+            ny = min(ny, 64)
         # Floorplan axis order is (length, width); mesh_resolution is (x=width, y=length).
         n_l, n_w = ny, nx
         cell_area_cm2 = (geometry.die_length / n_l) * (geometry.die_width / n_w) / 1e8
