@@ -47,6 +47,9 @@ class ScenarioParameters:
     # summarise a scenario by block keep working.
     power_map_by_layer: Dict[str, Any] = field(default_factory=dict)
     power_map_kind: str = ""
+    # Per-cell TSV area-fraction fields keyed by layer name. Replace the single
+    # scalar tsv_density, which took only four discrete values.
+    tsv_map_by_layer: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for YAML export."""
@@ -63,6 +66,7 @@ class ScenarioParameters:
             'layer_k_overrides': self.layer_k_overrides,
             'power_map_by_layer': self.power_map_by_layer,
             'power_map_kind': self.power_map_kind,
+            'tsv_map_by_layer': self.tsv_map_by_layer,
         }
 
 
@@ -349,6 +353,34 @@ class ScenarioGenerator:
 
         # Cooling must still match the (new) peak density.
         self._enforce_cooling_adequacy(scenarios)
+        return scenarios
+
+    def attach_tsv_maps(self, scenarios: List[ScenarioParameters], geometry: Geometry,
+                        resolution: int = 32, contrast: float = 0.8,
+                        seed_base: int = 0) -> List[ScenarioParameters]:
+        """
+        Give each scenario a spatially varying TSV density field.
+
+        Replaces the geometry's single `tsv_density` scalar on every TSV layer.
+        The mean is preserved, so a scenario's overall TSV budget is unchanged --
+        only its spatial distribution varies. `contrast=0` reproduces the old
+        uniform behaviour exactly.
+        """
+        from .tsv_maps import generate_tsv_density_map
+
+        tsv_layers = [l.name for l in geometry.layers if 'tsv' in l.name.lower()]
+        if not tsv_layers or geometry.tsv_density <= 0:
+            return scenarios
+
+        for i, s in enumerate(scenarios):
+            s.tsv_map_by_layer = {
+                name: generate_tsv_density_map(
+                    resolution, resolution,
+                    mean_density=geometry.tsv_density,
+                    seed=seed_base + 100 * i + j,
+                    contrast=contrast)
+                for j, name in enumerate(tsv_layers)
+            }
         return scenarios
 
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:

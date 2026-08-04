@@ -68,6 +68,7 @@ class ICESimulator(ThermalSimulator):
             f"inst_{i}": s['layer_idx'] for i, s in enumerate(self._sublayers)
         }
 
+        self._generate_layout_files(geometry, scenario)
         self._generate_floorplan_files(geometry, scenario)
         self._generate_stack_file(geometry, scenario)
 
@@ -100,6 +101,73 @@ class ICESimulator(ThermalSimulator):
     # z-modes (4 -> 6-8) at a cost comparable to the existing pipeline.
     MAX_SUBLAYER_UM = 1200.0
     MAX_SUBLAYERS_PER_LAYER = 12  # bounds fill-in on very thick heat sinks
+
+    # Number of quantised conductivity levels per TSV layer. 3D-ICE needs a named
+    # material per distinct conductivity, so a continuous field would mean one
+    # material per cell. ~12 keeps the stack file small while preserving the
+    # spatial structure; the quantisation error is far below the modelling error
+    # in the rule of mixtures itself.
+    TSV_MATERIAL_LEVELS = 12
+
+    def _tsv_levels(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
+        """Quantise each layer's TSV density field into material levels."""
+        from ..scenario.tsv_maps import quantise_materials
+
+        out = {}
+        for layer_name, phi in (scenario.get('tsv_map_by_layer') or {}).items():
+            phi = np.asarray(phi, dtype=np.float64)
+            idx, centres = quantise_materials(phi, self.TSV_MATERIAL_LEVELS)
+            out[layer_name] = (idx, centres)
+        return out
+
+    def _tsv_materials(self, scenario: Dict[str, Any]) -> Dict[str, tuple]:
+        """{material_name: (k_lateral, k_vertical, rho_cp)} for every TSV level."""
+        from ..scenario.tsv_maps import tsv_effective_k
+
+        mats = {}
+        for layer_name, (_, centres) in self._tsv_levels(scenario).items():
+            safe = self._sanitise(layer_name)
+            for li, phi in enumerate(centres):
+                k_lat, k_vert = tsv_effective_k(float(phi))
+                # Volumetric heat capacity blends the same way (simple mixture).
+                rho_cp = (1.0 - phi) * 1.628e6 + phi * 3.45e6
+                mats[f"tsvmat_{safe}_{li}"] = (float(k_lat), float(k_vert), rho_cp)
+        return mats
+
+    @staticmethod
+    def _sanitise(name: str) -> str:
+        """3D-ICE identifiers must not contain separators."""
+        return ''.join(c if c.isalnum() else '_' for c in name)
+
+    def _generate_layout_files(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
+        """
+        Write one 3D-ICE 4.0 layout file per TSV layer carrying a density field.
+
+        Format (bison/layout_parser.y): rectangles grouped under a material id.
+
+            tsvmat_tsv_zone_3 :
+               rectangle ( x, y, length, width ) ;
+        """
+        for layer_name, (idx, centres) in self._tsv_levels(scenario).items():
+            n_l, n_w = idx.shape
+            tile_l = geometry.die_length / n_l
+            tile_w = geometry.die_width / n_w
+            safe = self._sanitise(layer_name)
+
+            lines = [f"// TSV density layout — {geometry.name} / {layer_name}", ""]
+            for li in range(len(centres)):
+                cells = np.argwhere(idx == li)
+                if cells.size == 0:
+                    continue
+                lines.append(f"tsvmat_{safe}_{li} :")
+                for a, b in cells:
+                    lines.append(f"   rectangle ( {a * tile_l:.1f}, {b * tile_w:.1f}, "
+                                 f"{tile_l:.1f}, {tile_w:.1f} ) ;")
+                lines.append("")
+
+            path = self.config_dir / f"layout_{safe}.lyt"
+            with open(path, 'w') as f:
+                f.write('\n'.join(lines))
 
     def _plan_sublayers(self, geometry: Geometry) -> List[Dict[str, Any]]:
         """
@@ -159,6 +227,17 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   volumetric heat capacity {rho_cp_ice:.4e} ;")
             lines.append("")
 
+        # Anisotropic materials for spatially varying TSV density. One material per
+        # quantised density level, each with a distinct lateral/vertical conductivity
+        # (a TSV is a copper cylinder: heat runs ALONG it but must CROSS phases
+        # sideways). Requires 3D-ICE 4.0 -- 3.0.0 took a single isotropic value.
+        for mat_name, (k_lat, k_vert, rho_cp) in self._tsv_materials(scenario).items():
+            lines.append(f"material {mat_name} :")
+            lines.append(f"   thermal conductivity     {k_lat * 1e-6:.4e}, "
+                         f"{k_lat * 1e-6:.4e}, {k_vert * 1e-6:.4e} ;")
+            lines.append(f"   volumetric heat capacity {rho_cp * 1e-18:.4e} ;")
+            lines.append("")
+
         # ── Heat-sink boundary condition ─────────────────────────────────────
         # Die is the topmost layer; convective cooling is on the bottom surface.
         lines.append("bottom heat sink :")
@@ -187,6 +266,13 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"layer type_layer_{s_idx} :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
             lines.append(f"   material {mat_name} ;")
+            # Spatially varying TSV conductivity, if this layer carries a density
+            # field. 3D-ICE 4.0 only: a layer declaration takes an optional layout
+            # that overrides the uniform material per rectangle.
+            if layer.name in (scenario.get('tsv_map_by_layer') or {}):
+                lyt = (self.config_dir / f"layout_{self._sanitise(layer.name)}.lyt").resolve()
+                lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
+                lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
 
         for s_idx, sub in enumerate(self._sublayers):
