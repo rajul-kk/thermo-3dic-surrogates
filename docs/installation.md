@@ -783,9 +783,11 @@ plus anisotropic conductivity (`thermal conductivity kx, ky, kz ;`) and non-unif
 grids (`non-uniform true;` in `dimensions`).
 
 This makes spatially varying lateral `k(x,y)` expressible for the first time, which
-unblocks two things previously recorded as impossible:
+unblocked two things previously recorded as impossible:
 
 - Spatially varying TSV density / conductivity maps — the canonical operator-learning
-  benchmark structure (cf. Darcy flow with a GRF permeability field).
+  benchmark structure (cf. Darcy flow with a GRF permeability field). Implemented in
+  `src/scenario/tsv_maps.py`.
 - The geometry4/5/6 underfill inconsistency in `assumptions.md` §6.1, where the PDE loss
-  uses a heterogeneous `k` that the ground truth does not contain.
+  used a heterogeneous `k` that the ground truth did not contain. **Resolved 2026-08-05** —
+  see `assumptions.md` §6.1.

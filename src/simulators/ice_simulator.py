@@ -139,9 +139,29 @@ class ICESimulator(ThermalSimulator):
         """3D-ICE identifiers must not contain separators."""
         return ''.join(c if c.isalnum() else '_' for c in name)
 
+    # Chiplet/interposer die layers (geometry4/5/6) carry Si only under each
+    # DiePrint footprint; the rest of the layer is underfill (k=0.7 W/m·K vs
+    # Si's 148). 3D-ICE's own default-material fallback (any cell not covered
+    # by a layout rectangle keeps the layer's declared base material -- see
+    # sources/layer.c:get_thermal_conductivity) means the base material can be
+    # underfill and only the die footprints need explicit rectangles, which
+    # DiePrint already stores exactly. See assumptions.md §6.1 -- this was
+    # previously a real train/target inconsistency (data used uniform Si,
+    # the PINN physics loss used heterogeneous k), not just a simplification.
+    def _footprints_by_layer(self, geometry: Geometry) -> Dict[str, list]:
+        out: Dict[str, list] = {}
+        for fp in geometry.die_footprints:
+            out.setdefault(fp.die_layer_name, []).append(fp)
+        return out
+
+    def _underfill_material_name(self, geometry: Geometry) -> str:
+        return f"underfill_k{geometry.underfill_k:.2f}".replace('.', '_')
+
     def _generate_layout_files(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
         """
-        Write one 3D-ICE 4.0 layout file per TSV layer carrying a density field.
+        Write one 3D-ICE 4.0 layout file per TSV layer carrying a density field,
+        plus one per die layer with DiePrint footprints (silicon under the
+        footprint, underfill as the layer's base material elsewhere).
 
         Format (bison/layout_parser.y): rectangles grouped under a material id.
 
@@ -166,6 +186,22 @@ class ICESimulator(ThermalSimulator):
                 lines.append("")
 
             path = self.config_dir / f"layout_{safe}.lyt"
+            with open(path, 'w') as f:
+                f.write('\n'.join(lines))
+
+        for layer_name, footprints in self._footprints_by_layer(geometry).items():
+            layer = next(l for l in geometry.layers if l.name == layer_name)
+            safe = self._sanitise(layer_name)
+            lines = [f"// Die footprint layout (Si under footprint) — "
+                     f"{geometry.name} / {layer_name}", "", f"{layer.material} :"]
+            # Same axis swap as _generate_floorplan_files: 3D-ICE X is along
+            # chip_length (= die_length = PINN y-axis).
+            for fp in footprints:
+                lines.append(f"   rectangle ( {fp.y:.1f}, {fp.x:.1f}, "
+                              f"{fp.height:.1f}, {fp.width:.1f} ) ;")
+            lines.append("")
+
+            path = self.config_dir / f"layout_footprint_{safe}.lyt"
             with open(path, 'w') as f:
                 f.write('\n'.join(lines))
 
@@ -238,6 +274,16 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   volumetric heat capacity {rho_cp * 1e-18:.4e} ;")
             lines.append("")
 
+        footprints_by_layer = self._footprints_by_layer(geometry)
+        if footprints_by_layer:
+            # Epoxy underfill volumetric heat capacity -- engineering estimate
+            # (no specific cited source); steady-state solves are insensitive to it.
+            underfill_rho_cp = 1.8e6
+            lines.append(f"material {self._underfill_material_name(geometry)} :")
+            lines.append(f"   thermal conductivity     {geometry.underfill_k * 1e-6:.4e} ;")
+            lines.append(f"   volumetric heat capacity {underfill_rho_cp * 1e-18:.4e} ;")
+            lines.append("")
+
         # ── Heat-sink boundary condition ─────────────────────────────────────
         # Die is the topmost layer; convective cooling is on the bottom surface.
         lines.append("bottom heat sink :")
@@ -275,13 +321,36 @@ class ICESimulator(ThermalSimulator):
                 lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
 
+        # Active (source) sub-layers whose geometry layer carries DiePrint
+        # footprints need a standalone `layer` declaration with a layout,
+        # because the grammar's `source` clause only accepts a bare
+        # thickness+material pair OR a reference to a pre-declared `layer`
+        # (which is where a layout can be attached) -- see
+        # bison/stack_description_parser.y die_layer_content / layer_copy.
+        for s_idx, sub in enumerate(self._sublayers):
+            if not sub['is_active']:
+                continue
+            layer = geometry.layers[sub['layer_idx']]
+            if layer.name not in footprints_by_layer:
+                continue
+            lyt = (self.config_dir / f"layout_footprint_{self._sanitise(layer.name)}.lyt").resolve()
+            lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
+            lines.append(f"layer type_layer_{s_idx}_src :")
+            lines.append(f"   height {sub['thickness']:.1f} ;")
+            lines.append(f"   material {self._underfill_material_name(geometry)} ;")
+            lines.append(f'   layout "{lyt_path}" ;')
+            lines.append("")
+
         for s_idx, sub in enumerate(self._sublayers):
             if not sub['is_active']:
                 continue
             layer = geometry.layers[sub['layer_idx']]
             mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
             lines.append(f"die type_die_{s_idx} :")
-            lines.append(f"   source {sub['thickness']:.1f} {mat_name} ;")
+            if layer.name in footprints_by_layer:
+                lines.append(f"   source type_layer_{s_idx}_src ;")
+            else:
+                lines.append(f"   source {sub['thickness']:.1f} {mat_name} ;")
             lines.append("")
 
         # ── Stack assembly: 3D-ICE lists TOP → BOTTOM; geometry is BOTTOM → TOP

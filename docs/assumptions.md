@@ -183,40 +183,37 @@ below was the old regime; it produced a spatially degenerate dataset (median wit
 
 ## 6. Geometry4, 5, and 6 — 2.5D/3D-on-2.5D Specific Assumptions
 
-### 6.1 Uniform k in die_zone for 3D-ICE (geometry4 and geometry5) — **Simplifying**
+### 6.1 Uniform k in die_zone for 3D-ICE (geometry4 and geometry5) — **RESOLVED (2026-08-05)**
 
-**What we do:** The 3D-ICE `.stk` file assigns a single material (silicon, k = 148 W/m·K)
-to the entire `die_zone` / `die_zone_1` layer across the full interposer footprint. The
-underfill gap (k = 0.7 W/m·K) between chiplets is not separately modelled in 3D-ICE.
+**What we used to do:** The 3D-ICE `.stk` file assigned a single material (silicon,
+k = 148 W/m·K) to the entire `die_zone` / `die_zone_1` layer across the full interposer
+footprint. The underfill gap (k = 0.7 W/m·K) between chiplets was not separately modelled
+in 3D-ICE, while the PINN's PDE loss used the correct heterogeneous k via
+`_compute_lateral_k()` — a real train/target inconsistency, not merely a simplification.
 
-**Real hardware:** The underfill gap has ~200× lower conductivity than Si. Lateral heat
-spreading through the gap is negligible, so the main error is that 3D-ICE slightly
-overestimates thermal coupling between chiplets.
+**Fix applied:** `ICESimulator._generate_layout_files` now emits a 3D-ICE 4.0 layout file
+per die layer that carries `DiePrint` footprints: the layer's base material is underfill
+(k = `geometry.underfill_k`), and each `DiePrint` rectangle is overridden to silicon via the
+layout. Because 3D-ICE's `source` clause only accepts a bare thickness+material pair or a
+reference to a pre-declared `layer` (the only place a `layout` can attach — see
+`bison/stack_description_parser.y` `die_layer_content` / `layer_copy`), the affected
+sub-layers are declared as standalone `layer ... layout ...` blocks and referenced from the
+die block as `source type_layer_N_src ;`. Validated against the real 3D-ICE 4.0 binary on
+geometry4 (58.9 s vs. the ~57.6 s uniform baseline — free, matching the earlier finding that
+3D-ICE 4.0's solve cost is set by mesh resolution, not material/layout complexity). Covered
+by `tests/test_footprint_layout.py`.
 
-**Impact:** The PINN's PDE loss uses the correct heterogeneous k via `_compute_lateral_k()`
-(underfill where no DiePrint footprint). The training data source (3D-ICE) uses uniform Si.
-The model learns primarily from data and uses the PDE as regularisation (weight λ_pde = 0.1),
-so the inconsistency produces a small systematic error in the predicted lateral coupling.
-
-**Residual error estimate:** 5–15 K overcoupling in the underfill gap region. For the
-chiplet die interiors (the regions that matter most), the error is negligible because
-heat flows predominantly vertically through the layer stack.
-
-**This is a train/target inconsistency, not merely a simplification.** The PDE residual is
-computed against a heterogeneous k that the ground-truth data does not contain, so the
-physics loss actively pulls predictions away from the data it is trained on in the gap
-region. The λ_pde = 0.1 weighting bounds the damage but does not remove it. Any result
-reported on geometry4/5/6 should either use λ_pde = 0 or disclose this.
-
-**Proper fix (not yet applied): upgrade the ground truth to 3D-ICE 4.0.**
-3D-ICE 4.0 (arXiv:2512.05823, Dec 2025 — by the original 3D-ICE authors) natively preserves
-material heterogeneity and anisotropy from layouts, which is exactly the missing capability.
-Regenerating geometry4/5/6 under it would make data and physics loss consistent, and is far
-cheaper than hand-segmenting `.stk` layers in `ice_simulator.py`. Cost: a full re-run of the
-geometry4/5/6 scenarios (~155 simulations).
+**Geometry note:** `DiePrint.x`/`.y` follow the same axis convention as
+`PowerBlock` — X is along `die_width`, Y is along `die_length`, matching the swap already
+documented in `_generate_floorplan_files`. The layout rectangles are written
+`(fp.y, fp.x, fp.height, fp.width)` for this reason; getting this wrong makes 3D-ICE 4.0
+reject the layout with "Layout element is outside of the IC" (caught during validation,
+not by the test suite alone — the axis convention is now pinned by
+`test_footprint_rectangles_stay_within_chip_bounds`).
 
 **Do not treat lateral heterogeneity as a novelty claim.** It is settled prior art —
 see `references.md` §"Lateral material heterogeneity in 2.5D/3D chiplet thermal modelling".
+This closes a data-fidelity gap; it does not constitute a new contribution.
 
 ### 6.2 Single-die TSV model for chiplet B (geometry5) — **Simplifying**
 
