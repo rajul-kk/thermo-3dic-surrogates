@@ -510,6 +510,11 @@ def main():
 
         # Always generate base 15 train + 5 test first
         geom_scenarios = scenario_generator.generate_all_scenarios(geom)
+        # Spatially varying TSV density field, replacing the geometry's single
+        # tsv_density scalar. No-op for geometries without TSV layers -- always
+        # on, since it strictly increases fidelity at no measured solve-time
+        # cost (see assumptions.md TSV section).
+        scenario_generator.attach_tsv_maps(geom_scenarios, geom)
         if args.power_map:
             # Replace block scalars with per-cell power fields. Keeps the TDP
             # budget, density ceiling and cooling rule; only redistributes power
@@ -536,6 +541,7 @@ def main():
                 geom, args.extra_train, start_index=start,
                 pool_start_idx=args.pool_start,
             )
+            scenario_generator.attach_tsv_maps(extra, geom, seed_base=900_000)
             if args.power_map:
                 scenario_generator.attach_power_maps(
                     extra, geom, kind=args.power_map,
