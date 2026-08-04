@@ -286,7 +286,11 @@ This is an upper bound (assumes heat flow parallel to TSVs). The harmonic mean (
 ```
 1/k_eff = (1-φ)/k_Si + φ/k_Cu
 ```
-For φ=0.10: arithmetic = 183.8 W/m·K, harmonic = 152.4 W/m·K (17% difference). The geometric mean gives ~158 W/m·K, which is closest to detailed finite-element TSV models (Koo et al. 2012). The arithmetic mean slightly overestimates lateral heat spreading from TSVs.
+For φ=0.10 with k_Si=148 and k_Cu=400: arithmetic (parallel) = **173.2** W/m·K, harmonic (series) = **158.0** W/m·K — a 9.6% difference. The arithmetic mean overestimates lateral heat spreading from TSVs.
+
+> **Corrected 2026-08-04.** This previously read "arithmetic = 183.8, harmonic = 152.4 (17% difference)". Both figures were arithmetically wrong: 0.9(148)+0.1(400) = 173.2 and 1/(0.9/148 + 0.1/400) = 158.0. Found while implementing anisotropic TSV conductivity. The qualitative conclusion — arithmetic is an upper bound — is unchanged.
+
+**Superseded in the generator (2026-08-04).** With 3D-ICE 4.0's anisotropic materials the approximation is no longer needed: `src/scenario/tsv_maps.py` applies the arithmetic mean VERTICALLY (heat runs along the copper, phases in parallel) and the harmonic mean LATERALLY (heat crosses the phases, in series), which is the physically correct treatment.
 
 **Bonding layer (updated to hybrid bonding).** Geometry2 now uses a 5 µm `hybrid_bonding`
 layer (k = 60 W/m·K) in place of the previous 25 µm micro-bump bonding (k = 50 W/m·K).
@@ -360,7 +364,7 @@ The arithmetic mean rule is used consistently in both 3D-ICE and our model, ensu
 |-------------|----------------|----------------------|-------|
 | 3% | 155.4 W/m·K | ~152 W/m·K | +2.2% |
 | 5% | 162.6 W/m·K | ~157 W/m·K | +3.5% |
-| 10% | 183.8 W/m·K | ~168 W/m·K | +9.4% |
+| 10% | 173.2 W/m·K (vert) / 158.0 (lat) | ~168 W/m·K | see note above |
 
 Reference for FEM values: Li, F., Codecasa, L., & Magnoni, M. (2012). Effective Thermal Conductivity of TSV Interposers. *IEEE Transactions on Components, Packaging and Manufacturing Technology*, 2(12), 2028–2038.
 (Note: approximate values — verify against original paper before publication.)
