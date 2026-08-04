@@ -791,3 +791,14 @@ unblocked two things previously recorded as impossible:
 - The geometry4/5/6 underfill inconsistency in `assumptions.md` §6.1, where the PDE loss
   used a heterogeneous `k` that the ground truth did not contain. **Resolved 2026-08-05** —
   see `assumptions.md` §6.1.
+
+**Considered and deferred: per-scenario layer-thickness variation.** A third candidate for
+the 4.0 upgrade was varying die/TIM layer thickness across scenarios (e.g. TIM bond-line
+thickness as a pump-out proxy). Not implemented: `ScenarioGenerator`'s existing TIM1
+pump-out sweep already varies `tim_top` k from 80 → 5 W/m·K
+(`src/scenario/generator.py` ~line 957), and for a fixed 1D column, thermal resistance
+`R = t/k` means varying k at fixed thickness spans the same resistance range as varying
+thickness at fixed k. The marginal degree of freedom would be the secondary lateral
+spreading-resistance effect of thickness alone, which — by analogy with the TSV field's
+measured ~2% contribution against its own field range — was judged not worth the
+mechanical cost of re-deriving per-scenario z-stack assembly in `_plan_sublayers`.
