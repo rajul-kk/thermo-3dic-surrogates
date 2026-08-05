@@ -235,6 +235,43 @@ def _power_field_from_maps(
     return power_field
 
 
+def generate_tsv_field(
+    coords: np.ndarray,
+    geometry: Geometry,
+    tsv_map_by_layer: dict,
+) -> np.ndarray:
+    """
+    Sample per-cell TSV density maps onto arbitrary coordinates.
+
+    Mirrors `_power_field_from_maps`: same (length, width) map indexing and the
+    same x/y axis swap, but the field is dimensionless TSV area fraction phi in
+    [0, 1] rather than a power density. Points outside any TSV-bearing layer get
+    phi=0. This is what makes the spatial TSV mechanism (`src/scenario/tsv_maps.py`)
+    a real per-point model input instead of only affecting the 3D-ICE ground truth
+    with no corresponding conditioning signal (see assumptions.md).
+    """
+    tsv_field = np.zeros(coords.shape[0])
+    if not tsv_map_by_layer:
+        return tsv_field
+
+    for layer in geometry.layers:
+        phi_map = tsv_map_by_layer.get(layer.name)
+        if phi_map is None:
+            continue
+        phi_map = np.asarray(phi_map, dtype=np.float64)
+        n_l, n_w = phi_map.shape
+
+        in_layer = (coords[:, 2] >= layer.z_bottom) & (coords[:, 2] < layer.z_top)
+        if not in_layer.any():
+            continue
+
+        ia = np.clip((coords[in_layer, 1] / geometry.die_length * n_l).astype(int), 0, n_l - 1)
+        ib = np.clip((coords[in_layer, 0] / geometry.die_width * n_w).astype(int), 0, n_w - 1)
+        tsv_field[in_layer] = phi_map[ia, ib]
+
+    return tsv_field
+
+
 def generate_power_density_field(
     coords: np.ndarray,
     geometry: Geometry,

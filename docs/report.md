@@ -146,7 +146,7 @@ and adiabatic conditions on all lateral faces and the top surface (nearest the d
 
 The thermal conductivity of silicon is temperature-dependent: $k_{Si}(T) = 148 \cdot (300/T)^{1.3}$ W/m·K [Glassbrenner & Slack, 1964], while copper and TIM layers use constant values.
 
-The surrogate model $\hat{T}_\theta: \mathbb{R}^7 \to \mathbb{R}$ maps per-point inputs $(x, y, z, Q, h, T_{amb}, \phi_{TSV})$ to normalised temperature, where the first three are normalised spatial coordinates, Q is normalised volumetric power density, h and $T_{amb}$ are normalised scenario-level scalars, and $\phi_{TSV}$ is the TSV area fraction. As of the 2026-08-05 regeneration, $\phi_{TSV}$ is a spatial field within TSV-bearing layers (`src/scenario/tsv_maps.py`) rather than one scalar per layer, but every model reference implementation in this repo (§5, §8+) still only receives its scenario mean as a scalar input — the field affects the 3D-ICE ground truth but is not yet exposed to any surrogate as a conditioning channel. Closing that gap is future work, not a claim made by this paper.
+The surrogate model $\hat{T}_\theta: \mathbb{R}^7 \to \mathbb{R}$ maps per-point inputs $(x, y, z, Q, h, T_{amb}, \phi_{TSV})$ to normalised temperature, where the first three are normalised spatial coordinates, Q is normalised volumetric power density, h and $T_{amb}$ are normalised scenario-level scalars, and $\phi_{TSV}$ is the TSV area fraction. As of the 2026-08-05 regeneration, $\phi_{TSV}$ is a spatial field within TSV-bearing layers (`src/scenario/tsv_maps.py`) rather than one scalar per layer. As of 2026-08-06, the field is exported per-point in every `.npz` file and consumed as a real per-cell input channel by the FNO reference implementations (`src/fno/model.py`); the FourierPINN (§5) and the DeepONet/ARO reference implementations still receive only the field's per-scenario mean (an improvement over the previous geometry-constant scalar, but not full per-point conditioning) — closing that remaining gap for the point-based architectures is future work.
 
 ---
 
@@ -540,10 +540,10 @@ only.
 HotSpot cross-validation covers geometry1 only and disagrees by ~15%, and no FEM spot-check
 has been performed. Ridge's advantage is measured on scenario counts of 20–50; with far more
 scenarios and a richer power parameterisation the ranking could change. The spatial TSV
-field affects the 3D-ICE ground truth but, as of this writing, is not exposed as an input to
-any surrogate reference implementation in this repo — only its scenario mean reaches a
-model (§3) — making it a hidden confounder rather than a learnable signal until that gap is
-closed.
+field is now exported per-point and consumed as a real channel by the FNO family (2026-08-06,
+§3); FourierPINN, DeepONet and ARO still receive only its scenario mean, so for those three
+it remains a partial confounder — real variance in the target with only a coarse summary of
+its cause available as input — until per-point conditioning is added there too.
 
 **Deferred.** The originally planned discussion — PDE-residual/error correlation, IG
 attribution plausibility, MC Dropout calibration — requires trained models and remains

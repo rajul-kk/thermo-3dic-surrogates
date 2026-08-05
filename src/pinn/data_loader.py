@@ -214,7 +214,16 @@ class ThermalDataset(Dataset):
 
             htc = float(meta.get('htc', 5000.0))
             t_amb_c = float(meta.get('t_ambient_celsius', 40.0))
-            tsv_raw = float(meta.get('tsv_density', 0.0))
+            # Prefer the actual per-scenario mean of the simulated TSV field
+            # (real, varies scenario-to-scenario) over the geometry-constant
+            # metadata scalar (same value for every scenario of a geometry).
+            # Falls back to the old scalar for files predating the field export.
+            # Full per-point conditioning (like power) is not yet implemented --
+            # this scenario-level scalar is still a summary, not the field itself.
+            if 'tsv_frac' in data.files and data['tsv_frac'].size:
+                tsv_raw = float(data['tsv_frac'].mean())
+            else:
+                tsv_raw = float(meta.get('tsv_density', 0.0))
 
             extents = norm_stats.geom_extents.get(geom_name, [1.0, 1.0, 1.0])
 

@@ -17,7 +17,11 @@ Input channels per voxel (IN_CH = 5):
   1: layer_id_norm   layer index / (n_layers-1), encodes material discontinuities
   2: htc_norm        broadcast scalar
   3: t_amb_norm      broadcast scalar
-  4: tsv_frac        broadcast scalar
+  4: tsv_frac        real per-cell TSV area fraction field where the geometry
+                     carries TSVs (zero elsewhere), not a broadcast scalar --
+                     see src/scenario/tsv_maps.py and _as_field() below. Falls
+                     back to broadcasting when given a genuine scalar, for
+                     compatibility with data predating this field.
 
 Hidden channels: 32 (sufficient for smooth thermal fields; increase to 64 for
 publication accuracy runs).
@@ -35,6 +39,36 @@ from typing import Optional, Tuple
 
 IN_CH = 5       # input channels per voxel (see module docstring)
 OUT_CH = 1      # temperature field
+
+
+def _as_field(t: torch.Tensor, B: int, nx: int, ny: int, nz: int) -> torch.Tensor:
+    """
+    Expand a conditioning input to (B, 1, nx, ny, nz).
+
+    Accepts either a real per-cell field already shaped (B, nx, ny, nz) -- as
+    tsv_frac now is, see src/fno/data_loader.py -- or a scalar/per-batch scalar,
+    which is broadcast uniformly as htc_norm/t_amb_norm still are. Old files/
+    call sites that only ever had a scalar TSV density keep working unchanged.
+    """
+    if t.dim() >= 3 and t.shape[-3:] == (nx, ny, nz):
+        return t.view(B, 1, nx, ny, nz)
+    v = t.view(-1) if t.dim() >= 1 else t.unsqueeze(0)
+    v = v[:B] if v.shape[0] >= B else v.expand(B)
+    return v.view(B, 1, 1, 1, 1).expand(B, 1, nx, ny, nz)
+
+
+def _as_scalar(t: torch.Tensor, B: int) -> torch.Tensor:
+    """
+    Reduce a conditioning input to (B,) for use in a FiLM-style scalar summary.
+
+    A real per-cell field (B, nx, ny, nz) is mean-pooled to its per-scenario
+    average; a scalar passes through unchanged. Used where a spatial signal
+    (tsv_frac) needs to additionally feed a per-scenario modulation vector, not
+    just the stacked input channels.
+    """
+    if t.dim() >= 3:
+        return t.reshape(t.shape[0], -1).mean(dim=-1)
+    return t.view(B) if t.numel() >= B else t.expand(B)
 
 
 class SpectralConv3d(nn.Module):
@@ -184,7 +218,7 @@ class FNO3d(nn.Module):
             layer_id_norm,
             _broadcast(htc_norm).squeeze(1),
             _broadcast(t_amb_norm).squeeze(1),
-            _broadcast(tsv_frac).squeeze(1),
+            _as_field(tsv_frac, B, nx, ny, nz).squeeze(1),
         ], dim=1)  # (B, IN_CH, nx, ny, nz)
 
         x = self.lift(x)      # (B, hidden_ch, nx, ny, nz)
@@ -441,14 +475,14 @@ class CondFNO3d(nn.Module):
             layer_id_norm,
             _bcast(htc_norm).squeeze(1),
             _bcast(t_amb_norm).squeeze(1),
-            _bcast(tsv_frac).squeeze(1),
+            _as_field(tsv_frac, B, nx, ny, nz).squeeze(1),
         ], dim=1)                           # (B, 5, nx, ny, nz)
 
         # FiLM modulation vectors from physics params
         params = torch.stack([
             htc_norm.view(B) if htc_norm.numel() >= B else htc_norm.expand(B),
             t_amb_norm.view(B) if t_amb_norm.numel() >= B else t_amb_norm.expand(B),
-            tsv_frac.view(B) if tsv_frac.numel() >= B else tsv_frac.expand(B),
+            _as_scalar(tsv_frac, B),
         ], dim=1).float()                   # (B, 3)
         gamma, beta = self.film_gen(params) # (B, n_blocks, hidden_ch) each
 
@@ -627,7 +661,7 @@ class CNOFNOHybrid(nn.Module):
             Q_norm, layer_id_norm,
             _bcast(htc_norm).squeeze(1),
             _bcast(t_amb_norm).squeeze(1),
-            _bcast(tsv_frac).squeeze(1),
+            _as_field(tsv_frac, B, nx, ny, nz).squeeze(1),
         ], dim=1)                    # (B, 5, nx, ny, nz)
 
         # FiLM conditioning vectors (computed once, used in all FNO latent blocks)
@@ -635,7 +669,7 @@ class CNOFNOHybrid(nn.Module):
         params = torch.stack([
             htc_norm.view(B) if htc_norm.numel() >= B else htc_norm.expand(B),
             t_amb_norm.view(B) if t_amb_norm.numel() >= B else t_amb_norm.expand(B),
-            tsv_frac.view(B) if tsv_frac.numel() >= B else tsv_frac.expand(B),
+            _as_scalar(tsv_frac, B),
         ], dim=1).float()
         gamma, beta = self.film_gen(params)   # (B, n_fno_blocks, ch)
 

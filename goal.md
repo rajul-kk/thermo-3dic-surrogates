@@ -62,17 +62,26 @@ in this domain actually require a learned operator.
   train/target gaps; neither is a defensible research contribution on its own (lateral
   heterogeneity in 3D-IC thermal sims is settled prior art — see `docs/references.md`).
 
-## Known gap to close next
+## TSV field exposure — closed 2026-08-06, partially
 
-The TSV spatial field affects the 3D-ICE ground truth (so the temperature output reflects
-it), but no model actually receives it as an input — `src/fno/data_loader.py`,
-`src/pinn/data_loader.py`, and `scripts/baselines.py` all still read a single scalar
-`tsv_density` from the exported metadata. Unlike per-cell power (which is exposed as a
-full field, `Q_norm`), the TSV field is currently a **hidden confounder**: it adds real
-variance to the temperature target with no corresponding input a model could condition
-on. This should either be exposed as a field input (mirroring the power-map pipeline) or
-the mechanism should be reconsidered — right now it makes the learning problem harder
-without giving any operator the information needed to resolve it.
+The TSV spatial field affected the 3D-ICE ground truth but no model received it as an
+input. Fixed for the layer that matters most: `src/core/mesh.py:generate_tsv_field`
+samples the per-scenario map onto every point, `NPZExporter` now saves it as `tsv_frac`
+in every `.npz`, and `src/fno/model.py` (`_as_field`/`_as_scalar`) consumes it as a real
+per-cell channel in FNO3d/CondFNO3d/CNOFNOHybrid — the model can now condition on *where*
+TSV density is high, not just how much there is on average. FourierPINN, DeepONet and ARO
+data loaders were upgraded to at least use the field's true per-scenario mean (previously
+a geometry-constant scalar that didn't vary within a geometry at all) instead of the field
+itself — full per-point conditioning for those three point-based architectures would need
+their model signatures changed to accept a per-point tensor instead of a per-scenario
+scalar (touches ~20 call sites across trainer/evaluate/explain/sampling/physics for PINN
+alone) and was judged too large a surgery to do untested in the same pass. Covered by
+`tests/test_tsv_field_export.py`.
+
+**Data note:** the mechanism is validated end-to-end (export round-trip, FNO forward/
+backward pass with a real field), but `data/3d-ice` was last regenerated before this
+change, so existing `.npz` files fall back to an all-zero `tsv_frac` array (correct,
+non-breaking, but not yet carrying real signal). One more regeneration pass populates it.
 
 ## Recommended next steps
 

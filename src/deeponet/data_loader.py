@@ -103,7 +103,12 @@ class MultiGeomDataset(Dataset):
             # --- Branch input ---
             htc    = float(meta.get('htc', 5000.0))
             t_amb  = float(meta.get('t_ambient_celsius', 40.0))
-            tsv_f  = float(meta.get('tsv_density', 0.0))
+            # Actual per-scenario mean of the simulated TSV field where available
+            # (varies scenario-to-scenario), falling back to the geometry-constant
+            # metadata scalar for files predating the field export.
+            tsv_f  = (float(data['tsv_frac'].mean())
+                     if 'tsv_frac' in data.files and data['tsv_frac'].size
+                     else float(meta.get('tsv_density', 0.0)))
 
             # Power sensor extraction: need Q on the FNO grid (nx,ny,nz)
             nx, ny, nz = geometry.mesh_resolution

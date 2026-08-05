@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, Any
 import numpy as np
 from ..core.geometry import Geometry
-from ..core.mesh import generate_coords_and_indices, generate_power_density_field
+from ..core.mesh import (generate_coords_and_indices, generate_power_density_field,
+                         generate_tsv_field)
 
 
 class NPZExporter:
@@ -74,6 +75,14 @@ class NPZExporter:
             coords, geometry, scenario_params['power_blocks'],
             power_map_by_layer=scenario_params.get('power_map_by_layer'))
 
+        # Per-point TSV area fraction. Previously only the scenario's mean
+        # tsv_density reached any consumer (metadata scalar below); this is the
+        # actual per-cell field the 4.0 ground truth was simulated with, saved
+        # so a model can condition on it instead of it being an unexplained
+        # confounder in the temperature target (assumptions.md, TSV section).
+        tsv_field = generate_tsv_field(
+            coords, geometry, tsv_map_by_layer=scenario_params.get('tsv_map_by_layer'))
+
         # Prepare metadata
         metadata = {
             'scenario_name': scenario_name,
@@ -131,6 +140,7 @@ class NPZExporter:
             temp=temperature_field.astype(np.float32),
             power=power_density.astype(np.float32),
             layer=layer_indices.astype(np.int32),
+            tsv_frac=tsv_field.astype(np.float32),
             metadata=np.array([metadata], dtype=object)
         )
 
@@ -149,6 +159,7 @@ class NPZExporter:
                 - temp: (N,) array
                 - power: (N,) array
                 - layer: (N,) array
+                - tsv_frac: (N,) array (zeros for files exported before this field existed)
                 - metadata: Dict with scenario information
         """
         if not npz_file.exists():
@@ -161,6 +172,8 @@ class NPZExporter:
             'temp': data['temp'],
             'power': data['power'],
             'layer': data['layer'],
+            'tsv_frac': data['tsv_frac'] if 'tsv_frac' in data.files
+                        else np.zeros(data['coords'].shape[0], dtype=np.float32),
             'metadata': dict(data['metadata'][0]) if data['metadata'].ndim > 0 else {}
         }
 

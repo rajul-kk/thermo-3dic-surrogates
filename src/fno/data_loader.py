@@ -132,11 +132,20 @@ class FNODataset(Dataset):
             n_expected_full = nx * ny * nz
             n_expected_slice = n_layers * nx * ny
 
+            # TSV area fraction per point, in [0,1]-ish range (raw phi / 0.10 cap,
+            # matching src/pinn/data_loader.py's _TSV_MAX). Absent in files
+            # exported before this field existed -- defaults to all-zero, which
+            # is also correct for the majority of geometries that carry no TSVs.
+            tsv_raw = (data['tsv_frac'].astype(np.float32) if 'tsv_frac' in data.files
+                      else np.zeros(n_points, dtype=np.float32))
+            tsv_raw = tsv_raw / 0.10
+
             if n_points == n_expected_full:
                 # Full mesh layout (mock simulator)
                 layer_ids = data['layer'].reshape(nx, ny, nz).astype(np.float32)
                 Q_norm = norm_stats.norm_power(data['power']).reshape(nx, ny, nz)
                 T_norm = norm_stats.norm_temp(data['temp']).reshape(nx, ny, nz)
+                TSV_norm = tsv_raw.reshape(nx, ny, nz)
 
             elif n_points == n_expected_slice:
                 # Per-layer-slice layout (3D-ICE real data):
@@ -145,6 +154,7 @@ class FNODataset(Dataset):
                 layer_flat = data['layer'].astype(np.int32)  # (n_layers*nx*ny,)
                 T_flat     = norm_stats.norm_temp(data['temp'].astype(np.float32))
                 Q_flat     = norm_stats.norm_power(data['power'].astype(np.float32))
+                TSV_flat   = tsv_raw
 
                 # Build per-z-index arrays using the layer index of each z-cell.
                 # z-cell i belongs to the layer whose z-range contains z-coords[i].
@@ -152,6 +162,7 @@ class FNODataset(Dataset):
                 layer_grid = np.full((nx, ny, nz), 0, dtype=np.float32)
                 T_grid     = np.zeros((nx, ny, nz), dtype=np.float32)
                 Q_grid     = np.zeros((nx, ny, nz), dtype=np.float32)
+                TSV_grid   = np.zeros((nx, ny, nz), dtype=np.float32)
 
                 # Map: for each unique layer_id, find its (nx,ny) slice in the flat data
                 unique_layers = np.unique(layer_flat)
@@ -195,17 +206,20 @@ class FNODataset(Dataset):
                 for lid in unique_layers:
                     mask_flat = layer_flat == lid
                     # Reshape this layer's slice to (nx, ny) — order matches C ravel
-                    T_slice = T_flat[mask_flat].reshape(nx, ny)
-                    Q_slice = Q_flat[mask_flat].reshape(nx, ny)
+                    T_slice   = T_flat[mask_flat].reshape(nx, ny)
+                    Q_slice   = Q_flat[mask_flat].reshape(nx, ny)
+                    TSV_slice = TSV_flat[mask_flat].reshape(nx, ny)
                     z_bins  = np.where(z_bin_to_layer == lid)[0]
                     for iz in z_bins:
                         T_grid[:, :, iz] = T_slice
                         Q_grid[:, :, iz] = Q_slice
+                        TSV_grid[:, :, iz] = TSV_slice
                         layer_grid[:, :, iz] = float(lid)
 
                 layer_ids = layer_grid
                 Q_norm = Q_grid
                 T_norm = T_grid
+                TSV_norm = TSV_grid
 
             else:
                 _log.warning(
@@ -219,17 +233,19 @@ class FNODataset(Dataset):
             htc = float(meta.get('htc', 5000.0))
             t_amb_c = float(meta.get('t_ambient_celsius', 40.0))
 
-            Q_t = torch.from_numpy(Q_norm.astype(np.float32))
-            L_t = torch.from_numpy(layer_id_norm.astype(np.float32))
-            T_t = torch.from_numpy(T_norm.astype(np.float32))
+            Q_t   = torch.from_numpy(Q_norm.astype(np.float32))
+            L_t   = torch.from_numpy(layer_id_norm.astype(np.float32))
+            T_t   = torch.from_numpy(T_norm.astype(np.float32))
+            TSV_t = torch.from_numpy(TSV_norm.astype(np.float32))
 
             if target_grid is not None and (nx, ny, nz) != tuple(target_grid):
                 # Trilinear for the continuous fields; nearest for layer identity,
                 # which is categorical -- interpolating it would invent materials
                 # that do not exist between a silicon die and a copper spreader.
-                Q_t = _resample(Q_t, target_grid, 'trilinear')
-                T_t = _resample(T_t, target_grid, 'trilinear')
-                L_t = _resample(L_t, target_grid, 'nearest')
+                Q_t   = _resample(Q_t, target_grid, 'trilinear')
+                T_t   = _resample(T_t, target_grid, 'trilinear')
+                L_t   = _resample(L_t, target_grid, 'nearest')
+                TSV_t = _resample(TSV_t, target_grid, 'trilinear')
 
             self.items.append({
                 'Q_norm': Q_t,
@@ -243,7 +259,10 @@ class FNODataset(Dataset):
                 'geometry': meta.get('geometry', 'unknown'),
                 'htc_norm': torch.tensor(norm_stats.norm_htc(htc), dtype=torch.float32),
                 't_amb_norm': torch.tensor(norm_stats.norm_t_amb(t_amb_c), dtype=torch.float32),
-                'tsv_frac': torch.tensor(float(meta.get('tsv_density', 0.0)), dtype=torch.float32),
+                # A real per-point field (nx,ny,nz), not the scenario-mean scalar this
+                # used to be -- the model can now actually condition on where the TSV
+                # density is high vs low, not just how much there is on average.
+                'tsv_frac': TSV_t,
                 'name': meta.get('scenario_name', path.stem),
             })
             data.close()
@@ -292,7 +311,7 @@ def predict_to_flat(
             item['layer_id_norm'].unsqueeze(0).to(device),
             item['htc_norm'].to(device),
             item['t_amb_norm'].to(device),
-            item['tsv_frac'].to(device),
+            item['tsv_frac'].unsqueeze(0).to(device),
         ).squeeze(0)  # (nx, ny, nz)
 
     T_range = norm_stats.T_max - norm_stats.T_min
