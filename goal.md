@@ -83,36 +83,59 @@ backward pass with a real field), but `data/3d-ice` was last regenerated before 
 change, so existing `.npz` files fall back to an all-zero `tsv_frac` array (correct,
 non-breaking, but not yet carrying real signal). One more regeneration pass populates it.
 
-## Recommended next steps
+## Microchannel liquid cooling — mechanism built and validated 2026-08-06
 
-**1. Microchannel/pin-fin liquid cooling — highest leverage, do this next.**
-Everything above operates in the linear-conduction regime (fixed k, no advection), which
-is *why* ridge regression wins — closed-form Green's-function superposition is exact
-there. 3D-ICE 4.0's `microchannel 2rm`/`4rm` and `pinfin` models (grammar confirmed
-present and buildable) introduce coolant advection along a flow direction, which is
-**not linear** in the boundary conditions the way a fixed convective HTC is. This is the
-one lever on the table that could change the actual finding, not just refine the dataset
-around it. Suggested scope: add it as a cooling option on the existing geometry6 (or a
-new geometry7), sweep flow rate as a scenario parameter, and re-run the ridge baseline —
-if ridge holds even there, that is a much stronger result than anything currently in the
-paper; if it doesn't, that is the benchmark's reason to exist.
+`Geometry.coolant_layer_name` + `ICESimulator` cooling_mode='microchannel_2rm' replaces
+the idealised `bottom heat sink` BC with a real 3D-ICE 4.0 `microchannel 2rm` coolant
+layer (grammar confirmed against 3D-ICE 4.0's own `test/mc2rm/steady/*.stk` examples).
+`_plan_sublayers` forces the coolant layer to a single stack element (a channel doesn't
+sub-divide); `_generate_stack_file` emits the `microchannel 2rm :` block, a `channel`
+stack entry in place of the layer, and skips Tmap output for it (see below). Fails loudly
+if `cooling_mode='microchannel_2rm'` is requested on a geometry with no
+`coolant_layer_name` set, rather than silently building an ill-posed problem with no
+heat-rejection boundary. Covered by `tests/test_microchannel.py`.
 
-**2. Expose the TSV field as a real model input.** Closing this gap (see above) is
-cheap relative to microchannels and should happen regardless of what else is prioritized
-— right now the mechanism is close to actively counterproductive.
+**Validated against the real 3D-ICE 4.0 binary** on a geometry6-based test config (a thin
+copper base plate added below the channel — 3D-ICE rejects a channel as the bottom-most
+stack element, and real cold plates have a base plate anyway): stable and physically
+plausible at 29–455 W (geometry6's core-fraction TDP ceiling), peak 167.4 °C, well under
+Si's 1414 °C melting point. This directly resolves the standing caution about whether
+3D-ICE's channel model stays numerically stable at accelerator-class power.
 
-**3. Do not add more geometry-fidelity fixes for their own sake.** Three bugs found this
+**Honest caveat:** the illustrative coolant parameters used in that validation (channel
+200 µm high, coolant HTC top=25000/bottom=5000 W/m²K) ran *hotter* than an air-cooled
+comparison at the same power (167.4 °C vs. 151.5 °C, HTC=50000). This proves the
+simulation mechanism is correct, not that those parameters make a good cooler — real
+microchannel cold-plate design (channel/wall dimensions, flow rate, HTC split) is a
+separate tuning exercise, not attempted here.
+
+**Not yet done — the integration gap.** The mechanism is not wired into `main.py` or
+`NPZExporter`: the coolant stack element has no Tmap output, so `generate_coords_and_indices`
+(which derives coordinates from `geometry.layers` independent of what the simulator
+actually emits) would produce coordinates for a z-region 3D-ICE never returns temperatures
+for — a real mismatch that needs the coords/export pipeline to know about coolant layers
+before this can produce a shippable geometry7 or an alternate-cooling geometry6 variant.
+Scope for that: teach `generate_coords_and_indices`/`NPZExporter` to skip (or separately
+handle) coolant sublayers, then sweep flow rate as a scenario parameter and re-run the
+ridge baseline — if ridge still solves it, that's a stronger result than anything
+currently in the paper; if it doesn't, that's the benchmark's reason to exist.
+
+## Other recommended next steps
+
+**1. Do not add more geometry-fidelity fixes for their own sake.** Three bugs found this
 session were all in the "make the existing linear regime slightly more correct" category.
 That work has diminishing returns: it was worth doing because it was silently wrong, not
 because it was expected to change the paper's conclusion, and it didn't. Microchannels are
 qualitatively different (breaks the linearity assumption itself); further TSV/underfill/
 thickness-style refinements are not.
 
-**4. Rewrite `docs/report.md` §1–7.** Still carries the retracted "novel PINN" framing
-behind a banner; the negative-result framing in §9+ and the abstract are the current
-truth. This is bookkeeping, not research, but it should happen before the paper is shown
-to anyone outside this session.
+**2. Full per-point TSV conditioning for PINN/DeepONet/ARO** (see above) — the field
+mechanism now exists and FNO consumes it; extending point-based architectures to the same
+depth is bounded, understood work, just deferred for scope/risk reasons this session.
 
-**5. Re-source the Kou et al. dimensions citation** flagged as unverified in
+**3. Close the microchannel integration gap** described above, then actually generate
+microchannel-cooled scenarios and re-run baselines.
+
+**4. Re-source the Kou et al. dimensions citation** flagged as unverified in
 `docs/references.md` against Zhou et al. TCPMT 12(6) 956-963, and delete the
 `backup-pre-rewrite` branch once the report rewrite is confirmed unneeded from it.

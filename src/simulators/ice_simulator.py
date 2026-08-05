@@ -215,10 +215,16 @@ class ICESimulator(ThermalSimulator):
             z_center   element centre in um (absolute)
             is_active  whether this element carries the power source
         """
+        coolant_layer_name = getattr(geometry, 'coolant_layer_name', None)
         plan: List[Dict[str, Any]] = []
         for i, layer in enumerate(geometry.layers):
-            if layer.is_active:
-                n_sub = 1        # source layers stay whole
+            is_coolant = coolant_layer_name is not None and layer.name == coolant_layer_name
+            if layer.is_active or is_coolant:
+                # Source layers stay whole because the floorplan mapping assumes
+                # one element per active layer. A microchannel is likewise a
+                # single 3D-ICE stack element (`channel` in the stack: list) --
+                # it isn't a solid material that sub-layer splitting applies to.
+                n_sub = 1
             else:
                 n_sub = int(np.ceil(layer.thickness / self.MAX_SUBLAYER_UM))
                 n_sub = max(1, min(n_sub, self.MAX_SUBLAYERS_PER_LAYER))
@@ -231,6 +237,7 @@ class ICESimulator(ThermalSimulator):
                     'thickness': t_sub,
                     'z_center': z_bot + t_sub / 2.0,
                     'is_active': layer.is_active,
+                    'is_coolant': is_coolant,
                 })
         return plan
 
@@ -284,12 +291,54 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   volumetric heat capacity {underfill_rho_cp * 1e-18:.4e} ;")
             lines.append("")
 
-        # ── Heat-sink boundary condition ─────────────────────────────────────
-        # Die is the topmost layer; convective cooling is on the bottom surface.
-        lines.append("bottom heat sink :")
-        lines.append(f"   heat transfer coefficient {htc_ice:.4e} ;")
-        lines.append(f"   temperature {t_ambient_k:.2f} ;")
-        lines.append("")
+        cooling_mode = scenario.get('cooling_mode', 'air')
+        if cooling_mode == 'microchannel_2rm' and getattr(geometry, 'coolant_layer_name', None) is None:
+            raise ValueError(
+                f"scenario requests cooling_mode='microchannel_2rm' but "
+                f"{geometry.name} has no coolant_layer_name set -- there would be "
+                f"no `channel` stack element and no bottom heat sink either, "
+                f"leaving the thermal problem with no heat-rejection boundary."
+            )
+        if cooling_mode == 'microchannel_2rm':
+            # Liquid microchannel cold plate replaces the idealised HTC boundary
+            # condition with an explicitly modelled coolant layer -- see
+            # bison/stack_description_parser.y "MicroChannel", grammar confirmed
+            # against 3D-ICE 4.0's own test/mc2rm/steady example .stk files.
+            # Coolant advection along the flow direction is genuinely NOT linear
+            # in the boundary data the way a fixed HTC scalar is (unlike every
+            # other change in this benchmark, which stays inside the linear
+            # conduction regime) -- see goal.md and assumptions.md.
+            mc = scenario.get('microchannel', {})
+            channel_height_um = float(mc.get('channel_height_um', 100.0))
+            channel_length_um = float(mc.get('channel_length_um', 50.0))
+            wall_length_um    = float(mc.get('wall_length_um', 50.0))
+            wall_material     = mc.get('wall_material', 'silicon')
+            flow_rate_ml_min  = float(mc.get('flow_rate_ml_min', 48.0))
+            coolant_htc_top_wm2k    = float(mc.get('coolant_htc_top_wm2k', 20000.0))
+            coolant_htc_bottom_wm2k = float(mc.get('coolant_htc_bottom_wm2k', 20000.0))
+            # Water: rho*cp ~ 4.18e6 J/m^3/K
+            coolant_vhc = float(mc.get('coolant_vhc_jm3k', 4.18e6))
+
+            lines.append("microchannel 2rm :")
+            lines.append(f"   height {channel_height_um:.1f} ;")
+            lines.append(f"   channel length {channel_length_um:.1f} ;")
+            lines.append(f"   wall    length {wall_length_um:.1f} ;")
+            lines.append(f"   wall material {wall_material} ;")
+            lines.append(f"   coolant flow rate {flow_rate_ml_min:.4f} ;")
+            lines.append(f"   coolant heat transfer coefficient top    "
+                         f"{coolant_htc_top_wm2k * 1e-12:.4e} ,")
+            lines.append(f"                                     bottom "
+                         f"{coolant_htc_bottom_wm2k * 1e-12:.4e} ;")
+            lines.append(f"   coolant volumetric heat capacity {coolant_vhc * 1e-18:.4e} ;")
+            lines.append(f"   coolant incoming temperature {t_ambient_k:.2f} ;")
+            lines.append("")
+        else:
+            # ── Heat-sink boundary condition ─────────────────────────────────
+            # Die is the topmost layer; convective cooling is on the bottom surface.
+            lines.append("bottom heat sink :")
+            lines.append(f"   heat transfer coefficient {htc_ice:.4e} ;")
+            lines.append(f"   temperature {t_ambient_k:.2f} ;")
+            lines.append("")
 
         # ── Chip dimensions ───────────────────────────────────────────────────
         nx, ny, _ = geometry.mesh_resolution
@@ -305,7 +354,7 @@ class ICESimulator(ThermalSimulator):
         # One definition per emitted sub-layer; several may share a geometry layer's
         # material but each needs its own type because heights differ across layers.
         for s_idx, sub in enumerate(self._sublayers):
-            if sub['is_active']:
+            if sub['is_active'] or sub.get('is_coolant'):
                 continue
             layer = geometry.layers[sub['layer_idx']]
             mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
@@ -359,7 +408,9 @@ class ICESimulator(ThermalSimulator):
         lines.append("stack :")
         for s_idx, sub in reversed(list(enumerate(self._sublayers))):
             inst = f"inst_{s_idx}"
-            if sub['is_active']:
+            if sub.get('is_coolant'):
+                lines.append(f"   channel {inst} ;")
+            elif sub['is_active']:
                 flp_name = f"floorplan_layer{sub['layer_idx']}.flp"
                 flp_abs  = (self.config_dir / flp_name).resolve()
                 flp_path = self._to_wsl_path(flp_abs) if getattr(self, '_use_wsl', False) else str(flp_abs)
@@ -375,9 +426,14 @@ class ICESimulator(ThermalSimulator):
         lines.append("")
 
         # ── Output: Tmap per stack element ────────────────────────────────────
-        # Files are written to output_dir named output_inst_N.txt
+        # Files are written to output_dir named output_inst_N.txt. The coolant
+        # element is skipped -- it is fluid, not a solid layer/die, and this
+        # first pass does not yet reconcile its node output with the coords/
+        # npz-export pipeline built for solid stack elements (see goal.md).
         lines.append("output :")
         for i in reversed(range(len(self._sublayers))):
+            if self._sublayers[i].get('is_coolant'):
+                continue
             inst = f"inst_{i}"
             out_abs  = (self.output_dir / f"output_{inst}.txt").resolve()
             out_path = self._to_wsl_path(out_abs) if getattr(self, '_use_wsl', False) else str(out_abs)

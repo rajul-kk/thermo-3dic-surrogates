@@ -524,14 +524,21 @@ since been implemented and measured, which is how their relative importance beca
 4. **Extrapolation splits by default** — *done*; `scripts/make_ood_split.py`. We no longer
    claim $1/h$ is the axis where linear models fail: that held only for an intermediate
    dataset containing physically impossible power/cooling combinations (§9.3).
-5. **Advective cooling (microchannel/pin-fin)** — *not done, highest-priority next step*.
-   Every change above (including per-cell power) operates within steady-state conduction
-   with a fixed convective boundary coefficient, which is exactly the regime in which the
-   governing equation is linear in its sources — the reason ridge wins at all. 3D-ICE 4.0
-   supports `microchannel 2rm`/`4rm` and `pinfin` coolant models, which introduce advection
-   along a flow direction; unlike every fix in this section, that is not linear in the
-   boundary data the way a fixed HTC is. This is the first candidate change that could
-   alter the paper's central finding rather than refine the dataset around it.
+5. **Advective cooling (microchannel/pin-fin)** — *mechanism built and validated
+   2026-08-06, not yet integrated into the dataset*. Every fix before this one (including
+   per-cell power) operates within steady-state conduction with a fixed convective boundary
+   coefficient, which is exactly the regime in which the governing equation is linear in
+   its sources — the reason ridge wins at all. `ICESimulator` now supports
+   `cooling_mode='microchannel_2rm'` (3D-ICE 4.0's `microchannel 2rm` coolant model,
+   grammar confirmed against the simulator's own test suite), which introduces advection
+   along a flow direction; unlike every fix above, that is not linear in the boundary data
+   the way a fixed HTC is. Validated stable against the real binary at geometry6's
+   ~455 W core-fraction TDP ceiling (peak 167.4 °C). Not yet wired into `main.py`/
+   `NPZExporter` — the coolant stack element produces no Tmap output, and the coords/export
+   pipeline does not yet know to skip it — so no microchannel-cooled scenarios exist in the
+   current 275-scenario dataset. This remains the first candidate change that could alter
+   the paper's central finding rather than refine the dataset around it, once integrated
+   and swept as a scenario axis.
 
 Transient simulation would add a further nonlinear axis; the present dataset is steady-state
 only.

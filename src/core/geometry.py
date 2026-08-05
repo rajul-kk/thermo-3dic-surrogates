@@ -152,6 +152,12 @@ class Geometry:
     tsv_density: float = 0.0  # TSV area fraction (0.0 for no TSVs)
     die_footprints: List[DiePrint] = field(default_factory=list)
     underfill_k: float = 0.7  # W/m·K — underfill/gap conductivity for 2p5d_stack
+    # Name of the layer a microchannel cold plate replaces when a scenario sets
+    # cooling_mode='microchannel_2rm' (ICESimulator). None (default) means this
+    # geometry has no microchannel-cooling variant; the layer still needs its
+    # normal thickness/material declared for z-bookkeeping of the layers above
+    # it, but ICESimulator swaps its solid layer for a `channel` stack element.
+    coolant_layer_name: Optional[str] = None
 
     def __post_init__(self):
         """Validate geometry and assemble stack."""
