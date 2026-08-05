@@ -1,6 +1,6 @@
 # References and Geometry Cross-Check
 
-## Verification status (last checked 2026-08-03)
+## Verification status (last checked 2026-08-06)
 
 Citations added or relied on for design decisions were checked against the literature.
 Verified: 3D-ICE (ICCAD 2010), 3D-ICE 4.0 (arXiv:2512.05823), HotSpot (TVLSI 2006),
@@ -10,11 +10,22 @@ SAU-FNO (arXiv:2510.15968), DeepOHeat (DAC 2023) and DeepOHeat-v1 (arXiv:2504.03
 MFIT (DOI 10.1145/3765905), Glassbrenner & Slack (Phys. Rev. 134, A1058),
 Morrow et al. (IEEE EDL 27, 335–337).
 
-**Three citations did not verify and are marked inline with ⚠:** Kou et al. 2022
-(does not verify — do not cite), Gao et al. 2023, Liu & Park 2012. Two corrections were
-made: the RNO authors are Ye, Zhang & Wang (previously given as "Yang et al."), and
-DeepOHeat / DeepOHeat-v1 are separate papers with different titles, not one paper and its
-update.
+**Re-sourced 2026-08-06:** the Kou et al. 2022 citation used for geometry5/6 dimensions
+(interposer thickness, TIM1/TIM2 thickness) did not verify and has been replaced with
+Zhou, Li, Hou, He & Fan (2022), **"Thermal Modeling of a Chiplet-Based Packaging With a
+2.5-D Through-Silicon Via Interposer,"** *IEEE TCPMT* 12(6), 956–963,
+DOI: 10.1109/TCPMT.2022.3174608 — confirmed to exist and resolve to the stated title via
+CrossRef (`doi.org/10.1109/TCPMT.2022.3174608` → `ieeexplore.ieee.org/document/9785787`).
+IEEE Xplore blocks automated full-text access, so the specific dimensional figures
+(interposer 300 µm, TIM1 50 µm, TIM2 125 µm) are **still unconfirmed against the paper's
+actual text** — only the citation's existence and topical match are verified. Treat those
+three numbers as an engineering estimate pending manual full-text confirmation, not yet a
+literature-sourced fact.
+
+**Two citations still do not verify and are marked inline with ⚠:** Gao et al. 2023,
+Liu & Park 2012. Two corrections were made: the RNO authors are Ye, Zhang & Wang
+(previously given as "Yang et al."), and DeepOHeat / DeepOHeat-v1 are separate papers with
+different titles, not one paper and its update.
 
 ## 1. Core Thermal Simulators
 
@@ -197,22 +208,26 @@ Liu, Y., & Park, S. B. (2012).
 > ⚠ **UNVERIFIED (checked 2026-08-03).** Not located by literature search. The k values it
 > is cited for drive the geometry5/6 TIM pump-out sweep, so this needs a confirmed source.
 
-Kou, H., et al. (2022).
-**Thermal analysis of 3D stacked memory package with through-silicon via.**
-*IEEE Transactions on Components, Packaging and Manufacturing Technology*, 12(4), 641–651.
-DOI: 10.1109/TCPMT.2022.3156289
-> ⚠ **DOES NOT VERIFY (checked 2026-08-03) — DO NOT CITE.** Searching this DOI and this
-> journal/volume/year returns a *different* paper. The closest genuine match on the same
-> topic is:
->
-> Zhou, M., Li, L., Hou, F., He, G., & Fan, J. (2022). **Thermal Modeling of a
-> Chiplet-Based Packaging With a 2.5-D Through-Silicon Via Interposer.** *IEEE TCPMT*,
-> 12(6), 956–963.
->
-> This citation was used as the dimensional reference for the geometry5/6 Tier 1 upgrade
-> (interposer 300 µm, indium TIM1 50 µm, TIM2 125 µm). Those dimensions must be
-> re-sourced against Zhou et al. or another confirmed reference before publication;
-> `geometry5_upgrades.md` cites it too.
+~~Kou, H., et al. (2022). "Thermal analysis of 3D stacked memory package with
+through-silicon via." *IEEE TCPMT*, 12(4), 641–651. DOI: 10.1109/TCPMT.2022.3156289~~
+— **DOES NOT VERIFY, replaced 2026-08-06.** Searching this DOI and this journal/volume/
+year returns a *different* paper; do not cite.
+
+**Replacement (dimensional reference for the geometry5/6 Tier 1 upgrade):**
+
+Zhou, M., Li, L., Hou, F., He, G., & Fan, J. (2022).
+**Thermal Modeling of a Chiplet-Based Packaging With a 2.5-D Through-Silicon Via Interposer.**
+*IEEE Transactions on Components, Packaging and Manufacturing Technology*, 12(6), 956–963.
+DOI: 10.1109/TCPMT.2022.3174608
+> **Citation confirmed 2026-08-06** — the DOI resolves via CrossRef to this exact title on
+> IEEE Xplore (document 9785787). IEEE Xplore blocks automated full-text access, so the
+> specific dimensions this citation was used for (interposer 300 µm, indium TIM1 50 µm,
+> TIM2 125 µm — used in `geometry5_upgrades.md` and `src/core/geometry_builders.py`
+> `build_geometry5`/`build_geometry6`) are **still unconfirmed against the paper's actual
+> text**, only the citation's existence and topical match. Treat those three numbers as an
+> engineering estimate consistent with the general 2.5D CoWoS-class range (see the
+> TSMC CoWoS-R comparison below), not a literature-sourced fact, until someone with
+> full-text access checks them directly.
 
 ---
 
@@ -321,15 +336,23 @@ See `assumptions.md §2.3` for full analysis.
 
 ### 4.4 Geometry 5 — Tier 0+1 Upgraded CoWoS (25 × 14 mm)
 
-| Parameter | Our value | Kou 2022 reference | TSMC CoWoS-R | Verdict |
+**Caveat (2026-08-06):** the "Zhou 2022 / est." column below was originally sourced to a
+fake "Kou 2022" citation. The replacement, Zhou et al. (2022, IEEE TCPMT 12(6), 956–963),
+is confirmed to exist and be topically on point (§1 above), but its specific numeric
+figures have not been checked against the paper's full text (IEEE Xplore blocks automated
+access). Read this column as an engineering estimate the citation is *expected* to
+support, not a confirmed literature figure — Liu & Park 2012, cited in the pump-out row,
+is separately flagged unverified above.
+
+| Parameter | Our value | Zhou 2022 / est. | TSMC CoWoS-R | Verdict |
 |---|---|---|---|---|
-| Interposer thickness | 300 µm | 300 µm | 100–300 µm | ✓ Matches Kou 2022 |
-| TIM1 (die→spreader) | 50 µm, k=80 (In solder) | ~50–100 µm, k=50–80 | In or In-Ag | ✓ Physically accurate |
-| TIM2 (spreader→sink) | 125 µm, k=4 | 100–150 µm, k=3–5 | Thermal grease | ✓ Matches range |
-| C4 bump k_eff | 15 W/m·K, 100 µm | 10–20 W/m·K | Cu+solder composite | ✓ Consistent |
-| Die k (active layer) | 80 W/m·K (low-k composite) | 60–100 W/m·K @ N5 | N5/N3 literature | ✓ Conservative N5 estimate |
-| RDL Joule fraction | 1–10 %, parameterised | ~3–8 % typical | — | ✓ Spans physical range |
-| TIM1 pump-out sweep | k=80/40/10/5 W/m·K | k drops 2–10× over cycling | — | ✓ Supported by Liu & Park 2012 |
+| Interposer thickness | 300 µm | 300 µm | 100–300 µm | Plausible, unconfirmed vs. Zhou 2022 full text |
+| TIM1 (die→spreader) | 50 µm, k=80 (In solder) | ~50–100 µm, k=50–80 | In or In-Ag | Physically reasonable |
+| TIM2 (spreader→sink) | 125 µm, k=4 | 100–150 µm, k=3–5 | Thermal grease | Within typical range |
+| C4 bump k_eff | 15 W/m·K, 100 µm | 10–20 W/m·K | Cu+solder composite | Consistent |
+| Die k (active layer) | 80 W/m·K (low-k composite) | 60–100 W/m·K @ N5 | N5/N3 literature | Conservative N5 estimate |
+| RDL Joule fraction | 1–10 %, parameterised | ~3–8 % typical | — | Spans physical range |
+| TIM1 pump-out sweep | k=80/40/10/5 W/m·K | k drops 2–10× over cycling | — | ⚠ Liu & Park 2012 unverified |
 | Hybrid bonding | 5 µm, k=60 W/m·K | <1 µm, k~300 W/m·K | — | ⚠ 28× over real; <2 K error |
 
 ### 4.5 Geometry 6 — CoWoS + 6× HBM Stacks (42 × 14 mm)

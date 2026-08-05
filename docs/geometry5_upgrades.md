@@ -91,7 +91,12 @@ public literature.
 ---
 
 ### Tier 1 — Match Kou 2022 (A100-like fidelity) — ✅ COMPLETE (implemented)
-> ⚠ **Kou et al. 2022 does not verify** (checked 2026-08-03). The dimensions attributed to it below must be re-sourced before publication — see `references.md` §2b for the closest genuine paper (Zhou et al., IEEE TCPMT 12(6)).
+> ⚠ **"Kou et al. 2022" never verified and has been re-sourced (2026-08-06)** to
+> Zhou, Li, Hou, He & Fan (2022), *IEEE TCPMT* 12(6), 956–963, DOI 10.1109/TCPMT.2022.3174608
+> — confirmed to exist and be topically on point, but its full text is not accessible, so
+> the specific dimensions below are still an engineering estimate rather than a confirmed
+> literature figure. See `references.md` §1/§2b for the full verification note. "Kou 2022"
+> below is retained as the historical label under which this tier was designed.
 
 
 Kou et al. 2022 is the most rigorous public 2.5D thermal benchmark, validated against
