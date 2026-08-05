@@ -50,6 +50,13 @@ class ScenarioParameters:
     # Per-cell TSV area-fraction fields keyed by layer name. Replace the single
     # scalar tsv_density, which took only four discrete values.
     tsv_map_by_layer: Dict[str, Any] = field(default_factory=dict)
+    # Package-level thermal throttling (DVFS): when enabled, main.py's
+    # process_scenario iteratively derates power until peak T falls within
+    # tol_c of throttle_temp_c (or hits power_floor). See src/scenario/throttling.py.
+    throttle_enabled: bool = False
+    throttle_temp_c: float = 95.0
+    throttle_gain: float = 2.0
+    throttle_power_floor: float = 0.3
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for YAML export."""
@@ -67,6 +74,10 @@ class ScenarioParameters:
             'power_map_by_layer': self.power_map_by_layer,
             'power_map_kind': self.power_map_kind,
             'tsv_map_by_layer': self.tsv_map_by_layer,
+            'throttle_enabled': self.throttle_enabled,
+            'throttle_temp_c': self.throttle_temp_c,
+            'throttle_gain': self.throttle_gain,
+            'throttle_power_floor': self.throttle_power_floor,
         }
 
 
@@ -390,6 +401,30 @@ class ScenarioGenerator:
                     contrast=contrast)
                 for j, name in enumerate(tsv_layers)
             }
+        return scenarios
+
+    def attach_throttling(self, scenarios: List[ScenarioParameters],
+                          throttle_temp_c: float = 95.0, gain: float = 2.0,
+                          power_floor: float = 0.3) -> List[ScenarioParameters]:
+        """
+        Enable package-level thermal throttling (DVFS) on each scenario.
+
+        Real chips reduce power when the hottest point on the package exceeds a
+        junction-temperature limit -- power becomes a function of the very
+        temperature field being solved for, a closed feedback loop no fixed
+        power source can express. Every other mechanism in this benchmark
+        (per-cell power, TSV fields, underfill layouts, even microchannel
+        cooling at fixed flow rate) still maps a scenario-fixed source to a
+        temperature field; this is the first one that doesn't. Applied by
+        main.py's process_scenario via src/scenario/throttling.py, which
+        iteratively re-solves and derates -- not implemented here, since it
+        requires calling the simulator multiple times per scenario.
+        """
+        for s in scenarios:
+            s.throttle_enabled = True
+            s.throttle_temp_c = throttle_temp_c
+            s.throttle_gain = gain
+            s.throttle_power_floor = power_floor
         return scenarios
 
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:

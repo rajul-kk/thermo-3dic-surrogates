@@ -38,6 +38,7 @@ from src.core.mesh import (
     generate_power_density_field,
 )
 from src.scenario.generator import ScenarioGenerator
+from src.scenario.throttling import apply_throttling
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.visualization.visualization import create_visualization_summary
@@ -149,11 +150,28 @@ def process_scenario(scenario_name: str,
     else:
         # Real simulator (3D-ICE or HotSpot)
         try:
-            parsed = simulator.simulate(geometry, scenario_params, scenario_name)
+            if scenario_params.get('throttle_enabled'):
+                # Several 3D-ICE solves instead of one: iteratively derate
+                # power until peak T settles under the throttle threshold.
+                # Mutates scenario_params['power_blocks'] to the delivered
+                # (derated) power, so everything below sees the real thing.
+                parsed, throttle_info = apply_throttling(
+                    simulator, geometry, scenario_params, scenario_name)
+                scenario_params.update(throttle_info)
+                if throttle_info['throttle_triggered']:
+                    logger.info(
+                        f"  Throttled: {throttle_info['throttle_iterations']} iters, "
+                        f"derate={throttle_info['throttle_derate_factor']:.2f}, "
+                        f"peak={throttle_info['throttle_peak_temp_c']:.1f}C"
+                        + ("" if throttle_info['throttle_converged'] else " (pinned at power floor)")
+                    )
+            else:
+                parsed = simulator.simulate(geometry, scenario_params, scenario_name)
             # parse_results returns 'temperature' key (not 'temp')
             coords = parsed['coords']
             temps = parsed['temperature']
             # Regenerate power and layer_indices on the simulator's output grid
+            # (scenario_params['power_blocks'] already reflects any throttling)
             power = generate_power_density_field(
         coords, geometry, scenario_params['power_blocks'],
         power_map_by_layer=scenario_params.get('power_map_by_layer'))

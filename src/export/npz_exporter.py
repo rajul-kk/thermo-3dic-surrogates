@@ -101,6 +101,15 @@ class NPZExporter:
             'total_height_um': int(geometry.get_total_height()),
             'mesh_resolution': geometry.mesh_resolution,
             'tsv_density': geometry.tsv_density,
+            # Thermal throttling (DVFS): power_blocks above already reflects the
+            # FINAL derated values when throttling fired (see main.py
+            # process_scenario / src/scenario/throttling.py); these record
+            # whether and how much derating happened, for anyone auditing or
+            # filtering scenarios by throttle state.
+            'throttle_enabled': bool(scenario_params.get('throttle_enabled', False)),
+            'throttle_triggered': bool(scenario_params.get('throttle_triggered', False)),
+            'throttle_derate_factor': float(scenario_params.get('throttle_derate_factor', 1.0)),
+            'throttle_iterations': int(scenario_params.get('throttle_iterations', 1)),
         }
 
         # Store per-block power densities so the PINN trainer can assign
