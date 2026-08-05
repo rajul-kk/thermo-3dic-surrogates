@@ -2,8 +2,8 @@
 
 ## What this repo is
 
-An open benchmark for neural thermal surrogates in 3D-IC packaging: **335 real 3D-ICE
-simulations** across **8 package geometries** (single die → CoWoS + 6×HBM), **5 surrogate
+An open benchmark for neural thermal surrogates in 3D-IC packaging: **275 real 3D-ICE
+simulations** across **6 package geometries** (single die → CoWoS + 6×HBM), **5 surrogate
 model families** (PINN, FNO/WHNO/CNO-FNO, PI-DeepONet, ARO, Therm-FM), a shared XAI
 toolkit, and a FastAPI app. Ground truth is real finite-element 3D-ICE output, not
 synthetic data.
@@ -41,10 +41,17 @@ in this domain actually require a learned operator.
 5. **Regenerated the full dataset** under 4.0 with all of the above active (335/335
    scenarios, zero failures), then regenerated geometry5/6 a second time once the
    `tsv_density` bug was caught.
+6. **Removed geometry2b/2c** (2026-08-06): near-duplicates of geometry2a whose
+   ridge-regression baselines were bit-identical to geometry2a's (spatial R²=0.991,
+   MAE=2.207 K, all three to 3 decimals), with TSV density not exposed as a model input
+   anywhere. Benchmark is now 6 geometries / 275 scenarios. Every reference to
+   geometry2b/2c across code, tests, docs, configs and the Kaggle notebook was removed
+   or updated in the same pass; `docs/report.md` §1–4/§10–11 were also rewritten to
+   drop the retracted "first PINN" framing and re-measured against the current data.
 
 ## Net effect on the benchmark
 
-- **Ridge still wins.** Spatial R² 0.918–0.991 across all 8 geometries post-fix. Expected
+- **Ridge still wins.** Spatial R² 0.918–0.991 across all 6 remaining geometries post-fix. Expected
   and correct — none of the above were meant to break linearity; they were data-fidelity
   fixes to the training set, not new physics.
 - **Per-cell power remains the one change that mattered.** It doesn't move field R² much,
