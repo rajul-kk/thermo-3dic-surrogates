@@ -539,6 +539,20 @@ since been implemented and measured, which is how their relative importance beca
    current 275-scenario dataset. This remains the first candidate change that could alter
    the paper's central finding rather than refine the dataset around it, once integrated
    and swept as a scenario axis.
+6. **Thermal throttling (DVFS)** — *mechanism built and validated 2026-08-06, not yet
+   integrated into the dataset*. `src/scenario/throttling.py` wraps 3D-ICE in an outer
+   solve-derate-resolve loop: power is reduced when peak temperature exceeds a
+   junction-temperature limit, then the scenario is re-solved, converging once the peak
+   settles under the threshold or a power floor is hit. This makes power a function of the
+   temperature field being solved for — a genuine closed feedback loop that a
+   scenario-fixed source cannot express, distinct from every fix above including advective
+   cooling (which still solves a single fixed-source steady state, just with a different
+   boundary condition). Validated on geometry3 against the real binary at two overshoot
+   levels; both converged in 2 solves, cheaper than the 3–5 solves budgeted before
+   implementation, because steady-state conduction's linearity in power means one
+   proportional correction from the first solve's overshoot lands close to the target. Not
+   yet wired into `main.py`'s CLI path, so no throttled scenarios exist in the current
+   dataset either.
 
 Transient simulation would add a further nonlinear axis; the present dataset is steady-state
 only.

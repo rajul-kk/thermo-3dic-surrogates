@@ -120,22 +120,65 @@ handle) coolant sublayers, then sweep flow rate as a scenario parameter and re-r
 ridge baseline — if ridge still solves it, that's a stronger result than anything
 currently in the paper; if it doesn't, that's the benchmark's reason to exist.
 
+## Thermal throttling (DVFS) — implemented and validated 2026-08-06
+
+`ScenarioGenerator.attach_throttling` + `src/scenario/throttling.py:apply_throttling`
+iteratively solve-and-derate: run 3D-ICE, check peak T against a threshold (default
+95 °C), reduce power proportionally to the overshoot if exceeded, re-solve, repeat until
+convergence or a power floor is hit. Wired into `main.py`'s `process_scenario` — when a
+scenario has `throttle_enabled=True`, `scenario_params['power_blocks']` is mutated to the
+FINAL derated values, so npz export, statistics and plots all see the power that was
+actually delivered, not the nominal request. Throttle state (`throttle_triggered`,
+`throttle_derate_factor`, `throttle_iterations`) is exported as npz metadata. Covered by
+`tests/test_throttling.py` (stub-simulator unit tests: graduated derate, pinned-at-floor,
+max-iteration cap, convergence math).
+
+**Validated against the real 3D-ICE 4.0 binary** on geometry3 (server CPU — Turbo
+Boost/thermal throttling is exactly this chip's real behavior) at two overshoot levels:
+a moderate case converged to derate=0.724 in 2 solves (peak 81.06 °C, under the 90 °C
+threshold), and an aggressive case correctly pinned at the 0.3 power floor in 2 solves
+(peak 68.54 °C — under-throttled relative to the 90 °C target, an expected consequence of
+an aggressive default gain rather than a bug). **Both converged in 2 solves, not the
+3–5 estimated before implementing** — steady-state conduction being linear in power means
+one proportional correction from the first solve's overshoot lands very close to the
+target, so the real cost is closer to **2× a normal solve**, not 3–5×.
+
+**Why this one is different from every other change so far:** power becomes a function of
+the temperature field being solved for — a genuine closed feedback loop. Per-cell power,
+TSV fields, underfill layouts, and even microchannel cooling at a fixed flow rate all
+still map a scenario-fixed source to a temperature field; this doesn't.
+
+**Not yet done:** not wired into the shipped dataset (no throttled scenarios in
+`data/3d-ice` yet — `attach_throttling` exists but nothing calls it from `main.py`'s CLI
+path the way `attach_tsv_maps` is auto-wired), and the model architectures don't yet know
+to expect a *derated* power field distinct from the nominal request (they just see
+whatever `power`/`temp` pair ends up in the npz, which is fine for training but means
+there's no way to ask a model "what would this scenario have looked like unthrottled").
+
 ## Other recommended next steps
 
-**1. Do not add more geometry-fidelity fixes for their own sake.** Three bugs found this
-session were all in the "make the existing linear regime slightly more correct" category.
-That work has diminishing returns: it was worth doing because it was silently wrong, not
-because it was expected to change the paper's conclusion, and it didn't. Microchannels are
-qualitatively different (breaks the linearity assumption itself); further TSV/underfill/
-thickness-style refinements are not.
+**1. Wire microchannel and throttling into the shipped dataset.** Both mechanisms are
+built and validated against the real binary; neither has produced a single scenario in
+`data/3d-ice` yet. Microchannel needs the coords/export pipeline fix described above;
+throttling just needs `main.py` to call `attach_throttling` the way it already
+auto-calls `attach_tsv_maps`, plus a decision on which geometries get it (geometry1 and
+geometry3 are the physically-motivated choices — see the geometry-by-geometry discussion
+in this conversation).
 
-**2. Full per-point TSV conditioning for PINN/DeepONet/ARO** (see above) — the field
+**2. Do not add more geometry-fidelity fixes for their own sake.** Three bugs found
+2026-08-05/06 were all in the "make the existing linear regime slightly more correct"
+category — worth doing because they were silently wrong, not because they were expected
+to change the paper's conclusion, and they didn't. Microchannels and throttling are
+qualitatively different (both break the linearity assumption itself); further
+TSV/underfill/thickness-style refinements are not, and shouldn't be prioritized over
+finishing the two mechanisms that already exist.
+
+**3. Full per-point TSV conditioning for PINN/DeepONet/ARO** (see above) — the field
 mechanism now exists and FNO consumes it; extending point-based architectures to the same
 depth is bounded, understood work, just deferred for scope/risk reasons this session.
 
-**3. Close the microchannel integration gap** described above, then actually generate
-microchannel-cooled scenarios and re-run baselines.
-
-**4. Re-source the Kou et al. dimensions citation** flagged as unverified in
-`docs/references.md` against Zhou et al. TCPMT 12(6) 956-963, and delete the
-`backup-pre-rewrite` branch once the report rewrite is confirmed unneeded from it.
+**4. HBM/chiplet-count sweep on geometry6** (2/4/6-HBM variants) — cheap for FNO (shared
+epoch loop, ~20% more wall time for ~20% more scenarios), notably more expensive for PINN
+(a full new per-geometry training run per variant, ~37-90 min each, no shared
+amortization — see the training-cost discussion in this conversation). Do this as an
+FNO-first exercise if pursued.
