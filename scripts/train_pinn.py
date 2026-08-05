@@ -42,7 +42,7 @@ from src.pinn.model import build_model
 from src.pinn.trainer import Trainer
 
 
-_ALL_GEOMS = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c', 'geometry3', 'geometry4', 'geometry5']
+_ALL_GEOMS = ['geometry1', 'geometry2a', 'geometry3', 'geometry4', 'geometry5']
 
 # CPU-fast preset: ~4× fewer parameters, 4× fewer collocation points, shorter training.
 # Target time on i7 (no GPU): ~1.5–3 hr per geometry vs ~6–10 hr at full defaults.

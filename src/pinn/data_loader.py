@@ -151,7 +151,9 @@ class ScenarioData:
     tim_k_norm: float = 0.05                     # TIM conductivity / 80 W/m·K; 0.05=default 4 W/m·K
 
 
-_TSV_MAX = 0.10  # maximum TSV density in the benchmark suite (geometry2c)
+_TSV_MAX = 0.10  # normalisation ceiling; actual suite max is 0.03 (geometry2a/5/6) as of
+                 # the 2026-08-06 geometry2b/2c removal -- kept at 0.10 as headroom so a
+                 # future higher-density variant doesn't require renormalising checkpoints
 
 # Importance weights for layer-stratified collocation sampling.
 # Applied as: weight = keyword_weight × layer_thickness, then normalised to fractions.

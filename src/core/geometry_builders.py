@@ -158,8 +158,9 @@ def build_geometry2(tsv_density: float, variant_name: str) -> Geometry:
     Build Geometry 2 variants: 3D Stack with TSV.
 
     Args:
-        tsv_density: TSV area fraction (0.03, 0.05, or 0.10)
-        variant_name: Variant identifier ('geometry2a', 'geometry2b', 'geometry2c')
+        tsv_density: TSV area fraction (only 'geometry2a' at 0.03 is built; the
+            function keeps the density parameter so a variant is one call away)
+        variant_name: Variant identifier (only 'geometry2a' is currently used)
 
     Layer stack (bottom to top):
     1. Heat Sink (Cu): 5000 μm
@@ -470,18 +471,18 @@ def build_geometry3() -> Geometry:
 
 
 def build_geometry2a() -> Geometry:
-    """Build Geometry 2a: 3D Stack with 3% TSV density."""
+    """
+    Build Geometry 2a: 3D Stack with 3% TSV density.
+
+    geometry2b (5%) and geometry2c (10%) were removed 2026-08-06: they were the
+    same base 3D-TSV-stack geometry differing only in this one scalar, which
+    (a) is not exposed as a model input anywhere in the pipeline and (b) produced
+    bit-identical ridge-regression baselines to geometry2a (spatial R^2=0.991,
+    MAE=2.207 to 3 decimals, all three) -- three near-zero-marginal-information
+    copies of one benchmark. TSV density variation is still exercised as a
+    spatial field within this single geometry via ScenarioGenerator.attach_tsv_maps.
+    """
     return build_geometry2(0.03, 'geometry2a')
-
-
-def build_geometry2b() -> Geometry:
-    """Build Geometry 2b: 3D Stack with 5% TSV density."""
-    return build_geometry2(0.05, 'geometry2b')
-
-
-def build_geometry2c() -> Geometry:
-    """Build Geometry 2c: 3D Stack with 10% TSV density."""
-    return build_geometry2(0.10, 'geometry2c')
 
 
 def build_geometry4() -> Geometry:
@@ -821,13 +822,11 @@ def build_all_geometries() -> List[Geometry]:
     Build all benchmark geometries.
 
     Returns:
-        List: [geometry1, geometry2a, geometry2b, geometry2c, geometry3, geometry4, geometry5, geometry6]
+        List: [geometry1, geometry2a, geometry3, geometry4, geometry5, geometry6]
     """
     return [
         build_geometry1(),
         build_geometry2a(),
-        build_geometry2b(),
-        build_geometry2c(),
         build_geometry3(),
         build_geometry4(),
         build_geometry5(),
@@ -840,7 +839,7 @@ def get_geometry_by_name(name: str) -> Geometry:
     Get geometry by name.
 
     Args:
-        name: One of 'geometry1'..'geometry6' (including geometry2a/2b/2c variants)
+        name: One of 'geometry1', 'geometry2a', 'geometry3'..'geometry6'
 
     Returns:
         Geometry object
@@ -851,8 +850,6 @@ def get_geometry_by_name(name: str) -> Geometry:
     builders = {
         'geometry1':  build_geometry1,
         'geometry2a': build_geometry2a,
-        'geometry2b': build_geometry2b,
-        'geometry2c': build_geometry2c,
         'geometry3':  build_geometry3,
         'geometry4':  build_geometry4,
         'geometry5':  build_geometry5,

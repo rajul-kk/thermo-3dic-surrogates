@@ -25,7 +25,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 DATA_ROOT = REPO / 'data' / '3d-ice'
 
-LIVE_GEOMETRIES = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c',
+LIVE_GEOMETRIES = ['geometry1', 'geometry2a',
                    'geometry3', 'geometry4', 'geometry5', 'geometry6']
 
 # Physical bounds. Silicon melts at 1414 C; anything approaching that is a bug,

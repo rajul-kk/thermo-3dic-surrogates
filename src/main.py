@@ -30,7 +30,7 @@ import json
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.geometry_builders import (
-    build_geometry1, build_geometry2a, build_geometry2b, build_geometry2c,
+    build_geometry1, build_geometry2a,
     build_geometry3, build_geometry4, build_geometry5, build_geometry6,
 )
 from src.core.mesh import (
@@ -59,8 +59,6 @@ def load_geometries() -> Dict[str, object]:
     geometries = {
         'geometry1':  build_geometry1(),
         'geometry2a': build_geometry2a(),
-        'geometry2b': build_geometry2b(),
-        'geometry2c': build_geometry2c(),
         'geometry3':  build_geometry3(),
         'geometry4':  build_geometry4(),
         'geometry5':  build_geometry5(),
@@ -367,7 +365,7 @@ def main():
     )
     parser.add_argument(
         '--geometry',
-        choices=['geometry1', 'geometry2a', 'geometry2b', 'geometry2c', 'geometry3',
+        choices=['geometry1', 'geometry2a', 'geometry3',
                  'geometry4', 'geometry5', 'geometry6', 'all'],
         default='geometry1',
         help='Geometry to process (default: geometry1)'
@@ -465,7 +463,7 @@ def main():
     geometries = load_geometries()
 
     # Determine which geometries to process
-    geometry_list = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c',
+    geometry_list = ['geometry1', 'geometry2a',
                      'geometry3', 'geometry4', 'geometry5', 'geometry6'] \
         if args.all_geometries else [args.geometry]
 

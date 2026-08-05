@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.geometry_builders import (
     build_geometry1,
-    build_geometry2a, build_geometry2b, build_geometry2c,
+    build_geometry2a,
     build_geometry3, build_geometry4, build_geometry5,
 )
 from src.simulators.ice_simulator import ICESimulator
@@ -37,8 +37,6 @@ ICE_EXECUTABLE = "wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator"
 EXPECTED_PTS = {
     'geometry1':  60000,
     'geometry2a': 64000,
-    'geometry2b': 64000,
-    'geometry2c': 64000,
     'geometry3':  60000,
     'geometry4':  33600,
     'geometry5':  44800,
@@ -47,8 +45,6 @@ EXPECTED_PTS = {
 GEOMETRY_BUILDERS = {
     'geometry1':  build_geometry1,
     'geometry2a': build_geometry2a,
-    'geometry2b': build_geometry2b,
-    'geometry2c': build_geometry2c,
     'geometry3':  build_geometry3,
     'geometry4':  build_geometry4,
     'geometry5':  build_geometry5,

@@ -11,7 +11,7 @@ Example
 python scripts/train_aro.py \
     --hf-data  data/3d-ice \
     --lf-data  data/lf \
-    --geometries geometry1 geometry2a geometry2b geometry2c geometry3 \
+    --geometries geometry1 geometry2a geometry3 \
     --pretrain-epochs 200 \
     --finetune-epochs 100 \
     --output checkpoints/aro
@@ -46,7 +46,7 @@ _log = logging.getLogger(__name__)
 
 ALL_GEOMS = [
     'geometry1',
-    'geometry2a', 'geometry2b', 'geometry2c',
+    'geometry2a',
     'geometry3',
     'geometry4',
     'geometry5',

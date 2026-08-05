@@ -11,13 +11,10 @@ $ErrorActionPreference = 'Continue'
 $ICE = "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator"
 $OUT = "data/3d-ice-v4"
 
-# geometry -> extra training scenarios beyond the 15-scenario base pool
-# (matches the counts already validated in data/3d-ice, for a like-for-like
-# regeneration: 45/30/30/30/45/45/55/55 = 335 total scenarios)
+# geometry -> extra training scenarios beyond the 15-scenario base pool.
+# geometry2b/2c removed 2026-08-06 (near-duplicate of geometry2a; see goal.md).
 $plan = [ordered]@{
     'geometry2a' = 10
-    'geometry2b' = 10
-    'geometry2c' = 10
     'geometry3'  = 25
     'geometry4'  = 25
     'geometry1'  = 25

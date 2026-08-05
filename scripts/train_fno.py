@@ -50,7 +50,7 @@ from src.fno.whno import build_whno
 from src.fno.data_loader import FNODataset
 from src.fno.trainer import FNOTrainer
 
-ALL_GEOMS = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c',
+ALL_GEOMS = ['geometry1', 'geometry2a',
              'geometry3', 'geometry4', 'geometry5', 'geometry6']
 
 # Per-model defaults

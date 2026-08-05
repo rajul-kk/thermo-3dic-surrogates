@@ -37,7 +37,7 @@ _log = logging.getLogger(__name__)
 
 ALL_GEOMS = [
     'geometry1',
-    'geometry2a', 'geometry2b', 'geometry2c',
+    'geometry2a',
     'geometry3',
     'geometry4',
     'geometry5',

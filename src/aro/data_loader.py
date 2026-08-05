@@ -174,7 +174,7 @@ class ARODataset(Dataset):
 
 
 def _infer_geom(stem: str) -> str:
-    for g in ['geometry6', 'geometry5', 'geometry4', 'geometry2c', 'geometry2b', 'geometry2a',
+    for g in ['geometry6', 'geometry5', 'geometry4', 'geometry2a',
               'geometry3', 'geometry1']:
         if stem.startswith(g) or g in stem:
             return g

@@ -127,8 +127,6 @@ class ScenarioGenerator:
     TDP_BY_GEOMETRY_W = {
         'geometry1':  125.0,   # desktop-class single die, 10x10 mm
         'geometry2a':  30.0,   # mobile-class 3D stack, 8x8 mm
-        'geometry2b':  30.0,
-        'geometry2c':  30.0,
         'geometry3':  250.0,   # server CPU die, 25x25 mm
         'geometry4':  200.0,   # 2.5D chiplet assembly on interposer
         'geometry5':  400.0,   # CoWoS accelerator: compute chiplet + HBM stack

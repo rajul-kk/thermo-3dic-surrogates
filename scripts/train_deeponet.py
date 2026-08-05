@@ -65,10 +65,10 @@ from src.deeponet.cno_model import build_cno_deeponet
 from src.deeponet.data_loader import MultiGeomDataset
 from src.deeponet.trainer import DeepONetTrainer
 
-# MLP branch: 5 uniform-stack geometries (trunk assumes layer-uniform T in x,y)
-ALL_GEOMS_MLP = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c', 'geometry3']
-# CNO branch: all 8 geometries (spatial encoder captures lateral variation)
-ALL_GEOMS_CNO = ['geometry1', 'geometry2a', 'geometry2b', 'geometry2c',
+# MLP branch: uniform-stack geometries (trunk assumes layer-uniform T in x,y)
+ALL_GEOMS_MLP = ['geometry1', 'geometry2a', 'geometry3']
+# CNO branch: all 6 geometries (spatial encoder captures lateral variation)
+ALL_GEOMS_CNO = ['geometry1', 'geometry2a',
                  'geometry3', 'geometry4', 'geometry5', 'geometry6']
 _ALL_GEOMS_WITH_2P5D = ALL_GEOMS_MLP + ['geometry4', 'geometry5', 'geometry6']
 

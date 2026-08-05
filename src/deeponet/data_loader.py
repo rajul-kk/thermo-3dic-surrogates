@@ -247,7 +247,7 @@ def _build_layer_id_grid(geometry) -> np.ndarray:
 
 def _infer_geom(stem: str) -> str:
     """Infer geometry name from NPZ filename stem."""
-    for g in ['geometry6', 'geometry5', 'geometry4', 'geometry2c', 'geometry2b', 'geometry2a',
+    for g in ['geometry6', 'geometry5', 'geometry4', 'geometry2a',
               'geometry3', 'geometry1']:
         if stem.startswith(g):
             return g

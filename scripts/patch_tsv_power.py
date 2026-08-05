@@ -15,9 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.core.geometry_builders import (
-    build_geometry2a, build_geometry2b, build_geometry2c, build_geometry5
-)
+from src.core.geometry_builders import build_geometry2a, build_geometry5
 from src.core.mesh import generate_power_density_field
 
 
@@ -55,8 +53,6 @@ def patch_npz(npz_path: Path, geometry) -> bool:
 def main():
     geom_dirs = [
         ('geometry2a', Path('data/3d-ice/geometry2a'), build_geometry2a()),
-        ('geometry2b', Path('data/3d-ice/geometry2b'), build_geometry2b()),
-        ('geometry2c', Path('data/3d-ice/geometry2c'), build_geometry2c()),
         ('geometry5',  Path('data/3d-ice/geometry5'),  build_geometry5()),
     ]
 
