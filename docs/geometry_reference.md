@@ -11,15 +11,18 @@ to generate the dataset in `data/3d-ice/`.
 | Name | Type | Die footprint | Layers | TSV density | Mesh (x × y × z) | Points/file |
 |---|---|---|---|---|---|---|
 | `geometry1` | Single die | 10 × 10 mm | 6 | — | 100 × 100 × 40 | 60,000 |
-| `geometry2a` | Dual die + hybrid bond | 8 × 8 mm | 10 | 3 % | 80 × 80 × 72 | 46,080 |
-| `geometry2b` | Dual die + hybrid bond | 8 × 8 mm | 10 | 5 % | 80 × 80 × 72 | 46,080 |
-| `geometry2c` | Dual die + hybrid bond | 8 × 8 mm | 10 | 10 % | 80 × 80 × 72 | 46,080 |
+| `geometry2a` | Dual die + hybrid bond | 8 × 8 mm | 10 | 3 % (field) | 80 × 80 × 72 | 46,080 |
 | `geometry3` | Server die | 25 × 25 mm | 6 | — | 100 × 100 × 40 | 60,000 |
 | `geometry4` | 2.5D chiplet | 25 × 14 mm | 6 | — | 100 × 56 × 40 | 33,600 |
 | `geometry5` | 3D-on-2.5D (CoWoS, Tier 0+1) | 25 × 14 mm | 11 | 3 % (chiplet B) | 100 × 56 × 50 | 44,800 |
 | `geometry6` | CoWoS + 6× HBM (MI300X-class) | 42 × 14 mm | 11 | 3 % (each HBM) | 56 × 168 × 50 | 470,400 |
 
 All coordinates in µm. z = 0 is the bottom face of the heat sink (coolant side).
+
+**geometry2b/geometry2c removed 2026-08-06.** They were `geometry2a` at 5%/10% TSV
+density instead of 3%, with ridge-regression baselines bit-identical to `geometry2a`'s
+(spatial R²=0.991, MAE=2.207 K to 3 decimals) and no model in the pipeline actually
+conditioning on TSV density. See `goal.md` for the full rationale.
 
 ---
 
@@ -110,13 +113,15 @@ Total height: **6555 µm**
 
 ### TSV Layer Thermal Properties
 
-| Variant | TSV density φ | k_tsv (W/m·K) | ρCp_tsv (J/m³·K) |
+| Variant | TSV density φ (mean) | k_tsv (W/m·K) | ρCp_tsv (J/m³·K) |
 |---|---|---|---|
 | geometry2a | 3 % | 155.6 | 1.68 × 10⁶ |
-| geometry2b | 5 % | 160.6 | 1.70 × 10⁶ |
-| geometry2c | 10 % | 173.2 | 1.76 × 10⁶ |
 
-Formula: `k_eff = (1 − φ) × k_Si + φ × k_Cu` (arithmetic mean, upper bound).
+Formula: `k_eff = (1 − φ) × k_Si + φ × k_Cu` (arithmetic mean, upper bound). Since
+2026-08-05, φ is a spatial field (`src/scenario/tsv_maps.py`) rather than a single
+scalar per layer, so this table gives the field's mean-density value, not a
+per-cell constant. geometry2b (5%) and geometry2c (10%) were removed 2026-08-06 —
+see the Overview section note.
 
 ### Power Blocks
 
@@ -321,13 +326,11 @@ constant per scenario.
 |---|---|---|---|---|
 | `geometry1` | 40 | 5 | 45 | +25 extra: HTC/power sweep, `random_smooth` |
 | `geometry2a` | 25 | 5 | 30 | +10 extra; hybrid bonding interface |
-| `geometry2b` | 25 | 5 | 30 | +10 extra; hybrid bonding |
-| `geometry2c` | 25 | 5 | 30 | +10 extra; hybrid bonding |
 | `geometry3` | 40 | 5 | 45 | +25 extra: server TDP sweep |
-| `geometry4` | 30 | 5 | 35 | +15 extra: split-chiplet lateral coupling |
+| `geometry4` | 40 | 5 | 45 | +25 extra: split-chiplet lateral coupling |
 | `geometry5` | 50 | 5 | 55 | +35 extra incl. TIM k-sweep (k=80/40/10/5) + RDL fraction (1–10%) |
 | `geometry6` | 50 | 5 | 55 | +35 extra: same as g5 + 6-HBM split-chiplet patterns |
-| **Total** | **280** | **40** | **320** | **320 `.npz` files** |
+| **Total** | **245** | **30** | **275** | **275 `.npz` files** (was 335 across 8 geometries before the 2026-08-06 geometry2b/2c removal) |
 
 ### Boundary Condition Parameters
 

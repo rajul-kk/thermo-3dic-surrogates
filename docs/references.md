@@ -369,7 +369,11 @@ The arithmetic mean rule is used consistently in both 3D-ICE and our model, ensu
 Reference for FEM values: Li, F., Codecasa, L., & Magnoni, M. (2012). Effective Thermal Conductivity of TSV Interposers. *IEEE Transactions on Components, Packaging and Manufacturing Technology*, 2(12), 2028–2038.
 (Note: approximate values — verify against original paper before publication.)
 
-The overestimation grows with TSV density. For geometry2c (10%), the model overestimates TSV thermal conductance by ~10%, meaning real heat spreading through TSVs is somewhat less than predicted. The PINN trained on this data will inherit this ~10% optimism for geometry2c.
+The overestimation grows with TSV density: at 10% it reaches ~10% overestimated TSV
+thermal conductance, meaning real heat spreading through TSVs is somewhat less than
+predicted. The live benchmark no longer exercises 10% density anywhere — geometry2c, the
+dedicated 10%-density geometry, was removed 2026-08-06 (see `goal.md`); the remaining
+`geometry2a` sits at 3% mean density, where the same table shows only +2.2% error.
 
 ---
 

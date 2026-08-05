@@ -14,7 +14,8 @@
 3. Upload the zip — `.npz` files should be directly inside the dataset root
 
 For geometry1 notebook you only need `geometry1_train_*.npz` and `geometry1_test_*.npz`.  
-For geometry2 notebook you need `geometry2a_*`, `geometry2b_*`, `geometry2c_*` files.
+For geometry2 notebook you need `geometry2a_*` files (geometry2b/2c removed 2026-08-06,
+see `goal.md`).
 
 ## Step 3 — Create Kaggle notebooks
 
@@ -31,7 +32,7 @@ For geometry2 notebook you need `geometry2a_*`, `geometry2b_*`, `geometry2c_*` f
 | Notebook | What it trains | Data needed |
 |---|---|---|
 | `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry1 files |
-| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (2a/2b/2c) — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) on the first trained variant | geometry2a/b/c files |
+| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (geometry2a) — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry2a files |
 | `kaggle_pinn_sampling_comparison.ipynb` | Two PINNs, same architecture/seed, different collocation-sampling strategy (`rar` vs `curriculum`) — includes collocation-point evolution visualization | geometry1 files (default; any single geometry works) |
 | `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO on the same geometry — includes spectral mode-importance XAI and interface-distance-bucketed error comparison | geometry1 files (default; `geometry6` recommended for a stronger interface-discontinuity story, much slower) |
 | `kaggle_therm_fm.ipynb` | Pretrain CNO-FNO on `geometry1`, few-shot fine-tune on `geometry3` (same mesh shape, required by CNOFNOHybrid's fixed-grid architecture) — includes fine-tuned-vs-scratch shots comparison and weight-drift analysis | geometry1 AND geometry3 files (both needed) |
@@ -52,17 +53,6 @@ Checkpoints are saved to `/kaggle/working/checkpoints/`. After training:
 | Notebook | GPU | Expected time |
 |----------|-----|---------------|
 | geometry1 | T4 x1 | ~2–4 hr |
-| geometry2 (one variant) | T4 x1 | ~3–5 hr |
-| geometry2 (all 3 variants, TRAIN_ALL_VARIANTS=True) | T4 x1 | ~10–15 hr |
+| geometry2a | T4 x1 | ~3–5 hr |
 
 Kaggle free tier: 30 GPU-hours/week. Train geometry1 first to validate the pipeline.
-
-## Switching geometry2 variants
-
-In `kaggle_pinn_geometry2.ipynb`, change the config cell:
-
-```python
-GEOM_NAME = 'geometry2a'  # change to 'geometry2b' or 'geometry2c'
-```
-
-Or set `TRAIN_ALL_VARIANTS = True` to train all three in sequence (uses ~12 hr GPU).

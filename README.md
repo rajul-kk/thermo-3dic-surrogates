@@ -1,6 +1,14 @@
 # Thermo — 3D-IC Thermal Surrogate Benchmark
 
-A benchmark suite for neural thermal surrogates in 3D/2.5D IC packaging. Includes **8 realistic geometries** (single-die, 3%/5%/10% TSV-density 3D stacks, server die, chiplet-on-interposer, CoWoS+HBM, 6×HBM MI300X-like) with real [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) finite-element ground truth — not synthetic data — and implements/compares **five surrogate model families**: physics-informed neural networks (with pluggable adaptive collocation sampling), Fourier/Walsh-Hadamard/CNO neural operators, physics-informed DeepONet, an autoregressive z-layer operator, and few-shot fine-tuning across geometries. Includes zero-retraining explainability tooling for every model family.
+A benchmark suite for neural thermal surrogates in 3D/2.5D IC packaging. Includes **6 realistic geometries** (single-die, TSV 3D stack, server die, chiplet-on-interposer, CoWoS+HBM, 6×HBM MI300X-like) with real [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) finite-element ground truth — not synthetic data — and implements/compares **five surrogate model families**: physics-informed neural networks (with pluggable adaptive collocation sampling), Fourier/Walsh-Hadamard/CNO neural operators, physics-informed DeepONet, an autoregressive z-layer operator, and few-shot fine-tuning across geometries. Includes zero-retraining explainability tooling for every model family.
+
+**Geometry count note (2026-08-06):** originally 8 geometries — `geometry2b`/`geometry2c`
+(5%/10% TSV-density variants of `geometry2a`) were removed. Their ridge-regression
+baselines were bit-identical to `geometry2a`'s (spatial R²=0.991, MAE=2.207 K, all three
+to 3 decimals) and TSV density isn't yet exposed as a model input anywhere in the
+pipeline, so they were three near-zero-marginal-information copies of one benchmark. TSV
+density variation is still exercised as a spatial field within `geometry2a` itself via
+`ScenarioGenerator.attach_tsv_maps`. See `goal.md`.
 
 ---
 
@@ -44,9 +52,7 @@ Thermo/
 | Geometry | Type | Footprint | Layers | TSV density | Mesh | Points/file |
 |---|---|---|---|---|---|---|
 | `geometry1` | Single die | 10 × 10 mm | 6 | — | 100×100×40 | 60,000 |
-| `geometry2a` | 3D TSV stack | 8 × 8 mm | 10 | 3% | 80×80×72 | 64,000 |
-| `geometry2b` | 3D TSV stack | 8 × 8 mm | 10 | 5% | 80×80×72 | 64,000 |
-| `geometry2c` | 3D TSV stack | 8 × 8 mm | 10 | 10% | 80×80×72 | 64,000 |
+| `geometry2a` | 3D TSV stack | 8 × 8 mm | 10 | 3% (field) | 80×80×72 | 64,000 |
 | `geometry3` | Server die | 25 × 25 mm | 6 | — | 100×100×40 | 60,000 |
 | `geometry4` | 2.5D chiplet-on-interposer | 25 × 14 mm | 6 | — | 100×56×40 | 33,600 |
 | `geometry5` | CoWoS-style compute + HBM stack | 25 × 14 mm | 11 | 3% | 100×56×50 | 61,600 |
@@ -54,7 +60,7 @@ Thermo/
 
 Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer), matching 3D-ICE's ground-truth `bottom heat sink` directive. Full layer stacks, material properties, and scenario details are in [`docs/geometry_reference.md`](docs/geometry_reference.md).
 
-**Dataset**: 335 real 3D-ICE 4.0 `.npz` files across all 8 geometries, per-cell power maps
+**Dataset**: 275 real 3D-ICE 4.0 `.npz` files across all 6 geometries, per-cell power maps
 on every scenario. Power is derived from a package TDP budget (30 W mobile 3D stack →
 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance
 representing cache, IO and uncore. A scenario's pattern selects a workload fraction of

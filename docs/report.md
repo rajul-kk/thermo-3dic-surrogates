@@ -3,44 +3,23 @@
 **Rajul Kabeer**  
 *Manuscript in preparation*
 
-> **STATUS (2026-07-31) — MAJOR REFRAME IN PROGRESS.**
-> The previous version of this draft claimed FourierPINN was "the first PINN for the
-> multi-layer 3D-IC stack", "the first to treat TSV density as a continuous parametric
-> input", and reported an *expected* MAE of < 2 K. Measurements taken on 2026-07-31 with
-> `scripts/baselines.py` invalidated that framing:
->
-> - **Closed-form ridge regression reaches spatial R² = 0.999 (geometry1) and 0.937
->   (geometry6)**, with spatially-detrended MAE of 0.009 K. On geometry6 its raw MAE is
->   0.616 K — already better than the < 2 K target this draft hoped a trained PINN would hit.
-> - The dataset is **spatially degenerate**: across all 335 live simulations the median
->   within-scenario spatial temperature range is 1.10 K and the maximum anywhere is 6.40 K,
->   while the between-scenario mean varies by 68 K. 88% of geometry1's temperature variance
->   is explained by the ambient input alone.
-> - TSV density takes **four discrete values**, not continuous ones. That claim was false.
-> - Lateral heterogeneity is settled prior art (3D-ICE 4.0, arXiv:2512.05823).
->
-> Sections 1–7 below are retained for reference but their novelty framing is superseded.
-> Sections 8–11 are being rewritten around the abstract below. Do not submit the old framing.
->
-> **Update (2026-08-01):** the full dataset has been regenerated on a physically grounded
-> operating point (TDP budgets, core-fraction power, cooling coupled to power density,
-> sub-layer vertical resolution). Median spatial ΔT rose 1.10 K → 10.77 K and vertical
-> resolution 6–11 → 10–15 nodes. Ridge nonetheless still solves every split at
-> R² > 0.94 — see §9.3, which establishes that no parameter-range choice can make this
-> benchmark non-linear. A double-counted `T_range` in the PDE conduction term was also
-> found and fixed (§9.6). Per-cell power maps (§9.4) then isolated where a neural
-> operator can actually earn its cost: hotspot localisation, not field R².
->
-> **Update (2026-08-05):** the ground truth was regenerated end-to-end on 3D-ICE 4.0
-> (previously 3.0.0; see `docs/installation.md`). Two data-fidelity gaps closed as a
-> result: TSV density is now a spatial field rather than one scalar per layer
-> (`src/scenario/tsv_maps.py`), and the geometry4/5/6 underfill gap between chiplets —
-> previously uniform silicon in the 3D-ICE ground truth despite the PINN's PDE loss
-> assuming heterogeneous k — is now a real Si/underfill layout
-> (`assumptions.md` §6.1). Both were validated against the real 3D-ICE 4.0 binary and are
-> free in solve time. Ridge still solves the regenerated dataset: spatial R² 0.918–0.991
-> across all 8 geometries (re-measured with `scripts/baselines.py`), consistent with the
-> negative result above — neither fix was expected to, or did, defeat linearity.
+> **Revision history.** This draft originally claimed FourierPINN was "the first PINN for
+> the multi-layer 3D-IC stack" and "the first to treat TSV density as a continuous
+> parametric input," with an *expected* MAE of < 2 K. Measurements on 2026-07-31 with
+> `scripts/baselines.py` showed closed-form ridge regression already reaches spatial
+> R² = 0.999 (geometry1) with detrended MAE 0.009 K — beating the < 2 K target before any
+> network was trained — on a dataset whose median within-scenario spatial range was 1.10 K
+> against a 68 K between-scenario range, and whose "continuous" TSV input took four
+> discrete values. The paper below is the rewrite: a benchmark-and-negative-result paper,
+> not a PINN-accuracy paper. Three follow-on passes are folded into the sections below
+> rather than kept as a growing changelog:
+> (2026-08-01) the dataset was regenerated on a physically grounded operating point — TDP
+> budgets, cooling coupled to power density, sub-layer vertical resolution — which raised
+> the median spatial gradient tenfold and fixed a double-counted `T_range` term in the PDE
+> residual, yet ridge still solved every split (§9.3), which is the paper's central result;
+> (2026-08-05) ground truth moved to 3D-ICE 4.0, closing two data-fidelity gaps (spatial
+> TSV density, real Si/underfill layouts for the chiplet geometries) without changing that
+> result; (2026-08-06) geometry2b/2c were removed as near-duplicates of geometry2a (§4).
 
 ---
 
@@ -49,9 +28,9 @@
 Thermal analysis of three-dimensional integrated circuits (3D-ICs) is a bottleneck in
 early-stage design exploration, and a growing body of work applies neural surrogates —
 PINNs, Fourier neural operators, DeepONets — to accelerate it. We contribute an open
-benchmark of 335 3D-ICE simulations across eight package geometries, spanning single-die
-mobile and server stacks, dual-die stacks at three TSV densities, and 2.5D/CoWoS-style
-chiplet assemblies with up to six HBM stacks, together with the geometry definitions and
+benchmark of 275 3D-ICE simulations across six package geometries, spanning single-die
+mobile and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS-style chiplet
+assemblies with up to six HBM stacks, together with the geometry definitions and
 generation pipeline needed to reproduce and extend it.
 
 Our principal finding is methodological and cautionary. Evaluating four non-neural
@@ -94,15 +73,27 @@ checked against a linear model before an architecture is credited.
 
 As chiplet integration and 3D stacking become mainstream packaging approaches, thermal design must keep pace with increasing power densities and more complex heat flow paths. Die stacking with TSV interconnects creates new thermal coupling mechanisms: each die heats the one above it, TSVs provide vertical thermal shortcuts, and the effective thermal resistance from junction to coolant is now distributed across multiple material interfaces. Evaluating even a single configuration requires solving the three-dimensional heat equation over a heterogeneous multi-layer domain.
 
-Compact thermal simulators such as 3D-ICE [Sridhar et al., 2010] model this as a finite-difference RC-network on a structured Cartesian grid and can produce steady-state solutions in seconds. However, design exploration over power patterns, cooling intensities, and TSV densities requires thousands of such evaluations. Full parametric sweeps remain slow, and compact simulators have limited expressiveness — they cannot represent individual TSV columns, spatially-varying convective coefficients, or transient workload effects.
+Compact thermal simulators such as 3D-ICE [Sridhar et al., 2010] model this as a finite-difference RC-network on a structured Cartesian grid and can produce steady-state solutions in seconds. However, design exploration over power patterns, cooling intensities, and TSV densities requires thousands of such evaluations. Full parametric sweeps remain slow, and compact simulators have limited expressiveness — they cannot represent individual TSV columns natively, though 3D-ICE 4.0 [Zhu et al., 2025] now supports per-element material layouts, which this benchmark's ground truth uses (§4).
 
-Machine learning surrogates offer a different trade-off: expensive offline training amortised over fast online inference. Prior work has applied convolutional neural networks [Zhang et al., 2025], graph neural networks [WarPGNN, 2026], and operator-learning approaches including FNO variants [Self-Attention U-Net FNO, 2025] to chip thermal prediction. Physics-informed neural networks (PINNs) add physics constraints — the heat equation and boundary conditions — as additional loss terms, which regularise training and improve generalisation beyond the training distribution. ThermPINN [Cheng et al., 2024] demonstrated PINNs for full-chip 2D thermal analysis. No prior work has applied a PINN to the 3D multi-layer package stack (die + TIM + spreader + heat sink) with TSV parametric variation, nor provided explainability analysis for any chip thermal neural surrogate.
+Machine learning surrogates offer a different trade-off: expensive offline training amortised over fast online inference. Prior work has applied convolutional neural networks [Zhang et al., 2025], graph neural networks [WarPGNN, 2026], and operator-learning approaches including FNO variants [Self-Attention U-Net FNO, 2025] and DeepONet [DeepOHeat-v1, 2025] to chip thermal prediction. Physics-informed neural networks (PINNs) add physics constraints — the heat equation and boundary conditions — as additional loss terms, which regularise training and improve generalisation beyond the training distribution. ThermPINN [Cheng et al., 2024] demonstrated PINNs for full-chip 2D thermal analysis.
+
+What this literature does not generally do is check a proposed architecture against a
+closed-form linear baseline before crediting it with having learned the physics. We did,
+on our own benchmark, and it changed what the paper is about. Steady-state conduction
+with fixed thermal conductivity is linear in the volumetric power sources and boundary
+scalars; when a scenario is described by a handful of block powers plus a few boundary
+values (the parameterisation used, explicitly or implicitly, by most published 3D-IC
+thermal datasets we are aware of), the resulting solution manifold is low-dimensional and
+close to linear by construction, and a per-point ridge regression — no training, no
+GPU — reconstructs it almost exactly. This is not a claim that neural surrogates cannot
+help with 3D-IC thermal analysis; it is a claim that most published evaluation setups
+cannot currently tell you whether they do.
 
 This paper makes the following contributions:
 
-1. An open **eight-geometry benchmark of 335 3D-ICE simulations** covering single-die mobile
-   and server stacks, dual-die stacks at three TSV densities (3%, 5%, 10%), and 2.5D/CoWoS
-   chiplet assemblies with up to six HBM stacks — with the full generation pipeline.
+1. An open **six-geometry benchmark of 275 3D-ICE simulations** covering single-die mobile
+   and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet assemblies with up
+   to six HBM stacks — with the full generation pipeline.
 2. **A demonstration that closed-form ridge regression solves this benchmark** (spatial
    R² = 0.999), and that the result holds under extrapolation to unseen power patterns,
    power magnitudes and ambient temperatures. Any neural architecture evaluated on data of
@@ -129,13 +120,15 @@ This paper makes the following contributions:
 
 ## 2. Related Work
 
-**Compact thermal simulation.** 3D-ICE [Sridhar et al., 2010; updated 2021] is the standard open-source compact thermal solver for 3D-IC stacks, using finite differences on a structured grid. HotSpot [Huang et al., 2006] targets 2D die-level analysis with a lumped-resistance model. Both treat TSV arrays as homogenised effective-medium layers. Full FEM tools (COMSOL, Ansys) resolve individual TSV cylinders but require hours per simulation.
+**Compact thermal simulation.** 3D-ICE [Sridhar et al., 2010; updated 2021] is the standard open-source compact thermal solver for 3D-IC stacks, using finite differences on a structured grid. HotSpot [Huang et al., 2006] targets 2D die-level analysis with a lumped-resistance model. 3D-ICE 4.0 [Zhu et al., 2025] adds per-element material layouts and anisotropic conductivity, which is what makes this benchmark's spatially varying TSV density and chiplet underfill layouts (§4) possible as ground truth rather than only as a PDE-loss assumption. Full FEM tools (COMSOL, Ansys) resolve individual TSV cylinders but require hours per simulation.
 
-**Neural thermal surrogates.** CNN-based surrogates for HBM chiplet stacks [arXiv 2503.04049, 2025] achieve good accuracy on multi-layer configurations but without physics constraints, limiting generalisation. The Self-Attention U-Net FNO [arXiv 2510.15968, 2025] reports 842× speedup over FEM for 3D-IC thermal prediction using operator learning. ThermPINN [IEEE, 2024] applies PINNs to 2D VLSI full-chip thermal, demonstrating 10³–10⁴× speedup over iterative solvers.
+**Neural thermal surrogates and prior-art overlap.** CNN-based surrogates for HBM chiplet stacks [arXiv 2503.04049, 2025] achieve good accuracy on multi-layer configurations but without physics constraints, limiting generalisation. The Self-Attention U-Net FNO [arXiv 2510.15968, 2025] reports 842× speedup over FEM for 3D-IC thermal prediction using operator learning, and already validates on discontinuous thermal conductivity — the same lateral-heterogeneity mechanism §4 exercises. DeepOHeat-v1 [arXiv 2504.03955, 2025] applies DeepONet to 3D-IC thermal simulation and optimization, directly overlapping this repo's DeepONet reference implementation (§8+); we do not claim novelty for that architecture choice here. ThermPINN [IEEE, 2024] applies PINNs to 2D VLSI full-chip thermal, demonstrating 10³–10⁴× speedup over iterative solvers. MFIT [ACM TODAES, 2025] addresses multi-fidelity thermal modelling for 2.5D/3D chiplet architectures, a goal adjacent to but distinct from this paper's benchmark-and-evaluation focus.
 
 **Physics-informed neural networks.** Raissi et al. [2019] introduced PINNs. Tancik et al. [2020] demonstrated that random Fourier feature encoding overcomes spectral bias in coordinate networks. Wang et al. [2021] introduced Neural Tangent Kernel-based adaptive loss weighting for PINNs. Cai et al. [2021] applied PINNs to 2D heat transfer problems.
 
-**Explainability for neural surrogates.** Sensitivity analysis for PINNs is discussed in [arXiv 2301.02428]. Integrated Gradients [Sundararajan et al., 2017] provides input attribution with completeness guarantees. MC Dropout as Bayesian approximation for uncertainty quantification was proposed by Gal & Ghahramani [2016]. No prior work applies these methods to chip thermal surrogates.
+**Explainability for neural surrogates.** Sensitivity analysis for PINNs is discussed in [arXiv 2301.02428]. Integrated Gradients [Sundararajan et al., 2017] provides input attribution with completeness guarantees. MC Dropout as Bayesian approximation for uncertainty quantification was proposed by Gal & Ghahramani [2016]. We are not aware of prior work applying this combination of methods to chip thermal surrogates specifically, though we make no strong claim here — see `docs/references.md` for the full prior-art audit behind this section.
+
+**What this paper does not claim.** Lateral material heterogeneity in 3D-IC thermal modelling is settled prior art (3D-ICE 4.0 itself, and SAU-FNO's discontinuous-k validation above); we use it as a data-fidelity fix, not a contribution. The same applies to per-element TSV/underfill layouts. The contribution here is the benchmark, the linear-baseline result, and the hotspot-localisation metric (§1), not any individual architecture or geometry-modelling mechanism.
 
 ---
 
@@ -153,14 +146,14 @@ and adiabatic conditions on all lateral faces and the top surface (nearest the d
 
 The thermal conductivity of silicon is temperature-dependent: $k_{Si}(T) = 148 \cdot (300/T)^{1.3}$ W/m·K [Glassbrenner & Slack, 1964], while copper and TIM layers use constant values.
 
-The surrogate model $\hat{T}_\theta: \mathbb{R}^7 \to \mathbb{R}$ maps per-point inputs $(x, y, z, Q, h, T_{amb}, \phi_{TSV})$ to normalised temperature, where the first three are normalised spatial coordinates, Q is normalised volumetric power density, h and $T_{amb}$ are normalised scenario-level scalars, and $\phi_{TSV} \in \{0, 0.03, 0.05, 0.10\}$ is the TSV area fraction.
+The surrogate model $\hat{T}_\theta: \mathbb{R}^7 \to \mathbb{R}$ maps per-point inputs $(x, y, z, Q, h, T_{amb}, \phi_{TSV})$ to normalised temperature, where the first three are normalised spatial coordinates, Q is normalised volumetric power density, h and $T_{amb}$ are normalised scenario-level scalars, and $\phi_{TSV}$ is the TSV area fraction. As of the 2026-08-05 regeneration, $\phi_{TSV}$ is a spatial field within TSV-bearing layers (`src/scenario/tsv_maps.py`) rather than one scalar per layer, but every model reference implementation in this repo (§5, §8+) still only receives its scenario mean as a scalar input — the field affects the 3D-ICE ground truth but is not yet exposed to any surrogate as a conditioning channel. Closing that gap is future work, not a claim made by this paper.
 
 ---
 
 ## 4. Benchmark Geometries
 
-Eight geometries span the design space from a mobile-class single die to server-class dies,
-3D-stacked configurations with TSV arrays, and 2.5D/CoWoS chiplet assemblies. All layers are
+Six geometries span the design space from a mobile-class single die to server-class dies,
+a 3D-stacked configuration with TSV arrays, and 2.5D/CoWoS chiplet assemblies. All layers are
 modelled with homogenised material properties. TSV regions use the arithmetic-mean effective
 conductivity $k_{eff} = (1-\phi) k_{Si} + \phi k_{Cu}$, consistent with the 3D-ICE
 ground-truth simulator.
@@ -168,19 +161,20 @@ ground-truth simulator.
 | Geometry | Type | Die size | Layers | Files | Notes |
 |---|---|---|---|---|---|
 | geometry1 | 2D stack | 10 × 10 mm | 6 | 45 | Mobile/desktop single die |
-| geometry2a | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 3% |
-| geometry2b | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 5% |
-| geometry2c | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 10% |
+| geometry2a | 3D stack | 8 × 8 mm | 10 | 30 | TSV density 3% (spatial field) |
 | geometry3 | 2D stack | 25 × 25 mm | 6 | 45 | Server-class, 8 core clusters |
 | geometry4 | 2.5D stack | 25 × 14 mm | 6 | 45 | Two chiplets on interposer |
 | geometry5 | 2.5D stack | 25 × 14 mm | 11 | 55 | CoWoS: compute + HBM stack |
 | geometry6 | 2.5D stack | 42 × 14 mm | 11 | 55 | CoWoS: 6 HBM stacks |
 
-Total: **335 simulations**. TSV density takes four discrete values (0, 3%, 5%, 10%) — it is a
-categorical variant axis, not a continuous parameter, and interpolation in TSV space cannot
-be meaningfully demonstrated from three non-zero points.
+Total: **275 simulations**. Two TSV-density variants of geometry2a (geometry2b at 5%,
+geometry2c at 10%) were removed 2026-08-06: their ridge-regression baselines were
+bit-identical to geometry2a's to three decimal places (spatial R²=0.991, MAE=2.207 K, all
+three), and no surrogate in §5/§8+ conditions on TSV density beyond a scalar mean (§3), so
+the three geometries carried no distinguishable signal from each other. TSV density
+variation is still exercised as a spatial field within geometry2a itself.
 
-Each geometry has 6 layers (geometry1, geometry3) or 10 layers (geometry2 variants): heat sink (Cu, 5000 µm) → TIM (100 µm) → spreader (Cu) → TIM (100 µm) → active die(s) (Si, 50–200 µm) → TIM2 (50 µm). TIM2 as the topmost layer ensures the convective BC is applied at the die-to-package interface with correct contact resistance.
+Each geometry has 6 layers (geometry1, geometry3) or 10 layers (geometry2a): heat sink (Cu, 5000 µm) → TIM (100 µm) → spreader (Cu) → TIM (100 µm) → active die(s) (Si, 50–200 µm) → TIM2 (50 µm). TIM2 as the topmost layer ensures the convective BC is applied at the die-to-package interface with correct contact resistance.
 
 The z-grid uses adaptive spacing guaranteeing a minimum of 8 sample points through each active die layer, preventing the thin die layers from being dominated by the coarser heat sink discretisation.
 
@@ -204,7 +198,7 @@ Total parameters: 807,473.
 
 ## 6. Training
 
-**Dataset.** Each geometry has 25–50 training and 5 test scenarios (335 files total). Power comes from a package TDP budget (30 W mobile 3D stack to 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance representing cache, IO and uncore, which are not modelled as separate sources. A pattern's base level selects a workload fraction of that budget, capped by an absolute silicon ceiling of 300 W/cm². Cooling is required to be adequate for the resulting power density (165 W/m²·K per W/cm²), so HTC spans 2000–50000 W/m²·K, and ambient spans 25–45 °C. Ground truth is the 3D-ICE Emulator under WSL2.
+**Dataset.** Each geometry has 25–50 training and 5 test scenarios (275 files total). Power comes from a package TDP budget (30 W mobile 3D stack to 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance representing cache, IO and uncore, which are not modelled as separate sources. A pattern's base level selects a workload fraction of that budget, capped by an absolute silicon ceiling of 300 W/cm². Cooling is required to be adequate for the resulting power density (165 W/m²·K per W/cm²), so HTC spans 2000–50000 W/m²·K, and ambient spans 25–45 °C. Ground truth is the 3D-ICE Emulator under WSL2.
 
 Optionally (`--power-map`), block scalars are replaced by a per-cell power field at the lateral mesh resolution; see §9.4 for why this matters and what it changes.
 
@@ -304,7 +298,8 @@ value, and the one on which it should be evaluated.
 
 ### 9.2 Dataset degeneracy
 
-Across all 335 live simulations:
+Across all 335 live simulations in the original (2026-07-31) regime — see §9.3 for the
+current dataset's numbers, which supersede this section's:
 
 | Quantity | Value |
 |---|---|
@@ -325,33 +320,45 @@ discriminate between architectures.
 The dataset was regenerated end to end (2026-08-01) with a physically grounded
 operating point: power from package TDP budgets, only the core fraction of TDP assigned
 to modelled blocks, cooling coupled to power density, and the vertical direction
-resolved by sub-layer discretisation.
+resolved by sub-layer discretisation. It was regenerated again (2026-08-05) on 3D-ICE
+4.0 with per-cell power maps, spatial TSV density, and real chiplet underfill layouts
+active (§4, `assumptions.md` §6.1), and once more (2026-08-06) after removing
+geometry2b/2c. The numbers below are current as of that last regeneration.
 
-**Dataset (335 simulations, all real 3D-ICE):**
+**Dataset (275 simulations, all real 3D-ICE 4.0):**
 
 | Geometry | n | z-nodes | pts/file | median ΔT | max ΔT | median T | peak T |
 |---|---|---|---|---|---|---|---|
-| geometry1 | 45 | 10 | 100,000 | 29.05 K | 96.43 K | 78.8 °C | 158.5 °C |
-| geometry2a | 30 | 14 | 89,600 | 9.26 K | 61.06 K | 54.4 °C | 92.3 °C |
-| geometry2b | 30 | 14 | 89,600 | 9.21 K | 60.59 K | 54.3 °C | 91.8 °C |
-| geometry2c | 30 | 14 | 89,600 | 9.09 K | 59.46 K | 54.2 °C | 90.7 °C |
-| geometry3 | 45 | 11 | 110,000 | 17.74 K | 87.70 K | 62.7 °C | 134.9 °C |
-| geometry4 | 45 | 10 | 56,000 | 15.76 K | 59.16 K | 69.0 °C | 121.9 °C |
-| geometry5 | 55 | 15 | 84,000 | 7.35 K | 46.90 K | 58.5 °C | 113.2 °C |
-| geometry6 | 55 | 15 | 141,120 | 8.96 K | 79.38 K | 63.3 °C | 133.9 °C |
+| geometry1 | 45 | 10 | 100,000 | 19.14 K | 63.96 K | 50.0 °C | 125.9 °C |
+| geometry2a | 30 | 14 | 89,600 | 5.02 K | 22.06 K | 46.5 °C | 69.2 °C |
+| geometry3 | 45 | 11 | 110,000 | 7.38 K | 25.03 K | 42.2 °C | 79.1 °C |
+| geometry4 | 45 | 10 | 56,000 | 27.95 K | 93.29 K | 48.9 °C | 156.1 °C |
+| geometry5 | 55 | 15 | 84,000 | 11.46 K | 61.29 K | 54.4 °C | 126.6 °C |
+| geometry6 | 55 | 15 | 141,120 | 14.08 K | 63.66 K | 55.9 °C | 124.3 °C |
 
-Median within-scenario spatial ΔT rose from **1.10 K to 10.77 K**, vertical resolution
-from 6–11 to 10–15 nodes, and only 4 of 335 scenarios exceed 125 °C (all
-`extreme_hotspot` stress cases, down from 20).
+Median within-scenario spatial ΔT across the current dataset is **12.30 K** (max anywhere
+93.29 K), against **1.10 K** in the original degenerate regime (§9.2) — an order of
+magnitude, consistent with (though not identical to) the 10.77 K reported for the
+2026-08-01 intermediate regeneration; the further shift reflects the cumulative effect of
+per-cell power (which caps power pointwise rather than per block, moderating some peaks
+while sharpening others) and the 4.0 ground-truth change. 5 of 275 scenarios exceed
+125 °C, all `extreme_hotspot` stress cases.
 
-**Baselines on the final data (geometry1):**
+**Baselines on the current data (geometry1, re-measured 2026-08-06 post-4.0/post-removal):**
 
 | Split | ridge det.MAE | ridge spatial R² |
 |---|---|---|
-| in-distribution | 0.223 K | 0.987 |
-| pattern OOD | 0.961 K | 0.944 |
-| power OOD | 0.357 K | 0.998 |
-| HTC OOD | 0.331 K | 0.964 |
+| in-distribution | 0.407 K | 0.970 |
+| pattern OOD | 0.801 K | 0.966 |
+| power OOD | 1.148 K | 0.970 |
+| HTC OOD | 1.101 K | 0.687 |
+| ambient OOD | 1.021 K | 0.950 |
+
+The numbers moved from the 2026-08-01 measurement (0.223–0.331 K det.MAE, R² 0.964–0.998)
+but the qualitative story did not: ridge still solves every split, and HTC extrapolation
+is still the comparatively weak axis (R²=0.687, versus ≥0.95 on the other three) —
+consistent with §1/§10's account of why 1/h extrapolation is the harder case for a linear
+model.
 
 **This is the paper's central negative result, and it is now established rather than
 asserted.** An intermediate dataset did drive ridge to spatial R² −16.7 on the HTC
@@ -503,34 +510,53 @@ since been implemented and measured, which is how their relative importance beca
    field-level R² largely intact but collapses hotspot localisation from 8–1442 µm to
    4547–6044 µm, i.e. to chance. Input dimensionality, not parameter range, was the
    binding constraint.
-3. **Variable floorplans/geometry across scenarios** — *not done*. Expected to matter for
-   the same reason as (2): it makes the Green's function itself scenario-dependent, which
-   is the part of the operator that is genuinely nonlinear. This is the natural next step.
+3. **Spatial material variation within a fixed floorplan** — *partially done* (2026-08-05).
+   TSV density is now a spatial field rather than one scalar per layer, and the
+   geometry4/5/6 chiplet underfill gap is now a real Si/underfill layout matching what the
+   PDE loss always assumed (`assumptions.md` §6.1) rather than a train/target
+   inconsistency. Both are correctness fixes to a small (~2% of field range) effect, not
+   attempts to defeat linearity, and the ridge result is unchanged (§9.3). **Full variable
+   floorplans across scenarios remain not done** and are still expected to matter for a
+   different reason than (2): a source that moves shape, not just intensity, still keeps
+   the map linear in $Q$ — what would make the operator itself scenario-dependent is
+   changing the coefficients (k(x,y), boundary shape), which items 3 above only touches at
+   a ~2%-of-range scale so far.
 4. **Extrapolation splits by default** — *done*; `scripts/make_ood_split.py`. We no longer
    claim $1/h$ is the axis where linear models fail: that held only for an intermediate
    dataset containing physically impossible power/cooling combinations (§9.3).
+5. **Advective cooling (microchannel/pin-fin)** — *not done, highest-priority next step*.
+   Every change above (including per-cell power) operates within steady-state conduction
+   with a fixed convective boundary coefficient, which is exactly the regime in which the
+   governing equation is linear in its sources — the reason ridge wins at all. 3D-ICE 4.0
+   supports `microchannel 2rm`/`4rm` and `pinfin` coolant models, which introduce advection
+   along a flow direction; unlike every fix in this section, that is not linear in the
+   boundary data the way a fixed HTC is. This is the first candidate change that could
+   alter the paper's central finding rather than refine the dataset around it.
 
 Transient simulation would add a further nonlinear axis; the present dataset is steady-state
 only.
 
 **Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation;
 HotSpot cross-validation covers geometry1 only and disagrees by ~15%, and no FEM spot-check
-has been performed. The geometry4/5/6 physics loss uses a heterogeneous lateral $k$ that the
-ground truth does not contain (`assumptions.md` §6.1). Ridge's advantage is measured on
-scenario counts of 20–50; with far more scenarios and a richer power parameterisation the
-ranking could change.
+has been performed. Ridge's advantage is measured on scenario counts of 20–50; with far more
+scenarios and a richer power parameterisation the ranking could change. The spatial TSV
+field affects the 3D-ICE ground truth but, as of this writing, is not exposed as an input to
+any surrogate reference implementation in this repo — only its scenario mean reaches a
+model (§3) — making it a hidden confounder rather than a learnable signal until that gap is
+closed.
 
-**Deferred.** The originally planned discussion — TSV generalisation across geometry2a/b/c,
-PDE-residual/error correlation, IG attribution plausibility, MC Dropout calibration — requires
-trained models and remains open. MC Dropout is already known to be poorly calibrated here:
-the predictive std measured during explainability validation was 8.6–13 K on fields whose
+**Deferred.** The originally planned discussion — PDE-residual/error correlation, IG
+attribution plausibility, MC Dropout calibration — requires trained models and remains
+open. (TSV generalisation across geometry2a/b/c is no longer planned: geometry2b/2c were
+removed 2026-08-06, §4.) MC Dropout is already known to be poorly calibrated here: the
+predictive std measured during explainability validation was 8.6–13 K on fields whose
 spatial std is ~0.3 K, i.e. roughly 30× the signal.
 
 ---
 
 ## 11. Conclusion
 
-We release an eight-geometry, 335-simulation 3D-IC thermal benchmark with its full generation
+We release a six-geometry, 275-simulation 3D-IC thermal benchmark with its full generation
 pipeline, and report a negative result we believe is more useful than the surrogate accuracy
 figures we set out to produce: on this data, closed-form ridge regression reconstructs the
 spatial temperature field at R² = 0.999 and extrapolates to unseen power patterns, magnitudes

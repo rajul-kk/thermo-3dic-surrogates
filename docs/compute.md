@@ -173,11 +173,11 @@ python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --model fno
 # FiLM-only (no CNO, with physics):
 python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --model cond-fno --physics
 
-# All 8 geometries in parallel on 2 T4s (run simultaneously on separate GPUs):
+# All 6 geometries in parallel on 2 T4s (run simultaneously on separate GPUs):
 CUDA_VISIBLE_DEVICES=0 python scripts/train_fno.py --geometry geometry1 geometry3 \
     --data data/3d-ice --name g1g3
-CUDA_VISIBLE_DEVICES=1 python scripts/train_fno.py --geometry geometry2a geometry2b \
-    --data data/3d-ice --name g2ab
+CUDA_VISIBLE_DEVICES=1 python scripts/train_fno.py --geometry geometry2a geometry4 \
+    --data data/3d-ice --name g2a-g4
 # geometry6 is large (470k pts) — run solo or paired with a small geometry:
 CUDA_VISIBLE_DEVICES=0 python scripts/train_fno.py --geometry geometry6 --data data/3d-ice
 CUDA_VISIBLE_DEVICES=1 python scripts/train_fno.py --geometry geometry5 --data data/3d-ice
