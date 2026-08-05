@@ -182,3 +182,61 @@ epoch loop, ~20% more wall time for ~20% more scenarios), notably more expensive
 (a full new per-geometry training run per variant, ~37-90 min each, no shared
 amortization — see the training-cost discussion in this conversation). Do this as an
 FNO-first exercise if pursued.
+
+## Next phase: testing, audit, development
+
+Three different kinds of work remain, and they don't compete for the same time — pick
+based on what's actually blocking progress, not necessarily in this order.
+
+### Testing
+
+1. **Wire microchannel + throttling into `main.py`'s CLI path** and generate a *pilot*
+   batch (10-15 scenarios each, not a full 50+ regeneration) for each — enough to prove
+   the mechanisms produce real, exportable, trainable `.npz` files end to end, not just
+   pass the unit tests that mock/stub around the real pipeline.
+2. **Re-run `scripts/baselines.py` on the pilot batches.** This is the actual test that
+   matters for the paper: does ridge still solve microchannel-cooled or throttled
+   scenarios? If yes, that's stronger evidence for the negative result than anything
+   currently in the paper. If no, that's the benchmark's reason to exist — either result
+   is a real finding, not a blocker.
+3. **Smoke-test one real FNO training run** (few epochs, geometry1 or the pilot batch) on
+   the new data to confirm tensor shapes and the training loop work against real (not
+   synthetic) throttled/microchannel data before committing to a full run.
+
+### Audit
+
+1. **Apply this session's own lesson to the new mechanisms.** Three real silent bugs were
+   found this session by auditing regenerated data, not by reading code. Once pilot
+   batches exist: check for NaN/Inf, verify `throttle_derate_factor` in the metadata
+   actually matches the ratio of exported `power` to the nominal (pre-throttle) request,
+   and verify microchannel scenarios' temperature fields are self-consistent with the
+   coolant inlet temperature used.
+2. **Confirm DeepONet/ARO data loaders don't choke on the new scenario fields.**
+   `throttle_enabled`/`coolant_layer_name` were added without updating those two loaders —
+   they should be harmless (loaders read specific named keys, not the whole dict), but
+   this hasn't been verified against a real throttled/microchannel `.npz` file yet, only
+   reasoned about.
+3. **Full top-to-bottom re-read of `docs/report.md`** for self-consistency. It's had many
+   targeted edits this session (geometry counts, dataset numbers, two new mechanisms); a
+   single continuous read-through would catch cross-section contradictions a sequence of
+   local edits can miss, the way the geometry2b/2c pass did for the old draft.
+4. **Flag the Kou→Zhou citation as blocked on human access**, not something further
+   automated work can resolve — IEEE Xplore blocks the fetch this session needed to
+   confirm the specific dimensional figures, not just the citation's existence.
+
+### Development
+
+1. Finish the microchannel coords/export integration (the one concrete blocker to a
+   shippable microchannel-cooled geometry).
+2. Wire `attach_throttling` into `main.py`'s CLI the way `attach_tsv_maps` is auto-wired —
+   as an opt-in flag rather than on-by-default, since it multiplies solve cost per
+   scenario and shouldn't silently slow down every future regeneration.
+3. Full per-point TSV conditioning for PINN (§ above) — lower risk to attempt now that the
+   field-export mechanism itself is proven and tested against real FNO forward/backward
+   passes.
+4. **Train an actual model.** After all of this session's infrastructure work, `checkpoints/`
+   is still empty and `docs/report.md` §9.7 still reads "*None. No checkpoint has been
+   trained.*" Once the data pipeline is stable (it now is, for the 6-geometry/275-scenario
+   baseline), running the first real FNO training pass on geometry1 — the cheapest,
+   simplest case — is arguably the single most overdue item in this project, independent
+   of whichever of the above gets prioritized first.
