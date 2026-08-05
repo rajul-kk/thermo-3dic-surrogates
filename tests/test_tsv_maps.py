@@ -90,3 +90,40 @@ def test_maps_are_high_dimensional_across_scenarios():
 def test_rejects_out_of_range_mean():
     with pytest.raises(ValueError):
         generate_tsv_density_map(16, 16, mean_density=0.9)
+
+
+def test_every_tsv_geometry_declares_a_nonzero_scalar():
+    """
+    Regression test for a real bug found by auditing the regenerated dataset:
+    build_geometry5/6 built their tsv_zone material with create_tsv_material(0.03)
+    but never passed tsv_density= to the Geometry() constructor, so
+    geometry.tsv_density silently stayed at its dataclass default of 0.0.
+    ScenarioGenerator.attach_tsv_maps guards on `geometry.tsv_density <= 0` and
+    no-ops when it's zero, so the spatial TSV-density field was silently never
+    attached for geometry5/6 -- every scenario used one uniform TSV material
+    instead, with no field variation at all, for a full regeneration cycle.
+    """
+    from src.core.geometry_builders import (build_geometry2a, build_geometry5,
+                                             build_geometry6)
+
+    for build in (build_geometry2a, build_geometry5, build_geometry6):
+        geometry = build()
+        has_tsv_layer = any('tsv' in l.name.lower() for l in geometry.layers)
+        assert has_tsv_layer
+        assert geometry.tsv_density > 0.0, (
+            f"{geometry.name} has a TSV layer but tsv_density=0 -- "
+            f"attach_tsv_maps will silently no-op")
+
+
+def test_attach_tsv_maps_actually_attaches_for_all_tsv_geometries():
+    from src.core.geometry_builders import (build_geometry2a, build_geometry5,
+                                             build_geometry6)
+    from src.scenario.generator import ScenarioGenerator
+
+    for build in (build_geometry2a, build_geometry5, build_geometry6):
+        geometry = build()
+        gen = ScenarioGenerator()
+        scenarios = gen.generate_all_scenarios(geometry)
+        gen.attach_tsv_maps(scenarios, geometry)
+        assert any(s.tsv_map_by_layer for s in scenarios), (
+            f"{geometry.name}: attach_tsv_maps produced no fields")

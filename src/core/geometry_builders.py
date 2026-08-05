@@ -692,6 +692,10 @@ def build_geometry5() -> Geometry:
         mesh_resolution=(100, 56, 50),
         die_footprints=die_footprints,
         underfill_k=0.7,
+        tsv_density=0.03,  # matches create_tsv_material(0.03) above; without this
+                           # ScenarioGenerator.attach_tsv_maps no-ops (its guard is
+                           # `geometry.tsv_density <= 0`) and tsv_zone stays a single
+                           # uniform-k material for every scenario.
     )
     geometry.validate()
     return geometry
@@ -806,6 +810,7 @@ def build_geometry6() -> Geometry:
         mesh_resolution=(56, 168, 50),  # 14000/56=250µm, 42000/168=250µm — integer cell sizes
         die_footprints=die_footprints,
         underfill_k=0.7,
+        tsv_density=0.03,  # see build_geometry5 -- same missing-kwarg bug applied here
     )
     geometry.validate()
     return geometry
