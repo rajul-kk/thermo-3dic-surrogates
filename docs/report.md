@@ -30,6 +30,17 @@
 > benchmark non-linear. A double-counted `T_range` in the PDE conduction term was also
 > found and fixed (§9.6). Per-cell power maps (§9.4) then isolated where a neural
 > operator can actually earn its cost: hotspot localisation, not field R².
+>
+> **Update (2026-08-05):** the ground truth was regenerated end-to-end on 3D-ICE 4.0
+> (previously 3.0.0; see `docs/installation.md`). Two data-fidelity gaps closed as a
+> result: TSV density is now a spatial field rather than one scalar per layer
+> (`src/scenario/tsv_maps.py`), and the geometry4/5/6 underfill gap between chiplets —
+> previously uniform silicon in the 3D-ICE ground truth despite the PINN's PDE loss
+> assuming heterogeneous k — is now a real Si/underfill layout
+> (`assumptions.md` §6.1). Both were validated against the real 3D-ICE 4.0 binary and are
+> free in solve time. Ridge still solves the regenerated dataset: spatial R² 0.918–0.991
+> across all 8 geometries (re-measured with `scripts/baselines.py`), consistent with the
+> negative result above — neither fix was expected to, or did, defeat linearity.
 
 ---
 

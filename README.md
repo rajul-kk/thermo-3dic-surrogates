@@ -54,13 +54,21 @@ Thermo/
 
 Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer), matching 3D-ICE's ground-truth `bottom heat sink` directive. Full layer stacks, material properties, and scenario details are in [`docs/geometry_reference.md`](docs/geometry_reference.md).
 
-**Dataset**: 335 real 3D-ICE `.npz` files across all 8 geometries. Power is derived from a package TDP budget (30 W mobile 3D stack → 700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance representing cache, IO and uncore. A scenario's pattern selects a workload fraction of that budget, bounded by an absolute silicon ceiling of 300 W/cm² and, for HBM/memory dies, 8 W/cm². Cooling must be adequate for the power density (165 W/m²·K per W/cm²), giving HTC 2000–50,000 W/m²·K; ambient spans 25–45 °C.
+**Dataset**: 335 real 3D-ICE 4.0 `.npz` files across all 8 geometries, per-cell power maps
+on every scenario. Power is derived from a package TDP budget (30 W mobile 3D stack →
+700 W six-HBM accelerator), of which the modelled blocks receive 65% — the balance
+representing cache, IO and uncore. A scenario's pattern selects a workload fraction of
+that budget, bounded by an absolute silicon ceiling of 300 W/cm² and, for HBM/memory
+dies, 8 W/cm². Cooling must be adequate for the power density (165 W/m²·K per W/cm²),
+giving HTC 2000–50,000 W/m²·K; ambient spans 25–45 °C. TSV density is a spatial field
+(not a scalar) and geometry4/5/6's chiplet underfill gap is a real Si/underfill layout,
+both effective as of the 2026-08-05 3D-ICE 4.0 regeneration — see `docs/assumptions.md`.
 
 **Dataset layout.** `data/3d-ice/` is always the current dataset — every command below
-assumes it. `data/3d-ice-percell/` holds the per-cell power variant (geometry1 only so
-far). `data/_archive/` holds superseded generations and must never be globbed into
+assumes it. `data/_archive/` holds superseded generations and must never be globbed into
 training: `3d-ice_pre_tdp_regime/` is the spatially degenerate dataset (median ΔT 0.77 K
-vs 29.05 K now), kept only for reproducing §9.1–9.2 of the report.
+vs 29.05 K now), kept only for reproducing §9.1–9.2 of the report; `3d-ice_pre_4_0/` is
+the last 3D-ICE 3.0.0 generation, superseded 2026-08-05.
 
 > **Before training anything, run `scripts/baselines.py`.** Closed-form ridge regression
 > solves this benchmark at spatial R² ≈ 0.99 and extrapolates at R² > 0.94, because
