@@ -109,16 +109,23 @@ simulation mechanism is correct, not that those parameters make a good cooler �
 microchannel cold-plate design (channel/wall dimensions, flow rate, HTC split) is a
 separate tuning exercise, not attempted here.
 
-**Not yet done — the integration gap.** The mechanism is not wired into `main.py` or
-`NPZExporter`: the coolant stack element has no Tmap output, so `generate_coords_and_indices`
-(which derives coordinates from `geometry.layers` independent of what the simulator
-actually emits) would produce coordinates for a z-region 3D-ICE never returns temperatures
-for — a real mismatch that needs the coords/export pipeline to know about coolant layers
-before this can produce a shippable geometry7 or an alternate-cooling geometry6 variant.
-Scope for that: teach `generate_coords_and_indices`/`NPZExporter` to skip (or separately
-handle) coolant sublayers, then sweep flow rate as a scenario parameter and re-run the
-ridge baseline — if ridge still solves it, that's a stronger result than anything
-currently in the paper; if it doesn't, that's the benchmark's reason to exist.
+**Correction (2026-08-09): the "coords/export gap" described here previously does not
+actually exist — verified empirically, not just re-reasoned.** `process_scenario`'s real
+(non-mock) path never uses `generate_coords_and_indices`'s output; it sources `coords`
+directly from `ICESimulator.parse_results()`, which only includes `output_inst_N.txt`
+files for stack elements that were actually given a `Tmap(...)` request in the `.stk`
+file — and `_generate_stack_file` already skips that request for the coolant element.
+Ran a full `process_scenario` → `NPZExporter` round trip on a microchannel-cooled
+geometry6 variant: succeeded cleanly, 103,488 consistently-shaped points, layer index 1
+(the coolant-replaced `heat_sink`) correctly absent from `layer`/`coords`/`temp`, all 11
+other layers present. **What's actually missing is CLI wiring, not a pipeline bug**: none
+of the 6 registered geometries have `coolant_layer_name` set, so there's no way to select
+a microchannel-cooled run through `main.py` yet without constructing the geometry
+ad hoc the way the validation script did. Scope: a small dedicated generation script
+(same pattern as `scripts/regen_v4_final.ps1`) building a microchannel-enabled geometry
+variant and looping `process_scenario` over a scenario sweep, then re-run the ridge
+baseline — if ridge still solves it, that's a stronger result than anything currently in
+the paper; if it doesn't, that's the benchmark's reason to exist.
 
 ## Thermal throttling (DVFS) — implemented and validated 2026-08-06
 
@@ -159,8 +166,8 @@ there's no way to ask a model "what would this scenario have looked like unthrot
 
 **1. Wire microchannel and throttling into the shipped dataset.** Both mechanisms are
 built and validated against the real binary; neither has produced a single scenario in
-`data/3d-ice` yet. Microchannel needs the coords/export pipeline fix described above;
-throttling just needs `main.py` to call `attach_throttling` the way it already
+`data/3d-ice` yet. Microchannel's pipeline already works (see correction above) and just
+needs a generation script; throttling just needs `main.py` to call `attach_throttling` the way it already
 auto-calls `attach_tsv_maps`, plus a decision on which geometries get it (geometry1 and
 geometry3 are the physically-motivated choices — see the geometry-by-geometry discussion
 in this conversation).
@@ -226,8 +233,8 @@ based on what's actually blocking progress, not necessarily in this order.
 
 ### Development
 
-1. Finish the microchannel coords/export integration (the one concrete blocker to a
-   shippable microchannel-cooled geometry).
+1. Write a dedicated microchannel-scenario generation script (the pipeline itself is
+   already correct — verified 2026-08-09, see correction above).
 2. Wire `attach_throttling` into `main.py`'s CLI the way `attach_tsv_maps` is auto-wired —
    as an opt-in flag rather than on-by-default, since it multiplies solve cost per
    scenario and shouldn't silently slow down every future regeneration.
@@ -257,8 +264,8 @@ pipeline. Cheap: ~6.7 min on a single T4 per the earlier cost estimate.
 ### Track A — Nonlinearity (throttling / microchannel)
 
 **A1. Finish data-pipeline integration** (already listed above as Development items 1-2):
-microchannel's coords/export gap, throttling's CLI wiring. Both are understood, bounded
-work, not research.
+a microchannel generation script (pipeline itself confirmed working 2026-08-09), and
+throttling's CLI wiring. Both are understood, bounded work, not research.
 
 **A2. Generate pilot batches** (10-15 scenarios each, geometry1/geometry3 for throttling,
 geometry5 or geometry6 for microchannel — geometry5 is cheaper to iterate on). Re-run

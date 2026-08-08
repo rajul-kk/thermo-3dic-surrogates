@@ -533,12 +533,17 @@ since been implemented and measured, which is how their relative importance beca
    grammar confirmed against the simulator's own test suite), which introduces advection
    along a flow direction; unlike every fix above, that is not linear in the boundary data
    the way a fixed HTC is. Validated stable against the real binary at geometry6's
-   ~455 W core-fraction TDP ceiling (peak 167.4 °C). Not yet wired into `main.py`/
-   `NPZExporter` — the coolant stack element produces no Tmap output, and the coords/export
-   pipeline does not yet know to skip it — so no microchannel-cooled scenarios exist in the
-   current 275-scenario dataset. This remains the first candidate change that could alter
-   the paper's central finding rather than refine the dataset around it, once integrated
-   and swept as a scenario axis.
+   ~455 W core-fraction TDP ceiling (peak 167.4 °C), and the `process_scenario`→
+   `NPZExporter` export path was separately confirmed to work correctly on a
+   microchannel-cooled scenario end to end (`ICESimulator` already omits the coolant
+   element's Tmap request, and the real-simulator path sources coordinates from what
+   3D-ICE actually returned, not from the geometry's static layer list, so no mismatch
+   occurs). What's missing is CLI wiring, not a pipeline fix — none of the 6 registered
+   geometries have `coolant_layer_name` set, so there is no way to select a
+   microchannel-cooled run through `main.py` yet — so no microchannel-cooled scenarios
+   exist in the current 275-scenario dataset. This remains the first candidate change
+   that could alter the paper's central finding rather than refine the dataset around
+   it, once a generation script exists and it is swept as a scenario axis.
 6. **Thermal throttling (DVFS)** — *mechanism built and validated 2026-08-06, not yet
    integrated into the dataset*. `src/scenario/throttling.py` wraps 3D-ICE in an outer
    solve-derate-resolve loop: power is reduced when peak temperature exceeds a
@@ -565,6 +570,18 @@ field is now exported per-point and consumed as a real channel by the FNO family
 §3); FourierPINN, DeepONet and ARO still receive only its scenario mean, so for those three
 it remains a partial confounder — real variance in the target with only a coarse summary of
 its cause available as input — until per-point conditioning is added there too.
+
+**Cross-geometry generalization is scoped narrower than "few-shot fine-tuning across
+geometries" (§1, item 6) might suggest.** The mechanism (`--common-grid` trilinear
+resampling onto a shared grid plus a single `geom_extent_norm` scalar as conditioning) is
+what current operator-learning literature would call brute-force grid alignment, not
+geometry-aware encoding — contrast with SDF- or graph-based geometry conditioning (e.g.
+GINO, PI-GANO), which report <3% error on genuinely unseen shapes. What this repo
+currently supports is interpolation among its 6 trained geometries, not zero-shot
+transfer to an unseen package shape, and that distinction has not been tested with a
+leave-one-geometry-out split. See `goal.md` Track B for the scoped plan (a per-cell
+distance-to-nearest-power-block-edge field, reusing the TSV-field export pattern) to
+close this gap if genuine zero-shot transfer is later required.
 
 **Deferred.** The originally planned discussion — PDE-residual/error correlation, IG
 attribution plausibility, MC Dropout calibration — requires trained models and remains

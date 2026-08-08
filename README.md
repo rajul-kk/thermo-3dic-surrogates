@@ -10,6 +10,15 @@ pipeline, so they were three near-zero-marginal-information copies of one benchm
 density variation is still exercised as a spatial field within `geometry2a` itself via
 `ScenarioGenerator.attach_tsv_maps`. See `goal.md`.
 
+**Cross-geometry generalization scope note (2026-08-09):** "few-shot fine-tuning across
+geometries" above means *interpolation among this repo's 6 trained geometries* via
+`--common-grid` resampling (trilinear onto a shared grid + a single `geom_extent_norm`
+scalar as conditioning), not zero-shot transfer to an unseen package shape. Current
+literature's geometry-aware architectures (signed-distance-function or graph-based
+geometry encoding — e.g. GINO, PI-GANO) report <3% error on genuinely unseen geometries;
+this repo's mechanism is a coarser approximation and hasn't been validated with a
+leave-one-geometry-out test. See `goal.md` Track B for the plan to close this gap.
+
 ---
 
 ## Project Structure
