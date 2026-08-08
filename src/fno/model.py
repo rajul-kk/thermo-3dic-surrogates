@@ -167,6 +167,7 @@ class FNO3d(nn.Module):
         modes: Tuple[int, int, int] = (16, 16, 12),
         hidden_ch: int = 32,
         n_blocks: int = 4,
+        use_geometry_field: bool = False,
     ):
         super().__init__()
         nx, ny, nz = grid_shape
@@ -184,8 +185,13 @@ class FNO3d(nn.Module):
         self.grid_shape = grid_shape
         self.modes = clamped
         self.hidden_ch = hidden_ch
+        # Track B (goal.md): opt-in 6th channel, distance to nearest power
+        # block. Off by default so IN_CH-sized checkpoints trained before this
+        # existed keep loading unchanged.
+        self.use_geometry_field = use_geometry_field
+        in_ch = IN_CH + 1 if use_geometry_field else IN_CH
 
-        self.lift = nn.Conv3d(IN_CH, hidden_ch, kernel_size=1)
+        self.lift = nn.Conv3d(in_ch, hidden_ch, kernel_size=1)
         self.blocks = nn.Sequential(*[FNOBlock(hidden_ch, clamped) for _ in range(n_blocks)])
         # Two-layer projection head is standard; a single linear loses accuracy
         self.proj = nn.Sequential(
@@ -201,11 +207,17 @@ class FNO3d(nn.Module):
         htc_norm: torch.Tensor,      # (B,) or scalar
         t_amb_norm: torch.Tensor,    # (B,) or scalar
         tsv_frac: torch.Tensor,      # (B,) or scalar
+        dist_to_block: Optional[torch.Tensor] = None,  # (B, nx, ny, nz), Track B
     ) -> torch.Tensor:
         B, nx, ny, nz = Q_norm.shape
         assert (nx, ny, nz) == self.grid_shape, (
             f"Input grid {(nx, ny, nz)} != model grid {self.grid_shape}"
         )
+        if self.use_geometry_field and dist_to_block is None:
+            raise ValueError(
+                "FNO3d was built with use_geometry_field=True but forward() "
+                "received no dist_to_block tensor."
+            )
 
         def _broadcast(t: torch.Tensor) -> torch.Tensor:
             """Expand scalar/batch scalar to (B, 1, nx, ny, nz)."""
@@ -213,13 +225,16 @@ class FNO3d(nn.Module):
             v = v[:B] if v.shape[0] >= B else v.expand(B)
             return v.view(B, 1, 1, 1, 1).expand(B, 1, nx, ny, nz)
 
-        x = torch.stack([
+        channels = [
             Q_norm,
             layer_id_norm,
             _broadcast(htc_norm).squeeze(1),
             _broadcast(t_amb_norm).squeeze(1),
             _as_field(tsv_frac, B, nx, ny, nz).squeeze(1),
-        ], dim=1)  # (B, IN_CH, nx, ny, nz)
+        ]
+        if self.use_geometry_field:
+            channels.append(_as_field(dist_to_block, B, nx, ny, nz).squeeze(1))
+        x = torch.stack(channels, dim=1)  # (B, in_ch, nx, ny, nz)
 
         x = self.lift(x)      # (B, hidden_ch, nx, ny, nz)
         x = self.blocks(x)    # (B, hidden_ch, nx, ny, nz)
@@ -237,8 +252,9 @@ def build_fno(
     hidden_ch: int = 32,
     n_blocks: int = 4,
     device: torch.device = None,
+    use_geometry_field: bool = False,
 ) -> FNO3d:
-    model = FNO3d(grid_shape, modes, hidden_ch, n_blocks)
+    model = FNO3d(grid_shape, modes, hidden_ch, n_blocks, use_geometry_field=use_geometry_field)
     if device is not None:
         model = model.to(device)
     return model

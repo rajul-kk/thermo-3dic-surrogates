@@ -245,6 +245,13 @@ class FNOTrainer:
             htc = batch['htc_norm'].to(self.device)
             tamb = batch['t_amb_norm'].to(self.device)
             tsv = batch['tsv_frac'].to(self.device)
+            # Track B: only present in batches from an FNODataset built with
+            # `geometries=`, only consumed by a model built with
+            # use_geometry_field=True -- both default off, so this is a no-op
+            # for every model/dataset combination that predates it.
+            dist_kwargs = {}
+            if getattr(self.model, 'use_geometry_field', False):
+                dist_kwargs['dist_to_block'] = batch['dist_to_block_norm'].to(self.device)
 
             self.optimizer.zero_grad()
 
@@ -252,7 +259,7 @@ class FNOTrainer:
                 device_type=self.device.type,
                 dtype=torch.float16 if self.use_amp else torch.float32,
             ):
-                T_pred = self.model(Q, L, htc, tamb, tsv)
+                T_pred = self.model(Q, L, htc, tamb, tsv, **dist_kwargs)
                 loss = relative_l2_loss(T_pred, T_true)
 
             # PI loss: finite-difference PDE residual (always FP32, no AMP)

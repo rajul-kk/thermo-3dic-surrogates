@@ -39,7 +39,7 @@ keeps each geometry's specific physics learnable after resampling.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -92,6 +92,7 @@ class FNODataset(Dataset):
         norm_stats: NormStats,
         expected_grid: Tuple[int, int, int],   # (nx, ny, nz)
         target_grid: Tuple[int, int, int] = None,
+        geometries: Optional[dict] = None,
     ):
         """
         Args:
@@ -100,11 +101,18 @@ class FNODataset(Dataset):
             target_grid: If given, each file is built at its OWN native resolution
                 (read from its metadata) and resampled onto this shared grid,
                 enabling one FNO across geometries with different mesh shapes.
+            geometries: Optional {geometry_name: Geometry}. When given, each item
+                also carries `dist_to_block_norm` -- per-cell distance to the
+                nearest power block, normalised by die diagonal (Track B
+                geometry-aware conditioning, see src/core/mesh.py). Purely
+                geometric (no simulation data needed), zero-filled if omitted,
+                for backward compatibility with callers that don't pass it.
         """
         self.norm_stats = norm_stats
         self.expected_grid = expected_grid
         self.target_grid = target_grid
         self.grid_shape = target_grid or expected_grid
+        self.geometries = geometries or {}
         self.items: List[Dict] = []
 
         for path in npz_files:
@@ -140,12 +148,25 @@ class FNODataset(Dataset):
                       else np.zeros(n_points, dtype=np.float32))
             tsv_raw = tsv_raw / 0.10
 
+            # Track B geometry-aware conditioning: purely a function of (x, y),
+            # so -- unlike TSV/power, which vary by layer -- one value per point
+            # already reshapes correctly with no per-layer broadcast logic needed.
+            geom_obj = self.geometries.get(meta.get('geometry', ''))
+            if geom_obj is not None:
+                from ..core.mesh import generate_distance_to_power_block_field
+                dist_raw = generate_distance_to_power_block_field(
+                    data['coords'].astype(np.float64), geom_obj
+                ).astype(np.float32)
+            else:
+                dist_raw = np.zeros(n_points, dtype=np.float32)
+
             if n_points == n_expected_full:
                 # Full mesh layout (mock simulator)
                 layer_ids = data['layer'].reshape(nx, ny, nz).astype(np.float32)
                 Q_norm = norm_stats.norm_power(data['power']).reshape(nx, ny, nz)
                 T_norm = norm_stats.norm_temp(data['temp']).reshape(nx, ny, nz)
                 TSV_norm = tsv_raw.reshape(nx, ny, nz)
+                DIST_norm = dist_raw.reshape(nx, ny, nz)
 
             elif n_points == n_expected_slice:
                 # Per-layer-slice layout (3D-ICE real data):
@@ -155,6 +176,7 @@ class FNODataset(Dataset):
                 T_flat     = norm_stats.norm_temp(data['temp'].astype(np.float32))
                 Q_flat     = norm_stats.norm_power(data['power'].astype(np.float32))
                 TSV_flat   = tsv_raw
+                DIST_flat  = dist_raw
 
                 # Build per-z-index arrays using the layer index of each z-cell.
                 # z-cell i belongs to the layer whose z-range contains z-coords[i].
@@ -163,6 +185,7 @@ class FNODataset(Dataset):
                 T_grid     = np.zeros((nx, ny, nz), dtype=np.float32)
                 Q_grid     = np.zeros((nx, ny, nz), dtype=np.float32)
                 TSV_grid   = np.zeros((nx, ny, nz), dtype=np.float32)
+                DIST_grid  = np.zeros((nx, ny, nz), dtype=np.float32)
 
                 # Map: for each unique layer_id, find its (nx,ny) slice in the flat data
                 unique_layers = np.unique(layer_flat)
@@ -209,17 +232,20 @@ class FNODataset(Dataset):
                     T_slice   = T_flat[mask_flat].reshape(nx, ny)
                     Q_slice   = Q_flat[mask_flat].reshape(nx, ny)
                     TSV_slice = TSV_flat[mask_flat].reshape(nx, ny)
+                    DIST_slice = DIST_flat[mask_flat].reshape(nx, ny)
                     z_bins  = np.where(z_bin_to_layer == lid)[0]
                     for iz in z_bins:
                         T_grid[:, :, iz] = T_slice
                         Q_grid[:, :, iz] = Q_slice
                         TSV_grid[:, :, iz] = TSV_slice
+                        DIST_grid[:, :, iz] = DIST_slice
                         layer_grid[:, :, iz] = float(lid)
 
                 layer_ids = layer_grid
                 Q_norm = Q_grid
                 T_norm = T_grid
                 TSV_norm = TSV_grid
+                DIST_norm = DIST_grid
 
             else:
                 _log.warning(
@@ -233,19 +259,21 @@ class FNODataset(Dataset):
             htc = float(meta.get('htc', 5000.0))
             t_amb_c = float(meta.get('t_ambient_celsius', 40.0))
 
-            Q_t   = torch.from_numpy(Q_norm.astype(np.float32))
-            L_t   = torch.from_numpy(layer_id_norm.astype(np.float32))
-            T_t   = torch.from_numpy(T_norm.astype(np.float32))
-            TSV_t = torch.from_numpy(TSV_norm.astype(np.float32))
+            Q_t    = torch.from_numpy(Q_norm.astype(np.float32))
+            L_t    = torch.from_numpy(layer_id_norm.astype(np.float32))
+            T_t    = torch.from_numpy(T_norm.astype(np.float32))
+            TSV_t  = torch.from_numpy(TSV_norm.astype(np.float32))
+            DIST_t = torch.from_numpy(DIST_norm.astype(np.float32))
 
             if target_grid is not None and (nx, ny, nz) != tuple(target_grid):
                 # Trilinear for the continuous fields; nearest for layer identity,
                 # which is categorical -- interpolating it would invent materials
                 # that do not exist between a silicon die and a copper spreader.
-                Q_t   = _resample(Q_t, target_grid, 'trilinear')
-                T_t   = _resample(T_t, target_grid, 'trilinear')
-                L_t   = _resample(L_t, target_grid, 'nearest')
-                TSV_t = _resample(TSV_t, target_grid, 'trilinear')
+                Q_t    = _resample(Q_t, target_grid, 'trilinear')
+                T_t    = _resample(T_t, target_grid, 'trilinear')
+                L_t    = _resample(L_t, target_grid, 'nearest')
+                TSV_t  = _resample(TSV_t, target_grid, 'trilinear')
+                DIST_t = _resample(DIST_t, target_grid, 'trilinear')
 
             self.items.append({
                 'Q_norm': Q_t,
@@ -263,6 +291,12 @@ class FNODataset(Dataset):
                 # used to be -- the model can now actually condition on where the TSV
                 # density is high vs low, not just how much there is on average.
                 'tsv_frac': TSV_t,
+                # Track B geometry-aware conditioning (goal.md): per-cell distance
+                # to the nearest power block, zero-filled when `geometries` wasn't
+                # passed to FNODataset. Purely geometric -- gives the model
+                # floorplan-relative position, not just the global extent scalar
+                # above, without a full SDF/graph geometry encoder.
+                'dist_to_block_norm': DIST_t,
                 'name': meta.get('scenario_name', path.stem),
             })
             data.close()
@@ -305,6 +339,9 @@ def predict_to_flat(
     Useful for evaluation code that works with flat coordinate arrays.
     """
     model.eval()
+    dist_kwargs = {}
+    if getattr(model, 'use_geometry_field', False):
+        dist_kwargs['dist_to_block'] = item['dist_to_block_norm'].unsqueeze(0).to(device)
     with torch.no_grad():
         T_hat = model(
             item['Q_norm'].unsqueeze(0).to(device),
@@ -312,6 +349,7 @@ def predict_to_flat(
             item['htc_norm'].to(device),
             item['t_amb_norm'].to(device),
             item['tsv_frac'].unsqueeze(0).to(device),
+            **dist_kwargs,
         ).squeeze(0)  # (nx, ny, nz)
 
     T_range = norm_stats.T_max - norm_stats.T_min
