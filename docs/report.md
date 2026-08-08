@@ -473,8 +473,32 @@ against the closed-form $k \cdot 2c \cdot T_{range}/L_z^2$.
 
 ### 9.7 Neural results
 
-*None. No checkpoint has been trained. Any neural number added here must be reported
-alongside the ridge baseline on the same split, using detrended metrics.*
+**First checkpoint, 2026-08-09.** Baseline FNO (`--model fno`, `--cpu-fast` preset:
+channels=16, modes=(8,8,6), blocks=3, 296k params), 100 epochs, CPU-only, geometry1, seed
+42. This run exists to validate the training/eval pipeline (data loading, loss, checkpoint
+saving) end to end for the first time in this project's history, not to make an accuracy
+claim — reduced capacity and few epochs relative to a real training budget. Best
+validation MAE occurred at **epoch 10** (4.110 K); training loss kept falling through
+epoch 100 while validation MAE climbed to 11–12 K, a clear overfit on 5 validation
+scenarios at this capacity.
+
+Evaluated on the shipped test split, same detrended metrics as §9.1:
+
+| | MAE (K) | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
+|---|---|---|---|---|
+| ridge (§9.1, current data) | 1.820 | 0.299 | 0.983 | 5738 |
+| **FNO baseline (this run)** | **4.110** | **1.857** | **0.279** | **5685** |
+
+Ridge wins by a wide margin here — consistent with this paper's central finding, but not
+yet a fair test of it: this run is capacity- and epoch-limited by design (a CPU pipeline
+smoke test), not the CondFNO/CNO-FNO/SAU-FNO configurations this repo also implements,
+and training stopped essentially at its best point at epoch 10 with 90 unproductive
+epochs after. A properly resourced run (GPU, full capacity, early stopping at the actual
+optimum) is required before this comparison says anything about the architecture's real
+ceiling on this benchmark. Hotspot localisation error (5685 µm) is comparable to ridge's
+(5738 µm) even at this undertrained point, which is at least consistent with §9.4's
+finding that localisation — not field reconstruction — is where an operator has room to
+compete, though five test scenarios is far too few to draw a conclusion from.
 
 ---
 
