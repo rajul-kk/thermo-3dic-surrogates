@@ -235,6 +235,44 @@ def _power_field_from_maps(
     return power_field
 
 
+def generate_distance_to_power_block_field(
+    coords: np.ndarray,
+    geometry: Geometry,
+) -> np.ndarray:
+    """
+    Per-point distance to the nearest power block's footprint, normalised by
+    the die diagonal, in [0, ~1].
+
+    Purely geometric -- constant for every scenario of a given geometry, no
+    simulation data required (unlike `generate_tsv_field`, which depends on a
+    per-scenario map). This is the right-sized geometry-aware conditioning
+    signal for a benchmark whose geometries are all structured Cartesian
+    grids: not a full SDF/graph encoder (GINO/PI-GANO-style), just per-cell
+    information about *where within the geometry-specific floorplan* a point
+    sits, which the current `geom_extent_norm` global scalar cannot express.
+    See goal.md Track B.
+
+    Points inside a block (or on its edge) get 0. TSV-region blocks are
+    excluded (they are passive conductors, not power sources -- see
+    `_power_field_from_maps`'s docstring for the same exclusion).
+    """
+    diag = float(np.hypot(geometry.die_width, geometry.die_length))
+    dist = np.full(coords.shape[0], diag, dtype=np.float64)
+
+    real_blocks = [b for b in geometry.power_blocks if not b.is_tsv_region]
+    if not real_blocks or diag <= 0:
+        return np.zeros(coords.shape[0])
+
+    x, y = coords[:, 0], coords[:, 1]
+    for b in real_blocks:
+        dx = np.maximum(np.maximum(b.x - x, x - (b.x + b.width)), 0.0)
+        dy = np.maximum(np.maximum(b.y - y, y - (b.y + b.height)), 0.0)
+        block_dist = np.hypot(dx, dy)
+        dist = np.minimum(dist, block_dist)
+
+    return dist / diag
+
+
 def generate_tsv_field(
     coords: np.ndarray,
     geometry: Geometry,
