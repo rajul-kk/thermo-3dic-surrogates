@@ -107,10 +107,34 @@ def feature_vector(meta: dict, block_keys: List[str]) -> np.ndarray:
 
 
 def collect_block_keys(scenarios: List[dict]) -> List[str]:
-    """Union of block_power_* metadata keys, sorted for determinism."""
+    """
+    Union of block-power metadata keys, sorted for determinism.
+
+    Prefers `nominal_block_power_*` (the pre-throttle request) over
+    `block_power_*` (the delivered, possibly-derated power) whenever any
+    scenario carries throttle metadata. Using the delivered power as ridge's
+    feature hands it the already-resolved answer for throttled scenarios --
+    it no longer has to represent the closed feedback loop at all, and scores
+    a misleadingly high R^2 that has nothing to do with whether the map is
+    actually linear. Found 2026-08-09: ridge scored *better* on throttled
+    data (spatial R^2 0.989) than on the same geometry without throttling
+    (0.970) until this was fixed -- using nominal power instead correctly
+    shows real degradation (0.890).
+    """
+    uses_nominal = any(sc['meta'].get('throttle_enabled') for sc in scenarios)
+    prefix = 'nominal_block_power_' if uses_nominal else 'block_power_'
     keys = set()
     for sc in scenarios:
-        keys.update(k for k in sc['meta'] if k.startswith('block_power_'))
+        keys.update(k for k in sc['meta'] if k.startswith(prefix))
+    if uses_nominal and not keys:
+        # throttle_enabled=True but no nominal_block_power_* present -- an
+        # older export predating that field. Fail loud rather than silently
+        # falling back to the misleading delivered-power feature.
+        raise ValueError(
+            "Scenario(s) have throttle_enabled=True but no "
+            "nominal_block_power_* metadata (pre-dates that export field). "
+            "Re-export this data before running baselines on it."
+        )
     return sorted(keys)
 
 

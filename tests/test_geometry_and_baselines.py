@@ -226,6 +226,38 @@ def test_feature_vector_includes_reciprocal_htc():
     assert pytest.approx(1.0 / 4000.0) in [float(v) for v in fv]
 
 
+def test_collect_block_keys_prefers_nominal_power_for_throttled_scenarios():
+    """
+    Regression test for a real bug: the delivered (post-throttle) power is the
+    ALREADY-RESOLVED answer for a throttled scenario, not an input a model
+    should get to see. Feeding ridge the delivered power made a throttled
+    dataset score a *higher* R^2 (0.989) than the same geometry without
+    throttling (0.970) -- the closed feedback loop was invisible to it.
+    nominal_block_power_* (the pre-throttle request) is the correct feature.
+    """
+    throttled = [{'meta': {
+        'throttle_enabled': True,
+        'block_power_a': 42.0,               # delivered/derated -- must be ignored
+        'nominal_block_power_a': 100.0,       # pre-throttle request -- must be used
+    }}]
+    keys = collect_block_keys(throttled)
+    assert keys == ['nominal_block_power_a']
+
+
+def test_collect_block_keys_uses_delivered_power_when_not_throttled():
+    normal = [{'meta': {'throttle_enabled': False, 'block_power_a': 42.0}}]
+    keys = collect_block_keys(normal)
+    assert keys == ['block_power_a']
+
+
+def test_collect_block_keys_raises_on_throttled_data_missing_nominal_power():
+    """A throttle_enabled scenario predating the nominal_block_power_* export
+    field must fail loudly, not silently fall back to the misleading feature."""
+    stale = [{'meta': {'throttle_enabled': True, 'block_power_a': 42.0}}]
+    with pytest.raises(ValueError, match='nominal_block_power'):
+        collect_block_keys(stale)
+
+
 def test_detrended_metric_ignores_a_constant_offset():
     """Adding a constant must inflate raw MAE but leave detrended error untouched."""
     rng = np.random.default_rng(1)
