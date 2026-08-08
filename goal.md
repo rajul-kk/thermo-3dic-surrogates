@@ -261,34 +261,47 @@ This validates the training loop, loss functions, and checkpoint/eval plumbing o
 simple case before either track below adds more complexity on top of an unproven
 pipeline. Cheap: ~6.7 min on a single T4 per the earlier cost estimate.
 
-### Track A — Nonlinearity (throttling / microchannel)
+### Track A — Nonlinearity (throttling / microchannel) — A1/A2 done 2026-08-09
 
-**A1. Finish data-pipeline integration** (already listed above as Development items 1-2):
-a microchannel generation script (pipeline itself confirmed working 2026-08-09), and
-throttling's CLI wiring. Both are understood, bounded work, not research.
+**A1. Done.** Microchannel's pipeline was already correct (§ correction above); wrote
+`scripts/gen_microchannel_pilot.py`. Throttling wired into `main.py` as `--throttle`
+(off by default).
 
-**A2. Generate pilot batches** (10-15 scenarios each, geometry1/geometry3 for throttling,
-geometry5 or geometry6 for microchannel — geometry5 is cheaper to iterate on). Re-run
-`scripts/baselines.py` on each. This is the first real answer to "does nonlinearity
-matter here": if ridge still solves it, that's a stronger negative result than anything
-currently in the paper; if it degrades, that's the benchmark's reason to exist. Either
-outcome is publishable — this is a measurement, not a gate to pass.
+**A2. Done — first real measurement, and it moved.** Generated a 12-scenario microchannel
+pilot (geometry6, flow rate swept 80–280 mL/min) and a 20-scenario throttled pilot
+(geometry1, 6/20 scenarios actually triggered, derate factors 0.34–0.72).
 
-**A3. Train baseline FNO, CondFNO (FiLM), and CNO-FNO+attention (SAU-FNO) on the pilot
-data and compare.** The literature is specific here: baseline spectral-convolution FNOs
-show error growing roughly 10-15x on genuinely nonlinear targets (0.02 to 0.28-0.38 in a
-comparable study), because spectral conv is linear in frequency space and the only
-nonlinearity comes from the pointwise activation between blocks. If baseline FNO
-underperforms CondFNO/SAU-FNO by a wide margin on the throttled/microchannel split, that
-*matches* the literature's prediction and is worth reporting as such, not just an
-accuracy table. If PI-FNO's physics loss materially closes the gap, that's also worth
-reporting — it would suggest the "nonlinear interference" architectural fix the field is
-now proposing may be unnecessary here if the physics constraint substitutes for it.
+- **Microchannel:** ridge spatial R² = **0.906** — the weakest of any geometry measured
+  this whole session (every other geometry scored ≥0.918). More strikingly, **ridge's
+  hotspot localisation (780 µm) is worse than plain nearest-neighbour (616 µm) and kNN
+  (595 µm)** — the first time in this project ridge has lost to a dumber baseline on any
+  metric. Small pilot (8 train/4 test); treat as a signal to follow up, not a settled
+  result.
+- **Throttling — found and fixed a real methodology bug in the process.** First measurement
+  gave ridge spatial R² = 0.989 on throttled data, *higher* than the same geometry
+  without throttling (0.970) — suspicious, and correctly so: the exported
+  `block_power_*` metadata holds the **delivered** (already-derated) power, so ridge was
+  being handed the closed loop's resolved answer as an input feature, not asked to
+  represent the loop at all. Fixed by exporting `nominal_block_power_*` (the pre-throttle
+  request) and making `scripts/baselines.py::collect_block_keys` prefer it whenever
+  `throttle_enabled` is set (fails loudly if that field is missing rather than silently
+  falling back). Corrected result: **spatial R² = 0.890, det.MAE = 0.831 K** — real
+  degradation from 0.970, and knn (R²=0.891) now edges out ridge on det.MAE too. Still
+  not a rout, but the first clean evidence that a genuinely closed-loop nonlinearity
+  measurably erodes ridge's advantage. This finding — and the bug that nearly hid it — is
+  worth the fix on its own.
 
-**A4. Decision gate, not a commitment:** only pursue a genuine nonlinear-interference
-architecture extension (a real research undertaking, not a config flag) if A3 shows the
-existing variants clearly failing on a target the paper cares about. Don't build it
-speculatively.
+**A3. Partial — one baseline FNO run on the throttled pilot, not the full comparison
+matrix.** `checkpoints/fno/geometry1_throttled` (same `--cpu-fast` config as the
+prerequisite run). The full CondFNO/CNO-FNO+attention comparison this item originally
+scoped was not completed in this pass — time-boxed given everything else in this
+session; a fair architecture comparison needs GPU-scale training anyway (§ below), not
+another CPU smoke test. Remains open.
+
+**A4. Decision gate, unchanged:** only pursue a genuine nonlinear-interference
+architecture extension if a *properly resourced* A3 (GPU, full capacity, multiple
+architectures) shows the existing variants clearly failing. The CPU pilot runs in this
+session are too capacity- and epoch-limited to license that conclusion either way.
 
 ### Track B — Cross-geometry generalization
 
