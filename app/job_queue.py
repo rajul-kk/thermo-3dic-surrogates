@@ -49,11 +49,23 @@ class _JobLogHandler(logging.Handler):
 
 
 class JobQueue:
-    def __init__(self, output_base: Path, ice_executable: str):
+    def __init__(self, output_base: Path, ice_executable: str,
+                simulator_factory=None):
+        """
+        Args:
+            simulator_factory: (config_dir, output_dir, executable) -> a
+                ThermalSimulator-like object with .simulate(). Defaults to
+                constructing a real ICESimulator. Overriding this is what
+                makes JobQueue unit-testable without a real 3D-ICE/WSL
+                install -- see tests/test_app.py's stub simulator.
+        """
         self._jobs: Dict[str, Job] = {}
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._output_base = Path(output_base)
         self._ice_executable = ice_executable
+        self._simulator_factory = simulator_factory or (
+            lambda config_dir, output_dir, executable: ICESimulator(
+                config_dir=config_dir, output_dir=output_dir, executable=executable))
         self._builtin = {geom.name: geom for geom in build_all_geometries()}
         self._custom: dict = {}
 
@@ -61,6 +73,9 @@ class JobQueue:
 
     def get_geometry(self, name: str):
         return self._builtin.get(name) or self._custom.get(name)
+
+    def builtin_names(self) -> set:
+        return set(self._builtin.keys())
 
     def register_custom(self, name: str, geom) -> None:
         self._custom[name] = geom
@@ -138,11 +153,7 @@ class JobQueue:
             config_dir.mkdir()
             sim_out.mkdir()
 
-            simulator = ICESimulator(
-                config_dir=config_dir,
-                output_dir=sim_out,
-                executable=self._ice_executable,
-            )
+            simulator = self._simulator_factory(config_dir, sim_out, self._ice_executable)
             exporter = NPZExporter(output_dir=output_dir)
             calculator = StatisticsCalculator()
 

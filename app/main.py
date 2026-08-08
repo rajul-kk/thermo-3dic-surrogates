@@ -87,15 +87,27 @@ async def register_geometry(body: dict):
     try:
         raw = body.get('yaml', '')
         spec = yaml.safe_load(raw)
+        if not isinstance(spec, dict):
+            raise ValueError('YAML must parse to a mapping (see /geometries/schema)')
         name = str(spec.get('name', '')).strip()
         if not name:
             raise ValueError("'name' field is required")
+        if name in queue.builtin_names():
+            raise ValueError(
+                f"'{name}' is a built-in geometry name and cannot be overridden "
+                f"(built-ins: {sorted(queue.builtin_names())})"
+            )
 
         from src.core.geometry import Geometry, Layer, PowerBlock
         from src.core.material import MaterialLibrary
         mat_lib = MaterialLibrary()
+
+        layer_specs = spec.get('layers', [])
+        if not layer_specs:
+            raise ValueError("'layers' must contain at least one layer")
+
         layers = []
-        for lspec in spec.get('layers', []):
+        for lspec in layer_specs:
             mat_name = lspec['material']
             mat = mat_lib.get(mat_name)
             if mat is None:
@@ -109,6 +121,10 @@ async def register_geometry(body: dict):
                 volumetric_heat_capacity=mat.volumetric_heat_capacity,
                 is_active=bool(lspec.get('is_active', False)),
             ))
+        if not any(l.is_active for l in layers):
+            raise ValueError("at least one layer must have is_active: true "
+                             "(otherwise there is no power source to simulate)")
+
         blocks = []
         for bspec in spec.get('power_blocks', []):
             blocks.append(PowerBlock(
@@ -119,19 +135,35 @@ async def register_geometry(body: dict):
                 width=float(bspec['width']),
                 height=float(bspec['height']),
             ))
+
         res = spec.get('mesh_resolution', [100, 100, 40])
+        if len(res) != 3 or any(int(r) <= 0 for r in res):
+            raise ValueError(
+                f"mesh_resolution must be 3 positive integers [nx, ny, nz], got {res}")
+
         geom = Geometry(
             name=name,
             geometry_type=spec.get('geometry_type', '2d_stack'),
             die_length=float(spec['die_length']),
             die_width=float(spec['die_width']),
-            mesh_resolution=tuple(res),
+            mesh_resolution=tuple(int(r) for r in res),
             layers=layers,
             power_blocks=blocks,
         )
+        # Geometry() does not self-validate on construction (build_geometryN()
+        # functions in geometry_builders.py call this explicitly) -- without it,
+        # a geometry with duplicate layer names, power blocks outside the die
+        # footprint, or a power block referencing a nonexistent layer would be
+        # silently accepted here and only fail confusingly at job-submission time.
+        geom.validate()
+
         queue.register_custom(name, geom)
         return {'name': name, 'layers': len(layers), 'power_blocks': len(blocks)}
-    except Exception as exc:
+    except yaml.YAMLError as exc:
+        raise HTTPException(422, detail=f'Invalid YAML: {exc}')
+    except (ValueError, KeyError, TypeError) as exc:
+        # KeyError: a required field (e.g. 'die_length') missing from the spec.
+        # TypeError: Geometry()/Layer()/PowerBlock() called with a wrong type.
         raise HTTPException(422, detail=str(exc))
 
 
@@ -153,8 +185,22 @@ def _job_to_dict(job: Job) -> dict:
 
 @app.post('/jobs')
 async def submit_job(req: JobRequest):
-    if queue.get_geometry(req.geometry) is None:
+    geom = queue.get_geometry(req.geometry)
+    if geom is None:
         raise HTTPException(404, f"Geometry '{req.geometry}' not found")
+
+    # A misspelled/unknown block name doesn't error -- it silently delivers
+    # zero power to every real block instead, which looks like a valid (if
+    # oddly cool) result rather than a rejected request. Reject it instead.
+    valid_blocks = {b.name for b in geom.power_blocks}
+    unknown = set(req.scenario_params.power_blocks) - valid_blocks
+    if unknown:
+        raise HTTPException(
+            422,
+            f"Unknown power block(s) {sorted(unknown)} for geometry "
+            f"'{req.geometry}'. Valid blocks: {sorted(valid_blocks)}"
+        )
+
     job_id = queue.submit(
         req.geometry,
         req.scenario_params.model_dump(),

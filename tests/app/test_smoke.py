@@ -1,6 +1,7 @@
 """End-to-end smoke test: submit → poll → NPZ download → heatmap PNG."""
 import time
 import numpy as np
+import pytest
 from pathlib import Path
 
 
@@ -93,6 +94,3 @@ def test_full_job_lifecycle(tmp_path):
 
     finally:
         main_mod.queue = real_queue
-
-
-import pytest
