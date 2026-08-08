@@ -409,6 +409,22 @@ def main():
         '--power-map-resolution', type=int, default=0,
         help='Power map cells per axis (0 = use the lateral mesh resolution).')
     parser.add_argument(
+        '--throttle', action='store_true',
+        help='Enable package-level thermal throttling (DVFS): power is iteratively '
+             'derated when peak temperature exceeds --throttle-temp, then re-solved. '
+             'Costs ~2x a normal solve (see src/scenario/throttling.py). Off by '
+             'default: it multiplies solve time and should not silently slow down '
+             'every regeneration.')
+    parser.add_argument(
+        '--throttle-temp', type=float, default=95.0,
+        help='Throttle threshold in Celsius (default: 95.0).')
+    parser.add_argument(
+        '--throttle-gain', type=float, default=2.0,
+        help='Derate aggressiveness per degree of overshoot (default: 2.0).')
+    parser.add_argument(
+        '--throttle-floor', type=float, default=0.3,
+        help='Minimum power fraction throttling will derate to (default: 0.3).')
+    parser.add_argument(
         '--allow-synthetic-fallback', action='store_true',
         help='Substitute an analytical approximation when the simulator fails. OFF by default: a silent fallback once produced 155 files of synthetic data indistinguishable from real 3D-ICE output.')
     parser.add_argument(
@@ -539,6 +555,14 @@ def main():
             scenario_generator.attach_power_maps(
                 geom_scenarios, geom, kind=args.power_map,
                 resolution=args.power_map_resolution)
+        if args.throttle:
+            # Package-level DVFS: power becomes a function of the temperature
+            # being solved for, a real closed feedback loop no fixed-source
+            # scenario can express -- see src/scenario/throttling.py. Costs
+            # ~2x solve time per scenario (measured convergence in 2 solves).
+            scenario_generator.attach_throttling(
+                geom_scenarios, throttle_temp_c=args.throttle_temp,
+                gain=args.throttle_gain, power_floor=args.throttle_floor)
         scenario_dicts = [s.to_dict() for s in geom_scenarios]
         train = [s for s in scenario_dicts if s['type'] == 'train']
         test  = [s for s in scenario_dicts if s['type'] == 'test']
@@ -562,6 +586,10 @@ def main():
                 scenario_generator.attach_power_maps(
                     extra, geom, kind=args.power_map,
                     resolution=args.power_map_resolution, seed_base=500_000)
+            if args.throttle:
+                scenario_generator.attach_throttling(
+                    extra, throttle_temp_c=args.throttle_temp,
+                    gain=args.throttle_gain, power_floor=args.throttle_floor)
             train = train + [s.to_dict() for s in extra]
             logger.info(
                 "  %s: 15 base + %d extra train + 5 test  (extra indices %d-%d)",
