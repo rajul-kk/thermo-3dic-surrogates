@@ -240,3 +240,83 @@ based on what's actually blocking progress, not necessarily in this order.
    baseline), running the first real FNO training pass on geometry1 — the cheapest,
    simplest case — is arguably the single most overdue item in this project, independent
    of whichever of the above gets prioritized first.
+
+## Plan: nonlinearity and generalization readiness (2026-08-09)
+
+Neither "useful for nonlinearity" nor "useful for generalization" is currently a
+defensible claim — not because the architectures are wrong, but because the data and the
+conditioning mechanism needed to test each claim don't exist yet. Two independent tracks,
+plus the standing "train something" prerequisite both depend on.
+
+**Prerequisite, blocks nothing else and should happen first regardless of track:**
+Train baseline FNO on geometry1 with the *existing* 275-scenario dataset (§ above, item 4).
+This validates the training loop, loss functions, and checkpoint/eval plumbing on the
+simple case before either track below adds more complexity on top of an unproven
+pipeline. Cheap: ~6.7 min on a single T4 per the earlier cost estimate.
+
+### Track A — Nonlinearity (throttling / microchannel)
+
+**A1. Finish data-pipeline integration** (already listed above as Development items 1-2):
+microchannel's coords/export gap, throttling's CLI wiring. Both are understood, bounded
+work, not research.
+
+**A2. Generate pilot batches** (10-15 scenarios each, geometry1/geometry3 for throttling,
+geometry5 or geometry6 for microchannel — geometry5 is cheaper to iterate on). Re-run
+`scripts/baselines.py` on each. This is the first real answer to "does nonlinearity
+matter here": if ridge still solves it, that's a stronger negative result than anything
+currently in the paper; if it degrades, that's the benchmark's reason to exist. Either
+outcome is publishable — this is a measurement, not a gate to pass.
+
+**A3. Train baseline FNO, CondFNO (FiLM), and CNO-FNO+attention (SAU-FNO) on the pilot
+data and compare.** The literature is specific here: baseline spectral-convolution FNOs
+show error growing roughly 10-15x on genuinely nonlinear targets (0.02 to 0.28-0.38 in a
+comparable study), because spectral conv is linear in frequency space and the only
+nonlinearity comes from the pointwise activation between blocks. If baseline FNO
+underperforms CondFNO/SAU-FNO by a wide margin on the throttled/microchannel split, that
+*matches* the literature's prediction and is worth reporting as such, not just an
+accuracy table. If PI-FNO's physics loss materially closes the gap, that's also worth
+reporting — it would suggest the "nonlinear interference" architectural fix the field is
+now proposing may be unnecessary here if the physics constraint substitutes for it.
+
+**A4. Decision gate, not a commitment:** only pursue a genuine nonlinear-interference
+architecture extension (a real research undertaking, not a config flag) if A3 shows the
+existing variants clearly failing on a target the paper cares about. Don't build it
+speculatively.
+
+### Track B — Cross-geometry generalization
+
+**B1. Rescope the claim now — cheap, do immediately.** The current mechanism
+(`target_grid` trilinear resampling + a single `geom_extent_norm` scalar) is what current
+literature would call brute-force grid alignment, not geometry-aware encoding (contrast
+with GINO/PI-GANO-style SDF or graph-based geometry conditioning, which report <3% error
+on genuinely unseen shapes). Update `README.md`/`docs/report.md` to state plainly that
+this repo's cross-geometry mechanism supports *interpolation among the 6 trained
+geometries*, not zero-shot transfer to an unseen shape — a documentation fix, not an
+engineering one, and it removes an overclaim risk immediately regardless of which other
+track gets prioritized.
+
+**B2. If genuine zero-shot geometry transfer is wanted, the right-sized version of
+geometry-awareness for this benchmark isn't a full GINO reimplementation.** All 6
+geometries here are already structured Cartesian grids (unlike GINO's point-cloud/graph
+target use case), so the actual gap is narrower: give the model *per-cell* information
+about where within the geometry-specific floorplan a point sits, not just one global
+extent scalar. Concretely: a per-cell distance-to-nearest-power-block-edge (or
+distance-to-nearest-die-footprint-boundary, using `DiePrint`/`PowerBlock` geometry already
+in the data) field, exported the same way `tsv_frac` now is (`generate_tsv_field` is
+almost exactly the right pattern to copy). **Validation gate: leave-one-geometry-out.**
+Train on 5 geometries, test zero-shot on the 6th, compare field R² and hotspot error
+against the current extent-scalar-only baseline on the identical split. Only worth
+building if B1's honest rescoping isn't sufficient for what the claim needs to support —
+this is real architecture work, budget accordingly, and don't start it before B1.
+
+### Suggested sequencing
+
+1. Train baseline FNO on geometry1 now (prerequisite, unblocks eval/XAI validation too).
+2. B1 (rescope the generalization claim in the docs) — do in parallel, it's a documentation
+   change with no dependencies.
+3. A1 → A2 (data pipeline, then pilot nonlinear data) — the larger remaining engineering
+   lift, but bounded and already-scoped.
+4. A3 (train and compare architectures on nonlinear pilot data) — the actual test of the
+   nonlinearity claim.
+5. A4 / B2 — only after 1-4 produce a concrete reason to invest in new architecture, not
+   speculatively.
