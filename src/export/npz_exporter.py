@@ -114,8 +114,17 @@ class NPZExporter:
 
         # Store per-block power densities so the PINN trainer can assign
         # correct Q values at collocation points (not just at data-grid points).
+        # This is the DELIVERED power -- for throttled scenarios, already
+        # derated. A baseline/model that only sees this treats throttling as
+        # invisible (it's given the answer, not the question); use
+        # nominal_block_power_* below for the pre-throttle request instead.
         for block_name, power_wcm2 in scenario_params['power_blocks'].items():
             metadata[f'block_power_{block_name}'] = float(power_wcm2)
+
+        nominal_blocks = scenario_params.get('throttle_nominal_power_blocks')
+        if nominal_blocks:
+            for block_name, power_wcm2 in nominal_blocks.items():
+                metadata[f'nominal_block_power_{block_name}'] = float(power_wcm2)
 
         # Add layer information
         layer_info = {}

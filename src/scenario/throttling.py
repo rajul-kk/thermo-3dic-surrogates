@@ -93,5 +93,13 @@ def apply_throttling(
         'throttle_triggered': derate < 1.0,
         'throttle_peak_temp_c': peak_c,
         'throttle_converged': converged,
+        # The NOMINAL (pre-throttle) request, distinct from
+        # scenario_params['power_blocks'] which this function has mutated to
+        # the final delivered power. Without this, a baseline/model trained
+        # on the exported metadata sees only the already-resolved delivered
+        # power as its input -- the answer, not the question -- which makes
+        # the closed-loop nonlinearity invisible and the fit look trivially
+        # linear regardless of whether throttling fired. See goal.md.
+        'throttle_nominal_power_blocks': original_power_blocks,
     }
     return parsed, throttle_info
