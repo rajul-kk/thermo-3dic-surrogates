@@ -62,7 +62,8 @@ def run_one(use_geometry_field: bool, train_geoms, holdout, data_root, common_gr
                       n_blocks=blocks, use_geometry_field=use_geometry_field)
     log.info("model params=%d use_geometry_field=%s", model.n_parameters, use_geometry_field)
 
-    out_dir = Path('checkpoints/fno') / f'leaveout_{holdout}_{"geomfield" if use_geometry_field else "baseline"}'
+    tag = "geomfield" if use_geometry_field else "baseline"
+    out_dir = Path('checkpoints/fno') / f'leaveout_{holdout}_{tag}_seed{seed}'
     trainer = FNOTrainer(
         model=model, norm_stats=ns, train_data=ds_train, val_data=ds_val,
         output_dir=out_dir, epochs=epochs, geometry_name=out_dir.name,
@@ -99,9 +100,16 @@ def run_one(use_geometry_field: bool, train_geoms, holdout, data_root, common_gr
     return agg
 
 
+_METRICS = ('mae_K', 'mae_detrended_K', 'spatial_r2', 'hotspot_loc_err_um')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--holdout', default='geometry4', choices=ALL_GEOMS)
+    ap.add_argument('--holdouts', nargs='+', choices=ALL_GEOMS, default=None,
+                    help='Repeat the whole experiment for each holdout geometry '
+                         '(overrides --holdout). Use to check the B2 result is not '
+                         'an artifact of the specific geometry4 choice.')
     ap.add_argument('--data', type=Path, default=Path('data/3d-ice'))
     ap.add_argument('--common-grid', nargs=3, type=int, default=[32, 32, 8])
     ap.add_argument('--epochs', type=int, default=60)
@@ -109,29 +117,59 @@ def main():
     ap.add_argument('--modes', nargs=3, type=int, default=[8, 8, 4])
     ap.add_argument('--blocks', type=int, default=3)
     ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--seeds', nargs='+', type=int, default=None,
+                    help='Repeat the whole experiment for each seed (overrides '
+                         '--seed). Use to check the B2 result is not a single-run '
+                         'artifact.')
     args = ap.parse_args()
 
-    train_geoms = [g for g in ALL_GEOMS if g != args.holdout]
+    holdouts = args.holdouts or [args.holdout]
+    seeds = args.seeds or [args.seed]
     common_grid = tuple(args.common_grid)
     modes = tuple(args.modes)
 
-    log.info("Leave-one-geometry-out: train=%s  holdout=%s  grid=%s",
-            train_geoms, args.holdout, common_grid)
+    # {holdout: {'baseline': [agg,...], 'geomfield': [agg,...]}}
+    results: dict = {h: {'baseline': [], 'geomfield': []} for h in holdouts}
 
-    log.info("=== Baseline (no geometry-aware field) ===")
-    baseline = run_one(False, train_geoms, args.holdout, args.data, common_grid,
-                       args.epochs, args.channels, modes, args.blocks, args.seed)
-    log.info("Baseline zero-shot on %s: %s", args.holdout, baseline)
+    for holdout in holdouts:
+        train_geoms = [g for g in ALL_GEOMS if g != holdout]
+        for seed in seeds:
+            log.info("=== holdout=%s seed=%d: baseline (no geometry-aware field) ===",
+                     holdout, seed)
+            baseline = run_one(False, train_geoms, holdout, args.data, common_grid,
+                               args.epochs, args.channels, modes, args.blocks, seed)
+            log.info("holdout=%s seed=%d baseline: %s", holdout, seed, baseline)
+            results[holdout]['baseline'].append(baseline)
 
-    log.info("=== With geometry-aware field ===")
-    geomfield = run_one(True, train_geoms, args.holdout, args.data, common_grid,
-                        args.epochs, args.channels, modes, args.blocks, args.seed)
-    log.info("Geometry-field zero-shot on %s: %s", args.holdout, geomfield)
+            log.info("=== holdout=%s seed=%d: with geometry-aware field ===",
+                     holdout, seed)
+            geomfield = run_one(True, train_geoms, holdout, args.data, common_grid,
+                                args.epochs, args.channels, modes, args.blocks, seed)
+            log.info("holdout=%s seed=%d geom-field: %s", holdout, seed, geomfield)
+            results[holdout]['geomfield'].append(geomfield)
 
-    print("\n=== RESULT ===")
-    print(f"{'metric':<20} {'baseline':>12} {'geom-field':>12}")
-    for k in ('mae_K', 'mae_detrended_K', 'spatial_r2', 'hotspot_loc_err_um'):
-        print(f"{k:<20} {baseline[k]:>12.4f} {geomfield[k]:>12.4f}")
+    print("\n=== RESULT (mean over %d seed(s): %s) ===" % (len(seeds), seeds))
+    for holdout in holdouts:
+        b_runs = results[holdout]['baseline']
+        g_runs = results[holdout]['geomfield']
+        print(f"\n--- holdout={holdout} ---")
+        print(f"{'metric':<20} {'baseline (mean±std)':>24} {'geom-field (mean±std)':>24} {'wins':>6}")
+        for k in _METRICS:
+            b_vals = np.array([r[k] for r in b_runs])
+            g_vals = np.array([r[k] for r in g_runs])
+            b_str = f"{b_vals.mean():.4f}±{b_vals.std():.4f}"
+            g_str = f"{g_vals.mean():.4f}±{g_vals.std():.4f}"
+            better_is_higher = (k == 'spatial_r2')
+            g_wins = (g_vals.mean() > b_vals.mean()) if better_is_higher else (g_vals.mean() < b_vals.mean())
+            print(f"{k:<20} {b_str:>24} {g_str:>24} {'field' if g_wins else 'base':>6}")
+
+    if len(seeds) > 1:
+        print("\nPer-seed raw values:")
+        for holdout in holdouts:
+            for cond, runs in results[holdout].items():
+                for seed, r in zip(seeds, runs):
+                    print(f"  {holdout} {cond} seed={seed}: " +
+                         ", ".join(f"{k}={r[k]:.4f}" for k in _METRICS))
 
 
 if __name__ == '__main__':
