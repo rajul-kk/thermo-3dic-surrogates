@@ -672,12 +672,21 @@ geometries" (§1, item 6) might suggest.** The mechanism (`--common-grid` trilin
 resampling onto a shared grid plus a single `geom_extent_norm` scalar as conditioning) is
 what current operator-learning literature would call brute-force grid alignment, not
 geometry-aware encoding — contrast with SDF- or graph-based geometry conditioning (e.g.
-GINO, PI-GANO), which report <3% error on genuinely unseen shapes. What this repo
-currently supports is interpolation among its 6 trained geometries, not zero-shot
-transfer to an unseen package shape, and that distinction has not been tested with a
-leave-one-geometry-out split. See `goal.md` Track B for the scoped plan (a per-cell
-distance-to-nearest-power-block-edge field, reusing the TSV-field export pattern) to
-close this gap if genuine zero-shot transfer is later required.
+GINO, PI-GANO), which report <3% error on genuinely unseen shapes.
+
+A first leave-one-geometry-out test (2026-08-09) — train on 5 geometries, test zero-shot
+on geometry4, with vs. without a per-cell distance-to-nearest-power-block field
+(`generate_distance_to_power_block_field`, `src/core/mesh.py`) as a 6th FNO input
+channel — gave a **genuinely mixed result**: MAE, detrended MAE, and hotspot location
+error all improved modestly with the field (3.78→3.10 K, 1.24→1.14 K, and a
+same-units-only comparison on hotspot distance), but spatial R² got *worse* (0.326→0.258),
+and the field-conditioned run's validation curve was visibly less stable across training.
+Single run, single seed, single held-out geometry, small model (198k params, 60 epochs,
+CPU) — not enough to conclude the mechanism helps or doesn't. Multi-seed and
+multi-holdout repeats (`scripts/experiment_geometry_aware.py`) are needed before treating
+this either way. What's confirmed either way: the *current default* mechanism supports
+interpolation among the 6 trained geometries, not validated zero-shot transfer to an
+unseen package shape.
 
 **Deferred.** The originally planned discussion — PDE-residual/error correlation, IG
 attribution plausibility, MC Dropout calibration — requires trained models and remains

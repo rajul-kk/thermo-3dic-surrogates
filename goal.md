@@ -315,28 +315,53 @@ geometries*, not zero-shot transfer to an unseen shape — a documentation fix, 
 engineering one, and it removes an overclaim risk immediately regardless of which other
 track gets prioritized.
 
-**B2. If genuine zero-shot geometry transfer is wanted, the right-sized version of
-geometry-awareness for this benchmark isn't a full GINO reimplementation.** All 6
-geometries here are already structured Cartesian grids (unlike GINO's point-cloud/graph
-target use case), so the actual gap is narrower: give the model *per-cell* information
-about where within the geometry-specific floorplan a point sits, not just one global
-extent scalar. Concretely: a per-cell distance-to-nearest-power-block-edge (or
-distance-to-nearest-die-footprint-boundary, using `DiePrint`/`PowerBlock` geometry already
-in the data) field, exported the same way `tsv_frac` now is (`generate_tsv_field` is
-almost exactly the right pattern to copy). **Validation gate: leave-one-geometry-out.**
-Train on 5 geometries, test zero-shot on the 6th, compare field R² and hotspot error
-against the current extent-scalar-only baseline on the identical split. Only worth
-building if B1's honest rescoping isn't sufficient for what the claim needs to support —
-this is real architecture work, budget accordingly, and don't start it before B1.
+**B2. Built and validated 2026-08-09 — result is genuinely mixed, not a clear win.**
+Implemented `generate_distance_to_power_block_field` (`src/core/mesh.py`): per-cell
+distance to the nearest power block, normalised by die diagonal, purely geometric (no
+simulation data needed, unlike the TSV field — computed once per geometry, same for
+every scenario). Wired opt-in through `FNODataset(geometries=...)` →
+`FNO3d(use_geometry_field=True)` (a 6th input channel) → `FNOTrainer`, all off by default
+so nothing already trained this session is affected. `scripts/experiment_geometry_aware.py`
+runs the validation gate this item specified: train on 5 geometries (`--common-grid`
+resampled to 32×32×8), test zero-shot on the 6th (geometry4 held out), compare with vs.
+without the field.
 
-### Suggested sequencing
+**Result (single run, seed 42, 60 epochs, CPU, small model — 198k params):**
 
-1. Train baseline FNO on geometry1 now (prerequisite, unblocks eval/XAI validation too).
-2. B1 (rescope the generalization claim in the docs) — do in parallel, it's a documentation
-   change with no dependencies.
-3. A1 → A2 (data pipeline, then pilot nonlinear data) — the larger remaining engineering
-   lift, but bounded and already-scoped.
-4. A3 (train and compare architectures on nonlinear pilot data) — the actual test of the
-   nonlinearity claim.
-5. A4 / B2 — only after 1-4 produce a concrete reason to invest in new architecture, not
-   speculatively.
+| metric | baseline | +geometry field |
+|---|---|---|
+| MAE (K) | 3.777 | **3.096** |
+| det.MAE (K) | 1.241 | **1.144** |
+| spatial R² | **0.326** | 0.258 |
+| hotspot loc. err (normalised units — mislabeled µm in the script's own output, fix before reusing) | 0.510 | **0.475** |
+
+Three of four metrics improve modestly with the geometry-aware field; spatial R² gets
+*worse*. The geometry-field run's validation curve was also visibly less stable across
+training (val_MAE oscillated 5.53→4.16→4.34→5.23→5.13 K vs. the baseline's smoother
+4.43→4.25→4.27→4.22→4.46 K) — plausibly more capacity to overfit with only 205 training
+scenarios and 60 epochs. **This is a promising first signal, not a validated
+result** — one run, one held-out geometry, one seed. Before drawing any conclusion:
+repeat with multiple seeds, hold out a different geometry (geometry4 is a reasonable but
+arbitrary choice), and fix the coordinate-unit bug in the experiment script's own
+hotspot-distance calculation (it uses a normalised unit cube, not real µm, despite the
+field name — harmless for the baseline-vs-field comparison since both runs share it, but
+mislabeled if reused for anything reported in real units).
+
+### Suggested sequencing — status 2026-08-09
+
+1. ✅ Baseline FNO trained on geometry1.
+2. ✅ B1 (rescoped the generalization claim in README/report.md).
+3. ✅ A1 → A2 (throttling CLI + microchannel pipeline verified/scripted; pilot batches
+   generated and measured — see Track A above).
+4. ◐ A3 partial — one baseline-FNO run each on throttled/un-throttled data; the full
+   CondFNO/CNO-FNO+attention comparison this item specified is still open.
+5. ◐ B2 done as a first pass — mechanism built, validated end-to-end, one
+   leave-one-geometry-out run completed with a genuinely mixed result (3/4 metrics
+   improved modestly, spatial R² got worse). Not yet multi-seed or multi-holdout, so not
+   a settled result either way.
+
+**What's still open, in priority order:** (a) multi-seed/multi-holdout repeats of B2
+before drawing a conclusion, (b) exporting a per-cell *nominal* (pre-throttle) power
+field so FNO's throttled comparison is apples-to-apples with ridge's (§9.7's caveat),
+(c) the full A3 architecture comparison, ideally GPU-scale rather than another CPU
+smoke test.

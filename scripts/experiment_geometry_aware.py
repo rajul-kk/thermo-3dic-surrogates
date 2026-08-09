@@ -79,10 +79,15 @@ def run_one(use_geometry_field: bool, train_geoms, holdout, data_root, common_gr
         for item in ds_holdout.items:
             T_pred_K, T_true_K = predict_to_flat(model, item, torch.device('cpu'), ns)
             nx, ny, nz = common_grid
-            # Coords only used for the hotspot-distance term; a normalised unit
-            # cube is fine here since we only compare relative locations within
-            # this same resampled grid.
-            xs = np.linspace(0, 1, nx); ys = np.linspace(0, 1, ny); zs = np.linspace(0, 1, nz)
+            # Real physical extents of the HELD-OUT geometry, so hotspot_loc_err_um
+            # is actually in micrometers (a normalised unit cube previously gave a
+            # dimensionless quantity mislabeled "_um" -- harmless for a same-run
+            # baseline-vs-field comparison since both sides shared it, but wrong if
+            # ever compared against real-µm numbers like the ridge baselines).
+            holdout_geom = geometries[holdout]
+            xs = np.linspace(0, holdout_geom.die_width, nx)
+            ys = np.linspace(0, holdout_geom.die_length, ny)
+            zs = np.linspace(0, holdout_geom.get_total_height(), nz)
             X, Y, Z = np.meshgrid(xs, ys, zs, indexing='ij')
             coords = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
             m = compute_metrics(T_pred_K, T_true_K, coords)
