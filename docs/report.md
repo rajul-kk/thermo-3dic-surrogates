@@ -681,19 +681,42 @@ what current operator-learning literature would call brute-force grid alignment,
 geometry-aware encoding — contrast with SDF- or graph-based geometry conditioning (e.g.
 GINO, PI-GANO), which report <3% error on genuinely unseen shapes.
 
-A first leave-one-geometry-out test (2026-08-09) — train on 5 geometries, test zero-shot
-on geometry4, with vs. without a per-cell distance-to-nearest-power-block field
-(`generate_distance_to_power_block_field`, `src/core/mesh.py`) as a 6th FNO input
-channel — gave a **genuinely mixed result**: MAE, detrended MAE, and hotspot location
-error all improved modestly with the field (3.78→3.10 K, 1.24→1.14 K, and a
-same-units-only comparison on hotspot distance), but spatial R² got *worse* (0.326→0.258),
-and the field-conditioned run's validation curve was visibly less stable across training.
-Single run, single seed, single held-out geometry, small model (198k params, 60 epochs,
-CPU) — not enough to conclude the mechanism helps or doesn't. Multi-seed and
-multi-holdout repeats (`scripts/experiment_geometry_aware.py`) are needed before treating
-this either way. What's confirmed either way: the *current default* mechanism supports
-interpolation among the 6 trained geometries, not validated zero-shot transfer to an
-unseen package shape.
+A leave-one-geometry-out test — train on 5 geometries, test zero-shot on the 6th, with
+vs. without a per-cell distance-to-nearest-power-block field
+(`generate_distance_to_power_block_field`, `src/core/mesh.py`) as a 6th FNO input channel
+— was run twice: first as a single run (2026-08-09, geometry4 held out, seed 42), then
+repeated across 3 seeds × 2 held-out geometries (geometry4, geometry1; 2026-08-10) to
+check whether the first result was a single-run artifact. It was.
+
+The single run gave a superficially clean-looking result: MAE, detrended MAE, and
+hotspot location error all improved modestly with the field (3.78→3.10 K, 1.24→1.14 K),
+spatial R² got worse (0.326→0.258). The multi-seed/multi-holdout follow-up shows why that
+shouldn't have been trusted on its own:
+
+| holdout | metric | baseline (mean±std, n=3) | geom-field (mean±std, n=3) | winner |
+|---|---|---|---|---|
+| geometry4 | spatial R² | 0.299±0.159 | 0.397±0.139 | field |
+| geometry4 | hotspot loc. err | 5991±1377 | 4871±220 | field |
+| geometry1 | spatial R² | 0.464±0.018 | 0.378±0.081 | **base** |
+| geometry1 | hotspot loc. err | 4875±692 | 5856±866 | **base** |
+
+The field helps on geometry4 (all 4 metrics) but hurts on geometry1 on the two metrics
+that matter most for this paper's framing (spatial R², hotspot localisation) — and within
+geometry4 alone, the three seeds don't even agree on direction: seed 42 (the original
+single-run result) shows spatial R² *dropping* 0.326→0.258, while seeds 43 and 44 show it
+*rising* 0.479→0.586 and 0.092→0.346 respectively. The original single-seed run happened
+to land on the one case out of three where the field looked worst on that metric —
+exactly the kind of single-run artifact multi-seed validation exists to catch.
+**Conclusion: the geometry-aware field is not a validated generalisation mechanism at
+this scale** (205 training scenarios, 60 epochs, 198K-parameter model, one grid
+resolution). Its effect is geometry-dependent and seed-noisy rather than a consistent win
+or loss, which is itself informative: claims that a lightweight per-cell geometric feature
+"helps zero-shot generalization" on this benchmark need either substantially more
+resourcing (more scenarios/epochs/holdouts) or a fundamentally different conditioning
+mechanism (SDF/graph-based, as GINO/PI-GANO use) before they're defensible — not another
+single-run experiment on this architecture. What's confirmed regardless: the *current
+default* mechanism supports interpolation among the 6 trained geometries, not validated
+zero-shot transfer to an unseen package shape.
 
 **Deferred.** The originally planned discussion — PDE-residual/error correlation, IG
 attribution plausibility, MC Dropout calibration — requires trained models and remains

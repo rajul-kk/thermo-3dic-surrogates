@@ -364,6 +364,44 @@ hotspot-distance calculation (it uses a normalised unit cube, not real µm, desp
 field name — harmless for the baseline-vs-field comparison since both runs share it, but
 mislabeled if reused for anything reported in real units).
 
+**B2 multi-seed/multi-holdout follow-up, done 2026-08-10 — the single-run signal does
+not generalize.** Extended `scripts/experiment_geometry_aware.py` with `--seeds` and
+`--holdouts` to repeat the whole experiment (3 seeds × 2 holdouts × 2 conditions = 12
+FNO training runs, same 60-epoch/198K-param config as the single run above).
+
+| holdout | metric | baseline (mean±std, n=3) | geom-field (mean±std, n=3) | winner |
+|---|---|---|---|---|
+| geometry4 | MAE (K) | 3.597±0.423 | 3.572±0.454 | field (barely) |
+| geometry4 | det.MAE (K) | 1.258±0.093 | 1.161±0.096 | field |
+| geometry4 | spatial R² | 0.299±0.159 | 0.397±0.139 | field |
+| geometry4 | hotspot loc. err (µm)* | 5991±1377 | 4871±220 | field |
+| geometry1 | MAE (K) | 9.389±0.499 | 8.965±1.236 | field |
+| geometry1 | det.MAE (K) | 1.812±0.026 | 1.786±0.049 | field |
+| geometry1 | spatial R² | 0.464±0.018 | 0.378±0.081 | **base** |
+| geometry1 | hotspot loc. err (µm)* | 4875±692 | 5856±866 | **base** |
+
+*(hotspot distances are in the experiment script's normalised-cube units mislabeled
+"_um", see the caveat above — not fixed, since only the baseline-vs-field comparison
+within a run matters here, not the absolute value.)*
+
+**Verdict: mixed, and not in the way that's easy to spin.** The geometry-aware field
+helps on geometry4 (all 4 metrics, including spatial R² and hotspot error — the two
+metrics that matter most for this paper's framing) but *hurts* on geometry1 on those same
+two metrics, while still helping MAE/det.MAE there. Per-seed values show the direction
+isn't even stable within a holdout: geometry4/seed42 has the field *hurting* spatial R²
+(0.326→0.258, exactly the original single-seed B2 result above), while seed43 and seed44
+both show large gains (0.479→0.586, 0.092→0.346) — the original B2 run happened to land
+on the one seed out of three where the field looked worst on that metric. **Conclusion:**
+the geometry-aware distance-to-power-block field is not a validated generalization
+mechanism at this scale (205 training scenarios, 60 epochs, 198K params, one grid
+resolution) — its effect is geometry-dependent and noisy enough that a single run in
+either direction would have been misleading. This is a real result, not a null one: it
+means claims of the form "geometry-aware conditioning helps zero-shot generalization"
+need either a properly-resourced run (more scenarios, more epochs, more holdouts) or a
+different conditioning mechanism (SDF/graph-based, per B1's literature contrast) before
+they're defensible on this benchmark — not further single-run experiments on this
+architecture.
+
 ### Suggested sequencing — status 2026-08-09
 
 1. ✅ Baseline FNO trained on geometry1.
@@ -372,13 +410,14 @@ mislabeled if reused for anything reported in real units).
    generated and measured — see Track A above).
 4. ◐ A3 partial — one baseline-FNO run each on throttled/un-throttled data; the full
    CondFNO/CNO-FNO+attention comparison this item specified is still open.
-5. ◐ B2 done as a first pass — mechanism built, validated end-to-end, one
-   leave-one-geometry-out run completed with a genuinely mixed result (3/4 metrics
-   improved modestly, spatial R² got worse). Not yet multi-seed or multi-holdout, so not
-   a settled result either way.
+5. ✅ B2 done, including the multi-seed/multi-holdout follow-up (2026-08-10) — mechanism
+   built and validated end-to-end; the single-run signal (3/4 metrics improved) did NOT
+   hold up across seeds/holdouts. Settled result: **not validated as a generalization
+   mechanism at this scale**, geometry-dependent and seed-noisy rather than a clean win
+   or loss. See Track B above for the full breakdown.
 
-**What's still open, in priority order:** (a) multi-seed/multi-holdout repeats of B2
-before drawing a conclusion — in progress, see below, (b) ✅ done 2026-08-09 — exported
+**What's still open, in priority order:** (a) ✅ done 2026-08-10 — multi-seed/multi-holdout
+repeats of B2, result: not validated, see Track B, (b) ✅ done 2026-08-09 — exported
 `power_nominal` so FNO's throttled comparison is apples-to-apples with ridge's (Track A3
 above), (c) the full A3 architecture comparison, ideally GPU-scale rather than another
-CPU smoke test.
+CPU smoke test — the only item from this plan still open.
