@@ -148,6 +148,17 @@ class FNODataset(Dataset):
                       else np.zeros(n_points, dtype=np.float32))
             tsv_raw = tsv_raw / 0.10
 
+            # Nominal (pre-throttle) power, not delivered/derated -- so a
+            # throttled scenario poses FNO the same "request -> outcome"
+            # problem ridge is scored on (scripts/baselines.py's
+            # collect_block_keys makes the same substitution for its block
+            # features). Falls back to the delivered field for files exported
+            # before power_nominal existed, and is identical to it whenever
+            # throttling didn't fire or wasn't enabled -- a no-op for the
+            # rest of the dataset.
+            power_raw = (data['power_nominal'] if 'power_nominal' in data.files
+                        else data['power'])
+
             # Track B geometry-aware conditioning: purely a function of (x, y),
             # so -- unlike TSV/power, which vary by layer -- one value per point
             # already reshapes correctly with no per-layer broadcast logic needed.
@@ -163,7 +174,7 @@ class FNODataset(Dataset):
             if n_points == n_expected_full:
                 # Full mesh layout (mock simulator)
                 layer_ids = data['layer'].reshape(nx, ny, nz).astype(np.float32)
-                Q_norm = norm_stats.norm_power(data['power']).reshape(nx, ny, nz)
+                Q_norm = norm_stats.norm_power(power_raw).reshape(nx, ny, nz)
                 T_norm = norm_stats.norm_temp(data['temp']).reshape(nx, ny, nz)
                 TSV_norm = tsv_raw.reshape(nx, ny, nz)
                 DIST_norm = dist_raw.reshape(nx, ny, nz)
@@ -174,7 +185,7 @@ class FNODataset(Dataset):
                 # Broadcast each layer's 2D map across its z-range in the full grid.
                 layer_flat = data['layer'].astype(np.int32)  # (n_layers*nx*ny,)
                 T_flat     = norm_stats.norm_temp(data['temp'].astype(np.float32))
-                Q_flat     = norm_stats.norm_power(data['power'].astype(np.float32))
+                Q_flat     = norm_stats.norm_power(power_raw.astype(np.float32))
                 TSV_flat   = tsv_raw
                 DIST_flat  = dist_raw
 

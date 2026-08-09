@@ -83,6 +83,22 @@ class NPZExporter:
         tsv_field = generate_tsv_field(
             coords, geometry, tsv_map_by_layer=scenario_params.get('tsv_map_by_layer'))
 
+        # Per-cell NOMINAL (pre-throttle) power density. `power_density` above
+        # is what the simulator actually delivered -- for throttled scenarios,
+        # already derated, so a model trained on it is solving an easier task
+        # than ridge (which is fed `nominal_block_power_*`, the original
+        # request). Recomputing from the nominal blocks when throttling fired
+        # gives FNO the same "request -> outcome" problem ridge is scored on;
+        # identical to power_density when throttling didn't fire or wasn't
+        # enabled, so this is a no-op for the rest of the dataset.
+        nominal_blocks = scenario_params.get('throttle_nominal_power_blocks')
+        if nominal_blocks:
+            power_density_nominal = generate_power_density_field(
+                coords, geometry, nominal_blocks,
+                power_map_by_layer=scenario_params.get('power_map_by_layer'))
+        else:
+            power_density_nominal = power_density
+
         # Prepare metadata
         metadata = {
             'scenario_name': scenario_name,
@@ -157,6 +173,7 @@ class NPZExporter:
             coords=coords.astype(np.float32),  # Save as float32 to reduce size
             temp=temperature_field.astype(np.float32),
             power=power_density.astype(np.float32),
+            power_nominal=power_density_nominal.astype(np.float32),
             layer=layer_indices.astype(np.int32),
             tsv_frac=tsv_field.astype(np.float32),
             metadata=np.array([metadata], dtype=object)
@@ -189,6 +206,11 @@ class NPZExporter:
             'coords': data['coords'],
             'temp': data['temp'],
             'power': data['power'],
+            # Pre-throttle request; falls back to the delivered field for
+            # files exported before this key existed (identical for
+            # non-throttled scenarios, the vast majority of the dataset).
+            'power_nominal': data['power_nominal'] if 'power_nominal' in data.files
+                             else data['power'],
             'layer': data['layer'],
             'tsv_frac': data['tsv_frac'] if 'tsv_frac' in data.files
                         else np.zeros(data['coords'].shape[0], dtype=np.float32),

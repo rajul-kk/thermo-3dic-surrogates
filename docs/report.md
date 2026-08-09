@@ -500,24 +500,26 @@ ceiling on this benchmark. Hotspot localisation error (5685 µm) is comparable t
 finding that localisation — not field reconstruction — is where an operator has room to
 compete, though five test scenarios is far too few to draw a conclusion from.
 
-**Same run, throttled data (§9.8), 2026-08-09.** Same `--cpu-fast` config, trained on the
-15-scenario throttled geometry1 pilot (6/20 scenarios actually triggered, §9.8).
+**Same run, throttled data (§9.8), 2026-08-09 — now a like-for-like comparison.**
+Same `--cpu-fast`, plain-FNO config, trained on a 15-scenario throttled geometry1 pilot
+(6/20 scenarios triggered). `NPZExporter` now also writes a per-cell `power_nominal`
+field (recomputed from `throttle_nominal_power_blocks` when throttling fired, identical
+to the delivered `power` field otherwise — mirrors how `tsv_frac` is exported, §3), and
+`FNODataset` builds `Q_norm` from it. FNO is therefore posed the *same* "requested power
+→ resolved temperature" problem ridge is scored on, not the easier "already-resolved
+power → temperature" one an earlier pass here tested by mistake.
 
 | | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
 |---|---|---|---|
-| ridge, nominal power (§9.8, the correct test) | 0.831 | 0.890 | — |
-| **FNO baseline (this run), delivered power** | **1.074** | **0.847** | **5381** |
+| ridge, nominal power (§9.8) | **0.707** | **0.919** | **0** |
+| **FNO baseline (this run), nominal power** | 1.795 | 0.551 | 5139 |
 
-**Important asymmetry, not a clean comparison:** ridge here is fed `nominal_block_power_*`
-— the pre-throttle request, the genuinely nonlinear map (§9.8) — while this FNO run's
-`Q_norm` field is built from the *delivered* (already-derated) per-cell power, the same
-`power` field `NPZExporter` always writes. That makes the FNO's task the easier
-sub-problem (map a given, already-resolved power field to its temperature field — still
-a linear conduction step) rather than the closed-loop problem ridge was correctly tested
-against. Despite the easier task, this capacity-limited FNO still trails ridge's
-harder-problem score. Exporting a per-cell *nominal* power field (mirroring how
-`tsv_frac` is exported, §3) so FNO can be tested on the actual closed-loop map is not yet
-done — flagged here rather than assumed equivalent.
+With the asymmetry removed, FNO trails ridge by a wide margin on every metric, including
+hotspot localisation — the one place per-cell power previously gave an operator a path to
+win (§9.4). Still a capacity- and epoch-limited CPU smoke test (296K-parameter plain FNO,
+100 epochs, 15 training scenarios), not the CondFNO/CNO-FNO/SAU-FNO configurations this
+repo also implements, so this is not evidence that no operator could win on throttled
+data — only that this particular undertrained run doesn't.
 
 ### 9.8 Nonlinear regimes: throttling and microchannel (pilot measurements, 2026-08-09)
 
@@ -543,34 +545,39 @@ in this project that ridge has lost to a simpler baseline on any metric — both
 plain nearest-neighbour localise the hotspot more accurately than ridge here. The pilot
 is small (8 train / 4 test); this is a signal, not a settled result.
 
-**Throttling** (geometry1, 20 scenarios, 90°C threshold, 6/20 scenarios actually
-triggered, derate factors 0.34–0.72): the first measurement here surfaced a real
-methodology bug rather than a finding. Ridge initially scored spatial R² = 0.989 on the
-throttled data — *higher* than the same geometry without throttling (0.970, §9.1) —
-because the exported `block_power_*` metadata holds the **delivered** (already-derated)
-power, handing ridge the closed loop's resolved output as an input feature rather than
-asking it to represent the loop. Fixed by exporting the pre-throttle
-`nominal_block_power_*` value and making `scripts/baselines.py` prefer it whenever
-`throttle_enabled` is set. Corrected:
+**Throttling** (geometry1, 20 scenarios, 90°C threshold, 6/20 scenarios triggered): the
+first measurement here surfaced a real methodology bug rather than a finding. Ridge
+initially scored spatial R² = 0.989 on the throttled data — *higher* than the same
+geometry without throttling (0.970, §9.1) — because the exported `block_power_*`
+metadata holds the **delivered** (already-derated) power, handing ridge the closed
+loop's resolved output as an input feature rather than asking it to represent the loop.
+Fixed by exporting the pre-throttle `nominal_block_power_*` value and making
+`scripts/baselines.py` prefer it whenever `throttle_enabled` is set. Corrected, across
+two independent pilot draws (both 15 train / 5 test, 6/20 triggered — a fresh 3D-ICE
+draw with different random scenarios and derate factors each time):
 
 | | det.MAE (K) | spatial R² |
 |---|---|---|
 | ridge, no throttling (§9.1, current data) | 0.407 | 0.970 |
-| ridge, throttled, nominal power (corrected) | 0.831 | **0.890** |
-| kNN, throttled, nominal power | 0.484 | 0.891 |
+| ridge, throttled, nominal power (draw 1, derate 0.34–0.72) | 0.831 | 0.890 |
+| ridge, throttled, nominal power (draw 2, derate 0.48–0.84, current data) | **0.707** | **0.919** |
+| kNN, throttled, nominal power (draw 2) | 0.526 | 0.890 |
 
-A real, if modest, degradation — and kNN edges out ridge on det.MAE here too. Not a
-rout, but the first clean evidence in this project that a genuinely closed-loop
-nonlinearity measurably erodes ridge's advantage, in contrast to every fixed-source
-mechanism added before it (TSV fields, underfill layouts, per-cell power), none of which
-moved the baseline outside its usual 0.92–0.99 range.
+Both draws land below the no-throttling baseline (0.970) but the exact margin moves with
+the draw (0.890 vs. 0.919) — real, if modest, degradation, not yet precise enough to
+quote a single number without the caveat that a 20-scenario pilot has real draw-to-draw
+variance. Not a rout, but the first clean evidence in this project that a genuinely
+closed-loop nonlinearity measurably erodes ridge's advantage, in contrast to every
+fixed-source mechanism added before it (TSV fields, underfill layouts, per-cell power),
+none of which moved the baseline outside its usual 0.92–0.99 range.
 
-A single capacity-limited FNO run on the throttled pilot data (§9.7) trailed even ridge's
-corrected, harder-problem score, though not on a like-for-like input (§9.7's caveat on
-delivered vs. nominal power applies). Both pilots are too small and too capacity/time-
-limited to license a conclusion about whether an operator *should* beat ridge here — they
-establish that the regime is worth continuing to test, which was the open question this
-pass set out to answer.
+A capacity-limited plain-FNO run on draw 2, now on a like-for-like nominal-power input
+(§9.7's earlier delivered-vs-nominal caveat is resolved), trails ridge by a wide margin
+(det.MAE 1.795 K vs. 0.707 K, spatial R² 0.551 vs. 0.919, §9.7) — consistent with, not yet
+evidence against, the central finding. Both pilots are too small and too capacity/time-
+limited to license a conclusion about whether a properly-resourced operator *should* beat
+ridge here — they establish that the regime is worth continuing to test, which was the
+open question this pass set out to answer.
 
 ---
 

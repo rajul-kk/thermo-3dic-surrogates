@@ -298,6 +298,23 @@ scoped was not completed in this pass — time-boxed given everything else in th
 session; a fair architecture comparison needs GPU-scale training anyway (§ below), not
 another CPU smoke test. Remains open.
 
+**Apples-to-apples fix, done 2026-08-09.** The A3 FNO run above was comparing an easier
+problem than ridge's: `NPZExporter` only ever wrote the *delivered* (post-throttle)
+per-cell power, so FNO's `Q_norm` saw the closed loop's resolved answer while ridge was
+correctly fed the pre-throttle `nominal_block_power_*` request. Fixed by exporting a new
+`power_nominal` per-cell field (recomputed from `throttle_nominal_power_blocks` when
+throttling fired; identical to `power` otherwise, so a no-op for the rest of the dataset)
+and making `FNODataset` build `Q_norm` from it. Regenerated the throttled geometry1 pilot
+(fresh 3D-ICE draw, 6/20 triggered, derate 0.48–0.84) and retrained `geometry1_throttled`
+on the corrected data with the same plain-FNO/`--cpu-fast` config as the original run.
+Result: FNO now trails ridge by a wide margin on every metric (det.MAE 1.795 K vs.
+0.707 K, spatial R² 0.551 vs. 0.919, hotspot loc. err 5139 µm vs. 0 µm) — consistent with
+the paper's central finding, now without the earlier caveat that the comparison wasn't
+like-for-like. Still a capacity/epoch-limited CPU run, so this isn't evidence a
+properly-resourced operator couldn't do better, only that this one doesn't. Covered by
+`tests/test_nominal_power_export.py` (export round-trip, delivered-vs-nominal
+divergence when throttled, `FNODataset` consumption). See `docs/report.md` §9.7/§9.8.
+
 **A4. Decision gate, unchanged:** only pursue a genuine nonlinear-interference
 architecture extension if a *properly resourced* A3 (GPU, full capacity, multiple
 architectures) shows the existing variants clearly failing. The CPU pilot runs in this
@@ -361,7 +378,7 @@ mislabeled if reused for anything reported in real units).
    a settled result either way.
 
 **What's still open, in priority order:** (a) multi-seed/multi-holdout repeats of B2
-before drawing a conclusion, (b) exporting a per-cell *nominal* (pre-throttle) power
-field so FNO's throttled comparison is apples-to-apples with ridge's (§9.7's caveat),
-(c) the full A3 architecture comparison, ideally GPU-scale rather than another CPU
-smoke test.
+before drawing a conclusion — in progress, see below, (b) ✅ done 2026-08-09 — exported
+`power_nominal` so FNO's throttled comparison is apples-to-apples with ridge's (Track A3
+above), (c) the full A3 architecture comparison, ideally GPU-scale rather than another
+CPU smoke test.
