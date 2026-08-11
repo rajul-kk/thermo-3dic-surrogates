@@ -315,6 +315,17 @@ properly-resourced operator couldn't do better, only that this one doesn't. Cove
 `tests/test_nominal_power_export.py` (export round-trip, delivered-vs-nominal
 divergence when throttled, `FNODataset` consumption). See `docs/report.md` §9.7/§9.8.
 
+**A3 GPU notebook prepared, not yet run — 2026-08-11.**
+`notebooks/kaggle_a3_throttled_arch_comparison.ipynb` trains all four architectures
+(`fno`, `cond-fno`, `cno-fno`, `cno-fno`+attention/SAU-FNO) on the throttled geometry1
+pilot at GPU scale (32 channels, 4 blocks, 400 epochs — vs. the CPU smoke test's 16
+channels/100 epochs), evaluated with the same detrended metrics ridge/kNN were scored on
+so the comparison is direct. Requires a Kaggle GPU session and a separate dataset upload
+(`data/3d-ice-throttle-pilot/geometry1/`, distinct from the standard `3dice-thermal-data`
+dataset other notebooks use) — see `notebooks/KAGGLE_SETUP.md`. No local GPU is available
+in this environment, so this is prepared for the user to run, not executed here.
+Result pending; update this section and `docs/report.md` §9.7/§9.8 once run.
+
 **A4. Decision gate, unchanged:** only pursue a genuine nonlinear-interference
 architecture extension if a *properly resourced* A3 (GPU, full capacity, multiple
 architectures) shows the existing variants clearly failing. The CPU pilot runs in this
@@ -408,8 +419,9 @@ architecture.
 2. ✅ B1 (rescoped the generalization claim in README/report.md).
 3. ✅ A1 → A2 (throttling CLI + microchannel pipeline verified/scripted; pilot batches
    generated and measured — see Track A above).
-4. ◐ A3 partial — one baseline-FNO run each on throttled/un-throttled data; the full
-   CondFNO/CNO-FNO+attention comparison this item specified is still open.
+4. ◐ A3 partial — one baseline-FNO run each on throttled/un-throttled data, apples-to-apples
+   as of 2026-08-09; the full CondFNO/CNO-FNO+attention GPU comparison has a notebook
+   prepared (2026-08-11) but not yet run — see A3 above.
 5. ✅ B2 done, including the multi-seed/multi-holdout follow-up (2026-08-10) — mechanism
    built and validated end-to-end; the single-run signal (3/4 metrics improved) did NOT
    hold up across seeds/holdouts. Settled result: **not validated as a generalization
@@ -419,5 +431,6 @@ architecture.
 **What's still open, in priority order:** (a) ✅ done 2026-08-10 — multi-seed/multi-holdout
 repeats of B2, result: not validated, see Track B, (b) ✅ done 2026-08-09 — exported
 `power_nominal` so FNO's throttled comparison is apples-to-apples with ridge's (Track A3
-above), (c) the full A3 architecture comparison, ideally GPU-scale rather than another
-CPU smoke test — the only item from this plan still open.
+above), (c) ◐ notebook prepared 2026-08-11, not yet run — the full A3 GPU architecture
+comparison (`notebooks/kaggle_a3_throttled_arch_comparison.ipynb`); needs a Kaggle GPU
+session this environment doesn't have, execution is on the user.
