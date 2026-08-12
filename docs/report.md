@@ -596,10 +596,19 @@ handful of scalars removes the problem they exist to solve.
 **Implications for the field.** Published 3D-IC thermal surrogates typically report raw MAE
 or RMSE against a compact simulator, on interpolation splits, without a linear baseline. Our
 results suggest such numbers can be substantially uninformative: on this dataset raw MAE is
-dominated by a scalar offset that tracks the ambient input, and a closed-form solve matches
-or beats the accuracy targets neural models are held to. We do not claim published results
-are wrong — their datasets may be richer — but the comparison is rarely made, and it is cheap
-to make. We release `scripts/baselines.py` for that purpose.
+dominated by a scalar offset that tracks the ambient input, and a closed-form solve already
+lands within the low-single-digit-percent relative error that industrial thermal
+sign-off literature generally treats as the bar (`docs/references.md` §9 — no single
+authoritative absolute-°C figure was found in a search pass; verified sources cluster at
+1–4% relative error, e.g. compact-thermal-model-vs-detailed-model agreement <1% and
+CFD-vs-measurement studies ~2–4%). Two caveats keep that comparison from being a real
+industrial-accuracy claim: those targets are validated against silicon or a detailed
+reference model, not against another compact solver, and this benchmark's own ground
+truth (3D-ICE) has never been checked against either (§10, Threats to validity); and
+industrial accuracy is judged at the hotspot specifically, which is exactly where §9.4
+shows ridge is weakest, not where it wins. We do not claim published results are wrong —
+their datasets may be richer — but the linear-baseline comparison is rarely made, and it
+is cheap to make. We release `scripts/baselines.py` for that purpose.
 
 **What a discriminative benchmark needs.** Four changes were identified from §9; three have
 since been implemented and measured, which is how their relative importance became clear.

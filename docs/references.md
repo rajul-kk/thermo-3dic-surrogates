@@ -27,6 +27,15 @@ Liu & Park 2012. Two corrections were made: the RNO authors are Ye, Zhang & Wang
 (previously given as "Yang et al."), and DeepOHeat / DeepOHeat-v1 are separate papers with
 different titles, not one paper and its update.
 
+**Added 2026-08-11 (§9):** researched what industrial thermal-model accuracy targets
+actually are, since `docs/report.md` §10 references "the accuracy targets neural models
+are held to" without a citation. No single authoritative absolute-°C figure was found;
+verified sources cluster around 1–4% relative error instead (CTM-vs-detailed-model <1%,
+junction-to-case test method ±4%, CFD-vs-measurement ~2%). arXiv:2604.03290 ("A Review of
+Multiscale Thermal Modeling in Heterogeneous 3D ICs") is topically on point but its
+author names could not be extracted in this pass — **not yet fully confirmed**, same
+status as the Zhou/Kou citation below.
+
 ## 1. Core Thermal Simulators
 
 ### 3D-ICE (primary ground truth)
@@ -430,6 +439,58 @@ Cai, S., Wang, Z., Wang, S., Perdikaris, P., & Karniadakis, G. E. (2021).
 *Journal of Heat Transfer*, 143(6), 060801.
 DOI: 10.1115/1.4050542
 (2D heat conduction only; no 3D-IC stack structure)
+
+---
+
+## 9. Industrial Thermal-Model Accuracy Targets (added 2026-08-11)
+
+Checked because §10 of `docs/report.md` claims a closed-form ridge fit "matches or beats
+the accuracy targets neural models are held to" without citing what that target actually
+is. A web search pass (not a full-text literature review — flagged accordingly) found:
+
+- **Compact thermal models (CTMs) vs. a detailed reference model**: agreement within
+  **<1%** is cited as typical (*JEDEC Thermal Standards: Developing a Common
+  Understanding*, Electronics Cooling, 2019). This is model-vs-model, not
+  model-vs-silicon.
+- **Two-resistor (simplest) compact models**: can be off by **up to 30%** depending on
+  environmental conditions — same source. Shows the spread is large across model
+  fidelity, not a single fixed bar.
+- **Junction-to-case thermal resistance (oven-based test method)**: accuracy and
+  repeatability of **~±4%** is cited as an industry figure for the *measurement* method
+  itself (not simulation).
+- **CFD-vs-physical-measurement case studies**: one case reports **~2%** margin of error;
+  mesh-sensitivity comparisons (fast vs. detailed CFD models of the same system) agree
+  within **~4%**.
+
+**No source found in this pass states a single, authoritative absolute-°C sign-off
+number** (an earlier draft of this discussion asserted "±2–5°C at the hotspot" from
+general domain knowledge, not from a citation — that number should be treated as
+unconfirmed and is not repeated as fact here). What the verified sources consistently use
+instead is **relative error, typically low single-digit percent**, which is the more
+defensible framing: an absolute-°C bar doesn't transfer across scenarios with very
+different temperature rises (2% of a 100°C rise is 2°C; 2% of a 20°C rise is 0.4°C),
+while the sources above cluster in the 1–4% band regardless of what's being modeled.
+Two structural caveats apply to any comparison against this benchmark, regardless of the
+exact number: (1) every figure above is measured **against silicon or a detailed
+reference model**, not against another compact/RC-style solver — this benchmark's ground
+truth is 3D-ICE, itself a compact model, never checked against silicon or FEM (§10's
+"Threats to validity"); (2) accuracy in practice is judged **at the hotspot**, not on
+field-average error, which is exactly the metric this repo's own per-cell-power finding
+(§9.4) shows ridge is weakest on.
+
+**Also found, not yet cited elsewhere in this repo:** a directly on-topic recent review,
+
+Author(s) TBD (2026). **A Review of Multiscale Thermal Modeling in Heterogeneous 3D
+ICs.** arXiv:2604.03290.
+(Surveys compact thermal models, FEM/FDM, Green's function methods, reduced-order
+models, and physics-informed ML for 3D-IC thermal transport; explicitly frames
+"rigorous validation against measurements" as central to model credibility, matching
+this repo's own emphasis on baselining before crediting an architecture. Full-text
+extraction failed in this pass — PDF fetch returned only encoded stream data, and the
+HTML abstract fetch didn't surface author names — so this citation is topically
+verified but **not yet fully confirmed**; needs a manual read before being relied on
+for specific claims, same status as the Zhou/Kou citation in the verification-status
+header above.)
 
 ---
 
