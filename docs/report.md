@@ -727,6 +727,23 @@ Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggre
   accuracy question a surrogate can be scored on — it is closer to a stability/
   classification problem (will this operating point converge or run away?), and nothing in
   this benchmark's current metrics addresses it.
+- **What actually drives that 30%, checked directly (`scripts/analyze_leakage_convergence.py`,
+  2026-08-17): not the swept leakage parameters.** Each of the 5 (`leakage_fraction`,
+  `k_double_c`) settings was paired with 4 different base power/HTC/pattern scenarios, and
+  every single one of the 5 settings produced mixed outcomes across its 4 repeats (e.g.
+  frac=0.15/k_double=25 converges 3/4 times, runs away once) — the loop-gain parameters
+  this pilot was designed to sweep do not, by themselves, predict stability. Total nominal
+  requested power does, almost cleanly: every converged scenario requests ≤271 W, every
+  runaway/stalled one requests ≥271 W, with exactly one pattern-driven exception at that
+  boundary (a `hotspot` pattern at 271 W runs away where a `gradient` pattern at the same
+  271 W converges) — consistent with the leakage multiplier being driven by *peak* local
+  temperature, not total power, so a concentrated hotspot crosses the runaway threshold at
+  lower total power than a spread-out one. This reframes the 30% figure: it is not really
+  "30% of leakage-parameter settings are unstable," it is "runaway is governed mainly by
+  how hot the *nominal* (pre-leakage) solve already runs, refined by spatial
+  concentration" — closer to a one-feature classification problem than a leakage-specific
+  one, and cheap to test further without new 3D-ICE solves once a nominal-peak-temperature
+  field is available per scenario.
 
 **Caveats.** One geometry, a small converged sample from one 20-scenario pilot, one
 damping/gain schedule — the direction is unambiguous but the exact numbers would tighten
