@@ -257,17 +257,37 @@ structure only.
 
 **In-distribution (shipped `*_test_*` split):**
 
-| Geometry | Baseline | MAE (K) | det.MAE (K) | spatial R² |
-|---|---|---|---|---|
-| geometry1 | mean | 18.629 | 0.270 | 0.586 |
-| geometry1 | knn (k=3) | 8.765 | 0.141 | 0.876 |
-| geometry1 | **ridge** | **4.110** | **0.009** | **0.999** |
-| geometry6 | mean | 10.296 | 0.244 | −3.656 |
-| geometry6 | knn (k=3) | 3.797 | 0.090 | −0.621 |
-| geometry6 | **ridge** | **0.616** | **0.020** | **0.937** |
+| Geometry | Baseline | MAE (K) | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
+|---|---|---|---|---|---|
+| geometry1 | mean | 18.629 | 0.270 | 0.586 | 1470.8 |
+| geometry1 | nearest-neighbour | 9.119 | 0.138 | 0.466 | **0.0** |
+| geometry1 | knn (k=3) | 8.765 | 0.141 | 0.876 | 2048.5 |
+| geometry1 | **ridge** | **4.110** | **0.009** | **0.999** | 2080.2 |
+| geometry6 | mean | 10.296 | 0.244 | −3.656 | 9454.0 |
+| geometry6 | nearest-neighbour | 10.113 | 0.059 | 0.792 | **329.3** |
+| geometry6 | knn (k=3) | 3.797 | 0.090 | −0.621 | 2311.3 |
+| geometry6 | **ridge** | **0.616** | **0.020** | **0.937** | 1276.1 |
 
 Mean spatial std of the true test fields is 0.506 K (geometry1) and 0.261 K (geometry6) —
 this is the entire signal a surrogate exists to predict. Ridge captures it to 0.009 K.
+
+**The hotspot column added 2026-08-16, and it complicates the story above in a way worth
+stating plainly.** Earlier versions of this table reported only MAE, detrended MAE and
+spatial R² — the three metrics on which ridge dominates — while the hotspot-localisation
+column sat unreported in the saved baseline artifacts (`results/baselines_*.json`). On
+that metric **ridge loses to plain nearest-neighbour on both geometries**, by 2080 µm vs
+0 µm on geometry1 and 1276 µm vs 329 µm on geometry6. Omitting it was not deliberate, but
+it was an instance of exactly the selective-metric reporting §10 criticises in the wider
+literature, appearing in this paper's own headline table; it is corrected here rather than
+quietly fixed.
+
+This does not overturn the paper's finding — it sharpens it. Ridge is a field-reconstruction
+specialist and a hotspot-localisation underperformer, and §9.4 shows the localisation
+failure becomes total (chance-level) once power is specified per cell. The correct reading
+is therefore not "a linear model solves 3D-IC thermal prediction" but the narrower and
+more useful **"a linear model already saturates the metric this field usually reports,
+while failing the metric it should report."** That reframing is the actual contribution,
+and it applies to the baseline as much as to any neural architecture.
 
 **Out-of-distribution (geometry1, `scripts/make_ood_split.py`), ridge only:**
 
@@ -583,6 +603,59 @@ limited to license a conclusion about whether a properly-resourced operator *sho
 ridge here — they establish that the regime is worth continuing to test, which was the
 open question this pass set out to answer.
 
+### 9.9 Interface-property uncertainty exceeds the accuracy differences being optimised (2026-08-16)
+
+Every result above compares models to each other while holding the simulator's material
+and interface properties fixed at nominal values. That is the field's standard practice,
+and it embeds an assumption worth testing: that those inputs are known well enough for
+sub-Kelvin model differences to be meaningful.
+
+We tested it directly. Holding power pattern, HTC and ambient **fixed**, we varied one
+interface conductivity at a time across ranges documented in `assumptions.md` — thermal
+grease k = 1–8 W/m·K (ordinary literature spread, and greases also degrade in service),
+TIM1 indium k = 5–80 W/m·K (the pump-out lifecycle range), and the Cu-Cu hybrid-bond
+layer k = 60–400 W/m·K (what we model, versus what real hardware achieves). 30 real 3D-ICE
+solves on geometry5 at two operating points, since interface resistance only matters in
+proportion to the heat flux crossing it (`scripts/gen_interface_uncertainty_pilot.py`;
+results in `results/interface_uncertainty_{low,high}power.json`).
+
+| interface | k range (W/m·K) | peak-T spread, low power (ΔT≈7 K) | peak-T spread, high power (237 W/cm²) | hotspot shift |
+|---|---|---|---|---|
+| thermal grease (`tim_sink`) | 1–8 | 5.23 K | **28.25 K** | 504 µm |
+| TIM1 indium (`tim_top`) | 5–80 | 0.52 K | 4.32 K | 496 µm |
+| hybrid bonding | 60–400 | 0.01 K | 0.02 K | 248 µm |
+
+**The measured ridge-vs-FNO detrended-MAE gap is 1.09 K (§9.7).** Thermal-grease
+conductivity uncertainty alone moves peak junction temperature by **28.25 K at a realistic
+high-power operating point — roughly 26× that gap** — and by 5.23 K even in the low-power
+control. The effect scales with heat flux as physics requires, which is a useful internal
+check that this is a real thermal-resistance effect rather than a numerical artifact. It
+also moves the hotspot *location* by 248–504 µm with power held constant, perturbing
+precisely the metric §9.4 identifies as the one that discriminates surrogates.
+
+The implication is not that surrogate accuracy is worthless, but that it is being reported
+without the context needed to interpret it: **on this benchmark, a model-vs-model
+difference of ~1 K sits well inside the spread induced by a single unreported input
+property.** A surrogate paper claiming a 50% MSE reduction over another architecture is
+resolving a quantity substantially smaller than its own input uncertainty, and neither
+number is usually reported alongside the other. This is a stronger and more general form
+of the linear-baseline result: even where a neural operator does beat ridge, the margin
+may not be the largest source of error in the pipeline.
+
+Incidentally, this also settles a modelling judgement made on argument rather than
+measurement: `assumptions.md` §2.3 flags the hybrid-bonding layer as a known ~28×
+overestimate of real Cu-Cu bond resistance but rates it low priority because the absolute
+error should be small. Sweeping it 60→400 W/m·K moves peak T by 0.02 K, confirming that
+call empirically.
+
+**Caveats.** One geometry, one scenario per power level, one parameter varied at a time
+(no interaction effects), and 3D-ICE is itself the ground truth — this measures
+*model-input sensitivity*, not validated real-hardware variation. It establishes that this
+benchmark's answer is highly sensitive to an input nobody varies or reports; it does not
+establish the true physical spread on real silicon, which would require the standardized,
+uncertainty-aware interface-property data that [Barua, Udoy & Aziz, arXiv:2604.03290] identify
+as missing from the field.
+
 ---
 
 ## 10. Discussion
@@ -613,6 +686,20 @@ industrial accuracy is judged at the hotspot specifically, which is exactly wher
 shows ridge is weakest, not where it wins. We do not claim published results are wrong —
 their datasets may be richer — but the linear-baseline comparison is rarely made, and it
 is cheap to make. We release `scripts/baselines.py` for that purpose.
+
+**This is not a new observation at the level of the field, and we do not claim it as one.**
+McGreivy and Hakim [*Nature Machine Intelligence*, 2024] systematically reviewed
+ML-for-PDE papers claiming to outperform standard numerical methods and found **79%
+(60/76) compared against a weak baseline**, attributing the pattern to researcher degrees
+of freedom, outcome-reporting bias and publication bias. Their review covers fluid-related
+PDEs; what we add is (i) the chip/package thermal domain, which they do not examine, (ii)
+a sharper form of the baseline claim — not that the comparison baseline was under-tuned,
+but that a *closed-form linear fit with no training* saturates the usual metric, (iii) the
+mechanism, namely a scenario space low-dimensional enough (~8 scalars) to lie on a
+near-linear manifold, and the identification of per-cell power as the specific change that
+breaks it (§9.4), and (iv) the metric argument of §9.1/§9.4. Their finding that negative
+results are systematically under-reported is also the reason this paper exists in the form
+it does.
 
 This gap is not hypothetical even in work published after this project began. SAU-FNO
 [arXiv:2510.15968, Oct 2025] — a self-attention/U-Net/FNO hybrid for 3D-IC thermal
@@ -821,3 +908,5 @@ release the baseline and OOD tooling so those conditions can be checked rather t
 15. "Fast Thermal-Aware Chiplet Placement Assisted by Surrogate." arXiv:2504.03808, 2025.
 
 16. Barua, B. P., Udoy, M. R. I. & Aziz, A. "A Review of Multiscale Thermal Modeling in Heterogeneous 3D ICs." arXiv:2604.03290, 2026.
+
+17. McGreivy, N. & Hakim, A. "Weak baselines and reporting biases lead to overoptimism in machine learning for fluid-related partial differential equations." *Nature Machine Intelligence*, 2024. DOI: 10.1038/s42256-024-00897-5. arXiv:2407.07218.

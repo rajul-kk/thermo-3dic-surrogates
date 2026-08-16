@@ -171,6 +171,41 @@ adaptation, not a direct replication.)
   this repo's claim that sensitivity maps are "actionable for floorplan decisions" — that
   application already exists in the literature.
 
+### Prior art on the baseline-reporting problem itself (**critical — read before making any novelty claim about this paper's central finding**)
+
+- **McGreivy, N. & Hakim, A. (2024). "Weak baselines and reporting biases lead to
+  overoptimism in machine learning for fluid-related partial differential equations."**
+  *Nature Machine Intelligence*. DOI: 10.1038/s42256-024-00897-5. arXiv:2407.07218.
+  **Found 2026-08-16; this repo had not cited it, which was a serious gap.** Systematic
+  review finding **79% (60/76) of papers claiming an ML method outperforms a standard
+  numerical method compare against a weak baseline**, and attributing the pattern to
+  researcher degrees of freedom, outcome-reporting bias and publication bias.
+
+  **What this means for this paper's novelty — state this honestly rather than working
+  around it.** The *general* claim "ML-for-PDE papers systematically compare against
+  inadequate baselines, producing overoptimistic results" is **not novel**: it is
+  published, quantified, and in a high-profile venue. Any framing of this repo's finding
+  as "nobody has noticed the field skips baselines" is now wrong and should be removed
+  wherever it appears. What remains genuinely distinct, and is what the paper should
+  claim:
+  1. **Domain**: their review covers fluid-related PDEs exclusively. Chip/package/3D-IC
+     thermal is not examined.
+  2. **Baseline type**: their "weak baseline" is largely an under-tuned or low-order
+     *numerical solver*. This repo's claim is different and sharper — not "the numerical
+     baseline was tuned badly" but "a closed-form linear fit with no training solves the
+     problem class," i.e. the benchmark itself is near-linear.
+  3. **Mechanism**: the diagnosis that the scenario space is low-dimensional
+     (~8 scalars → a near-linear manifold), and the identification of per-cell power as
+     the specific change that breaks it (§9.4).
+  4. **The metric argument**: field-level R² vs. hotspot localisation (§9.4) — that the
+     commonly reported metric is the one on which even a linear model wins.
+  5. Released benchmark + `scripts/baselines.py` as reusable tooling.
+
+  Best use of this citation: it *strengthens* the paper. It converts this repo's result
+  from an isolated claim into the 3D-IC-thermal instance of a documented, quantified,
+  cross-domain problem — and McGreivy & Hakim explicitly note under-reporting of negative
+  results, which is the category this paper falls in.
+
 ### Prior art on operator learning for 3D-IC thermal simulation (closely related work)
 - **Self-Attention to Operator Learning-based 3D-IC Thermal Simulation (SAU-FNO).**
   (Oct 2025, IEEE). arXiv:2510.15968. Self-attention + U-Net + FNO for 3D-IC thermal
