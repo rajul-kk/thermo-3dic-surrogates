@@ -4,6 +4,17 @@ All times on **2× NVIDIA T4** (16 GB each, 65 TFLOPS FP16, 320 GB/s).
 CPU benchmarks measured on this machine; GPU estimates derived from measured
 CPU epoch times × workload-specific T4/CPU speedup factors.
 
+**Unit note, added 2026-08-16**: "Xk pts" figures below (e.g. geometry6's "470k pts") use
+the *declared* mesh resolution (nx×ny×nz, e.g. 56×168×50=470,400 for geometry6), not the
+point count 3D-ICE actually exports per file (geometry6 = 141,120, per
+`docs/geometry_reference.md`'s corrected Overview table — 3D-ICE's z-grid is adaptive, so
+the two differ for every geometry). FNO by default trains on the real per-file grid shape
+(confirmed from training logs: `Grid from data: (100, 100, 10) (geometry declares (100,
+100, 40))` for geometry1), so cost estimates keyed to the declared mesh may be
+conservative overestimates rather than the true per-sample compute cost. Not corrected
+throughout this file — flagging the discrepancy rather than re-deriving every estimate,
+since these are cost *estimates* for future runs, not settled experimental results.
+
 ---
 
 ## GPU Specifications

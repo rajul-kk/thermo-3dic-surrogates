@@ -8,14 +8,22 @@ to generate the dataset in `data/3d-ice/`.
 
 ## Overview
 
-| Name | Type | Die footprint | Layers | TSV density | Mesh (x × y × z) | Points/file |
+| Name | Type | Die footprint | Layers | TSV density | Declared mesh (x × y × z) | Points/file (actual) |
 |---|---|---|---|---|---|---|
-| `geometry1` | Single die | 10 × 10 mm | 6 | — | 100 × 100 × 40 | 60,000 |
-| `geometry2a` | Dual die + hybrid bond | 8 × 8 mm | 10 | 3 % (field) | 80 × 80 × 72 | 46,080 |
-| `geometry3` | Server die | 25 × 25 mm | 6 | — | 100 × 100 × 40 | 60,000 |
-| `geometry4` | 2.5D chiplet | 25 × 14 mm | 6 | — | 100 × 56 × 40 | 33,600 |
-| `geometry5` | 3D-on-2.5D (CoWoS, Tier 0+1) | 25 × 14 mm | 11 | 3 % (chiplet B) | 100 × 56 × 50 | 44,800 |
-| `geometry6` | CoWoS + 6× HBM (MI300X-class) | 42 × 14 mm | 11 | 3 % (each HBM) | 56 × 168 × 50 | 470,400 |
+| `geometry1` | Single die | 10 × 10 mm | 6 | — | 100 × 100 × 40 | 100,000 |
+| `geometry2a` | Dual die + hybrid bond | 8 × 8 mm | 10 | 3 % (field) | 80 × 80 × 72 | 89,600 |
+| `geometry3` | Server die | 25 × 25 mm | 6 | — | 100 × 100 × 40 | 110,000 |
+| `geometry4` | 2.5D chiplet | 25 × 14 mm | 6 | — | 100 × 56 × 40 | 56,000 |
+| `geometry5` | 3D-on-2.5D (CoWoS, Tier 0+1) | 25 × 14 mm | 11 | 3 % (chiplet B) | 100 × 56 × 50 | 84,000 |
+| `geometry6` | CoWoS + 6× HBM (MI300X-class) | 42 × 14 mm | 11 | 3 % (each HBM) | 56 × 168 × 50 | 141,120 |
+
+**"Points/file" corrected 2026-08-16** (was stale/internally-inconsistent — audited against real files in
+`data/3d-ice/*/`, not derived from the declared mesh). 3D-ICE's z-discretization is adaptive
+(minimum 8 sample points per active die layer, report.md §4), so the actual exported z-resolution
+is neither the declared mesh's `nz` (the "Mesh" column) nor the raw layer count, and can only be
+read from real output: `nx × ny × nz_actual` where `nz_actual = points_in_file / (nx × ny)`
+(currently 10, 14, 11, 10, 15, 15 respectively — verify against a real file before trusting this
+table again if the dataset is regenerated with a different z-grid policy).
 
 All coordinates in µm. z = 0 is the bottom face of the heat sink (coolant side).
 
@@ -88,13 +96,16 @@ Four 3 mm × 3 mm blocks in the four corners of the 10 × 10 mm die (1 mm margin
 Two-die 3D-IC stack with **Cu-Cu hybrid bonding** (as of this benchmark release).
 Die 1 (bottom) and Die 2 (top) are bonded through a 5 µm hybrid bonding interface
 (k_eff = 60 W/m·K, 9 µm Cu-pillar pitch). Each die has a TSV region providing
-through-silicon thermal paths. The three variants differ in TSV density (3/5/10 %).
+through-silicon thermal paths, at 3 % mean density (spatial field, not a scalar — see
+below). **Originally three TSV-density variants (3/5/10 %) — geometry2b (5%) and
+geometry2c (10%) were removed 2026-08-06; only geometry2a (3%) remains, see the
+Overview section note.**
 
 Previous releases used micro-bump bonding (25 µm, k = 50 W/m·K). The upgrade
 reduces die-to-die interface resistance by ~6× and better represents production
 3D-IC stacks as of 2023+ (Intel Foveros, TSMC SoIC).
 
-### Layer Stack (identical structure for 2a / 2b / 2c)
+### Layer Stack
 
 | Index | Name | Material | Thickness (µm) | z range (µm) | k (W/m·K) | Active |
 |---|---|---|---|---|---|---|
@@ -138,8 +149,9 @@ Six blocks per geometry: two compute cores and one TSV array per die.
 
 ### Mesh
 
-80 × 80 × 72 = **460,800 mesh points** (100 µm/cell in x and y).
-3D-ICE returns 10 layers × 80 × 80 = **64,000 points** in the NPZ `coords` array.
+80 × 80 × 72 = **460,800 mesh points** (100 µm/cell in x and y) at the declared resolution.
+3D-ICE's actual adaptive z-grid returns **89,600 points** in the NPZ `coords` array
+(80 × 80 × 14 — see the Overview table's note; not the naive 10-layers × 80 × 80 figure).
 
 ---
 
@@ -158,7 +170,8 @@ Six blocks per geometry: two compute cores and one TSV array per die.
 
 Total height: **7450 µm**. 8 × (4 × 4 mm) blocks in two rows of 4 with 10 mm IO gap.
 
-Mesh: 100 × 100 × 40 = **400,000 pts** → 3D-ICE returns **60,000 pts/file**.
+Mesh: 100 × 100 × 40 = **400,000 pts** at the declared resolution → 3D-ICE's actual adaptive
+z-grid returns **110,000 pts/file** (100 × 100 × 11 — see the Overview table's note).
 
 ---
 
@@ -181,7 +194,8 @@ ChipA (compute, 10 × 12 mm at x=2mm, y=1mm): 4 × (5 × 6 mm) blocks in `die_zo
 ChipB (IO, 8 × 12 mm at x=15mm, y=1mm): 4 × (4 × 6 mm) blocks in `die_zone`.
 Gap x ∈ [12, 15 mm]: underfill k = 0.7 W/m·K.
 
-Mesh: 100 × 56 × 40 = **224,000 pts** → 3D-ICE returns **33,600 pts/file**.
+Mesh: 100 × 56 × 40 = **224,000 pts** at the declared resolution → 3D-ICE's actual adaptive
+z-grid returns **56,000 pts/file** (100 × 56 × 10 — see the Overview table's note).
 
 ---
 
@@ -242,7 +256,9 @@ Total height: **6785 µm** (11 layers)
 ### Mesh
 
 100 × 56 × 50 = **280,000 mesh pts** (250 µm/cell in x and y).
-3D-ICE returns 11 layers × 100 × 56 = **61,600 pts/file** (previously 44,800 with old 8-layer stack).
+3D-ICE's actual adaptive z-grid returns **84,000 pts/file** (100 × 56 × 15 — see the Overview
+table's note; previously 44,800 under the old 8-layer stack, and neither the naive
+11-layers × 100 × 56 = 61,600 figure).
 
 ### Per-Layer Floorplan Files
 
@@ -291,7 +307,8 @@ Total active power blocks: **23** (excluding 6 TSV passive regions).
 ### Mesh
 
 56 × 168 × 50 = **470,400 mesh pts** (250 µm/cell in x and y).
-3D-ICE returns 11 layers × 56 × 168 = **103,488 pts/file**.
+3D-ICE's actual adaptive z-grid returns **141,120 pts/file** (56 × 168 × 15 — see the
+Overview table's note; not the naive 11-layers × 56 × 168 = 103,488 figure).
 
 ---
 
@@ -309,8 +326,10 @@ All properties at 300 K unless noted.
 | C4 bump array | **15** | 1.70 × 10⁶ | `c4_bumps` in g5/g6 |
 | Hybrid bonding | **60** | 3.30 × 10⁶ | Die-to-die interface in g2/g5/g6 |
 | Si + TSV 3 % | 155.6 | 1.68 × 10⁶ | TSV layers (g2a, g5, g6 HBM stacks) |
-| Si + TSV 5 % | 160.6 | 1.70 × 10⁶ | TSV layers (g2b) |
-| Si + TSV 10 % | 173.2 | 1.76 × 10⁶ | TSV layers (g2c) |
+
+**Removed 2026-08-06** (kept here for historical reference only, not used by any live
+geometry): Si + TSV 5% (k=160.6, ρCp=1.70×10⁶ — was g2b), Si + TSV 10% (k=173.2,
+ρCp=1.76×10⁶ — was g2c).
 
 **Temperature-dependent silicon k:** `k(T) = 148 × (300/T)^1.3` W/m·K
 (Glassbrenner & Slack, 1964). Used in PINN physics loss; 3D-ICE uses room-temperature
@@ -334,13 +353,18 @@ constant per scenario.
 
 ### Boundary Condition Parameters
 
-| Parameter | Original (001–015) | Extended (016+) | Test |
+**Corrected 2026-08-16**: the Original/Extended columns below predate the 2026-08-01
+TDP-based power regime revision (`docs/report.md` §9.3, `docs/assumptions.md` §3.4) and no
+longer describe the live dataset — kept for historical reference only, labeled accordingly.
+Current values verified directly against every file's metadata in `data/3d-ice/`:
+
+| Parameter | Original (001–015, obsolete) | Extended (016+, obsolete) | **Current (TDP-regime, live dataset)** |
 |---|---|---|---|
-| Peak power density | 0.1 – 20.0 W/cm² | 0.3 – 10.0 W/cm² | 0.3, 1.5, 3.0 W/cm² |
-| HTC | 500 – 10,000 W/m²·K | 500 – 200,000 W/m²·K | 3000, 7500 W/m²·K |
-| Ambient temperature | 25 – 85 °C | 25 – 75 °C | 35, 55 °C |
-| TIM1 k (g5/g6 only) | 80 W/m·K (fresh) | 5, 10, 40, 80 W/m·K | 80 W/m·K |
-| RDL Joule fraction (g5/g6) | 5 % | 1, 3, 5, 8, 10 % | 5 % |
+| Peak power density | 0.1 – 20.0 W/cm² | 0.3 – 10.0 W/cm² | Package TDP budget (30–700 W) minus 35% non-modelled uncore, capped at 300 W/cm² silicon ceiling — see `docs/report.md` §4, not a flat range |
+| HTC | 500 – 10,000 W/m²·K | 500 – 200,000 W/m²·K | **2,000 – 50,000 W/m²·K** (verified: min/max across all 275 files) |
+| Ambient temperature | 25 – 85 °C | 25 – 75 °C | **25 – 45 °C** (verified: min/max across all 275 files) |
+| TIM1 k (g5/g6 only) | 80 W/m·K (fresh) | 5, 10, 40, 80 W/m·K | 5, 10, 40, 80 W/m·K (unchanged) |
+| RDL Joule fraction (g5/g6) | 5 % | 1, 3, 5, 8, 10 % | 1, 3, 5, 8, 10 % (unchanged) |
 
 ### Power Distribution Patterns
 
@@ -387,14 +411,20 @@ R² = 0.999. The revised regime raises the median spatial ΔT to 10.77 K. See
 
 ### Dataset Statistics
 
+**Corrected 2026-08-16**: this table still described the pre-2026-08-06 8-geometry dataset
+and used a formula (layers × nx × ny) that doesn't match 3D-ICE's actual adaptive z-grid —
+both stale relative to the "Dataset Summary" table above and to real files. Replaced with
+values verified directly against `data/3d-ice/`:
+
 | Statistic | Value |
 |---|---|
-| Total files | 320 (280 train + 40 test, 8 geometries) |
-| Points per file — g1/g3 | 60,000 (6 layers × 100 × 100) |
-| Points per file — g2a/2b/2c | 64,000 (10 layers × 80 × 80) |
-| Points per file — g4 | 33,600 (6 layers × 100 × 56) |
-| Points per file — g5 | 61,600 (11 layers × 100 × 56) |
-| Points per file — g6 | 103,488 (11 layers × 56 × 168) |
+| Total files | 275 (245 train + 30 test, 6 geometries) |
+| Points per file — g1 | 100,000 |
+| Points per file — g2a | 89,600 |
+| Points per file — g3 | 110,000 |
+| Points per file — g4 | 56,000 |
+| Points per file — g5 | 84,000 |
+| Points per file — g6 | 141,120 |
 | Validation status | All files real 3D-ICE data; no synthetic fallback |
 
 ---
