@@ -51,6 +51,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--geometry', default='geometry1')
     ap.add_argument('--n', type=int, default=20)
+    ap.add_argument('--start-index', type=int, default=0,
+                    help='Skip the first N scenarios (0-based) -- for extending an '
+                         'existing pilot without re-running already-generated ones.')
+    ap.add_argument('--extra-train', type=int, default=0,
+                    help='Append this many extra training scenarios (denser HTC/power '
+                         'coverage, same pool the full dataset draws from) after the '
+                         'base 15 train + 5 test, so the pilot spans a wider and more '
+                         'realistic range of base operating points instead of just the '
+                         '20-scenario base set.')
     ap.add_argument('--output', type=Path, default=Path('data/3d-ice-leakage-pilot'))
     ap.add_argument('--ice-executable',
                     default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
@@ -65,7 +74,11 @@ def main():
 
     geom = get_geometry_by_name(args.geometry)
     gen = ScenarioGenerator()
-    scenarios = gen.generate_all_scenarios(geom)[:args.n]
+    all_scenarios = gen.generate_all_scenarios(geom)
+    if args.extra_train > 0:
+        all_scenarios = all_scenarios + gen.generate_extra_training_scenarios(
+            geom, args.extra_train, start_index=16, pool_start_idx=0)
+    scenarios = all_scenarios[args.start_index:args.n]
 
     output_dir = args.output / args.geometry
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -73,7 +86,8 @@ def main():
     calculator = StatisticsCalculator()
 
     ok, failed, runaway, converged = 0, [], 0, 0
-    for i, sc in enumerate(scenarios):
+    for offset, sc in enumerate(scenarios):
+        i = args.start_index + offset
         frac, k_double = LEAKAGE_SETTINGS[i % len(LEAKAGE_SETTINGS)]
         sc_dict = sc.to_dict()
         sc_dict['leakage_enabled'] = True

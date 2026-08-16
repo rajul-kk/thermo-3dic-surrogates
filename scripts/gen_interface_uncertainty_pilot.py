@@ -83,12 +83,15 @@ def main():
                     default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
     ap.add_argument('--pattern', default='uniform',
                     help='Power pattern held fixed across the whole sweep')
-    ap.add_argument('--power', choices=['lowest', 'highest'], default='highest',
+    ap.add_argument('--power', choices=['lowest', 'highest', 'median'], default='highest',
                     help='Which scenario of that pattern to hold fixed. Interface '
                          'resistance only matters in proportion to the heat flux '
                          'crossing it, so a low-power scenario understates '
                          'sensitivity by construction -- run both to show the '
-                         'effect scales with power rather than quoting one number.')
+                         'effect scales with power rather than quoting one number. '
+                         '"median" picks the middle-ranked-by-power scenario of that '
+                         'pattern, for a "typical operating point" comparison against '
+                         'the worst-case "highest" number.')
     ap.add_argument('--tag', default='', help='Suffix for scenario names (avoids '
                                               'collisions between sweeps)')
     ap.add_argument('--geometry', default='geometry5',
@@ -111,9 +114,16 @@ def main():
     if not matching:
         raise SystemExit(f"No scenario with pattern={args.pattern!r} found")
     key = lambda sc: sum(sc.power_blocks.values())
-    base = max(matching, key=key) if args.power == 'highest' else min(matching, key=key)
+    ranked = sorted(matching, key=key)
+    if args.power == 'highest':
+        base = ranked[-1]
+    elif args.power == 'lowest':
+        base = ranked[0]
+    else:  # median
+        base = ranked[len(ranked) // 2]
     log.info("Selected %s-power %r scenario: total block power %.1f W/cm^2 "
-             "(of %d candidates)", args.power, args.pattern, key(base), len(matching))
+             "(of %d candidates, range %.1f-%.1f)", args.power, args.pattern, key(base),
+             len(matching), key(ranked[0]), key(ranked[-1]))
 
     base_dict = base.to_dict()
     log.info("Fixed operating point: pattern=%s htc=%.0f t_amb=%.1fC",

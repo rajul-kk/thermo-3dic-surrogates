@@ -691,6 +691,44 @@ uncertainties independently is adequate, not an oversimplification. Tested at on
 (lower-power) point on one geometry only; untested at higher power, where the individual
 effects are much larger.
 
+**Is the 75.98 K number worst-case-only? No — it degrades gracefully (2026-08-17).**
+`scripts/gen_interface_uncertainty_pilot.py`'s new `--power median` option repeats the
+geometry4 sweep at the middle-ranked-by-power `hotspot` scenario instead of the highest:
+
+| operating point | tim_die spread | tim_sink spread |
+|---|---|---|
+| highest power (original) | 75.98 K | 25.65 K |
+| median power | 45.55 K | 15.19 K |
+
+Roughly 60% of the worst-case effect survives at a typical (not extreme) operating point —
+still ~40× the reference architecture-comparison gap. The 1 W/m·K endpoint contributes most
+of the drop between the two: at k=8 W/m·K the two operating points converge to nearly the
+same peak temperature (67.04 °C median vs. 67.01 °C highest), because a well-coupled TIM
+lets heat spread efficiently regardless of local block power; at k=1 W/m·K they diverge
+sharply (112.6 °C vs. 143.0 °C), because a poorly-coupled TIM traps heat locally, where the
+*local* block power (not the chip's total power) sets the peak. That is itself informative:
+the size of this effect depends on which interface state you're in, not just how hot the
+chip runs overall.
+
+**Is the sensitivity actually linear, once expressed in the right variable? Yes
+(`scripts/analyze_interface_linearity.py`, 2026-08-17).** Peak-T vs. k directly is a
+mediocre linear fit (R² 0.58–0.91 across every layer/geometry tested) — but a 100 µm TIM
+layer contributes a series thermal resistance R = t/k, so for fixed heat flux the physics
+predicts T linear in **1/k**, not k. Refitting against 1/k confirms it: R² ≥ 0.996 on every
+sweep with a spread above ~2 K (below that, the effect is inside solver-precision noise and
+the fit is meaningless either way — geometry1's `tim2` and geometry6's `hybrid_bonding`
+land there). This is the same finding the rest of this benchmark keeps producing, extended
+to a new axis: steady-state conduction is linear in whatever variable actually enters the
+heat-flow equation linearly. `scripts/baselines.py`'s ridge baseline already exploits
+exactly this for the convective boundary (`feature_vector` includes `1/htc` beside `htc`,
+specifically because 1/h enters T linearly); it does not yet do the same for TIM k for
+*any* geometry — `feature_vector` has no interface-conductivity feature at all, even for
+geometry5/6 whose own training sets already vary `tim_top`/`tim_sink` internally
+(`assumptions.md` §2.2). A `1/k_tim` feature, mirroring the existing `1/htc` term, should
+recover this axis for ridge as cleanly as it already recovers HTC extrapolation — untested
+here (would require re-running `scripts/baselines.py` with the extended feature and a
+train/test split that actually varies k, not yet built).
+
 ### 9.10 Leakage/temperature positive feedback: the sharpest test tried, and the linear result holds — with one exception (2026-08-17)
 
 Throttling (§9.8) is *negative* feedback: hotter → less power → cooler, self-limiting,
@@ -742,13 +780,26 @@ Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggre
   "30% of leakage-parameter settings are unstable," it is "runaway is governed mainly by
   how hot the *nominal* (pre-leakage) solve already runs, refined by spatial
   concentration" — closer to a one-feature classification problem than a leakage-specific
-  one, and cheap to test further without new 3D-ICE solves once a nominal-peak-temperature
-  field is available per scenario.
+  one.
+- **That reframing checks out as an actual fitted classifier, not just an eyeballed
+  threshold (`scripts/classify_leakage_convergence.py`, 2026-08-17).** Logistic regression
+  on features known *before* the feedback loop runs (total nominal power, HTC, ambient
+  temperature, `leakage_fraction`, `k_double_c`, and an ordinal pattern-concentration
+  score), evaluated with leave-one-out CV (the only honest evaluation at this sample
+  size): a **2-feature model (power + pattern concentration) gets 21/21 (100%) LOO
+  accuracy**, beating both the power-only model (20/21, 95%) and the full 6-feature model
+  (19/21, 90% — mildly overfit at n=21). The full model's standardised coefficients rank
+  power (−1.54) and HTC (−0.84) well above `leakage_fraction` (+0.33) and `k_double_c`
+  (−0.18) — the two parameters this pilot was designed around are the *weakest* predictors
+  of whether it converges at all. Sample size is still small (n=21, growing toward n=45 as
+  `gen_leakage_pilot.py --extra-train 25` finishes on a wider, denser base-scenario pool);
+  the accuracy numbers will tighten, but the ranking — stability is mostly a function of
+  how hot the nominal solve already runs, not of the leakage parameters themselves — is
+  unlikely to invert.
 
-**Caveats.** One geometry, a small converged sample from one 20-scenario pilot, one
+**Caveats.** One geometry, a small converged sample from one 20(→45)-scenario pilot, one
 damping/gain schedule — the direction is unambiguous but the exact numbers would tighten
-with more data, not generated here since the qualitative answer was already clear and a
-larger run costs another real-solve budget.
+with more data.
 
 **Net effect on the paper's central claim: it survives, with a sharper boundary.** Every
 mechanism tested that keeps the problem well-posed — throttling, per-cell power, TSV
