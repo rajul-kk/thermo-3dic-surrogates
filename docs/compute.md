@@ -59,6 +59,81 @@ overhead 5–10%, FFT bandwidth-bound ops don't halve perfectly.
 
 ---
 
+## Per-Model, Per-Geometry Training Time — Full Dataset, All 6 Geometries (T4)
+
+Real train/test scenario counts per geometry (`data/3d-ice/`, verified 2026-08-17):
+
+| Geometry | Train | Test | Points/file |
+|---|---|---|---|
+| geometry1 | 40 | 5 | 100,000 |
+| geometry2a | 25 | 5 | 89,600 |
+| geometry3 | 40 | 5 | 110,000 |
+| geometry4 | 40 | 5 | 56,000 |
+| geometry5 | 50 | 5 | 84,000 |
+| geometry6 | 50 | 5 | 141,120 |
+
+Only geometry1/geometry2a/geometry4 CPU epoch times are directly measured (see table
+above); geometry5/geometry6 were already estimated from point-count scaling.
+**geometry3 is newly estimated here** the same way: interpolating FNO's per-scenario CPU
+cost (0.808 s/scenario at geometry1's 100k pts) linearly against geometry3's 110,000 pts
+gives ~0.889 s/scenario × 40 train = **35.5 s/epoch (estimated, not measured)**.
+
+The FNO g1↔g2a ratio (1.782×) is then reused as a shared per-geometry scaling factor for
+PINN and CNO-FNO, since architecture-specific per-scenario cost tracks grid/layer
+complexity similarly across models — validated against the one place two models were both
+independently measured on the same geometry pair: applying the FNO g1→g2a ratio to PINN's
+measured g1 time predicts g2a at 99.1 s vs. the actual measured 96.8 s (2.4% error).
+
+**2× T4 DDP** below = single-T4 total ÷ 1.7 (the 70%-efficiency figure from the GPU
+Specifications section above). Totals in the last row assume all 6 geometries trained
+**sequentially** on one path (single-T4 column) — pairing two geometries per run across
+both GPUs (as the existing All-7-Geometries section does) roughly halves that sum instead.
+
+### PINN baseline (8,000 epochs, 45× T4 speedup)
+
+| Geometry | CPU epoch (s) | T4 epoch (s) | Single-T4 total | 2× T4 DDP total | Basis |
+|---|---|---|---|---|---|
+| geometry1 | 89.0 | 1.98 | **4.4 h** | **2.6 h** | Measured |
+| geometry2a | 96.8 | 2.15 | **4.8 h** | **2.8 h** | Measured |
+| geometry3 | 97.8 | 2.17 | **4.8 h** | **2.8 h** | Estimated |
+| geometry4 | 57.0 | 1.27 | **2.8 h** | **1.7 h** | Estimated |
+| geometry5 | 66.1 | 1.47 | **3.3 h** | **1.9 h** | Estimated |
+| geometry6 | 159.8 | 3.55 | **7.9 h** | **4.6 h** | Estimated |
+| **All 6, sequential** | — | — | **~28.0 h** | **~16.5 h** | — |
+
+### FNO baseline (500 epochs, 25× T4 speedup)
+
+| Geometry | CPU epoch (s) | T4 epoch (s) | Single-T4 total | 2× T4 DDP total | Basis |
+|---|---|---|---|---|---|
+| geometry1 | 32.3 | 1.29 | **10.8 min** | **6.3 min** | Measured |
+| geometry2a | 36.0 | 1.44 | **12.0 min** | **7.1 min** | Measured |
+| geometry3 | 35.5 | 1.42 | **11.8 min** | **7.0 min** | Estimated |
+| geometry4 | 20.7 | 0.83 | **6.9 min** | **4.1 min** | Measured |
+| geometry5 | 24.0 | 0.96 | **8.0 min** | **4.7 min** | Estimated |
+| geometry6 | 58.0 | 2.32 | **19.3 min** | **11.4 min** | Estimated |
+| **All 6, sequential** | — | — | **~68.8 min** | **~40.5 min** | — |
+
+### CNO-FNO + PI + FiLM (400 epochs, 60× T4 speedup, the recommended default)
+
+| Geometry | CPU epoch (s) | T4 epoch (s) | Single-T4 total | 2× T4 DDP total | Basis |
+|---|---|---|---|---|---|
+| geometry1 | 62.1 | 1.04 | **6.9 min** | **4.1 min** | Measured |
+| geometry2a | 69.2 | 1.15 | **7.7 min** | **4.5 min** | Estimated |
+| geometry3 | 68.2 | 1.14 | **7.6 min** | **4.5 min** | Estimated |
+| geometry4 | 39.8 | 0.66 | **4.4 min** | **2.6 min** | Estimated |
+| geometry5 | 46.1 | 0.77 | **5.1 min** | **3.0 min** | Estimated |
+| geometry6 | 111.5 | 1.86 | **12.4 min** | **7.3 min** | Estimated |
+| **All 6, sequential** | — | — | **~44.1 min** | **~26.0 min** | — |
+
+**Reading this table:** on a single T4, the full 6-geometry sweep costs ~28 GPU-hours for
+PINN baseline, ~69 GPU-minutes for FNO baseline, or ~44 GPU-minutes for the recommended
+CNO-FNO+PI+FiLM — the same ~19× PINN-vs-FNO and ~1.6× FNO-vs-CNO-FNO ratios already noted
+in the geometry1-only table above hold in aggregate. Only the geometry1/2a/4 rows carry a
+"Measured" CPU basis; geometry3/5/6 rows are extrapolated from point-count and per-geometry
+scaling ratios and carry the same ±50% uncertainty as the rest of this file.
+
+---
+
 ## Single-Geometry Training Time: 2× T4
 
 DDP across both T4s. One geometry trained per run.
@@ -100,6 +175,55 @@ Geometry6 (470k pts) adds ~2.7× overhead vs. geometry5 for FNO/CNO runs.
 > **PI-DeepONet all-7 total (12 min) is faster than CNO-FNO for a single geometry (~6 min × 4 rounds = 28 min).**
 > CNO-FNO wins per-geometry accuracy; DeepONet wins cross-geometry deployment speed.
 > CNO-FNO is slower than FNO on CPU but faster on GPU — use `--best` only with CUDA.
+
+---
+
+## GPU Cost: A3/A3b Pilot Architecture Comparisons (throttled & leakage, geometry1)
+
+`kaggle_a3_throttled_arch_comparison.ipynb` and `kaggle_a3b_leakage_arch_comparison.ipynb`
+(added 2026-08-16/17, `goal.md` Tracks A3/D) train **FNO, CondFNO (FiLM), CNO-FNO+PI+FiLM,
+and CNO-FNO+attention (SAU-FNO style)** — same `channels=32, blocks=4, epochs=400, batch=4`
+config for all four, on two small geometry1 pilot sets:
+
+| Pilot | Train scenarios | Test scenarios | Notes |
+|---|---|---|---|
+| Throttled (A3) | 15 | 5 | 6/20 total scenarios triggered derating |
+| Leakage (A3b) | 9 (converged only) | 4 (converged only) | 6/20 scenarios diverged (runaway), excluded from both splits |
+
+Both pilots use geometry1's grid (100,000 pts/file, same as the full-dataset FNO benchmark
+above), just far fewer scenarios — 15 or 9 train vs. ~40 for the full geometry1 training set
+the 32.3s/epoch CPU number was measured on. Scaling that measurement by train-scenario count
+(batch=4 in both cases, so cost is ~linear in scenario count) gives the CPU baseline for each
+pilot; T4 times use the same speedup factors as the rest of this file (FNO/CondFNO 25×,
+CNO-FNO 60×). CondFNO uses the 34s/epoch (32.3s + <5% FiLM overhead) baseline; CNO-FNO+attention
+is estimated at 1.3× plain CNO-FNO's cost (axial self-attention on the small 8×8×5 latent grid,
+not the full 3D grid — cheap, but not free).
+
+| Model | Throttle pilot CPU/epoch (est.) | Throttle **1×T4**, 400 ep | Leakage pilot CPU/epoch (est.) | Leakage **1×T4**, 400 ep |
+|---|---|---|---|---|
+| FNO | ~12.1 s | **~3.2 min** | ~7.3 s | **~1.9 min** |
+| CondFNO (FiLM) | ~12.8 s | **~3.4 min** | ~7.7 s | **~2.0 min** |
+| CNO-FNO+PI+FiLM | ~23.3 s | **~2.6 min** | ~14.0 s | **~1.6 min** |
+| CNO-FNO+attention | ~30.3 s | **~3.4 min** | ~18.2 s | **~2.0 min** |
+
+**Why 2× T4 DDP is not recommended for these pilots** (unlike the full-dataset table above):
+at batch=4, 15 train scenarios is only ~4 batches/epoch, and 9 converged leakage scenarios
+is only ~2-3 — splitting either across 2 GPUs leaves ~1-2 batches/GPU/epoch. DDP's gradient
+sync happens once per batch regardless of batch size, so at this scale the fixed per-step
+communication overhead (NCCL all-reduce latency, ~tens of ms) is comparable to or larger than
+the compute the tiny batch actually does. The 70%-efficiency/1.7× figure quoted earlier in
+this file was derived from full-dataset runs with far more batches/epoch to amortize that
+overhead over; it does not apply here. Expect 2×T4 DDP on these pilots to be **flat or slower
+than single-T4 wall-clock**, not faster — run them on 1× T4 and use the second GPU for a
+different model in parallel instead (e.g. FNO on GPU 0, CNO-FNO on GPU 1, ~7-8 min total for
+all four models across both pilots rather than ~11 min sequential on one GPU).
+
+All four models × both pilots fit comfortably inside a single Kaggle session (well under the
+30 GPU-hr/week free-tier budget) even run sequentially on 1× T4, matching the notebooks' own
+"under 30 min total for all four" estimate. These per-epoch estimates are **not yet measured**
+— extrapolated from the existing FNO/CNO-FNO CPU benchmarks and speedup factors above, carrying
+the same ±50% uncertainty noted at the end of this file; the notebooks' own summary JSON output
+(`a3_..._summary.json` / `a3b_..._summary.json`) will supersede this table once actually run.
 
 ---
 

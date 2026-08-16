@@ -611,6 +611,115 @@ end-to-end), and no paper found in the 2026-08-16 literature pass propagates int
 property uncertainty through a chip thermal model and compares the resulting spread
 against surrogate model error.
 
+**Novelty correction (2026-08-17), stated plainly rather than left implicit:** the
+*technique* here — Monte Carlo / parametric propagation of TIM and interface-resistance
+uncertainty through a package thermal model — is established practice, not new (Electronics
+Cooling, 2018; arXiv:2606.26176 runs N=2,000-trial Monte Carlo for process variation in
+3.5D packages, 2026). What is not established, and is what this section actually claims,
+is using that propagated spread as a *reference line against neural-surrogate accuracy
+claims specifically* — nobody found in the literature pass asks "does this exceed the
+gap the surrogate literature competes over."
+
+**Multi-geometry extension (2026-08-17).** Repeated the single-parameter sweep on
+geometry1, geometry4 and geometry6 (98 solves, 0 failures;
+`data/3d-ice-interface-multi/`), at each geometry's own highest-power `hotspot` scenario
+(HTC 50000) rather than geometry5's `split_chiplet_a_hot`:
+
+| geometry | interface | k range | peak-T spread | hotspot shift |
+|---|---|---|---|---|
+| geometry1 | tim_top | 5–80 | **40.62 K** | 424 µm |
+| geometry1 | tim_bottom | 1–8 | 36.01 K | 141 µm |
+| geometry4 | **tim_die** | 1–8 | **75.98 K** | — (no shift) |
+| geometry4 | tim_sink | 1–8 | 25.65 K | 556 µm |
+| geometry6 | tim_sink | 1–8 | 12.01 K | 82 µm |
+
+Every value is a physically sane, monotonic function of k (verified by hand, e.g.
+geometry4's `tim_die`: k=1→143.0°C, k=2→104.4°C, k=4→80.6°C, k=6→71.7°C, k=8→67.0°C — not
+a fluke). geometry4's 75.98 K is now the largest single-interface spread measured in this
+project, ~70× the 1.09 K reference gap. geometry6's spread (12.01 K) is smaller than the
+others because its die area is much larger (42×14 mm) and spreads heat further for the
+same block power density, not because the mechanism is weaker there — a useful reminder
+that this sensitivity is geometry-dependent, not a fixed property of the benchmark.
+
+**Interaction effects, tested and corrected (2026-08-17).** Ran a 3×3 joint sweep of
+`tim_sink` × `tim_top` on geometry6 (9 scenarios) to test whether two interface
+uncertainties compound super- or sub-additively — the main caveat on the single-parameter
+result. **A real bug was caught and fixed in the analysis before trusting the result**:
+the first version of `scripts/analyze_interface_uncertainty.py` identified the "both at
+nominal" baseline point by checking whether the two override *values* were equal to each
+other — which is never true here (`tim_sink` and `tim_top` have non-overlapping sweep
+ranges), so it silently fell back to an arbitrary grid corner and would have reported a
+false **9/9 "super-additive"** result. Fixed by defining nominal-k per layer explicitly
+and locating the true double-nominal point in the grid. Corrected result:
+**0/9 super-additive — the two effects compound linearly (additively) at this operating
+point**, agreeing with the sum of their individual single-parameter effects to within
+0.01 K on every one of the 9 grid points. This is the more scientifically useful finding:
+it means a first-order, independent treatment of these two interface uncertainties would
+have been adequate here, not an oversimplification. Tested at one (lower-power) operating
+point on one geometry; a higher-power interaction test, where the individual effects are
+larger, is a natural follow-up but not yet run.
+
+### Track D — Leakage/temperature positive feedback (built and measured 2026-08-17)
+
+**Motivation.** Throttling (Track A) is *negative* feedback: hotter → less power →
+cooler. It is self-limiting and degraded ridge only modestly (spatial R² 0.970 → 0.890/
+0.919). Subthreshold leakage is *positive* feedback: hotter → more leakage power →
+hotter. It is self-amplifying and, above a critical loop gain, has no steady state at all
+(thermal runaway) — structurally the sharpest available test of this benchmark's central
+linearity claim, since the map from requested to delivered power is no longer even
+guaranteed to be well-defined, let alone affine.
+
+**Novelty is in the test, not the mechanism.** Self-consistent leakage-temperature
+solving to predict thermal runaway is established — Chen et al., *ICCAD* 2006 ("Leakage
+power dependent temperature estimation to predict thermal runaway"), and current work
+(ATSim3D, arXiv:2601.11050, Jan 2026) explicitly builds this into a fast 3D-IC thermal
+simulator. What's new here is asking whether a *linear baseline* still solves the
+CONVERGED portion of such a dataset, which nothing found in the literature pass asks.
+
+**Method.** `src/scenario/leakage.py` (`apply_leakage_feedback`) — damped fixed-point
+iteration on `P_total(T) = P_dynamic + P_leak_ref · 2^((T−T_ref)/k_double)`, referenced to
+a nominal *junction* temperature (85°C default — a real bug was caught before running any
+real solves: an earlier version referenced ambient (25°C), which would have spuriously
+amplified every realistically-hot scenario; fixed and covered by 10 unit tests against a
+stub simulator, including an explicit high-loop-gain test that must report runaway rather
+than a false steady state). Wired into `main.py`/`NPZExporter` mirroring throttling's
+convention exactly: delivered (feedback-amplified) power in `block_power_*`, the original
+request preserved in `nominal_block_power_*`, and `scripts/baselines.py::collect_block_keys`
+extended to prefer nominal power whenever `leakage_enabled` is set (the same
+answer-vs-question bug throttling had, fixed proactively this time rather than found
+after the fact).
+
+**Result** (`scripts/gen_leakage_pilot.py`, geometry1, 20 scenarios, leakage settings
+swept from benign to aggressive; `scripts/baselines_leakage.py` for the fit, which
+excludes runaway/non-converged scenarios before scoring — including a 506,854°C numerical
+divergence would test "does ridge survive garbage," not the real question):
+
+- **13/20 converged, 6/20 ran away, 1/20 neither** (still slowly climbing at the
+  iteration cap, excluded from both categories). A 30% runaway rate at these settings.
+- **Among converged scenarios (9 train / 4 test), ridge still wins**: det.MAE 0.248 K,
+  spatial R² **0.972** — matching the un-throttled baseline (0.970) and beating the
+  throttled result (0.919). Positive feedback, when it settles at all, does not degrade
+  the linear approximation any further than the ordinary dataset already sits at.
+- **The real finding is what ridge's regression framing doesn't even attempt**: 30% of
+  scenarios have no steady-state temperature field to predict at all. That's not a
+  regression-accuracy question — it's closer to a stability/classification problem
+  (will this scenario converge or run away?), and nothing in this benchmark's current
+  metrics tests it.
+
+**Honest caveats:** one geometry, small converged sample (9 train/4 test) from a
+20-scenario pilot, one damping/gain schedule. The direction of the regression result
+(ridge still wins on convergent data) is clear, but the exact numbers would tighten with
+a larger or gentler batch — not generated in this pass since the qualitative answer was
+already unambiguous and a bigger run costs another 20–30 min of real 3D-ICE solves.
+
+**What this changes about the paper's central claim:** it survives, and gets a sharper
+boundary. Every mechanism tested so far that keeps the problem well-posed (throttling,
+per-cell power, TSV fields, underfill layouts, now leakage-when-convergent) leaves ridge
+winning or close to it. The one place this benchmark has found real nonlinearity is where
+the problem stops being well-posed at all (leakage runaway; and, more mildly, the
+microchannel pilot's hotspot-localisation loss to nearest-neighbour, Track A above) — not
+in any of the smooth closed-loop feedback mechanisms tried so far.
+
 ### Prioritized action list
 
 1. **Cite arXiv:2604.03290 and arXiv:2510.15968 explicitly in `docs/report.md` §10**,

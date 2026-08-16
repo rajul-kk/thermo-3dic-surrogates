@@ -648,13 +648,98 @@ overestimate of real Cu-Cu bond resistance but rates it low priority because the
 error should be small. Sweeping it 60→400 W/m·K moves peak T by 0.02 K, confirming that
 call empirically.
 
-**Caveats.** One geometry, one scenario per power level, one parameter varied at a time
-(no interaction effects), and 3D-ICE is itself the ground truth — this measures
-*model-input sensitivity*, not validated real-hardware variation. It establishes that this
-benchmark's answer is highly sensitive to an input nobody varies or reports; it does not
-establish the true physical spread on real silicon, which would require the standardized,
-uncertainty-aware interface-property data that [Barua, Udoy & Aziz, arXiv:2604.03290] identify
-as missing from the field.
+**Caveats, and a novelty boundary stated explicitly.** One geometry, one scenario per
+power level, one parameter varied at a time, and 3D-ICE is itself the ground truth — this
+measures *model-input sensitivity*, not validated real-hardware variation. It establishes
+that this benchmark's answer is highly sensitive to an input nobody varies or reports; it
+does not establish the true physical spread on real silicon, which would require the
+standardized, uncertainty-aware interface-property data that [Barua, Udoy & Aziz,
+arXiv:2604.03290] identify as missing from the field. Nor is the underlying *technique*
+new: Monte Carlo propagation of TIM/interface-resistance uncertainty through a package
+thermal model is established practice (Electronics Cooling, 2018), and a 2026 3.5D-package
+study runs N=2,000-trial Monte Carlo over process variation for a related purpose
+[arXiv:2606.26176]. What we add is using the resulting spread as a reference line against
+neural-surrogate accuracy claims specifically — a search of the current literature found
+no paper doing that comparison.
+
+**Extended across geometries, and a self-caught error in the interaction test.** Repeating
+the sweep on geometry1, geometry4 and geometry6 (98 further solves, 0 failures) at each
+geometry's own high-power operating point gives a larger and more sobering picture:
+
+| geometry | interface | k range (W/m·K) | peak-T spread |
+|---|---|---|---|
+| geometry1 | TIM1 (`tim_top`) | 5–80 | 40.62 K |
+| **geometry4** | **die-side grease (`tim_die`)** | **1–8** | **75.98 K** |
+| geometry6 | sink-side grease (`tim_sink`) | 1–8 | 12.01 K |
+
+geometry4's 75.98 K — a physically sane, monotonic function of k, checked by hand — is now
+the largest single-interface spread measured in this project, roughly 70× the reference
+gap. geometry6's smaller spread (12.01 K) reflects its much larger die area spreading heat
+further at the same power density, not a weaker mechanism there — sensitivity is
+geometry-dependent, not a fixed property of "this benchmark."
+
+We also ran a 3×3 joint sweep of two interfaces on geometry6 to test whether uncertainties
+compound super- or sub-additively, and caught a real bug in our own analysis before
+trusting the answer: the first pass identified the "both at nominal" reference point by
+checking whether the two swept values were numerically equal to each other, which is never
+true when the two layers' ranges don't overlap — it silently selected an arbitrary grid
+corner instead, and would have reported a false **9/9 "super-additive"** finding. Corrected
+by locating the true double-nominal point explicitly: **0/9 grid points are
+super-additive** — the two effects sum linearly to within 0.01 K at every point tested.
+That is the more useful result of the two: at this operating point, treating these
+uncertainties independently is adequate, not an oversimplification. Tested at one
+(lower-power) point on one geometry only; untested at higher power, where the individual
+effects are much larger.
+
+### 9.10 Leakage/temperature positive feedback: the sharpest test tried, and the linear result holds — with one exception (2026-08-17)
+
+Throttling (§9.8) is *negative* feedback: hotter → less power → cooler, self-limiting,
+and it degraded ridge only modestly. Subthreshold leakage is *positive* feedback: hotter →
+more leakage → hotter, self-amplifying, with no steady state at all above a critical loop
+gain. This is structurally the sharpest test of the paper's central claim tried so far,
+since the map from requested to delivered power is not even guaranteed to be well-defined,
+let alone linear.
+
+The mechanism itself is not new — self-consistent leakage-temperature solving to predict
+thermal runaway dates to Chen et al. [*ICCAD* 2006], and current simulators (ATSim3D,
+arXiv:2601.11050, Jan 2026) build it in directly. What we add is asking whether a linear
+baseline still solves the *convergent* portion of such a dataset, which we could not find
+asked elsewhere. `src/scenario/leakage.py` implements a damped fixed-point iteration on
+$P_{total}(T) = P_{dynamic} + P_{leak,ref} \cdot 2^{(T-T_{ref})/k_{double}}$, referenced to
+a nominal junction temperature (85°C, not ambient — an early version made exactly that
+error and was caught before any real solves, since referencing to ambient spuriously
+amplifies every realistically hot scenario). Wired to mirror throttling's convention
+exactly: delivered power exported as `block_power_*`, the original request preserved as
+`nominal_block_power_*`, so ridge is asked the same question it was for throttling.
+
+Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggressive:
+
+- **13 converged, 6 ran away, 1 neither** (still climbing at the iteration cap) — a 30%
+  runaway rate at these settings.
+- **On the 13 converged scenarios (9 train / 4 test, `scripts/baselines_leakage.py`, which
+  excludes runaway scenarios before fitting — scoring against a 506,854°C numerical
+  divergence tests whether ridge survives garbage, not the real question), ridge still
+  wins**: detrended MAE 0.248 K, spatial R² **0.972** — matching the un-throttled baseline
+  (0.970, §9.1) and beating the throttled result (0.919, §9.8). Positive feedback, when it
+  settles at all, does not push the problem further from linear than it already sits.
+- **The genuine finding is what a regression framing doesn't even attempt to answer**: 30%
+  of scenarios in this pilot have no steady-state temperature field at all. That is not an
+  accuracy question a surrogate can be scored on — it is closer to a stability/
+  classification problem (will this operating point converge or run away?), and nothing in
+  this benchmark's current metrics addresses it.
+
+**Caveats.** One geometry, a small converged sample from one 20-scenario pilot, one
+damping/gain schedule — the direction is unambiguous but the exact numbers would tighten
+with more data, not generated here since the qualitative answer was already clear and a
+larger run costs another real-solve budget.
+
+**Net effect on the paper's central claim: it survives, with a sharper boundary.** Every
+mechanism tested that keeps the problem well-posed — throttling, per-cell power, TSV
+fields, underfill layouts, and now leakage feedback when convergent — leaves ridge winning
+or close to it. The one place this benchmark has produced genuine nonlinearity is where
+the problem stops being well-posed at all (leakage runaway here; more mildly, the
+microchannel pilot's hotspot-localisation loss to nearest-neighbour, §9.8) — not in any of
+the smooth closed-loop mechanisms tried.
 
 ---
 
@@ -910,3 +995,7 @@ release the baseline and OOD tooling so those conditions can be checked rather t
 16. Barua, B. P., Udoy, M. R. I. & Aziz, A. "A Review of Multiscale Thermal Modeling in Heterogeneous 3D ICs." arXiv:2604.03290, 2026.
 
 17. McGreivy, N. & Hakim, A. "Weak baselines and reporting biases lead to overoptimism in machine learning for fluid-related partial differential equations." *Nature Machine Intelligence*, 2024. DOI: 10.1038/s42256-024-00897-5. arXiv:2407.07218.
+
+18. Chen, T. et al. "Leakage power dependent temperature estimation to predict thermal runaway." *ICCAD*, 2006.
+
+19. "ATSim3D: Towards Accurate Thermal Simulator for Heterogeneous 3D-IC Systems Considering Nonlinear Leakage and Conductivity." arXiv:2601.11050, 2026.
