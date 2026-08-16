@@ -39,6 +39,7 @@ from src.core.mesh import (
 )
 from src.scenario.generator import ScenarioGenerator
 from src.scenario.throttling import apply_throttling
+from src.scenario.leakage import apply_leakage_feedback
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.visualization.visualization import create_visualization_summary
@@ -165,6 +166,23 @@ def process_scenario(scenario_name: str,
                         f"peak={throttle_info['throttle_peak_temp_c']:.1f}C"
                         + ("" if throttle_info['throttle_converged'] else " (pinned at power floor)")
                     )
+            elif scenario_params.get('leakage_enabled'):
+                # Self-consistent electrothermal solve: leakage rises
+                # exponentially with T, so power depends on the field being
+                # solved for. POSITIVE feedback, unlike throttling -- may not
+                # have a steady state at all (runaway), which is reported
+                # rather than clamped.
+                parsed, leakage_info = apply_leakage_feedback(
+                    simulator, geometry, scenario_params, scenario_name)
+                scenario_params.update(leakage_info)
+                logger.info(
+                    f"  Leakage: {leakage_info['leakage_iterations']} iters, "
+                    f"x{leakage_info['leakage_multiplier']:.3f}, "
+                    f"peak={leakage_info['leakage_peak_temp_c']:.1f}C"
+                    + (" (RUNAWAY)" if leakage_info['leakage_runaway']
+                       else "" if leakage_info['leakage_converged']
+                       else " (not converged)")
+                )
             else:
                 parsed = simulator.simulate(geometry, scenario_params, scenario_name)
             # parse_results returns 'temperature' key (not 'temp')

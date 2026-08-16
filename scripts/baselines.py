@@ -110,9 +110,11 @@ def collect_block_keys(scenarios: List[dict]) -> List[str]:
     """
     Union of block-power metadata keys, sorted for determinism.
 
-    Prefers `nominal_block_power_*` (the pre-throttle request) over
-    `block_power_*` (the delivered, possibly-derated power) whenever any
-    scenario carries throttle metadata. Using the delivered power as ridge's
+    Prefers `nominal_block_power_*` (the requested power) over
+    `block_power_*` (the delivered power after any closed-loop feedback)
+    whenever any scenario carries throttle OR leakage metadata. Both
+    mechanisms make delivered power a function of the temperature being
+    solved for, so both must hand the baseline the request, not the outcome. Using the delivered power as ridge's
     feature hands it the already-resolved answer for throttled scenarios --
     it no longer has to represent the closed feedback loop at all, and scores
     a misleadingly high R^2 that has nothing to do with whether the map is
@@ -121,17 +123,18 @@ def collect_block_keys(scenarios: List[dict]) -> List[str]:
     (0.970) until this was fixed -- using nominal power instead correctly
     shows real degradation (0.890).
     """
-    uses_nominal = any(sc['meta'].get('throttle_enabled') for sc in scenarios)
+    uses_nominal = any(sc['meta'].get('throttle_enabled')
+                       or sc['meta'].get('leakage_enabled') for sc in scenarios)
     prefix = 'nominal_block_power_' if uses_nominal else 'block_power_'
     keys = set()
     for sc in scenarios:
         keys.update(k for k in sc['meta'] if k.startswith(prefix))
     if uses_nominal and not keys:
-        # throttle_enabled=True but no nominal_block_power_* present -- an
+        # throttle/leakage enabled but no nominal_block_power_* present -- an
         # older export predating that field. Fail loud rather than silently
         # falling back to the misleading delivered-power feature.
         raise ValueError(
-            "Scenario(s) have throttle_enabled=True but no "
+            "Scenario(s) have throttle_enabled or leakage_enabled=True but no "
             "nominal_block_power_* metadata (pre-dates that export field). "
             "Re-export this data before running baselines on it."
         )

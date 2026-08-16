@@ -91,7 +91,8 @@ class NPZExporter:
         # gives FNO the same "request -> outcome" problem ridge is scored on;
         # identical to power_density when throttling didn't fire or wasn't
         # enabled, so this is a no-op for the rest of the dataset.
-        nominal_blocks = scenario_params.get('throttle_nominal_power_blocks')
+        nominal_blocks = (scenario_params.get('throttle_nominal_power_blocks')
+                          or scenario_params.get('leakage_nominal_power_blocks'))
         if nominal_blocks:
             power_density_nominal = generate_power_density_field(
                 coords, geometry, nominal_blocks,
@@ -126,6 +127,18 @@ class NPZExporter:
             'throttle_triggered': bool(scenario_params.get('throttle_triggered', False)),
             'throttle_derate_factor': float(scenario_params.get('throttle_derate_factor', 1.0)),
             'throttle_iterations': int(scenario_params.get('throttle_iterations', 1)),
+            # Leakage/temperature positive feedback (src/scenario/leakage.py).
+            # Same convention as throttling: power_blocks above is the DELIVERED
+            # (feedback-amplified) power; nominal_block_power_* below is the
+            # request. `leakage_runaway` flags scenarios with no steady state --
+            # keep them filterable rather than silently mixed into training data.
+            'leakage_enabled': bool(scenario_params.get('leakage_enabled', False)),
+            'leakage_multiplier': float(scenario_params.get('leakage_multiplier', 1.0)),
+            'leakage_iterations': int(scenario_params.get('leakage_iterations', 1)),
+            'leakage_converged': bool(scenario_params.get('leakage_converged', True)),
+            'leakage_runaway': bool(scenario_params.get('leakage_runaway', False)),
+            'leakage_fraction': float(scenario_params.get('leakage_fraction', 0.0)),
+            'leakage_k_double_c': float(scenario_params.get('leakage_k_double_c', 0.0)),
         }
 
         # Store per-block power densities so the PINN trainer can assign
@@ -137,7 +150,8 @@ class NPZExporter:
         for block_name, power_wcm2 in scenario_params['power_blocks'].items():
             metadata[f'block_power_{block_name}'] = float(power_wcm2)
 
-        nominal_blocks = scenario_params.get('throttle_nominal_power_blocks')
+        nominal_blocks = (scenario_params.get('throttle_nominal_power_blocks')
+                          or scenario_params.get('leakage_nominal_power_blocks'))
         if nominal_blocks:
             for block_name, power_wcm2 in nominal_blocks.items():
                 metadata[f'nominal_block_power_{block_name}'] = float(power_wcm2)
