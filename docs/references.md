@@ -31,10 +31,21 @@ different titles, not one paper and its update.
 actually are, since `docs/report.md` §10 references "the accuracy targets neural models
 are held to" without a citation. No single authoritative absolute-°C figure was found;
 verified sources cluster around 1–4% relative error instead (CTM-vs-detailed-model <1%,
-junction-to-case test method ±4%, CFD-vs-measurement ~2%). arXiv:2604.03290 ("A Review of
-Multiscale Thermal Modeling in Heterogeneous 3D ICs") is topically on point but its
-author names could not be extracted in this pass — **not yet fully confirmed**, same
-status as the Zhou/Kou citation below.
+junction-to-case test method ±4%, CFD-vs-measurement ~2%).
+
+**Added 2026-08-16 (§7, §9):** arXiv:2604.03290 (Barua, Udoy & Aziz 2026, "A Review of
+Multiscale Thermal Modeling in Heterogeneous 3D ICs") — flagged unverified on 2026-08-11
+— is now **fully confirmed**: author names independently confirmed via search, full text
+extracted directly (see §9 for section-by-section pressing-open-problems summary). Also
+did a full documentation audit this session (all of `docs/`, `goal.md`, `README.md`
+cross-checked against real files in `data/3d-ice/` and `results/`) — found and fixed
+several stale/internally-contradictory tables in `docs/geometry_reference.md` (point
+counts, an obsolete 8-geometry/335-file dataset-statistics table, TSV material rows for
+the removed geometry2b/2c) and `docs/references.md` §4/§6 (HTC/ambient ranges predating
+the 2026-08-01 TDP-regime revision). None of the numbers in `docs/report.md`'s own body
+text were found wrong; the drift was concentrated in the two reference/geometry docs,
+which get updated less often than the paper itself. Full findings in `goal.md`'s
+"Documentation audit" entry.
 
 ## 1. Core Thermal Simulators
 
@@ -168,6 +179,13 @@ adaptation, not a direct replication.)
   repo's `CNOFNOHybrid`+axial-attention architecture and Therm-FM fine-tuning approach —
   differentiate explicitly against it if using either as a novelty claim.** Does not
   appear to cover 2.5D chiplet/CoWoS lateral heterogeneity (this repo's geometry4/5/6).
+  **Confirmed 2026-08-16 (research pass, not yet full-text-read): reports 842× speedup and
+  >50% MSE reduction without stating a linear/ridge/closed-form baseline comparison** —
+  i.e. the exact evaluation gap this paper's central finding diagnoses, in a specific,
+  very recent (Oct 2025), directly-on-domain paper, not just as a general claim about
+  "the field." Strongest concrete example found for citing that gap by name; worth using
+  in `docs/report.md`'s "Implications for the field" discussion (§10) rather than only
+  as a prior-art differentiation entry.
 - **DeepOHeat: Operator Learning-based Ultra-fast Thermal Simulation in 3D-IC Design.**
   *DAC* 2023. arXiv:2302.12949. DOI: 10.1109/DAC56929.2023.10247998.
   And its successor, a *separate paper with a different title*:
@@ -263,6 +281,9 @@ Cross-check values from this paper:
 ## 4. Geometry Cross-Check Against Published Literature
 
 ### 4.1 Geometry 1 — Single-Die 2D Stack
+
+*(§4's "Our value" columns below are also pre-TDP-regime original design values, same
+caveat as §6.)*
 
 | Parameter | Our value | 3D-ICE reference case | Typical literature range | Verdict |
 |-----------|-----------|----------------------|--------------------------|---------|
@@ -411,7 +432,17 @@ dedicated 10%-density geometry, was removed 2026-08-06 (see `goal.md`); the rema
 
 ## 6. Scenario Parameter Ranges vs. Literature
 
-| Parameter | Our range | Typical server range | Typical mobile range |
+**Note added 2026-08-16**: "Our range" below reflects the *original* scenario-generator
+design (pre-2026-08-01 TDP-regime revision, `docs/report.md` §9.3) and no longer matches
+the live dataset. Verified directly against every file's metadata in `data/3d-ice/`, the
+current live dataset's HTC spans **2,000–50,000 W/m²·K** and ambient spans **25–45°C** —
+see `docs/geometry_reference.md`'s "Boundary Condition Parameters" table (also corrected
+2026-08-16) for the authoritative current values. Power density is no longer a flat range
+at all; it's a per-geometry TDP budget (`docs/report.md` §4). Kept below for its original
+purpose — checking initial design choices against the literature — not as a description
+of what the current dataset contains.
+
+| Parameter | Our range (original design, obsolete) | Typical server range | Typical mobile range |
 |-----------|-----------|---------------------|---------------------|
 | Power density | 0.1–20 W/cm² | 5–300 W/cm² | 0.5–50 W/cm² |
 | HTC | 500–**200,000** W/m²·K | 1000–50000 W/m²·K | 500–10000 W/m²·K |
@@ -478,19 +509,39 @@ truth is 3D-ICE, itself a compact model, never checked against silicon or FEM (�
 field-average error, which is exactly the metric this repo's own per-cell-power finding
 (§9.4) shows ridge is weakest on.
 
-**Also found, not yet cited elsewhere in this repo:** a directly on-topic recent review,
+**Fully confirmed 2026-08-16** (was flagged unverified below — author names now
+independently confirmed via search plus a successful full-text extraction, both
+cross-checking each other):
 
-Author(s) TBD (2026). **A Review of Multiscale Thermal Modeling in Heterogeneous 3D
-ICs.** arXiv:2604.03290.
-(Surveys compact thermal models, FEM/FDM, Green's function methods, reduced-order
-models, and physics-informed ML for 3D-IC thermal transport; explicitly frames
-"rigorous validation against measurements" as central to model credibility, matching
-this repo's own emphasis on baselining before crediting an architecture. Full-text
-extraction failed in this pass — PDF fetch returned only encoded stream data, and the
-HTML abstract fetch didn't surface author names — so this citation is topically
-verified but **not yet fully confirmed**; needs a manual read before being relied on
-for specific claims, same status as the Zhou/Kou citation in the verification-status
-header above.)
+Barua, B. P., Udoy, M. R. I., & Aziz, A. (2026).
+**A Review of Multiscale Thermal Modeling in Heterogeneous 3D ICs.**
+arXiv:2604.03290. Submitted 26 Mar 2026.
+
+Surveys compact thermal models (CTMs), FEM/FDM, Green's function/semi-analytical
+techniques, reduced-order and multi-fidelity methods, and physics-informed ML (PIML)
+for 3D-IC thermal transport, with emphasis on interface-dominated conduction, material
+anisotropy, and electrothermal coupling. Directly relevant open-problem claims (§VIII),
+each worth positioning this repo's existing work against explicitly in `docs/report.md`:
+
+1. **§VIII-E**: the field's "main challenge is no longer raw prediction speed, but
+   robustness under [distribution] shift" (workload, BC, aging, manufacturing
+   variation); calls for models to be "more uncertainty aware, more explainable." This
+   repo's Track B leave-one-geometry-out result (goal.md) and MC-Dropout miscalibration
+   finding (§10) are direct, already-completed evidence on exactly this question — not
+   yet cited as such in the paper's positioning.
+2. **§VIII**: no standardized, uncertainty-aware thermal boundary resistance (TBR)
+   interface-property library exists across the field — a gap this repo does **not**
+   address (worth flagging as a real, distinct future-work direction, not a quick add).
+3. **§VIII-B/C**: uncertainty quantification is not propagated upward through
+   multiscale/reduced-order model chains — same alignment as point 1.
+4. **§VIII / conclusion**: incomplete multiphysics coupling (thermal-mechanical-
+   electrical, power-delivery/signal-integrity co-simulation) flagged as a structural
+   gap. This repo's throttling (electro-thermal feedback loop) and microchannel
+   (fluid-thermal advection) mechanisms are steps toward exactly this, already built
+   and pilot-measured (goal.md Track A) — worth explicit connection in §10.
+5. **Conclusion**: no single modeling framework suffices; argues for calibrated
+   multilevel workflows over one universal solver — supports, but doesn't itself make,
+   this repo's baseline-before-crediting-an-architecture argument.
 
 ---
 

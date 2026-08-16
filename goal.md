@@ -434,3 +434,122 @@ repeats of B2, result: not validated, see Track B, (b) ✅ done 2026-08-09 — e
 above), (c) ◐ notebook prepared 2026-08-11, not yet run — the full A3 GPU architecture
 comparison (`notebooks/kaggle_a3_throttled_arch_comparison.ipynb`); needs a Kaggle GPU
 session this environment doesn't have, execution is on the user.
+
+## Documentation audit and novelty action plan (2026-08-16)
+
+Two parallel passes: (1) a top-to-bottom fact-check of every doc against real code/data —
+this repo had never had one across ALL docs simultaneously, only targeted fixes per
+session; (2) a fresh literature scoop-check plus a search for the field's own stated
+pressing open problems, to ground novelty claims in current (2026) sources rather than
+this project's own accumulated assumptions.
+
+### Audit findings and fixes
+
+**Real errors found and fixed, all in `docs/geometry_reference.md` and
+`docs/references.md` — none in `docs/report.md`'s own body text.** The drift was
+concentrated in the two reference docs, which get touched less often than the paper:
+
+1. `docs/geometry_reference.md`'s Overview table used a `layers × nx × ny` formula that
+   doesn't match 3D-ICE's actual adaptive z-grid (verified 8/8 point-count claims by
+   loading real files in `data/3d-ice/*/` directly — e.g. geometry6 was listed as
+   470,400 pts/file, a raw mesh-cell product; the real npz files contain 141,120). Fixed
+   the Overview table and five detail-section restatements of the same wrong formula.
+2. The same file's "Dataset Statistics" table still said 335 files / 8 geometries — the
+   pre-2026-08-06 count, contradicting its own "Dataset Summary" table 60 lines above it
+   (which correctly said 275/6). Fixed, and pruned leftover geometry2b/2c rows from the
+   TSV-properties and Material Library tables.
+3. `docs/references.md` §4 and §6's HTC/ambient-temperature comparison tables described
+   the *original* scenario-generator design (HTC 500–200,000, ambient 25–85°C) as if
+   current. Verified the live dataset's actual range directly from all 275 files' metadata
+   (HTC 2,000–50,000 W/m²·K, ambient 25–45°C — matches `docs/report.md`'s own numbers)
+   and added dated correction notes rather than deleting the historical comparison, since
+   it still serves its original purpose (checking initial design choices against
+   literature).
+4. `docs/compute.md`'s GPU cost estimates key off the *declared* mesh resolution, not the
+   real per-file grid FNO actually trains on (confirmed from training logs: FNO uses the
+   real npz shape by default, e.g. geometry1 trains on grid (100,100,10) despite the
+   geometry declaring (100,100,40)) — flagged as a likely-conservative-overestimate
+   discrepancy rather than re-deriving every cost number, since these are estimates for
+   future runs, not settled results.
+5. **Closed a real reproducibility gap**: `docs/report.md` §9.7/§9.8's throttled-FNO
+   numbers (det.MAE 1.795 K, spatial R² 0.551, hotspot 5139 µm) were real — computed
+   in-session — but had never been saved as a re-runnable artifact, unlike the ridge
+   numbers next to them. Added `scripts/eval_fno_throttled.py`; re-ran it, got the
+   identical numbers (confirms they weren't wrong, just unarchived), output now at
+   `results/fno_throttled_eval.json`.
+
+**Known, not fully closed**: most §9.1/§9.3/§9.4/§9.5 result tables in `docs/report.md`
+still rest on session-only computation with no saved metric JSON in `results/` to
+re-verify against (only the train/test split membership is saved, not the computed
+MAE/R²/hotspot numbers). Two spot-checked tables (`results/baselines_geometry1.json`,
+`results/baselines_geometry6.json`) matched the paper exactly to 3 decimals, which is
+reassuring but not a substitute for closing the gap properly — **next action**: write a
+single `scripts/regenerate_all_results.py` that re-runs `scripts/baselines.py` across
+every geometry/OOD-split/power-map condition the paper cites and saves full metric JSONs,
+not just split membership. Not done this pass — scoped as the next concrete task.
+
+### Novelty / scoop check (fresh 2026 literature pass)
+
+**No scoop risk found** on any of this project's three most novelty-load-bearing claims:
+(a) a linear/ridge baseline beating or matching a neural PDE surrogate specifically in
+chip/package thermal simulation — nothing found makes this claim, only adjacent generic
+PDE-surrogate benchmarking (e.g. "Operator Boosting Produces Pareto-Efficient PDE
+Surrogates," arXiv:2606.17460) that doesn't compare against a closed-form baseline
+either; (b) post-hoc FNO/WHNO interpretability via reading trained spectral weights
+directly (no forward pass) — closest adjacent work ("Neural Interpretable PDEs,"
+arXiv:2505.23106) achieves interpretability via architecture design instead, a different
+mechanism; (c) testing WHNO's claimed Gibbs-ringing advantage over FNO on a new domain —
+the origin paper (arXiv:2511.07347) validates only on synthetic Darcy flow/Burgers/heat
+conduction, not real 3D-IC data.
+
+**Strongest concrete evidence found for the paper's central argument**: "Self-Attention
+to Operator Learning-based 3D-IC Thermal Simulation" (SAU-FNO, arXiv:2510.15968, Oct
+2025) — already cited in this repo as close prior art — reports 842× speedup and >50%
+MSE reduction **without stating a linear/ridge baseline comparison**. That's the
+evaluation gap this paper's central finding diagnoses, demonstrated in a specific,
+very-recent, directly-on-domain paper, not just asserted as a general pattern. **Action**:
+cite this explicitly by name in `docs/report.md` §10's "Implications for the field"
+paragraph — currently that paragraph makes the general claim without a concrete recent
+example; SAU-FNO is one.
+
+### Pressing open problems in the field (arXiv:2604.03290, Barua/Udoy/Aziz 2026 — now
+fully confirmed, see `docs/references.md` §7)
+
+Four of the six problems this survey identifies are ones this repo's *existing, already-
+completed* work substantively responds to — not yet explicitly connected in the paper's
+own positioning:
+
+1. **Robustness under distribution shift, need for explainability** (§VIII-E: "no longer
+   raw prediction speed, but robustness under shift... more uncertainty aware, more
+   explainable") — directly answered by Track B's leave-one-geometry-out result and the
+   MC-Dropout miscalibration finding (§10). **Action**: cite this survey's framing when
+   introducing those results, rather than presenting them as self-motivated.
+2. **No standardized, uncertainty-aware TBR (thermal boundary resistance) interface
+   library** (§VIII) — this repo does **not** address this. Genuine candidate for actual
+   new work, not just reframing, but a substantial separate project (would need either a
+   literature-compiled TBR database or new interface measurements) — not a quick add.
+3. **UQ not propagated through multiscale/reduced-order model chains** (§VIII-B/C) — same
+   alignment as point 1 (MC-Dropout finding).
+4. **Incomplete multiphysics coupling** (thermal-mechanical-electrical) (§VIII/conclusion)
+   — this repo's throttling (electro-thermal feedback) and microchannel (fluid-thermal)
+   mechanisms are concrete steps toward exactly this, already built and pilot-measured
+   (Track A above). **Action**: connect explicitly in §10 rather than leaving Track A
+   framed only as "does ridge still win" — it's also a direct answer to a field-identified
+   gap.
+5. Two other findings (no single framework suffices; general PDE-surrogate OOD/temporal
+   generalization failure) support the paper's framing generally but aren't specific
+   action items.
+
+### Prioritized action list
+
+1. **Cite arXiv:2604.03290 and arXiv:2510.15968 explicitly in `docs/report.md` §10**,
+   connecting Track A/B/XAI results to the field's own stated open problems rather than
+   presenting them as self-motivated — cheap, high-value, not yet done.
+2. **Close the `results/` reproducibility gap** for the remaining un-archived tables
+   (§9.1/9.3/9.4/9.5) — write `scripts/regenerate_all_results.py`. Medium effort, directly
+   strengthens the audit trail a reviewer would check first.
+3. **Run the prepared A3 GPU notebook** (`notebooks/kaggle_a3_throttled_arch_comparison.ipynb`)
+   — still blocked on GPU access, unchanged from before this pass.
+4. **TBR standardization** (open-problem #2 above) — flagged as a real, distinct
+   opportunity, explicitly scoped as future work rather than attempted now; would need
+   its own brainstorming/design pass before starting.

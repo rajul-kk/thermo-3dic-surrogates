@@ -514,6 +514,10 @@ power → temperature" one an earlier pass here tested by mistake.
 | ridge, nominal power (§9.8) | **0.707** | **0.919** | **0** |
 | **FNO baseline (this run), nominal power** | 1.795 | 0.551 | 5139 |
 
+FNO row reproducible via `python scripts/eval_fno_throttled.py` → `results/fno_throttled_eval.json`
+(added 2026-08-16 — this eval had only been run inline in-session before and left no
+artifact, a gap caught during a documentation audit).
+
 With the asymmetry removed, FNO trails ridge by a wide margin on every metric, including
 hotspot localisation — the one place per-cell power previously gave an operator a path to
 win (§9.4). Still a capacity- and epoch-limited CPU smoke test (296K-parameter plain FNO,
@@ -609,6 +613,34 @@ industrial accuracy is judged at the hotspot specifically, which is exactly wher
 shows ridge is weakest, not where it wins. We do not claim published results are wrong —
 their datasets may be richer — but the linear-baseline comparison is rarely made, and it
 is cheap to make. We release `scripts/baselines.py` for that purpose.
+
+This gap is not hypothetical even in work published after this project began. SAU-FNO
+[arXiv:2510.15968, Oct 2025] — a self-attention/U-Net/FNO hybrid for 3D-IC thermal
+prediction, and close prior art to this repo's own `CNOFNOHybrid`+axial-attention
+architecture (§8.2) — reports 842× speedup and >50% MSE reduction over COMSOL/MTA without
+stating a linear or closed-form baseline comparison anywhere. We do not know whether a
+ridge fit would close that gap on their dataset; the point is that the question wasn't
+asked, in a paper specifically about this problem class, three months before this
+writing.
+
+**Where this connects to the field's own stated priorities.** A recent survey of
+multiscale 3D-IC thermal modeling [Barua, Udoy & Aziz, arXiv:2604.03290, 2026] argues the
+field's "main challenge is no longer raw prediction speed, but robustness under
+[distribution] shift," and calls for models to be "more uncertainty aware, more
+explainable." Two results in this paper answer that directly, not by design but in
+hindsight: the leave-one-geometry-out generalization test (§10, "Cross-geometry
+generalization") found a lightweight geometry-aware conditioning mechanism does *not*
+reliably improve zero-shot robustness across held-out geometries once tested across
+multiple seeds — a negative result on exactly the robustness question the survey
+identifies as unresolved, not just a benchmark number. And the MC-Dropout uncertainty
+calibration check (§10, "Deferred") found predictive std 30× the actual spatial signal —
+direct evidence that "uncertainty aware" is not yet true of at least one standard
+technique on this problem class, consistent with the same survey's separate observation
+that UQ is not yet propagated through multiscale/reduced-order model chains. Separately,
+the survey flags incomplete multiphysics coupling (thermal-mechanical-electrical) as a
+structural gap; this paper's throttling (§9.8, a genuine electro-thermal feedback loop)
+and microchannel (fluid-thermal advection) mechanisms are concrete, already-measured
+steps in that direction, not previously framed that way in this document.
 
 **What a discriminative benchmark needs.** Four changes were identified from §9; three have
 since been implemented and measured, which is how their relative importance became clear.
@@ -787,3 +819,5 @@ release the baseline and OOD tooling so those conditions can be checked rather t
 14. "DeepOHeat-v1: Efficient Operator Learning for Fast and Trustworthy Thermal Simulation and Optimization in 3D-IC Design." arXiv:2504.03955, 2025.
 
 15. "Fast Thermal-Aware Chiplet Placement Assisted by Surrogate." arXiv:2504.03808, 2025.
+
+16. Barua, B. P., Udoy, M. R. I. & Aziz, A. "A Review of Multiscale Thermal Modeling in Heterogeneous 3D ICs." arXiv:2604.03290, 2026.
