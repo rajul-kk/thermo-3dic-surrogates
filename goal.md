@@ -540,6 +540,77 @@ own positioning:
    generalization failure) support the paper's framing generally but aren't specific
    action items.
 
+### Track C — Interface-property uncertainty as a noise-floor argument (started and measured 2026-08-16)
+
+**Motivation.** Two independent findings converged. (1) The multiscale-3D-IC review
+[Barua/Udoy/Aziz, arXiv:2604.03290 §VIII] identifies the absence of standardized,
+uncertainty-aware thermal-interface data as an open problem, noting reported TBR values
+vary substantially between measurement groups. (2) McGreivy & Hakim [Nature Mach. Intell.
+2024, arXiv:2407.07218] show 79% of ML-for-PDE papers compare against weak baselines.
+Combining them suggests a sharper question than either: **if plausible uncertainty in the
+interface properties fed to the simulator moves the answer by more than the model-vs-model
+differences being optimized, the entire surrogate accuracy race is running inside the
+noise floor of its own inputs.** That is a stronger and more general form of this repo's
+existing "ridge already solves it" result, and it is directly measurable with what the
+repo already has.
+
+**Method.** `scripts/gen_interface_uncertainty_pilot.py`. Critically — and unlike the TIM
+k-sweep already present in the geometry5/6 training data, which varies power pattern, HTC
+*and* TIM k simultaneously and therefore isolates nothing — every scenario holds power
+pattern, HTC and ambient **fixed** and varies exactly one interface conductivity at a
+time, across ranges taken from `docs/assumptions.md` rather than invented. Run at two
+operating points, because interface resistance only matters in proportion to the heat flux
+crossing it: a low-power control (`uniform`, ΔT≈7 K) and a high-power case
+(`split_chiplet_a_hot`, 237 W/cm², HTC 50000). 30 real 3D-ICE solves, 0 failures.
+Analysis: `scripts/analyze_interface_uncertainty.py` → `results/interface_uncertainty_{low,high}power.json`.
+
+**Result — peak-junction-temperature spread from one interface property alone:**
+
+| interface | k range (W/m·K) | low-power spread | **high-power spread** | hotspot shift |
+|---|---|---|---|---|
+| `tim_sink` (thermal grease) | 1–8 | 5.23 K | **28.25 K** | 504 µm |
+| `tim_top` (TIM1, indium) | 5–80 | 0.52 K | 4.32 K | 496 µm (low-p) |
+| `hybrid_bonding` | 60–400 | 0.01 K | 0.02 K | 248 µm (low-p) |
+
+Reference line: the measured ridge-vs-FNO detrended-MAE gap on throttled data is
+**1.09 K** (`docs/report.md` §9.7) — i.e. the size of difference this literature competes
+over.
+
+**Three findings, in order of importance:**
+
+1. **Thermal-grease conductivity uncertainty alone moves peak T by 28 K at a realistic
+   high-power operating point — ~26× the model-vs-model gap.** k=1→8 W/m·K is not a
+   contrived range; it is the ordinary literature spread for thermal greases, and a real
+   package's grease also degrades over its lifetime. Even the low-power control (5.23 K)
+   already exceeds the surrogate gap by ~5×.
+2. **The effect scales with heat flux, as physics requires** (5.23 K → 28.25 K from the
+   low- to high-power case), which is a useful internal consistency check: this is a real
+   thermal-resistance effect, not a numerical artifact.
+3. **Interface uncertainty moves the hotspot *location*, not just its temperature**
+   (248–504 µm from a pure material-property change, with power held fixed). This matters
+   because §9.4 established hotspot localisation as the metric that actually discriminates
+   surrogates — and it is being perturbed by an input nobody varies or reports.
+
+**Bonus self-check**: `assumptions.md` §2.3 flags the hybrid-bonding layer as a known ~28×
+overestimate of real Cu-Cu bond resistance but judges it "low priority" because the
+absolute error is small. This sweep confirms that judgment empirically for the first time:
+sweeping it 60→400 W/m·K moves peak T by 0.02 K, i.e. genuinely negligible. A documented
+modelling assumption, now measured rather than argued.
+
+**Honest caveats, to carry into any writeup:** one geometry (geometry5), one scenario per
+power level, one parameter varied at a time (so no interaction effects), and 3D-ICE is
+itself the ground truth — this measures *model-input sensitivity*, not validated
+real-hardware variation. It establishes that the benchmark's answer is highly sensitive to
+an unreported input, which is the claim being made; it does not establish what the true
+physical spread is on real silicon.
+
+**Why this is a genuine contribution rather than a reframing:** it is the one item in this
+plan that produces a *new measured result* rather than better positioning of existing
+ones, it required no new modelling machinery (`layer_k_overrides` was already wired
+end-to-end), and no paper found in the 2026-08-16 literature pass propagates interface-
+property uncertainty through a chip thermal model and compares the resulting spread
+against surrogate model error.
+
 ### Prioritized action list
 
 1. **Cite arXiv:2604.03290 and arXiv:2510.15968 explicitly in `docs/report.md` §10**,
