@@ -156,6 +156,14 @@ DDP across both T4s. One geometry trained per run.
 
 ## All-7-Geometries Training Time: 2× T4
 
+**Naming note (2026-08-18):** this section's title/body predate the 2026-08-06 dataset
+correction (8 geometries -> 6: `g1/2a/2b/2c/g3/g4/g5/g6` -> `g1/2a/g3/g4/g5/g6`) and were
+never updated to match -- "7" and "8" here refer to the OLD geometry count, not the new
+`geometry7` CoWoS-L pilot added this session (see "GPU Cost: geometry7" section below,
+after the A3/A3b pilots). Not fixed here since correcting the numbers themselves would
+need re-deriving each figure; flagging the stale count so it isn't confused with the new
+geometry7 pilot.
+
 PINN and FNO run 8 separate models (2 in parallel, one per GPU, pairing by time).
 PI-DeepONet trains one model on all 5 uniform-stack geometries simultaneously via DDP.
 Geometry6 (470k pts) adds ~2.7× overhead vs. geometry5 for FNO/CNO runs.
@@ -224,6 +232,101 @@ All four models × both pilots fit comfortably inside a single Kaggle session (w
 — extrapolated from the existing FNO/CNO-FNO CPU benchmarks and speedup factors above, carrying
 the same ±50% uncertainty noted at the end of this file; the notebooks' own summary JSON output
 (`a3_..._summary.json` / `a3b_..._summary.json`) will supersede this table once actually run.
+
+---
+
+## GPU Cost: geometry7 (CoWoS-L reticle-stitched pilot, added 2026-08-18)
+
+`geometry7` (`src/core/geometry_builders.py`) is a new pilot geometry, NOT part of the
+standard 6-geometry dataset -- see `build_geometry7`'s docstring for the full design
+rationale. Structurally it is the largest and most complex geometry in this project by
+every axis measured:
+
+| geometry | area (mm²) | layers | power blocks | die footprints | declared pts | actual pts (measured) | TDP (W) |
+|---|---|---|---|---|---|---|---|
+| geometry1 | 100 | 6 | 4 | 0 | 400,000 | 100,000 | 125 |
+| geometry2a | 64 | 10 | 6 | 0 | 460,800 | 89,600 | 30 |
+| geometry3 | 625 | 6 | 8 | 0 | 400,000 | 110,000 | 250 |
+| geometry4 | 350 | 6 | 8 | 2 | 224,000 | 56,000 | 200 |
+| geometry5 | 350 | 11 | 15 | 4 | 280,000 | 84,000 | 400 |
+| geometry6 | 588 | 11 | 29 | 19 | 470,400 | 141,120 | 700 |
+| **geometry7** | **868** | **11** | **46** | **37** | **694,400** | **208,320** | **1000** |
+
+Actual point count was measured directly (one real 3D-ICE solve, 2026-08-18), not
+extrapolated: 208,320 points, giving a real per-file grid of `(56, 248, 15)` via the same
+`n_points / (nx × ny)` method `scripts/train_fno.py` uses to derive z-depth from data
+(§ "Overview" table's method in `docs/geometry_reference.md`). The declared/actual ratio
+(0.30) matches geometry6's (0.30) almost exactly, suggesting the adaptive z-grid's
+behavior is a property of the layer stack (same 11 layers, same thicknesses, same
+`MAX_SUBLAYER_UM` subdivision rule) rather than of lateral extent -- consistent with
+geometry7 reusing geometry5/6's exact layer stack and changing only the interposer layer's
+lateral material structure and overall footprint size.
+
+**Why it's the most complex geometry**: geometry6's 6-HBM CoWoS-S design already had 11
+layers and 588 mm²; geometry7 adds a 2nd compute die, 2 I/O dies, 2 more HBM4 stacks (8
+total), and replaces the uniform-silicon interposer with a sparse-bridge structure (9
+silicon islands in an organic-substrate field) that no other geometry has -- a passive
+layer with real internal lateral heterogeneity, as opposed to every other passive layer in
+this project, which is uniform material end to end.
+
+**Real generation cost (measured)**: all 40 scenarios (15 base train + 5 test + 20
+extra-train, matching the standard per-geometry train/test recipe) solved successfully,
+0 failures, in **45.6 minutes total (68.4 s/scenario average)** -- close to the ~60-70s
+estimated from the first few scenarios before the full run completed.
+
+**A real finding surfaced by the data, not a solver bug: `split_chiplet_a_hot` scenarios
+produce physically-implausible-for-silicon peak temperatures.** Peak temperature across
+the 40 scenarios: median 134.0°C, mean 200.0°C, 17/40 exceed 150°C, 5/40 exceed 300°C
+(worst: 1125.3°C). Every one of the extreme outliers (1125.3, 786.2, 572.0, 561.4,
+368.2°C) is the `split_chiplet_a_hot` pattern -- the existing generator pattern that
+concentrates 5-10x power onto chipA while chipB/HBM idle at 10%. The mechanism is
+directly traceable, not mysterious: `chipA`'s die_zone_1 footprint (x=1-10mm) has almost
+no coverage from the `bridge_ab` LSI island (which only starts at x=9.5mm), so nearly all
+of chipA's heat must cross the full 300µm organic-substrate field (k=0.5 W/m·K) vertically
+to reach the heat-sink boundary below. Back-of-envelope confirms it exactly: for
+`geometry7_train_034` (chipA at 180.86 W/cm² under `split_chiplet_a_hot`), ΔT = q·(t/k) =
+1,808,570 W/m² × (300e-6/0.5) m²·K/W = **1085 K**, against a simulated rise of 1100 K
+(825°C - (-25°C)... i.e. 1125.3°C - 25°C ambient = 1100.3 K) -- within 1.5% of the
+first-order series-resistance estimate, confirming this is the real mechanism, not a
+numerical artifact.
+
+This is arguably a genuine (if now over-illustrated) demonstration of CoWoS-L's real
+packaging risk cited in the literature search behind this geometry ("every step up the
+interposer scale introduces non-linear increases in ... thermal management difficulty") --
+but it also means **this specific 40-scenario pilot is not yet a well-behaved training
+set as generated**: a real package would place bridge/thermal-via coverage under every
+compute die, not just at the reticle seam and HBM edges, precisely to avoid this. The
+current `bridge_ab`/`bridge_hbm{1..8}` placement only models signal-routing bridges: it
+omits power-delivery thermal vias real designs would also route under each compute die.
+**Flagged as a modelling limitation to fix before this pilot is used for baseline/FNO
+work**, not silently absorbed into the dataset -- the honest fix is broader bridge
+coverage under chipA/chipB (or excluding `split_chiplet_a_hot`/`split_chiplet_b_hot` from
+this geometry's pattern set until that's done), not re-normalising the results after the
+fact.
+
+**FNO/CNO-FNO/PINN training cost, extrapolated** (same point-count-scaling methodology as
+the geometry3/5/6 estimates in the table above, cross-validated here via two independent
+anchors -- scaling from geometry1's measured 0.808 s/scenario directly by point-count
+ratio gives 1.68 s/scenario; fitting a line through geometry1's measured and geometry6's
+already-estimated per-scenario costs and evaluating at geometry7's point count gives 1.735
+s/scenario; both land within 3% of each other, so 1.7 s/scenario is used below):
+
+| model | epochs | CPU epoch (35 train scenarios) | T4 epoch | single-T4 total | 2×T4 DDP total |
+|---|---|---|---|---|---|
+| FNO baseline | 500 | ~59.5 s | ~2.38 s | **~19.8 min** | **~11.7 min** |
+| CNO-FNO+PI+FiLM | 400 | ~114.5 s | ~1.91 s | **~12.7 min** | **~7.5 min** |
+| PINN baseline | 8,000 | ~163.8 s | ~3.64 s | **~8.1 h** | **~4.8 h** |
+
+**The counterintuitive result**: despite geometry7 having 1.48× geometry6's area and 47%
+more points per file, its FNO/CNO-FNO training wall-clock is nearly IDENTICAL to
+geometry6's (§ "Per-Model, Per-Geometry" table above: geometry6 FNO ~19.3 min single-T4 vs
+geometry7's ~19.8 min; CNO-FNO 12.4 min vs 12.7 min). The pilot's smaller training-scenario
+count (35, vs geometry6's full 50) almost exactly offsets the larger per-scenario grid
+cost -- a reminder that **training wall-clock is driven by (scenario count) × (per-scenario
+cost)**, not by geometry size alone, and a larger geometry with fewer scenarios can cost
+about the same as a smaller geometry with more. All figures here carry the same ±50%
+uncertainty as the rest of this file, plus the additional uncertainty of extrapolating
+across a wider size gap than the geometry3/5 estimates did.
 
 ---
 
