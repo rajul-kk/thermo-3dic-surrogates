@@ -165,7 +165,41 @@ class MaterialLibrary:
             # validated against a specific cited measurement; 0.5 W/m·K is a
             # plausible mid-range value for planning purposes only.
             description='CoWoS-L organic (ABF/BT) substrate build-up film -- the low-k '
-                        'field the LSI silicon bridge islands sit in'
+                        'field the LSI bridge/via islands sit in'
+        ),
+        'lsi_bridge_via': Material(
+            name='lsi_bridge_via',
+            k_thermal=60.0,
+            volumetric_heat_capacity=3.0e6,
+            density=6000.0,
+            # ENGINEERING ESTIMATE, deliberately NOT bulk silicon's 148 W/m·K.
+            # First version of geometry7 (2026-08-17) used pure silicon (148) for
+            # these islands but covered only narrow strips at die-to-die seams --
+            # under a power-concentrating scenario, chipA's die had almost no
+            # island coverage beneath it, forcing ~all its heat through the bare
+            # organic field and producing a simulated 1125C peak (back-of-envelope
+            # ΔT=q·t/k through 300µm of k=0.5 organic matches the simulated value
+            # within 1.5%, confirming the mechanism, not a solver bug -- see
+            # docs/compute.md 2026-08-18). Two ways to fix an underpowered-cooling-
+            # path bug: extend the high-k coverage, or lower the assumed k so a
+            # narrower coverage stops being catastrophic. Real CoWoS-L packages do
+            # both -- LSI bridges are true silicon (148) but narrow, while compute
+            # dies additionally get dense copper power/ground via + plane coverage
+            # through the organic substrate itself (real organic substrates
+            # laminate in several copper reference/power planes; effective
+            # through-thickness k with via-dense PDN routing is well above the
+            # bare resin's 0.3-0.8 W/m·K but well below bulk silicon). This
+            # material represents that intermediate, PDN-realistic value and is
+            # used uniformly for every bridge/via island in geometry7 (this
+            # engine's `layer.material`/footprint mechanism does not currently
+            # support two different footprint materials on the same layer --
+            # seeded here as one physically-coherent composite instead of a
+            # narrower-but-still-inaccurate patchwork). 60 W/m·K matches this
+            # library's existing 'hybrid_bonding' precedent for a dense Cu-based
+            # interconnect composite, not independently re-derived.
+            description='CoWoS-L LSI bridge / power-delivery-via composite -- clearly '
+                        'better than the bare organic field, clearly worse than a '
+                        'monolithic silicon interposer'
         ),
 
     }

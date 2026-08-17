@@ -826,13 +826,35 @@ def build_geometry7() -> Geometry:
     disaggregated GPU packages (NVIDIA Rubin/Rubin Ultra class, per public
     reporting as of 2026-08: 2 near-reticle compute dies + I/O dies on a
     multi-reticle CoWoS-L interposer with 8 HBM4 stacks) instead use LOCAL
-    silicon interconnect (LSI) bridges: small silicon islands embedded in a
-    much lower-conductivity organic (ABF/BT) substrate, placed only where
-    die-to-die routing density actually requires silicon-grade wiring pitch.
-    That is a genuine lateral-conductivity structure no other geometry in this
-    benchmark has: a passive spreading layer that is MOSTLY low-k organic film
-    with sparse high-k silicon patches, rather than either a uniform material
-    or an active die layer's silicon-vs-underfill pattern.
+    silicon interconnect (LSI) bridges and power/ground via-dense regions
+    embedded in a much lower-conductivity organic (ABF/BT) substrate, placed
+    only where die-to-die routing or power delivery density actually requires
+    it. That is a genuine lateral-conductivity structure no other geometry in
+    this benchmark has: a passive spreading layer that is MOSTLY low-k organic
+    film with a higher-k composite only under specific regions, rather than
+    either a uniform material or an active die layer's silicon-vs-underfill
+    pattern.
+
+    **Revision 2026-08-18**: the first version covered only narrow seams
+    (compute-compute reticle stitch, HBM near-edges) with pure silicon
+    (k=148), leaving each compute die's own footprint almost entirely over
+    bare organic substrate. Under a power-concentrating scenario
+    (`split_chiplet_a_hot`), that forced ~180 W/cm2 through 300um of k=0.5
+    W/m*K material, producing a simulated 1125C peak -- confirmed as the real
+    mechanism (not a solver bug) via a back-of-envelope series-resistance
+    estimate matching the simulated rise within 1.5% (docs/compute.md). Fixed
+    by giving each compute die's FULL footprint bridge/via coverage (real
+    packages route dense copper power/ground vias through the organic
+    substrate under high-current compute dies, not just narrow signal
+    bridges) at a recalibrated, intermediate conductivity (k=60, the
+    'lsi_bridge_via' material -- see its docstring in material.py for why not
+    148) rather than either leaving the gap uncovered or overcorrecting to
+    full silicon, which would erase the CoWoS-L-vs-CoWoS-S distinction this
+    geometry exists to test. I/O dies and most of the inter-HBM field remain
+    bare organic substrate -- they were never the source of the extreme
+    values (I/O dies are low-power; HBM power is capped by the generator's
+    existing HBM density ceiling), so widening their coverage too would dilute
+    the comparison without fixing anything.
 
     Footprint: 62mm x 14mm (868 mm^2 -- ~1.48x geometry6's 588 mm^2, reflecting
     a larger reticle-stitched package; NOT a literal match to any specific real
@@ -846,9 +868,12 @@ def build_geometry7() -> Geometry:
       hbm1..hbm8        : x=24.5, 29, 33.5, 38, 42.5, 47, 51.5, 56mm; 4x12mm each,
                           4.5mm pitch (0.5mm gap between stacks)
 
-    LSI bridge islands (substrate_organic layer, silicon footprints in an
-    organic-substrate field):
-      bridge_ab        : x=9.5mm, 1.5x12mm  -- compute-to-compute reticle-stitch bridge
+    LSI bridge / power-via islands (substrate_organic layer, k=60 composite
+    footprints in an organic-substrate k=0.5 field -- see 'lsi_bridge_via' in
+    material.py):
+      bridge_chipA     : x=1mm,   9x12mm  -- full compute-die coverage (power/ground vias)
+      bridge_chipB     : x=10.5mm, 9x12mm -- full compute-die coverage (power/ground vias)
+                          (0.5mm true reticle-stitch gap x=10-10.5mm stays bare organic)
       bridge_hbm{1..8} : x=hbm[n]-0.5mm, 1x12mm  -- each HBM's D2D bridge to the
                           compute cluster (spans the 0.5mm gap + 0.5mm under the
                           stack's near edge)
@@ -877,12 +902,11 @@ def build_geometry7() -> Geometry:
     """
     mat_cu    = MaterialLibrary.get('copper')
     mat_tim   = MaterialLibrary.get('tim')
-    mat_si    = MaterialLibrary.get('silicon')
     mat_si_lk = MaterialLibrary.get('silicon_low_k')
     mat_tim1  = MaterialLibrary.get('tim_indium')
     mat_c4    = MaterialLibrary.get('c4_bump_array')
     mat_hb    = MaterialLibrary.get('hybrid_bonding')
-    mat_org   = MaterialLibrary.get('organic_substrate')
+    mat_bridge = MaterialLibrary.get('lsi_bridge_via')
     mat_tsv   = MaterialLibrary.create_tsv_material(0.03)
 
     layers = [
@@ -895,11 +919,12 @@ def build_geometry7() -> Geometry:
         Layer(name='tim_top',    material='tim_indium',    thickness=50.0,
               k_thermal=mat_tim1.k_thermal,  volumetric_heat_capacity=mat_tim1.volumetric_heat_capacity),
         # CoWoS-L bridge layer: base/gap material is the organic substrate;
-        # `material='silicon'` supplies the LSI bridge islands via DiePrint
-        # footprints below (see gap_material on Layer -- the footprint fills
-        # with `material`, the surrounding field fills with `gap_material`).
-        Layer(name='substrate_organic', material='silicon', thickness=300.0,
-              k_thermal=mat_si.k_thermal,    volumetric_heat_capacity=mat_si.volumetric_heat_capacity,
+        # `material='lsi_bridge_via'` supplies the bridge/via islands via
+        # DiePrint footprints below (see gap_material on Layer -- the footprint
+        # fills with `material`, the surrounding field fills with `gap_material`).
+        Layer(name='substrate_organic', material='lsi_bridge_via', thickness=300.0,
+              k_thermal=mat_bridge.k_thermal,
+              volumetric_heat_capacity=mat_bridge.volumetric_heat_capacity,
               gap_material='organic_substrate'),
         Layer(name='rdl_layer',  material='silicon_low_k', thickness=5.0,
               k_thermal=mat_si_lk.k_thermal, volumetric_heat_capacity=mat_si_lk.volumetric_heat_capacity,
@@ -964,10 +989,15 @@ def build_geometry7() -> Geometry:
         DiePrint('chipB_die1', x=10500.0, y=_y0,          width=9000.0, height=12000.0, die_layer_name='die_zone_1'),
         DiePrint('io1_die',    x=20000.0, y=_y0,          width=3000.0, height=5500.0,  die_layer_name='die_zone_1'),
         DiePrint('io2_die',    x=20000.0, y=_y0 + 6500.0, width=3000.0, height=5500.0,  die_layer_name='die_zone_1'),
-        # LSI bridge islands: silicon in the organic-substrate field, only where
-        # die-to-die routing density needs it -- the CoWoS-L structural feature
-        # this geometry exists to test.
-        DiePrint('bridge_ab', x=9500.0, y=_y0, width=1500.0, height=12000.0,
+        # LSI bridge/via composite in the organic-substrate field, only where
+        # die-to-die routing or power delivery density needs it -- the CoWoS-L
+        # structural feature this geometry exists to test. Full footprint under
+        # each compute die (dense power/ground via coverage, 2026-08-18 fix);
+        # the 0.5mm true reticle-stitch gap between chipA and chipB (x=10-10.5mm)
+        # is deliberately left as bare organic substrate.
+        DiePrint('bridge_chipA', x=1000.0,  y=_y0, width=9000.0, height=12000.0,
+                 die_layer_name='substrate_organic'),
+        DiePrint('bridge_chipB', x=10500.0, y=_y0, width=9000.0, height=12000.0,
                  die_layer_name='substrate_organic'),
     ]
     for n, hx in _hbm_x.items():

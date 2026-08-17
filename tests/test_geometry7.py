@@ -75,7 +75,7 @@ def test_geometry7_bridge_layer_has_gap_material_set():
     geom = build_geometry7()
     bridge_layer = next(l for l in geom.layers if l.name == 'substrate_organic')
     assert bridge_layer.gap_material == 'organic_substrate'
-    assert bridge_layer.material == 'silicon'  # the bridge islands themselves
+    assert bridge_layer.material == 'lsi_bridge_via'  # the bridge/via islands themselves
     # every other geometry's layers must be untouched by adding this field
     other_names = [n for n in ('geometry1', 'geometry2a', 'geometry3',
                                 'geometry4', 'geometry5', 'geometry6')]
@@ -88,7 +88,7 @@ def test_geometry7_bridge_islands_dont_overlap_hbm_stacks():
     geom = build_geometry7()
     bridges = [fp for fp in geom.die_footprints if fp.name.startswith('bridge_')]
     hbm_footprints = [fp for fp in geom.die_footprints if fp.name.startswith('hbm')]
-    assert len(bridges) == 9  # 1 compute-compute + 8 HBM D2D bridges
+    assert len(bridges) == 10  # 2 full compute-die coverage + 8 HBM D2D bridges
     for br in bridges:
         for hb in hbm_footprints:
             if hb.name.endswith('_die1') or hb.name.endswith('_tsv') or hb.name.endswith('_die2'):
