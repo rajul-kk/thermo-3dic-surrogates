@@ -725,9 +725,27 @@ specifically because 1/h enters T linearly); it does not yet do the same for TIM
 *any* geometry — `feature_vector` has no interface-conductivity feature at all, even for
 geometry5/6 whose own training sets already vary `tim_top`/`tim_sink` internally
 (`assumptions.md` §2.2). A `1/k_tim` feature, mirroring the existing `1/htc` term, should
-recover this axis for ridge as cleanly as it already recovers HTC extrapolation — untested
-here (would require re-running `scripts/baselines.py` with the extended feature and a
-train/test split that actually varies k, not yet built).
+recover this axis for ridge as cleanly as it already recovers HTC extrapolation.
+
+**Tested directly (`scripts/test_ridge_tim_k_feature.py`, 2026-08-17).** Leave-one-out
+ridge on the 10 geometry4/`tim_die` sweep scenarios (5 k-values × {high-power,
+median-power}), comparing three feature sets:
+
+| ridge features | mean det.MAE | mean spatial R² |
+|---|---|---|
+| blind to k (current `baselines.py` behaviour) | 2.063 K | 0.754 |
+| + raw k | 1.247 K | 0.895 |
+| **+ 1/k** | **0.683 K** | **0.976** |
+
+Monotonic in the predicted direction, and the physically-motivated feature wins outright:
+adding raw k roughly halves blind ridge's error; adding 1/k instead brings it within reach
+of this benchmark's ordinary in-distribution numbers (§9.1: ~0.2–1 K det.MAE, R²>0.9) even
+under leave-one-out evaluation on a 10-point sample. The one hard case for every feature
+set is k=1 (high-power) — R²=0.953 even with 1/k, the worst of the ten — which is the
+sweep's extreme endpoint and therefore pure extrapolation under leave-one-out, not
+interpolation; performance is uniformly better in the sweep's interior. Confirms both
+halves of the 1/k claim: giving ridge the correct feature recovers most of the gap, and
+1/k specifically (not k) is what does it.
 
 ### 9.10 Leakage/temperature positive feedback: the sharpest test tried, and the linear result holds — with one exception (2026-08-17)
 
@@ -750,7 +768,10 @@ amplifies every realistically hot scenario). Wired to mirror throttling's conven
 exactly: delivered power exported as `block_power_*`, the original request preserved as
 `nominal_block_power_*`, so ridge is asked the same question it was for throttling.
 
-Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggressive:
+Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggressive (the
+ridge-accuracy result below is measured on this original 20; the pilot was later grown to
+45 scenarios specifically to test the stability-classifier question further down this
+section):
 
 - **13 converged, 6 ran away, 1 neither** (still climbing at the iteration cap) — a 30%
   runaway rate at these settings.
@@ -782,24 +803,30 @@ Twenty pilot scenarios on geometry1, leakage settings swept from benign to aggre
   concentration" — closer to a one-feature classification problem than a leakage-specific
   one.
 - **That reframing checks out as an actual fitted classifier, not just an eyeballed
-  threshold (`scripts/classify_leakage_convergence.py`, 2026-08-17).** Logistic regression
-  on features known *before* the feedback loop runs (total nominal power, HTC, ambient
-  temperature, `leakage_fraction`, `k_double_c`, and an ordinal pattern-concentration
-  score), evaluated with leave-one-out CV (the only honest evaluation at this sample
-  size): a **2-feature model (power + pattern concentration) gets 21/21 (100%) LOO
-  accuracy**, beating both the power-only model (20/21, 95%) and the full 6-feature model
-  (19/21, 90% — mildly overfit at n=21). The full model's standardised coefficients rank
-  power (−1.54) and HTC (−0.84) well above `leakage_fraction` (+0.33) and `k_double_c`
-  (−0.18) — the two parameters this pilot was designed around are the *weakest* predictors
-  of whether it converges at all. Sample size is still small (n=21, growing toward n=45 as
-  `gen_leakage_pilot.py --extra-train 25` finishes on a wider, denser base-scenario pool);
-  the accuracy numbers will tighten, but the ranking — stability is mostly a function of
-  how hot the nominal solve already runs, not of the leakage parameters themselves — is
-  unlikely to invert.
+  threshold (`scripts/classify_leakage_convergence.py`, 2026-08-17) — with a self-caught
+  small-sample reversal along the way.** Logistic regression on features known *before*
+  the feedback loop runs (total nominal power, HTC, ambient temperature,
+  `leakage_fraction`, `k_double_c`, and an ordinal pattern-concentration score), evaluated
+  with leave-one-out CV (the only honest evaluation at this sample size). At the pilot's
+  original n=21, a 2-feature model (power + pattern concentration) looked like a clean
+  win: 21/21 (100%) LOO accuracy vs. 20/21 for power alone and 19/21 for the full
+  6-feature model. That ranking **did not survive** growing the pilot to n=45
+  (`gen_leakage_pilot.py --extra-train 25`, finished 2026-08-17): re-run, the **full
+  6-feature model wins, 43/45 (95.6%)**, against 40/45 (88.9%) tied between the power-only
+  and power+concentration models. The apparent 2-feature win at n=21 was a small-sample
+  artifact, not a real effect — a useful reminder alongside the interaction-grid bug
+  earlier in this section that even a "clean-looking" cross-validated result needs
+  re-checking as data grows, not just a plausible mechanism. What *does* survive the
+  larger sample: the full model's standardised coefficients still rank power (−1.97) and
+  HTC (−1.20) well above `leakage_fraction` (−0.15) and `k_double_c` (+0.17) — the two
+  parameters this pilot was designed around remain the *weakest* predictors of whether it
+  converges at all, even though no small feature subset cleanly captures the whole
+  relationship on its own.
 
-**Caveats.** One geometry, a small converged sample from one 20(→45)-scenario pilot, one
+**Caveats.** One geometry, a small converged sample from one 45-scenario pilot (originally
+20; the ridge-accuracy figures above are measured on the original 20 for continuity), one
 damping/gain schedule — the direction is unambiguous but the exact numbers would tighten
-with more data.
+further with more data or a second geometry.
 
 **Net effect on the paper's central claim: it survives, with a sharper boundary.** Every
 mechanism tested that keeps the problem well-posed — throttling, per-cell power, TSV

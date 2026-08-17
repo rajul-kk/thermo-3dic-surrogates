@@ -105,11 +105,11 @@ def main():
     for name, c in sorted(zip(feature_names, coefs), key=lambda t: -abs(t[1])):
         print(f"  {name:<24} {c:+.3f}")
 
-    print("\nCaveat: n=20 (or however many files are in --data at run time). Leave-one-out "
-          "accuracy at this sample size has wide uncertainty -- treat the RANKING of "
-          "power-only vs power+concentration vs full-model as the useful signal, not the "
-          "third decimal place of any single accuracy number. Re-run once "
-          "data/3d-ice-leakage-pilot/geometry1 grows past 20 files.")
+    print(f"\nCaveat: n={n}. Leave-one-out accuracy at this sample size has wide "
+          "uncertainty -- treat directional signal (which feature set wins) with caution "
+          "too: at n=21 the power+concentration model looked like a clean 21/21 win over "
+          "the full model, and that ranking reversed once n grew to 45 (see "
+          "docs/report.md Sec 9.10). Re-run whenever --data grows.")
 
 
 if __name__ == '__main__':
