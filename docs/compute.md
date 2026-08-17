@@ -250,7 +250,7 @@ every axis measured:
 | geometry4 | 350 | 6 | 8 | 2 | 224,000 | 56,000 | 200 |
 | geometry5 | 350 | 11 | 15 | 4 | 280,000 | 84,000 | 400 |
 | geometry6 | 588 | 11 | 29 | 19 | 470,400 | 141,120 | 700 |
-| **geometry7** | **868** | **11** | **46** | **37** | **694,400** | **208,320** | **1000** |
+| **geometry7** | **868** | **11** | **46** | **38** | **694,400** | **208,320** | **1000** |
 
 Actual point count was measured directly (one real 3D-ICE solve, 2026-08-18), not
 extrapolated: 208,320 points, giving a real per-file grid of `(56, 248, 15)` via the same
@@ -264,45 +264,48 @@ lateral material structure and overall footprint size.
 
 **Why it's the most complex geometry**: geometry6's 6-HBM CoWoS-S design already had 11
 layers and 588 mm²; geometry7 adds a 2nd compute die, 2 I/O dies, 2 more HBM4 stacks (8
-total), and replaces the uniform-silicon interposer with a sparse-bridge structure (9
-silicon islands in an organic-substrate field) that no other geometry has -- a passive
-layer with real internal lateral heterogeneity, as opposed to every other passive layer in
-this project, which is uniform material end to end.
+total), and replaces the uniform-silicon interposer with a mostly-organic field carrying
+higher-k bridge/via composite regions under the two compute dies and each HBM stack's
+near edge -- a passive layer with real internal lateral heterogeneity, as opposed to every
+other passive layer in this project, which is uniform material end to end.
 
 **Real generation cost (measured)**: all 40 scenarios (15 base train + 5 test + 20
 extra-train, matching the standard per-geometry train/test recipe) solved successfully,
-0 failures, in **45.6 minutes total (68.4 s/scenario average)** -- close to the ~60-70s
-estimated from the first few scenarios before the full run completed.
+0 failures, in **36.8 minutes total (55.1 s/scenario average)**.
 
-**A real finding surfaced by the data, not a solver bug: `split_chiplet_a_hot` scenarios
-produce physically-implausible-for-silicon peak temperatures.** Peak temperature across
-the 40 scenarios: median 134.0°C, mean 200.0°C, 17/40 exceed 150°C, 5/40 exceed 300°C
-(worst: 1125.3°C). Every one of the extreme outliers (1125.3, 786.2, 572.0, 561.4,
-368.2°C) is the `split_chiplet_a_hot` pattern -- the existing generator pattern that
-concentrates 5-10x power onto chipA while chipB/HBM idle at 10%. The mechanism is
-directly traceable, not mysterious: `chipA`'s die_zone_1 footprint (x=1-10mm) has almost
-no coverage from the `bridge_ab` LSI island (which only starts at x=9.5mm), so nearly all
-of chipA's heat must cross the full 300µm organic-substrate field (k=0.5 W/m·K) vertically
-to reach the heat-sink boundary below. Back-of-envelope confirms it exactly: for
-`geometry7_train_034` (chipA at 180.86 W/cm² under `split_chiplet_a_hot`), ΔT = q·(t/k) =
-1,808,570 W/m² × (300e-6/0.5) m²·K/W = **1085 K**, against a simulated rise of 1100 K
-(825°C - (-25°C)... i.e. 1125.3°C - 25°C ambient = 1100.3 K) -- within 1.5% of the
-first-order series-resistance estimate, confirming this is the real mechanism, not a
-numerical artifact.
+**A real finding was caught and fixed before this pilot was usable, not silently
+absorbed.** The first version's peak-temperature distribution was badly behaved: median
+134.0°C, mean 200.0°C, 17/40 scenarios above 150°C, 5/40 above 300°C, worst case
+**1125.3°C**. Every extreme outlier was the `split_chiplet_a_hot` pattern (5-10x power
+concentrated onto chipA while chipB/HBM idle at 10%), and the mechanism was fully
+traceable: chipA's compute-die footprint had almost no bridge coverage in the
+substrate_organic layer (only a narrow seam strip starting at x=9.5mm), so its
+concentrated heat was forced through 300µm of bare k=0.5 W/m·K organic substrate. A
+series-resistance back-of-envelope calculation (ΔT = q·t/k = 1,808,570 W/m² ×
+(300e-6/0.5) m²·K/W = 1085 K) matched the simulated 1100 K rise within 1.5%, confirming
+this was the real physics of the geometry as first built, not a solver artifact.
 
-This is arguably a genuine (if now over-illustrated) demonstration of CoWoS-L's real
-packaging risk cited in the literature search behind this geometry ("every step up the
-interposer scale introduces non-linear increases in ... thermal management difficulty") --
-but it also means **this specific 40-scenario pilot is not yet a well-behaved training
-set as generated**: a real package would place bridge/thermal-via coverage under every
-compute die, not just at the reticle seam and HBM edges, precisely to avoid this. The
-current `bridge_ab`/`bridge_hbm{1..8}` placement only models signal-routing bridges: it
-omits power-delivery thermal vias real designs would also route under each compute die.
-**Flagged as a modelling limitation to fix before this pilot is used for baseline/FNO
-work**, not silently absorbed into the dataset -- the honest fix is broader bridge
-coverage under chipA/chipB (or excluding `split_chiplet_a_hot`/`split_chiplet_b_hot` from
-this geometry's pattern set until that's done), not re-normalising the results after the
-fact.
+**Fixed** (`src/core/geometry_builders.py`, `src/core/material.py`, 2026-08-18) by giving
+each compute die bridge/via coverage across its *full* footprint (real CoWoS-L packages
+route dense copper power/ground vias under high-current compute dies, not just narrow
+signal-routing bridges) at a recalibrated k=60 W/m·K composite (`lsi_bridge_via`, matching
+this codebase's existing `hybrid_bonding` precedent for a dense Cu-based interconnect)
+rather than either leaving the gap uncovered or overcorrecting to full silicon (148
+W/m·K), which would have erased the CoWoS-L-vs-CoWoS-S distinction this geometry exists
+to test. The true 0.5mm reticle-stitch gap between chipA and chipB stays bare organic
+substrate, matching a real seam. I/O dies and most of the inter-HBM field were left
+untouched -- they were never the source of the extreme values (I/O dies are low-power;
+HBM power is capped by the generator's existing HBM density ceiling), so widening their
+coverage too would have diluted the comparison without fixing anything.
+
+**Result, full 40-scenario regeneration**: 0 failures, median peak **89.7°C**, mean
+**93.1°C**, max **181.2°C** (was 1125.3°C), 4/40 above 150°C (was 17/40), 0/40 above
+300°C (was 5/40). The new hottest scenario is a plain `uniform` pattern at low HTC (5000
+W/m²·K) and high ambient (45°C) -- i.e. a physically ordinary worst case, not a
+pattern-specific artifact of the geometry. The previously-worst scenario
+(`geometry7_train_034`, 1125.3°C) now solves to 155.4°C, in line with this project's other
+geometries' worst-case numbers (geometry4's nominal peak is 156.1°C, §9.3) rather than a
+standalone outlier.
 
 **FNO/CNO-FNO/PINN training cost, extrapolated** (same point-count-scaling methodology as
 the geometry3/5/6 estimates in the table above, cross-validated here via two independent
