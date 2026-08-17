@@ -358,14 +358,40 @@ class ICESimulator(ThermalSimulator):
                 continue
             layer = geometry.layers[sub['layer_idx']]
             mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
+            has_tsv_map = layer.name in (scenario.get('tsv_map_by_layer') or {})
+            # PASSIVE layers can carry DiePrint footprints too (geometry7's
+            # CoWoS-L bridge layer: silicon LSI bridge islands embedded in an
+            # organic RDL sea). Same convention as the active-layer case below --
+            # the layer's declared base material becomes the gap/underfill
+            # material and the footprint rectangles supply the real material via
+            # the layout. Before 2026-08-17 this branch only honoured tsv maps,
+            # so footprints on a passive layer were silently dropped: the .lyt
+            # file was written but never referenced, and the layer stayed
+            # uniformly its own material. Anything relying on lateral structure
+            # in a passive layer would have been quietly simulated without it.
+            has_footprints = layer.name in footprints_by_layer
+            if has_footprints and has_tsv_map:
+                raise ValueError(
+                    f"Layer {layer.name!r} has BOTH DiePrint footprints and a TSV "
+                    "density map. 3D-ICE takes at most one `layout` per layer "
+                    "declaration, so these cannot both be expressed -- split the "
+                    "lateral structure across two layers instead."
+                )
+            if has_footprints:
+                mat_name = self._gap_material_name(geometry, layer)
             lines.append(f"layer type_layer_{s_idx} :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
             lines.append(f"   material {mat_name} ;")
             # Spatially varying TSV conductivity, if this layer carries a density
             # field. 3D-ICE 4.0 only: a layer declaration takes an optional layout
             # that overrides the uniform material per rectangle.
-            if layer.name in (scenario.get('tsv_map_by_layer') or {}):
+            if has_tsv_map:
                 lyt = (self.config_dir / f"layout_{self._sanitise(layer.name)}.lyt").resolve()
+                lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
+                lines.append(f'   layout "{lyt_path}" ;')
+            elif has_footprints:
+                lyt = (self.config_dir
+                       / f"layout_footprint_{self._sanitise(layer.name)}.lyt").resolve()
                 lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
                 lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
@@ -386,7 +412,7 @@ class ICESimulator(ThermalSimulator):
             lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
             lines.append(f"layer type_layer_{s_idx}_src :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
-            lines.append(f"   material {self._underfill_material_name(geometry)} ;")
+            lines.append(f"   material {self._gap_material_name(geometry, layer)} ;")
             lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
 
@@ -545,7 +571,24 @@ class ICESimulator(ThermalSimulator):
                     'k': k,
                     'rho_cp': layer.volumetric_heat_capacity
                 }
+            # A layer with an explicit gap_material (e.g. geometry7's organic
+            # substrate the LSI bridge islands sit in) needs THAT material
+            # declared too -- it is not layer.material (which fills the
+            # footprints, not the gap) and not the generic underfill material.
+            if layer.gap_material and layer.gap_material not in materials:
+                from ..core.material import MaterialLibrary
+                gap_mat = MaterialLibrary.get(layer.gap_material)
+                materials[layer.gap_material] = {
+                    'k': gap_mat.k_thermal,
+                    'rho_cp': gap_mat.volumetric_heat_capacity,
+                }
         return materials
+
+    def _gap_material_name(self, geometry: Geometry, layer) -> str:
+        """Material name for the region outside a footprint-carrying layer's
+        DiePrint rectangles: the layer's own gap_material if it declares one
+        (a real, distinct material), else the geometry's generic underfill."""
+        return layer.gap_material or self._underfill_material_name(geometry)
 
     @staticmethod
     def _to_wsl_path(windows_path) -> str:

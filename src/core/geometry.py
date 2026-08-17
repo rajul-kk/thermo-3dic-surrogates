@@ -34,6 +34,16 @@ class Layer:
     z_bottom: float = 0.0  # Set during stack assembly
     z_top: float = 0.0  # Set during stack assembly
     is_active: bool = False  # True for die layers with power dissipation
+    # Material name for the region OUTSIDE any DiePrint footprint on this layer,
+    # when it carries footprints. `material` above is what fills the footprint
+    # rectangles (e.g. 'silicon_low_k' for a die, 'silicon' for an LSI bridge
+    # island); by default the surrounding gap is the geometry's generic
+    # `underfill_k`-based material (die-attach epoxy convention, geometry4/5/6).
+    # Set this when the gap is a DIFFERENT real material rather than epoxy
+    # underfill -- e.g. geometry7's organic substrate field the LSI bridges sit
+    # in, which is a distinct material from die-attach underfill, not a second
+    # instance of it, even though both happen to be low-k polymers.
+    gap_material: Optional[str] = None
 
     def __post_init__(self):
         """Validate layer parameters."""
