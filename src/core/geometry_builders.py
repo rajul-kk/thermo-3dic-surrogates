@@ -817,6 +817,184 @@ def build_geometry6() -> Geometry:
     return geometry
 
 
+def build_geometry7() -> Geometry:
+    """
+    Geometry 7: CoWoS-L-class reticle-stitched package (Rubin/Rubin-Ultra-like).
+
+    Structurally distinct from geometry4/5/6, which all model CoWoS-S (a single
+    monolithic silicon interposer spanning the whole package). Modern
+    disaggregated GPU packages (NVIDIA Rubin/Rubin Ultra class, per public
+    reporting as of 2026-08: 2 near-reticle compute dies + I/O dies on a
+    multi-reticle CoWoS-L interposer with 8 HBM4 stacks) instead use LOCAL
+    silicon interconnect (LSI) bridges: small silicon islands embedded in a
+    much lower-conductivity organic (ABF/BT) substrate, placed only where
+    die-to-die routing density actually requires silicon-grade wiring pitch.
+    That is a genuine lateral-conductivity structure no other geometry in this
+    benchmark has: a passive spreading layer that is MOSTLY low-k organic film
+    with sparse high-k silicon patches, rather than either a uniform material
+    or an active die layer's silicon-vs-underfill pattern.
+
+    Footprint: 62mm x 14mm (868 mm^2 -- ~1.48x geometry6's 588 mm^2, reflecting
+    a larger reticle-stitched package; NOT a literal match to any specific real
+    package's exact dimensions, which are not public).
+
+    Layout (y: 1-13mm for all blocks; x from left edge):
+      chipA (compute)  : x=1mm,    9x12mm   -- 2x2 sub-block grid
+      chipB (compute)  : x=10.5mm, 9x12mm   -- 2x2 sub-block grid (0.5mm seam to chipA)
+      io1 (I/O die)    : x=20mm,   3x5.5mm  (upper)
+      io2 (I/O die)    : x=20mm,   3x5.5mm  (lower)
+      hbm1..hbm8        : x=24.5, 29, 33.5, 38, 42.5, 47, 51.5, 56mm; 4x12mm each,
+                          4.5mm pitch (0.5mm gap between stacks)
+
+    LSI bridge islands (substrate_organic layer, silicon footprints in an
+    organic-substrate field):
+      bridge_ab        : x=9.5mm, 1.5x12mm  -- compute-to-compute reticle-stitch bridge
+      bridge_hbm{1..8} : x=hbm[n]-0.5mm, 1x12mm  -- each HBM's D2D bridge to the
+                          compute cluster (spans the 0.5mm gap + 0.5mm under the
+                          stack's near edge)
+
+    Layer stack (bottom to top) -- same 11-layer count and thicknesses as
+    geometry5/6, isolating the CoWoS-L change to exactly one layer:
+      heat_sink         5000um Cu           -- full
+      tim_sink           125um TIM grease   -- full
+      spreader           1000um Cu           -- full
+      tim_top              50um In solder    -- full
+      substrate_organic   300um ABF/BT organic (k=0.5) + Si bridge islands (k=148)
+                                              -- REPLACES geometry5/6's uniform-Si
+                                                 'interposer' layer; the one
+                                                 structural change this geometry
+                                                 tests
+      rdl_layer             5um Si low-k     -- full, active
+      c4_bumps            100um k=15         -- full
+      die_zone_1            50um Si low-k    -- active; chipA/B, io1/2, hbm d1
+                                                 footprints, underfill elsewhere
+      hybrid_bonding         5um k=60         -- full
+      tsv_zone             100um             -- hbm tsv footprints, underfill elsewhere
+      die_zone_2            50um Si low-k    -- active; hbm d2 footprints only
+
+    Total height: 6785um (identical to geometry5/6). Mesh: 56x248x50 (die_length
+    14000/56=250um, die_width 62000/248=250um -- same 250um cell pitch as geometry6).
+    """
+    mat_cu    = MaterialLibrary.get('copper')
+    mat_tim   = MaterialLibrary.get('tim')
+    mat_si    = MaterialLibrary.get('silicon')
+    mat_si_lk = MaterialLibrary.get('silicon_low_k')
+    mat_tim1  = MaterialLibrary.get('tim_indium')
+    mat_c4    = MaterialLibrary.get('c4_bump_array')
+    mat_hb    = MaterialLibrary.get('hybrid_bonding')
+    mat_org   = MaterialLibrary.get('organic_substrate')
+    mat_tsv   = MaterialLibrary.create_tsv_material(0.03)
+
+    layers = [
+        Layer(name='heat_sink',  material='copper',        thickness=5000.0,
+              k_thermal=mat_cu.k_thermal,    volumetric_heat_capacity=mat_cu.volumetric_heat_capacity),
+        Layer(name='tim_sink',   material='tim',           thickness=125.0,
+              k_thermal=mat_tim.k_thermal,   volumetric_heat_capacity=mat_tim.volumetric_heat_capacity),
+        Layer(name='spreader',   material='copper',        thickness=1000.0,
+              k_thermal=mat_cu.k_thermal,    volumetric_heat_capacity=mat_cu.volumetric_heat_capacity),
+        Layer(name='tim_top',    material='tim_indium',    thickness=50.0,
+              k_thermal=mat_tim1.k_thermal,  volumetric_heat_capacity=mat_tim1.volumetric_heat_capacity),
+        # CoWoS-L bridge layer: base/gap material is the organic substrate;
+        # `material='silicon'` supplies the LSI bridge islands via DiePrint
+        # footprints below (see gap_material on Layer -- the footprint fills
+        # with `material`, the surrounding field fills with `gap_material`).
+        Layer(name='substrate_organic', material='silicon', thickness=300.0,
+              k_thermal=mat_si.k_thermal,    volumetric_heat_capacity=mat_si.volumetric_heat_capacity,
+              gap_material='organic_substrate'),
+        Layer(name='rdl_layer',  material='silicon_low_k', thickness=5.0,
+              k_thermal=mat_si_lk.k_thermal, volumetric_heat_capacity=mat_si_lk.volumetric_heat_capacity,
+              is_active=True),
+        Layer(name='c4_bumps',   material='c4_bump_array', thickness=100.0,
+              k_thermal=mat_c4.k_thermal,    volumetric_heat_capacity=mat_c4.volumetric_heat_capacity),
+        Layer(name='die_zone_1', material='silicon_low_k', thickness=50.0,
+              k_thermal=mat_si_lk.k_thermal, volumetric_heat_capacity=mat_si_lk.volumetric_heat_capacity,
+              is_active=True),
+        Layer(name='hybrid_bonding', material='hybrid_bonding', thickness=5.0,
+              k_thermal=mat_hb.k_thermal,    volumetric_heat_capacity=mat_hb.volumetric_heat_capacity),
+        Layer(name='tsv_zone',   material=mat_tsv.name,   thickness=100.0,
+              k_thermal=mat_tsv.k_thermal,   volumetric_heat_capacity=mat_tsv.volumetric_heat_capacity),
+        Layer(name='die_zone_2', material='silicon_low_k', thickness=50.0,
+              k_thermal=mat_si_lk.k_thermal, volumetric_heat_capacity=mat_si_lk.volumetric_heat_capacity,
+              is_active=True),
+    ]
+
+    _y0 = 1000.0
+    # 8 HBM4 stacks at 4.5mm pitch (500um gap between 4mm-wide stacks)
+    _hbm_x = {n: 24500.0 + (n - 1) * 4500.0 for n in range(1, 9)}
+    _hbm_w, _hbm_h = 4000.0, 12000.0
+
+    power_blocks = [
+        PowerBlock(name='chipA_rdl', x=1000.0,  y=_y0, width=9000.0, height=12000.0, layer_name='rdl_layer'),
+        PowerBlock(name='chipB_rdl', x=10500.0, y=_y0, width=9000.0, height=12000.0, layer_name='rdl_layer'),
+        PowerBlock(name='io1_rdl',   x=20000.0, y=_y0,          width=3000.0, height=5500.0, layer_name='rdl_layer'),
+        PowerBlock(name='io2_rdl',   x=20000.0, y=_y0 + 6500.0, width=3000.0, height=5500.0, layer_name='rdl_layer'),
+    ]
+    for n, hx in _hbm_x.items():
+        power_blocks.append(PowerBlock(
+            name=f'hbm{n}_rdl', x=hx, y=_y0, width=_hbm_w, height=_hbm_h, layer_name='rdl_layer'))
+
+    # Compute dies -- 2x2 sub-block grid each (4.5x6mm blocks), matching the
+    # spatial resolution geometry5/6 already use for their single compute chiplet.
+    power_blocks += [
+        PowerBlock(name='chipA_c1', x=1000.0,  y=_y0,          width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipA_c2', x=5500.0,  y=_y0,          width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipA_c3', x=1000.0,  y=_y0 + 6000.0, width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipA_c4', x=5500.0,  y=_y0 + 6000.0, width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipB_c1', x=10500.0, y=_y0,          width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipB_c2', x=15000.0, y=_y0,          width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipB_c3', x=10500.0, y=_y0 + 6000.0, width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        PowerBlock(name='chipB_c4', x=15000.0, y=_y0 + 6000.0, width=4500.0, height=6000.0, layer_name='die_zone_1'),
+        # I/O dies -- SerDes/analog, single block each (not compute-grade hotspot density)
+        PowerBlock(name='io1', x=20000.0, y=_y0,          width=3000.0, height=5500.0, layer_name='die_zone_1'),
+        PowerBlock(name='io2', x=20000.0, y=_y0 + 6500.0, width=3000.0, height=5500.0, layer_name='die_zone_1'),
+    ]
+
+    # 8 HBM4 stacks: die_zone_1 bottom die, tsv_zone passive, die_zone_2 top die
+    for n, hx in _hbm_x.items():
+        power_blocks.append(PowerBlock(
+            name=f'hbm{n}_d1', x=hx, y=_y0, width=_hbm_w, height=_hbm_h, layer_name='die_zone_1'))
+        power_blocks.append(PowerBlock(
+            name=f'hbm{n}_tsv', x=hx, y=_y0, width=_hbm_w, height=_hbm_h,
+            layer_name='tsv_zone', is_tsv_region=True))
+        power_blocks.append(PowerBlock(
+            name=f'hbm{n}_d2', x=hx, y=_y0, width=_hbm_w, height=_hbm_h, layer_name='die_zone_2'))
+
+    die_footprints = [
+        DiePrint('chipA_die1', x=1000.0,  y=_y0,          width=9000.0, height=12000.0, die_layer_name='die_zone_1'),
+        DiePrint('chipB_die1', x=10500.0, y=_y0,          width=9000.0, height=12000.0, die_layer_name='die_zone_1'),
+        DiePrint('io1_die',    x=20000.0, y=_y0,          width=3000.0, height=5500.0,  die_layer_name='die_zone_1'),
+        DiePrint('io2_die',    x=20000.0, y=_y0 + 6500.0, width=3000.0, height=5500.0,  die_layer_name='die_zone_1'),
+        # LSI bridge islands: silicon in the organic-substrate field, only where
+        # die-to-die routing density needs it -- the CoWoS-L structural feature
+        # this geometry exists to test.
+        DiePrint('bridge_ab', x=9500.0, y=_y0, width=1500.0, height=12000.0,
+                 die_layer_name='substrate_organic'),
+    ]
+    for n, hx in _hbm_x.items():
+        die_footprints += [
+            DiePrint(f'hbm{n}_die1', x=hx, y=_y0, width=_hbm_w, height=_hbm_h, die_layer_name='die_zone_1'),
+            DiePrint(f'hbm{n}_tsv',  x=hx, y=_y0, width=_hbm_w, height=_hbm_h, die_layer_name='tsv_zone'),
+            DiePrint(f'hbm{n}_die2', x=hx, y=_y0, width=_hbm_w, height=_hbm_h, die_layer_name='die_zone_2'),
+            DiePrint(f'bridge_hbm{n}', x=hx - 500.0, y=_y0, width=1000.0, height=_hbm_h,
+                     die_layer_name='substrate_organic'),
+        ]
+
+    geometry = Geometry(
+        name='geometry7',
+        geometry_type='2p5d_stack',
+        layers=layers,
+        power_blocks=power_blocks,
+        die_width=62000.0,
+        die_length=14000.0,
+        mesh_resolution=(56, 248, 50),  # 14000/56=250µm, 62000/248=250µm — integer cell sizes
+        die_footprints=die_footprints,
+        underfill_k=0.7,
+        tsv_density=0.03,
+    )
+    geometry.validate()
+    return geometry
+
+
 def build_all_geometries() -> List[Geometry]:
     """
     Build all benchmark geometries.
@@ -839,7 +1017,9 @@ def get_geometry_by_name(name: str) -> Geometry:
     Get geometry by name.
 
     Args:
-        name: One of 'geometry1', 'geometry2a', 'geometry3'..'geometry6'
+        name: One of 'geometry1', 'geometry2a', 'geometry3'..'geometry7'
+              ('geometry7' is a CoWoS-L pilot, not part of the standard
+              6-geometry benchmark dataset -- see build_geometry7 docstring)
 
     Returns:
         Geometry object
@@ -854,6 +1034,7 @@ def get_geometry_by_name(name: str) -> Geometry:
         'geometry4':  build_geometry4,
         'geometry5':  build_geometry5,
         'geometry6':  build_geometry6,
+        'geometry7':  build_geometry7,
     }
 
     if name not in builders:

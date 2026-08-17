@@ -149,6 +149,25 @@ class MaterialLibrary:
             description='Cu-Cu hybrid bonding interface — 9µm pitch pillar array, k_eff=60 W/m·K'
         ),
 
+        # geometry7 (CoWoS-L-class, Rubin-like reticle-stitched package)
+        'organic_substrate': Material(
+            name='organic_substrate',
+            k_thermal=0.5,
+            volumetric_heat_capacity=1.9e6,
+            density=1900.0,
+            # ENGINEERING ESTIMATE: ABF (Ajinomoto Build-up Film) / BT-resin organic
+            # substrate build-up layers are reported in the literature at roughly
+            # 0.3-0.8 W/m·K, three orders of magnitude below bulk silicon's 148
+            # W/m·K -- this is the whole point of the CoWoS-L vs CoWoS-S distinction:
+            # a CoWoS-L "interposer" is mostly this organic film, with silicon LSI
+            # (local silicon interconnect) bridge islands only under the specific
+            # die-to-die regions that need bridge-grade routing density. Not
+            # validated against a specific cited measurement; 0.5 W/m·K is a
+            # plausible mid-range value for planning purposes only.
+            description='CoWoS-L organic (ABF/BT) substrate build-up film -- the low-k '
+                        'field the LSI silicon bridge islands sit in'
+        ),
+
     }
 
     @classmethod

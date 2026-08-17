@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.core.geometry_builders import (
     build_geometry1, build_geometry2a,
     build_geometry3, build_geometry4, build_geometry5, build_geometry6,
+    build_geometry7,
 )
 from src.core.mesh import (
     generate_coords_and_indices,
@@ -65,6 +66,9 @@ def load_geometries() -> Dict[str, object]:
         'geometry4':  build_geometry4(),
         'geometry5':  build_geometry5(),
         'geometry6':  build_geometry6(),
+        # CoWoS-L pilot -- not part of the standard 6-geometry dataset, excluded
+        # from --all-geometries below, addressable individually via --geometry.
+        'geometry7':  build_geometry7(),
     }
     for name, geom in geometries.items():
         logger.info(f"  {name}: {geom.name} "
@@ -402,7 +406,7 @@ def main():
     parser.add_argument(
         '--geometry',
         choices=['geometry1', 'geometry2a', 'geometry3',
-                 'geometry4', 'geometry5', 'geometry6', 'all'],
+                 'geometry4', 'geometry5', 'geometry6', 'geometry7', 'all'],
         default='geometry1',
         help='Geometry to process (default: geometry1)'
     )

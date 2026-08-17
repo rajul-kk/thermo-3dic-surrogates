@@ -142,6 +142,16 @@ class ScenarioGenerator:
         'geometry4':  200.0,   # 2.5D chiplet assembly on interposer
         'geometry5':  400.0,   # CoWoS accelerator: compute chiplet + HBM stack
         'geometry6':  700.0,   # CoWoS accelerator with 6 HBM stacks
+        # CoWoS-L reticle-stitched pilot: 2 compute dies + 2 I/O dies + 8 HBM4,
+        # scaled up from geometry6 by die-area ratio (868/588=1.48x) and HBM
+        # count (8/6=1.33x) and rounded. Public reporting on Rubin/Rubin-Ultra
+        # class packages cites per-package figures in the 1500-3600W range
+        # depending on configuration; 1000W is a deliberately conservative,
+        # tractable-for-simulation midpoint, not a citation of any specific
+        # real package's TDP -- a literal 3600W in this footprint would push
+        # most scenarios into throttling territory before any workload pattern
+        # is even applied, at the HTC ranges this generator uses.
+        'geometry7': 1000.0,
     }
     TDP_DEFAULT_W = 150.0
 
