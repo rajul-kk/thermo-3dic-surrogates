@@ -461,18 +461,24 @@ class ICESimulator(ThermalSimulator):
 
         # ── Solver ────────────────────────────────────────────────────────────
         # numofcores: 3D-ICE 4.0's SLU_Options.nprocs feeds SuperLU_MT's parallel
-        # factorization (pdgstrf) -- present in the grammar and fully wired end to
-        # end, but defaults to 1 when omitted (bison/stack_description_parser.y
-        # optional_numofcores), and this generator never emitted it before
-        # 2026-08-18. Verified on a real geometry7 solve: 8 cores vs the previous
-        # default of 1 gave 63.8s -> 34.0s wall-clock (1.88x, factorization itself
-        # 62.2s -> 30.5s), with byte-identical output Tmap files -- a free,
-        # exact-not-approximate speedup on every solve in this project, not a
-        # tradeoff. Requesting more cores than available is safely clamped at
-        # runtime (thermal_data.c set_parallel_cores warns and caps to
-        # omp_get_max_threads()), so a generous default is safe on smaller
-        # machines too.
-        num_cores = int(scenario.get('num_cores', 8))
+        # factorization (pdgstrf). CORRECTION 2026-08-18: an earlier version of
+        # this comment claimed 8 cores was a free, exact speedup verified
+        # byte-identical to the 1-core baseline -- that was true for exactly one
+        # run pair and NOT re-checked against a second independent run at the
+        # same core count before being made the default. It was wrong. Running
+        # the identical scenario twice at numofcores=8 (nothing else changed)
+        # produced peak-adjacent values differing by >1 K between the two runs;
+        # numofcores=1 run twice in a row was bit-for-bit identical both times.
+        # The non-determinism is real and isolated to the multi-threaded path
+        # (thread-scheduling-dependent floating-point reduction order in
+        # SuperLU_MT's parallel factorization, not this project's code), not a
+        # fluke of one comparison. Defaulting to >1 core would have silently
+        # made every future dataset non-reproducible run to run -- a much worse
+        # problem than the wall-clock this was meant to save. Reverted to the
+        # deterministic default; multi-core remains available for anyone who
+        # explicitly wants the tradeoff (e.g. quick exploratory sweeps where
+        # exact reproducibility doesn't matter), never as a silent default.
+        num_cores = int(scenario.get('num_cores', 1))
         lines.append("solver :")
         lines.append("   steady ;")
         lines.append(f"   initial temperature {t_ambient_k:.2f} ;")

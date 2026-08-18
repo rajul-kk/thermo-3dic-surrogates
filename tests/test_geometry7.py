@@ -208,15 +208,17 @@ def test_organic_substrate_material_registered():
 # ── ice_simulator: numofcores + footprint-material k-override mangling ─────
 
 def test_solver_block_emits_numofcores():
-    """Regression test: 3D-ICE's numofcores directive (bison grammar's
-    optional_numofcores) defaults to 1 when omitted and was never emitted by
-    this generator before 2026-08-18, silently leaving every solve in this
-    project single-threaded despite SuperLU_MT supporting real parallel
-    factorization -- verified empirically at 1.88x wall-clock on a real
-    geometry7 solve with byte-identical output."""
+    """The solver block explicitly states numofcores rather than relying on
+    the grammar's implicit default. Default is 1 (deterministic) -- an
+    earlier version of this project briefly defaulted to 8 for a wall-clock
+    speedup, but multi-threaded SuperLU_MT factorization was found to be
+    non-deterministic (repeat runs of the identical scenario differed by
+    >1 K; single-threaded repeats were bit-for-bit identical), so it was
+    reverted before being used for any real data. See ice_simulator.py's
+    solver-block comment for the full correction."""
     geom = _make_probe_geometry()
     stk, _ = _render_stack(geom)
-    assert 'numofcores 8 ;' in stk  # current default
+    assert 'numofcores 1 ;' in stk  # current default -- deterministic
 
 
 def test_solver_block_num_cores_is_configurable():
