@@ -23,40 +23,56 @@ Everything below this section is about training PINN/FNO/etc. on GPUs. This sect
 about the cost of *generating the data in the first place* -- running 3D-ICE via WSL,
 which every dataset/pilot in this project pays for and which is unrelated to any GPU.
 
-**3D-ICE 4.0's stack-file grammar has a `numofcores` directive that was never being used.**
-Inspected the simulator's own source (not just treated as a black box):
-`bison/stack_description_parser.y`'s `optional_numofcores` rule feeds
+**3D-ICE 4.0's stack-file grammar has a `numofcores` directive for SuperLU_MT's
+multi-threaded factorization, unused by this project until briefly tried and reverted the
+same day.** `bison/stack_description_parser.y`'s `optional_numofcores` rule feeds
 `analysis->NumOfCores` through `system_matrix_build` into `SLU_Options.nprocs`, which
-SuperLU_MT's parallel factorization (`pdgstrf`) actually uses -- fully wired, real
-multi-threaded factorization, available in the tool since before this project started
-using it. The directive **defaults to 1 core when omitted**, and this project's
-`src/simulators/ice_simulator.py` never emitted it, so every 3D-ICE solve run in this
-project before 2026-08-18 -- every geometry, every pilot, all 275+ standard-dataset files
-plus every Track A-D pilot -- ran single-threaded on a 12-core machine.
+`pdgstrf` (SuperLU_MT's parallel factorization) actually uses. Defaults to 1 core when
+omitted; this project's `ice_simulator.py` never emitted it before 2026-08-18.
 
-**Verified, not assumed**: same geometry7 scenario, same everything except `numofcores`:
+**A single-run comparison looked like a free 1.88x speedup with byte-identical output**
+(1 core: 63.8s wall-clock / 62.2s factorization; 8 cores: 34.0s / 30.5s; one `diff` showed
+zero differences), and `numofcores=8` was briefly made the default on that basis. **It was
+wrong, caught by re-running the identical scenario a second time at 8 cores rather than
+trusting the first comparison**: the two 8-core runs of the exact same problem gave
+peak-adjacent temperatures differing by **more than 1 K**. Two independent 1-core runs of
+the same problem were bit-for-bit identical. The non-determinism is real, isolated to the
+multi-threaded factorization path (thread-scheduling-dependent floating-point reduction
+order inside SuperLU_MT, not a bug in this project's code), and not a fluke of one
+comparison -- confirmed with fresh output directories to rule out a stale-file artifact
+before concluding anything.
 
-| | wall-clock | factorization | peak memory |
-|---|---|---|---|
-| 1 core (previous default) | 63.8 s | 62.2 s | 1.25 GB |
-| 8 cores (new default) | **34.0 s** | **30.5 s** | 1.86 GB |
+**`numofcores` now defaults back to 1.** A ~2x wall-clock speedup is a much smaller prize
+than silently making every future dataset non-reproducible run to run would have been a
+cost -- every finding in this project depends on 3D-ICE giving the same answer for the
+same input. Multi-core remains available (`scenario['num_cores']`) for anyone who
+explicitly wants that tradeoff (e.g. a quick exploratory sweep where exact reproducibility
+doesn't matter), never as a silent default. **One dataset was generated under the
+since-reverted default and had to be thrown out and regenerated**: geometry7's
+material-uncertainty sweep (`docs/report.md` §9.11) originally reported a dramatic "sharp
+cliff" in the `lsi_bridge_via` sweep that turned out to be a single corrupted data point
+(k=20: a spurious 397.5°C, corrected to 180.6°C) -- see that section for the full
+correction. The 40-scenario geometry7 pilot and its baseline results predate the
+`numofcores` change and are unaffected.
 
-**1.88x wall-clock speedup, output Tmap files byte-identical between runs** (diffed, zero
-differences) -- this is not an approximation or a tradeoff, the direct sparse solve
-produces the exact same factorization regardless of thread count. `num_cores` (scenario
-param, default 8) now goes into every generated stack file's `solver:` block. Requesting
-more cores than physically available is safely clamped at runtime with a warning
-(`thermal_data.c`'s `set_parallel_cores`), so the default is safe on smaller machines too,
-just with less speedup.
+**A second, unrelated idea tested and found not to help**: SuperLU_MT hardcodes
+`ColPerm = MMD_AT_PLUS_A` (minimum-degree fill-reducing ordering on A+A'). The library also
+ships COLAMD, generally competitive or better for many sparse-matrix classes, so it was
+tried as a hypothesis for pushing past this project's documented ~28-z-node factorization
+failure ceiling ("Storage for U columns exceeded", reproduced exactly: 292,795 columns
+allocated, 155,602,020 needed). Rebuilt 3D-ICE with `ColPerm = COLAMD` and re-ran the
+known-working geometry7 case: it failed with the same "Storage for U columns exceeded"
+error where the existing `MMD_AT_PLUS_A` build succeeds -- COLAMD produces *more* fill-in
+than MMD_AT_PLUS_A on this specific (structured, mesh-derived, effectively symmetric)
+matrix class, not less. Reverted immediately (source, object files, and binary restored
+from a pre-change backup, diffed byte-identical to confirm). The z-node ceiling remains
+open; ordering-heuristic substitution isn't the fix.
 
-**Retroactive implication**: every solve-time figure recorded elsewhere in this repo
-(geometry7's 45.6 min / 36.8 min pilot generation times, the throttle/leakage/interface
-pilots' per-scenario timings, etc.) was measured under the single-core default and would
-be faster on a re-run now. Not retroactively corrected here -- those numbers are honest
-records of what was measured at the time, just no longer representative of current
-per-solve cost. A full regeneration of the standard 275-file dataset would likely now take
-roughly half as long as it did originally, though parallel efficiency at higher core counts
-on other geometries/machines hasn't been separately verified.
+**Retroactive note**: every OTHER solve-time figure recorded elsewhere in this repo
+(geometry7's pilot generation times, the throttle/leakage/interface pilots' per-scenario
+timings, etc.) was measured under the single-core default that is now, again, the actual
+default -- those numbers remain representative of current cost, unlike the brief window
+described above.
 
 ---
 
