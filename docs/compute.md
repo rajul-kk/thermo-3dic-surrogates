@@ -17,6 +17,49 @@ since these are cost *estimates* for future runs, not settled experimental resul
 
 ---
 
+## 3D-ICE solve cost (the simulator itself, not neural-network training) — 2026-08-18
+
+Everything below this section is about training PINN/FNO/etc. on GPUs. This section is
+about the cost of *generating the data in the first place* -- running 3D-ICE via WSL,
+which every dataset/pilot in this project pays for and which is unrelated to any GPU.
+
+**3D-ICE 4.0's stack-file grammar has a `numofcores` directive that was never being used.**
+Inspected the simulator's own source (not just treated as a black box):
+`bison/stack_description_parser.y`'s `optional_numofcores` rule feeds
+`analysis->NumOfCores` through `system_matrix_build` into `SLU_Options.nprocs`, which
+SuperLU_MT's parallel factorization (`pdgstrf`) actually uses -- fully wired, real
+multi-threaded factorization, available in the tool since before this project started
+using it. The directive **defaults to 1 core when omitted**, and this project's
+`src/simulators/ice_simulator.py` never emitted it, so every 3D-ICE solve run in this
+project before 2026-08-18 -- every geometry, every pilot, all 275+ standard-dataset files
+plus every Track A-D pilot -- ran single-threaded on a 12-core machine.
+
+**Verified, not assumed**: same geometry7 scenario, same everything except `numofcores`:
+
+| | wall-clock | factorization | peak memory |
+|---|---|---|---|
+| 1 core (previous default) | 63.8 s | 62.2 s | 1.25 GB |
+| 8 cores (new default) | **34.0 s** | **30.5 s** | 1.86 GB |
+
+**1.88x wall-clock speedup, output Tmap files byte-identical between runs** (diffed, zero
+differences) -- this is not an approximation or a tradeoff, the direct sparse solve
+produces the exact same factorization regardless of thread count. `num_cores` (scenario
+param, default 8) now goes into every generated stack file's `solver:` block. Requesting
+more cores than physically available is safely clamped at runtime with a warning
+(`thermal_data.c`'s `set_parallel_cores`), so the default is safe on smaller machines too,
+just with less speedup.
+
+**Retroactive implication**: every solve-time figure recorded elsewhere in this repo
+(geometry7's 45.6 min / 36.8 min pilot generation times, the throttle/leakage/interface
+pilots' per-scenario timings, etc.) was measured under the single-core default and would
+be faster on a re-run now. Not retroactively corrected here -- those numbers are honest
+records of what was measured at the time, just no longer representative of current
+per-solve cost. A full regeneration of the standard 275-file dataset would likely now take
+roughly half as long as it did originally, though parallel efficiency at higher core counts
+on other geometries/machines hasn't been separately verified.
+
+---
+
 ## GPU Specifications
 
 | GPU | VRAM | FP32 | FP16 (Tensor Cores) | Memory BW | Notes |
