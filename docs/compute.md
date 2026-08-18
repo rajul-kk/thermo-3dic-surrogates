@@ -108,7 +108,7 @@ overhead 5–10%, FFT bandwidth-bound ops don't halve perfectly.
 | PI-FNO (FD residual) | geometry1 | 100×100×40 | **32.3 s** | Yes (no overhead vs baseline) |
 | CNO-FNO (1.6M params) — data only | geometry1 | 100×100×40 | **62.1 s** | Yes |
 | CNO-FNO + PI | geometry1 | 100×100×40 | **60.8 s** | Yes |
-| PI-DeepONet (500k params) — PI step | all 7 | N/A | **27 s/epoch** (105 scenarios, 27 steps) | Yes |
+| PI-DeepONet (500k params) — PI step | all 3 (g1/2a/g3) | N/A | **27 s/epoch** (105 scenarios, 27 steps) | Yes |
 
 > **CNO-FNO is slower than baseline FNO on CPU** (62s vs 32s) because full-resolution
 > Conv3d + GroupNorm on the 100×100×40 grid are CPU-memory-bandwidth-bound and poorly
@@ -145,8 +145,9 @@ measured g1 time predicts g2a at 99.1 s vs. the actual measured 96.8 s (2.4% err
 
 **2× T4 DDP** below = single-T4 total ÷ 1.7 (the 70%-efficiency figure from the GPU
 Specifications section above). Totals in the last row assume all 6 geometries trained
-**sequentially** on one path (single-T4 column) — pairing two geometries per run across
-both GPUs (as the existing All-7-Geometries section does) roughly halves that sum instead.
+**sequentially** on one path (single-T4 column) — splitting the 6 geometries 3-per-GPU and
+running each GPU's 3 as independent (non-DDP) jobs, as the All-6-Geometries section below
+does, roughly halves that sum instead.
 
 ### PINN baseline (8,000 epochs, 45× T4 speedup)
 
@@ -213,35 +214,46 @@ DDP across both T4s. One geometry trained per run.
 
 ---
 
-## All-7-Geometries Training Time: 2× T4
+## All-6-Geometries Training Time: 2× T4
 
-**Naming note (2026-08-18):** this section's title/body predate the 2026-08-06 dataset
-correction (8 geometries -> 6: `g1/2a/2b/2c/g3/g4/g5/g6` -> `g1/2a/g3/g4/g5/g6`) and were
-never updated to match -- "7" and "8" here refer to the OLD geometry count, not the new
-`geometry7` CoWoS-L pilot added this session (see "GPU Cost: geometry7" section below,
-after the A3/A3b pilots). Not fixed here since correcting the numbers themselves would
-need re-deriving each figure; flagging the stale count so it isn't confused with the new
-geometry7 pilot.
+**Correction (2026-08-19):** this section previously read "All-7-Geometries," carried
+figures for the pre-2026-08-06 8-geometry dataset (`g1/2a/2b/2c/g3/g4/g5/g6`), and mislabeled
+PI-DeepONet as training "5 uniform-stack geometries (g1/2a/2b/2c/g3)." The current dataset
+has 6 geometries (`g1/2a/g3/g4/g5/g6`), and `scripts/train_deeponet.py`'s MLP variant
+(`ALL_GEOMS_MLP`) trains on exactly **3** of them (`g1/2a/g3`) — g4/5/6 have lateral
+conductivity variation the MLP trunk can't represent and use per-geometry CNO-FNO instead
+(a `--model cno` variant also exists, trained on all 6, not covered separately here). This
+is not the new `geometry7` CoWoS-L pilot (see "GPU Cost: geometry7" below) — geometry7 isn't
+part of the standard training sweep at all. Figures below are recomputed from the
+per-geometry single-T4 totals in the section above, not estimated fresh.
 
-PINN and FNO run 8 separate models (2 in parallel, one per GPU, pairing by time).
-PI-DeepONet trains one model on all 5 uniform-stack geometries simultaneously via DDP.
-Geometry6 (470k pts) adds ~2.7× overhead vs. geometry5 for FNO/CNO runs.
+PINN and FNO run 6 separate per-geometry models, split 3-per-GPU as independent
+(non-DDP) jobs rather than paired via DDP — DDP only helps when splitting *one*
+geometry's batches across GPUs; running two different geometries' models is just two
+independent jobs, so each GPU finishes in the sum of its own 3 geometries' single-T4
+times, and wall time is the max across the 2 GPUs. Geometries were assigned to balance
+load: **GPU 0 = {geometry6, geometry5, geometry4}**, **GPU 1 = {geometry2a, geometry3,
+geometry1}** — this split is within 1-2% of even for all three models below (verified by
+summing each model's single-T4 totals per GPU), so total GPU-hours (sum of both GPUs'
+work) stays equal to the "All 6, sequential" row from the table above; only wall time
+drops, to roughly half. PI-DeepONet trains one model jointly on the 3 uniform-stack
+geometries via DDP (true DDP here, since it's one model/one batch stream, not independent
+per-geometry jobs). Geometry6 (141k actual pts, the largest of the 6) adds the most
+per-GPU load in the pairing above.
 
-| Model | Strategy | **Wall time (2× T4)** | Total GPU-hours | Notes |
-|---|---|---|---|---|
-| **PINN** (baseline) | 2× parallel | **~24 h** | 52 GPU-h | 4.4 h/geom avg × 8 / 1.5 (parallelism) |
-| **PINN + upgrades** | 2× parallel (DDP per geom) | **~5 h** | 10 GPU-h | 37 min/geom × 8; g6 ~90 min (470k pts) |
-| **FNO baseline** | 2× parallel | **~55 min** | 1.8 GPU-h | g6 adds ~15 min extra (470k pts, 500 epochs) |
-| **PI-FNO** | 2× parallel | **~50 min** | 1.7 GPU-h | |
-| **CondFNO (FiLM)** | 2× parallel | **~55 min** | 1.8 GPU-h | |
-| **PI-FNO + FiLM** | 2× parallel | **~52 min** | 1.7 GPU-h | |
-| **CNO-FNO + PI + FiLM** | 2× parallel | **~38 min** | 1.3 GPU-h | g6 single run ~16 min (tensor-core Conv3d scales well) |
-| **PI-DeepONet** | DDP, 1 joint run | **~9 min** | 0.3 GPU-h | 5 stack geometries (g1/2a/2b/2c/g3); g4/5/6 use per-geom CNO-FNO |
-| **GINO** *(theoretical)* | DDP, 1 joint run | **~2 h** | 4 GPU-h | GNN encoder/decoder overhead; one model all geoms |
+| Model | Strategy | GPU 0 load | GPU 1 load | **Wall time (2× T4)** | Total GPU-hours | Notes |
+|---|---|---|---|---|---|---|
+| **PINN** (baseline) | 2× independent, 3/GPU | g6+g5+g4 = 14.0 h | g2a+g3+g1 = 14.0 h | **~14.0 h** | 28.0 GPU-h | Balanced exactly; see per-geometry table above |
+| **FNO baseline** | 2× independent, 3/GPU | g6+g5+g4 = 34.2 min | g2a+g3+g1 = 34.6 min | **~34.6 min** | 1.15 GPU-h | |
+| **CNO-FNO + PI + FiLM** | 2× independent, 3/GPU | g6+g5+g4 = 21.9 min | g2a+g3+g1 = 22.2 min | **~22.2 min** | 0.74 GPU-h | Recommended default |
+| **PI-DeepONet (MLP)** | DDP, 1 joint run | — | — | **~9 min** | 0.3 GPU-h | 3 uniform-stack geometries (g1/2a/g3); g4/5/6 use per-geometry CNO-FNO instead |
+| **GINO** *(theoretical, unscaled)* | DDP, 1 joint run | — | — | **~1.5 h** | 3 GPU-h | GNN encoder/decoder overhead; one model, all 6 geometries; not re-derived, only scaled by 6/8 geometry-count ratio from the prior 8-geometry estimate |
 
-> **PI-DeepONet all-7 total (12 min) is faster than CNO-FNO for a single geometry (~6 min × 4 rounds = 28 min).**
-> CNO-FNO wins per-geometry accuracy; DeepONet wins cross-geometry deployment speed.
-> CNO-FNO is slower than FNO on CPU but faster on GPU — use `--best` only with CUDA.
+> **PI-DeepONet's 3-geometry joint run (~9 min) is faster than a single CNO-FNO run
+> repeated across even 2 of the other geometries (~22 min ÷ 3 geoms × 2 ≈ 15 min).**
+> CNO-FNO wins per-geometry accuracy; DeepONet wins joint-training speed on the subset
+> of geometries its MLP trunk supports. CNO-FNO is slower than FNO on CPU but faster on
+> GPU — use `--best` only with CUDA.
 
 ---
 
