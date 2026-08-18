@@ -203,3 +203,61 @@ def test_gap_material_conflicting_with_tsv_map_raises():
 def test_organic_substrate_material_registered():
     mat = MaterialLibrary.get('organic_substrate')
     assert 0.0 < mat.k_thermal < 148.0  # below bulk silicon, above vacuum
+
+
+# ── ice_simulator: numofcores + footprint-material k-override mangling ─────
+
+def test_solver_block_emits_numofcores():
+    """Regression test: 3D-ICE's numofcores directive (bison grammar's
+    optional_numofcores) defaults to 1 when omitted and was never emitted by
+    this generator before 2026-08-18, silently leaving every solve in this
+    project single-threaded despite SuperLU_MT supporting real parallel
+    factorization -- verified empirically at 1.88x wall-clock on a real
+    geometry7 solve with byte-identical output."""
+    geom = _make_probe_geometry()
+    stk, _ = _render_stack(geom)
+    assert 'numofcores 8 ;' in stk  # current default
+
+
+def test_solver_block_num_cores_is_configurable():
+    tmp = Path(tempfile.mkdtemp())
+    cfg, out = tmp / 'cfg', tmp / 'out'
+    cfg.mkdir(); out.mkdir()
+    geom = _make_probe_geometry()
+    sc = {'htc': 5000.0, 't_ambient': 25.0, 'power_blocks': {'b1': 10.0}, 'num_cores': 2}
+    sim = ICESimulator(config_dir=cfg, output_dir=out, executable='echo')
+    sim._sublayers = sim._plan_sublayers(geom)
+    sim._generate_layout_files(geom, sc)
+    sim._generate_stack_file(geom, sc)
+    stk = (cfg / 'stack.stk').read_text()
+    assert 'numofcores 2 ;' in stk
+
+
+def test_footprint_material_k_override_is_reflected_in_the_layout_file():
+    """Regression test: overriding a FOOTPRINT-carrying layer's k (as opposed to
+    a full uniform layer's, e.g. tim_top) mangles the material name in the
+    stack file (_get_layer_material_name) but the .lyt layout file's rectangle
+    group header used the bare unmangled name unconditionally -- 3D-ICE then
+    rejected the file with 'Unknown material', a loud failure caught while
+    running geometry7's material-uncertainty sweep (2026-08-18), not a silent
+    one, but a real bug in the override path all the same."""
+    # _make_probe_geometry's 'passive_probe' layer has material='silicon'
+    # (the footprint fill) regardless of gap_material -- override its k and
+    # confirm BOTH the .lyt rectangle-group header and the .stk material
+    # declaration use the same mangled name ('silicon_k40').
+    geom = _make_probe_geometry(gap_material='organic_substrate')
+    tmp = Path(tempfile.mkdtemp())
+    cfg, out = tmp / 'cfg', tmp / 'out'
+    cfg.mkdir(); out.mkdir()
+    sc = {'htc': 5000.0, 't_ambient': 25.0, 'power_blocks': {'b1': 10.0},
+          'layer_k_overrides': {'passive_probe': 40.0}}
+    sim = ICESimulator(config_dir=cfg, output_dir=out, executable='echo')
+    sim._sublayers = sim._plan_sublayers(geom)
+    sim._generate_layout_files(geom, sc)
+    lyt = (cfg / 'layout_footprint_passive_probe.lyt').read_text()
+    assert 'silicon_k40 :' in lyt
+    assert lyt.strip().splitlines()[2] == 'silicon_k40 :'
+    # and the stack file must declare that exact mangled material name too
+    sim._generate_stack_file(geom, sc)
+    stk = (cfg / 'stack.stk').read_text()
+    assert 'material silicon_k40 :' in stk

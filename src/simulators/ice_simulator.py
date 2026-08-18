@@ -189,11 +189,25 @@ class ICESimulator(ThermalSimulator):
             with open(path, 'w') as f:
                 f.write('\n'.join(lines))
 
+        layer_k_overrides = scenario.get('layer_k_overrides', {})
         for layer_name, footprints in self._footprints_by_layer(geometry).items():
-            layer = next(l for l in geometry.layers if l.name == layer_name)
+            layer_idx, layer = next(
+                (i, l) for i, l in enumerate(geometry.layers) if l.name == layer_name)
             safe = self._sanitise(layer_name)
+            # Must match whatever _generate_stack_file declares for this layer's
+            # footprint material -- if layer_k_overrides mangles the name (e.g.
+            # 'lsi_bridge_via' -> 'lsi_bridge_via_k40'), the .lyt rectangle group
+            # header has to use the SAME mangled name or 3D-ICE rejects it as an
+            # undeclared material. Found 2026-08-18: this line still used the
+            # bare layer.material unconditionally, so overriding a footprint-
+            # carrying layer's k (as opposed to a full uniform layer's, which
+            # never goes through this file at all) failed outright rather than
+            # silently using the wrong value -- a loud failure, not a silent one,
+            # but still a real bug in the override path.
+            footprint_mat_name = self._get_layer_material_name(
+                layer, layer_k_overrides, layer_idx)
             lines = [f"// Die footprint layout (Si under footprint) — "
-                     f"{geometry.name} / {layer_name}", "", f"{layer.material} :"]
+                     f"{geometry.name} / {layer_name}", "", f"{footprint_mat_name} :"]
             # Same axis swap as _generate_floorplan_files: 3D-ICE X is along
             # chip_length (= die_length = PINN y-axis).
             for fp in footprints:
@@ -378,7 +392,7 @@ class ICESimulator(ThermalSimulator):
                     "lateral structure across two layers instead."
                 )
             if has_footprints:
-                mat_name = self._gap_material_name(geometry, layer)
+                mat_name = self._gap_material_name(geometry, layer, layer_k_overrides)
             lines.append(f"layer type_layer_{s_idx} :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
             lines.append(f"   material {mat_name} ;")
@@ -412,7 +426,7 @@ class ICESimulator(ThermalSimulator):
             lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
             lines.append(f"layer type_layer_{s_idx}_src :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
-            lines.append(f"   material {self._gap_material_name(geometry, layer)} ;")
+            lines.append(f"   material {self._gap_material_name(geometry, layer, layer_k_overrides)} ;")
             lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
 
@@ -446,9 +460,23 @@ class ICESimulator(ThermalSimulator):
         lines.append("")
 
         # ── Solver ────────────────────────────────────────────────────────────
+        # numofcores: 3D-ICE 4.0's SLU_Options.nprocs feeds SuperLU_MT's parallel
+        # factorization (pdgstrf) -- present in the grammar and fully wired end to
+        # end, but defaults to 1 when omitted (bison/stack_description_parser.y
+        # optional_numofcores), and this generator never emitted it before
+        # 2026-08-18. Verified on a real geometry7 solve: 8 cores vs the previous
+        # default of 1 gave 63.8s -> 34.0s wall-clock (1.88x, factorization itself
+        # 62.2s -> 30.5s), with byte-identical output Tmap files -- a free,
+        # exact-not-approximate speedup on every solve in this project, not a
+        # tradeoff. Requesting more cores than available is safely clamped at
+        # runtime (thermal_data.c set_parallel_cores warns and caps to
+        # omp_get_max_threads()), so a generous default is safe on smaller
+        # machines too.
+        num_cores = int(scenario.get('num_cores', 8))
         lines.append("solver :")
         lines.append("   steady ;")
         lines.append(f"   initial temperature {t_ambient_k:.2f} ;")
+        lines.append(f"   numofcores {num_cores} ;")
         lines.append("")
 
         # ── Output: Tmap per stack element ────────────────────────────────────
@@ -553,13 +581,25 @@ class ICESimulator(ThermalSimulator):
             return f"{layer.material}_k{k_int}"
         return layer.material
 
+    @staticmethod
+    def _gap_override_key(layer_name: str) -> str:
+        """layer_k_overrides key convention for a layer's gap_material (distinct
+        from the layer's own footprint material, which uses the bare layer
+        name) -- e.g. 'substrate_organic__gap' overrides geometry7's organic
+        substrate field independently of its 'lsi_bridge_via' footprint k."""
+        return f"{layer_name}__gap"
+
     def _get_unique_materials(self, geometry: Geometry,
                               layer_k_overrides: dict = None) -> Dict[str, Dict]:
         """Extract unique materials and their properties from geometry.
 
         layer_k_overrides: {layer_name: k_override_W_per_mK} — per-scenario TIM
-        pump-out or other material k substitutions.  Overridden layers get a
+        pump-out or other material k substitutions. Overridden layers get a
         uniquely named material entry so non-overridden layers are unaffected.
+        A layer's gap_material (if any) is overridden separately via the
+        '{layer_name}__gap' key (see _gap_override_key) -- footprint and gap
+        are two different materials on the same layer and must be sweepable
+        independently.
         """
         layer_k_overrides = layer_k_overrides or {}
         materials = {}
@@ -575,20 +615,34 @@ class ICESimulator(ThermalSimulator):
             # substrate the LSI bridge islands sit in) needs THAT material
             # declared too -- it is not layer.material (which fills the
             # footprints, not the gap) and not the generic underfill material.
-            if layer.gap_material and layer.gap_material not in materials:
+            if layer.gap_material:
                 from ..core.material import MaterialLibrary
                 gap_mat = MaterialLibrary.get(layer.gap_material)
-                materials[layer.gap_material] = {
-                    'k': gap_mat.k_thermal,
-                    'rho_cp': gap_mat.volumetric_heat_capacity,
-                }
+                gap_name = self._gap_material_name(geometry, layer, layer_k_overrides)
+                if gap_name not in materials:
+                    k = layer_k_overrides.get(self._gap_override_key(layer.name),
+                                              gap_mat.k_thermal)
+                    materials[gap_name] = {
+                        'k': k,
+                        'rho_cp': gap_mat.volumetric_heat_capacity,
+                    }
         return materials
 
-    def _gap_material_name(self, geometry: Geometry, layer) -> str:
+    def _gap_material_name(self, geometry: Geometry, layer,
+                           layer_k_overrides: dict = None) -> str:
         """Material name for the region outside a footprint-carrying layer's
         DiePrint rectangles: the layer's own gap_material if it declares one
-        (a real, distinct material), else the geometry's generic underfill."""
-        return layer.gap_material or self._underfill_material_name(geometry)
+        (a real, distinct material), else the geometry's generic underfill.
+        Mangled the same way _get_layer_material_name mangles an overridden
+        footprint material, if the gap material's k is overridden."""
+        base = layer.gap_material or self._underfill_material_name(geometry)
+        layer_k_overrides = layer_k_overrides or {}
+        if layer.gap_material:
+            override_key = self._gap_override_key(layer.name)
+            if override_key in layer_k_overrides:
+                k_int = int(round(layer_k_overrides[override_key]))
+                return f"{base}_k{k_int}"
+        return base
 
     @staticmethod
     def _to_wsl_path(windows_path) -> str:
