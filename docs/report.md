@@ -836,6 +836,70 @@ the problem stops being well-posed at all (leakage runaway here; more mildly, th
 microchannel pilot's hotspot-localisation loss to nearest-neighbour, §9.8) — not in any of
 the smooth closed-loop mechanisms tried.
 
+### 9.11 geometry7: a bridge-based CoWoS-L pilot — one more mechanism, ridge still wins (2026-08-18)
+
+Every 2.5D geometry so far (4/5/6) models CoWoS-S: one monolithic silicon interposer.
+`geometry7` instead models CoWoS-L: sparse high-k bridge/via islands (a composite
+material, `lsi_bridge_via`, k=60 W/m·K) in an otherwise low-k organic-substrate field
+(k=0.5 W/m·K) — the first passive layer in this project with genuine internal lateral
+heterogeneity rather than uniform material. Full build/complexity notes and a bridge-
+coverage bug caught and fixed before this data was usable are in `docs/compute.md`.
+
+**Ridge/kNN baseline, real 3D-ICE data (`scripts/baselines.py --geometry geometry7`,
+35 train / 5 test):**
+
+| baseline | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
+|---|---|---|---|
+| mean | 2.874 | 0.695 | 15,142 |
+| nearest-neighbour | 0.674 | 0.986 | 5,614 |
+| kNN (k=3) | 0.482 | 0.992 | 5,614 |
+| **ridge** | **0.462** | **0.992** | 5,838 |
+
+Ridge wins on the two metrics that matter (det.MAE, spatial R²), by a narrow margin over
+kNN — consistent with every other mechanism tested in this project. The sharp
+material-conductivity discontinuity at each bridge island's edge does not break linearity
+here either. Hotspot localisation is poor for every model on this geometry (5,600-5,800
+µm, the worst absolute numbers recorded in this project) but ridge does not lose ground
+to the simpler baselines the way it did on the microchannel pilot (§9.8) — with only 5
+test scenarios this is a low-confidence read, not a settled result.
+
+**Material-uncertainty sweep** (same methodology as §9.9, one real operating point held
+fixed — the pilot's own hottest scenario, uniform/htc=5000/t_amb=45°C — varying one
+material constant at a time), applied to the two constants this geometry introduces and
+which are explicitly documented as engineering estimates, not citations:
+
+| material | swept range | peak-T spread | shape |
+|---|---|---|---|
+| `organic_substrate` (bare field) | 0.3-0.8 W/m·K (literature range) | 53.8 K | roughly monotonic, mildly non-smooth |
+| `lsi_bridge_via` (bridge islands) | 20-150 W/m·K (engineering range) | 219.1 K (1.1 K excluding k=20) | **sharp plateau + cliff, not smooth** |
+
+The organic-substrate result is another data point for §9.9's finding: 53.8 K of spread
+from an unreported/uncited constant, again far larger than the accuracy differences
+neural-surrogate papers are compared on. The bridge/via result is qualitatively different
+from every prior interface-uncertainty sweep in this project (§9.9's TIM/hybrid-bonding
+sweeps were all well-fit by T linear in 1/k): here, peak-T is **flat to within 1.1 K**
+across k=40-150 but jumps **218 K** between k=20 and k=40. That is not a contradiction of
+the earlier 1/k-linearity finding, it is the *other* regime the same series-resistance
+picture predicts: a swept resistance only moves the total answer while it is comparable to
+or larger than the other resistances in the path; once it drops far enough below them
+(bridge k above roughly 40 here), further improving it stops mattering, exactly as a small
+resistor in series with much larger ones does. The practically important part: the nominal
+value chosen for this geometry (60 W/m·K, "matching `hybrid_bonding`'s precedent, not
+independently derived" per `material.py`) sits inside the flat plateau, so the geometry's
+other results are insensitive to that specific uncertain choice — but only because it
+happens to land above the cliff. A different, equally defensible engineering estimate
+below ~40 W/m·K would have changed the peak-temperature answer by hundreds of kelvin.
+
+**On whether any of this is a contribution**: no, and this project's own novelty framework
+(§10, McGreivy & Hakim boundary) says so directly — 3D-ICE 4.0 itself is built and
+published (Dec 2025, arXiv:2512.05823) specifically for heterogeneous chiplet substrate
+modelling, and thermal bottlenecks from inadequate bridge/via coverage under high-power
+dies are already a stated concern in the silicon-bridge/UCIe packaging literature (e.g.
+ScienceDirect, Mar 2025). What is new here is narrow: applying this project's existing
+baseline-comparison and interface-uncertainty methodology to one more, structurally novel
+(within this benchmark) mechanism, and finding the same qualitative result — ridge wins,
+and unreported material constants dominate the answer more than architecture choice does.
+
 ---
 
 ## 10. Discussion
@@ -1094,3 +1158,7 @@ release the baseline and OOD tooling so those conditions can be checked rather t
 18. Chen, T. et al. "Leakage power dependent temperature estimation to predict thermal runaway." *ICCAD*, 2006.
 
 19. "ATSim3D: Towards Accurate Thermal Simulator for Heterogeneous 3D-IC Systems Considering Nonlinear Leakage and Conductivity." arXiv:2601.11050, 2026.
+
+20. Zhu, K., Huang, D., Costero, L. & Atienza, D. "3D-ICE 4.0: Accurate and efficient thermal modeling for 2.5D/3D heterogeneous chiplet systems." arXiv:2512.05823, 2025. (The simulator this project runs on — cited here specifically because it establishes that heterogeneous-substrate thermal modeling, the capability geometry7 depends on, is the tool's own stated purpose, not something this project extended.)
+
+21. "Design and verification of silicon bridge in 2.5D advanced package based on universal chiplet interconnect express (UCIe)." *Microelectronics Reliability* (ScienceDirect), 2025.
