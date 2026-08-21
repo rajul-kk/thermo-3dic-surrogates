@@ -1,23 +1,23 @@
 # Kaggle Setup Guide
 
-## Step 1 — Upload source code as a Kaggle dataset
+## Step 1: Upload source code as a Kaggle dataset
 
 1. Zip the `src/` directory from this project
 2. Create a new Kaggle dataset named **thermo-pinn-src**
-3. Upload the zip — the dataset root must contain the `src/` folder  
+3. Upload the zip. The dataset root must contain the `src/` folder
    (verify: `/kaggle/input/thermo-pinn-src/src/core/geometry.py` should exist)
 
-## Step 2 — Upload training data as a Kaggle dataset
+## Step 2: Upload training data as a Kaggle dataset
 
 1. Zip the contents of `data/3d-ice/` (the `.npz` files)
 2. Create a new Kaggle dataset named **3dice-thermal-data**
-3. Upload the zip — `.npz` files should be directly inside the dataset root
+3. Upload the zip. `.npz` files should be directly inside the dataset root
 
-For geometry1 notebook you only need `geometry1_train_*.npz` and `geometry1_test_*.npz`.  
+For geometry1 notebook you only need `geometry1_train_*.npz` and `geometry1_test_*.npz`.
 For geometry2 notebook you need `geometry2a_*` files (geometry2b/2c removed 2026-08-06,
 see `goal.md`).
 
-## Step 3 — Create Kaggle notebooks
+## Step 3: Create Kaggle notebooks
 
 1. Go to kaggle.com → Code → New Notebook
 2. Upload one of the notebooks below
@@ -31,20 +31,21 @@ see `goal.md`).
 
 | Notebook | What it trains | Data needed |
 |---|---|---|
-| `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry1 files |
-| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (geometry2a) — includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry2a files |
-| `kaggle_pinn_sampling_comparison.ipynb` | Two PINNs, same architecture/seed, different collocation-sampling strategy (`rar` vs `curriculum`) — includes collocation-point evolution visualization | geometry1 files (default; any single geometry works) |
-| `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO on the same geometry — includes spectral mode-importance XAI and interface-distance-bucketed error comparison | geometry1 files (default; `geometry6` recommended for a stronger interface-discontinuity story, much slower) |
-| `kaggle_therm_fm.ipynb` | Pretrain CNO-FNO on `geometry1`, few-shot fine-tune on `geometry3` (same mesh shape, required by CNOFNOHybrid's fixed-grid architecture) — includes fine-tuned-vs-scratch shots comparison and weight-drift analysis | geometry1 AND geometry3 files (both needed) |
-| `kaggle_a3_throttled_arch_comparison.ipynb` | FNO vs CondFNO vs CNO-FNO vs CNO-FNO+attention (SAU-FNO), all four on the **throttled** geometry1 pilot (`goal.md` Track A3) — tests whether GPU-scale capacity changes the CPU-smoke-test result where FNO trailed ridge badly. Evaluates with the same detrended metrics `scripts/baselines.py` uses, printed against the ridge/kNN reference scores already on record. | throttled geometry1 `.npz` files from `data/3d-ice-throttle-pilot/geometry1/` — **not** the standard `3dice-thermal-data` dataset, upload separately (slug suggestion: `3dice-throttle-pilot-data`) |
-| `kaggle_a3b_leakage_arch_comparison.ipynb` | Same four architectures, on the **leakage-feedback** geometry1 pilot (`goal.md` Track D) — positive electrothermal feedback, structurally sharper than throttling's negative feedback. Automatically filters to the converged subset only (runaway scenarios have no physically meaningful steady state, some diverge past 500,000°C) before training or scoring. No FNO of any capacity has been run on this data yet; the CPU reference (ridge det.MAE 0.248 K, R² 0.972 on the converged split) is ridge/kNN only. | leakage geometry1 `.npz` files from `data/3d-ice-leakage-pilot/geometry1/` — upload separately (slug suggestion: `3dice-leakage-pilot-data`) |
+| `kaggle_pinn_geometry1.ipynb` | Single-geometry PINN, includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry1 files |
+| `kaggle_pinn_geometry2.ipynb` | Single-geometry PINN (geometry2a), includes XAI (residual map, power/HTC sensitivity, IG, MC dropout uncertainty) | geometry2a files |
+| `kaggle_pinn_sampling_comparison.ipynb` | Two PINNs, same architecture/seed, different collocation-sampling strategy (`rar` vs `curriculum`), includes collocation-point evolution visualization | geometry1 files (default; any single geometry works) |
+| `kaggle_sau_cnofno_vs_whno.ipynb` | CNO-FNO (axial attention) vs WHNO on the same geometry, includes spectral mode-importance XAI and interface-distance-bucketed error comparison | geometry1 files (default; `geometry6` recommended for a stronger interface-discontinuity story, much slower) |
+| `kaggle_therm_fm.ipynb` | Pretrain CNO-FNO on `geometry1`, few-shot fine-tune on `geometry3` (same mesh shape, required by CNOFNOHybrid's fixed-grid architecture), includes fine-tuned-vs-scratch shots comparison and weight-drift analysis | geometry1 AND geometry3 files (both needed) |
+| `kaggle_a3_throttled_arch_comparison.ipynb` | FNO vs CondFNO vs CNO-FNO vs CNO-FNO+attention (SAU-FNO), all four on the **throttled** geometry1 pilot (`goal.md` Track A3). Tests whether GPU-scale capacity changes the CPU-smoke-test result where FNO trailed ridge badly. Evaluates with the same detrended metrics `scripts/baselines.py` uses, printed against the ridge/kNN reference scores already on record. | throttled geometry1 `.npz` files from `data/3d-ice-throttle-pilot/geometry1/`, not the standard `3dice-thermal-data` dataset, upload separately (slug suggestion: `3dice-throttle-pilot-data`) |
+| `kaggle_a3b_leakage_arch_comparison.ipynb` | Same four architectures, on the **leakage-feedback** geometry1 pilot (`goal.md` Track D), positive electrothermal feedback, structurally sharper than throttling's negative feedback. Automatically filters to the converged subset only (runaway scenarios have no physically meaningful steady state, some diverge past 500,000°C) before training or scoring. No FNO of any capacity has been run on this data yet; the CPU reference (ridge det.MAE 0.248 K, R² 0.972 on the converged split) is ridge/kNN only. | leakage geometry1 `.npz` files from `data/3d-ice-leakage-pilot/geometry1/`, upload separately (slug suggestion: `3dice-leakage-pilot-data`) |
+| `kaggle_geometry7_fno_arch_comparison.ipynb` | Same four architectures, on the **geometry7 CoWoS-L bridge/via pilot** (`docs/report.md` §9.11), the first geometry in this project with a genuine sharp lateral material discontinuity in a passive layer (k=60 vs k=0.5 W/m·K). No FNO of any capacity has been run on this data yet; only ridge/kNN (ridge det.MAE 0.462 K, spatial R² 0.992) are on record. | geometry7 pilot `.npz` files from `data/3d-ice-geometry7-pilot/geometry7/` (35 train, 5 test), upload separately (slug suggestion: `3dice-geometry7-pilot-data`) |
 
 The three comparison notebooks (`kaggle_pinn_sampling_comparison`, `kaggle_sau_cnofno_vs_whno`,
-`kaggle_therm_fm`) follow the same Kaggle dataset setup as above — no additional datasets
+`kaggle_therm_fm`) follow the same Kaggle dataset setup as above: no additional datasets
 needed beyond `thermo-pinn-src` and `3dice-thermal-data`, as long as the data for whichever
 geometry/geometries the notebook uses is included in the uploaded `3dice-thermal-data` dataset.
 
-## Step 4 — Save outputs
+## Step 4: Save outputs
 
 Checkpoints are saved to `/kaggle/working/checkpoints/`. After training:
 - Download `geometry1_best.pt` (or `geometry2a_best.pt` etc.)
@@ -54,7 +55,7 @@ Checkpoints are saved to `/kaggle/working/checkpoints/`. After training:
 
 | Notebook | GPU | Expected time |
 |----------|-----|---------------|
-| geometry1 | T4 x1 | ~2–4 hr |
-| geometry2a | T4 x1 | ~3–5 hr |
+| geometry1 | T4 x1 | ~2-4 hr |
+| geometry2a | T4 x1 | ~3-5 hr |
 
 Kaggle free tier: 30 GPU-hours/week. Train geometry1 first to validate the pipeline.
