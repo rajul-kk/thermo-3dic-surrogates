@@ -911,6 +911,75 @@ baseline-comparison and interface-uncertainty methodology to one more, structura
 and at least one unreported material constant (`organic_substrate`, not both this time)
 still moves the answer more than architecture choice does.
 
+### 9.12 A modes-vs-channels FNO sweep, and a methodology gap it exposed (2026-09-08/09)
+
+Neural-operator scaling literature reports a real accuracy tradeoff for FNO at a fixed
+parameter budget: spending that budget on more spectral modes vs. more hidden channels
+is not interchangeable, and the optimal split is architecture- and problem-dependent, not
+universal. This project has used the same hardcoded `channels=32, modes=(16,16,12)`
+(`scripts/train_fno.py`'s default) for every FNO run on every geometry without ever
+checking whether that split is a good one. `scripts/fno_modes_channels_sweep.py` was
+built to check it: six `(channels, modes)` combinations at two roughly-matched parameter
+tiers (~4.6-4.8M and ~6.1-6.7M params), same geometry1 data, same seed, same 50-epoch
+budget, plain baseline FNO (no physics loss, matching the ridge-comparison methodology).
+
+**Result (50 epochs, CPU):**
+
+| config | channels | modes | params | det.MAE (K) | spatial R² |
+|---|---|---|---|---|---|
+| cpu-fast-preset | 16 | (8,8,6) | 395K | **0.553** | **0.949** |
+| tierA-narrow-wide | 16 | (28,28,10) | 4.82M | 2.386 | 0.102 |
+| tierA-mid | 20 | (22,22,10) | 4.65M | 2.318 | 0.239 |
+| tierB-narrow-wide | 18 | (28,28,10) | 6.10M | 2.149 | 0.266 |
+| default (project's) | 32 | (16,16,12) | 6.30M | 1.698 | 0.503 |
+| tierB-wide-narrow | 44 | (12,12,8) | 6.70M | **1.667** | **0.580** |
+
+The 395K-parameter model beat every model with 12-17x more capacity, by a wide margin.
+**This is not a "smaller is better" finding.** The training-loss trajectories show why:
+`cpu-fast-preset` plateaus by epoch ~20 (rL2 0.43→0.39→0.38→0.36→0.36) and is essentially
+converged by epoch 50, while every larger config is still descending steeply at epoch 50
+(e.g. `tierB-wide-narrow`: rL2 0.38→0.25→0.15→0.11→0.094, still falling hard, no sign of
+plateau). At a fixed 50-epoch budget, a small model finishes learning while a large one is
+still partway down its loss curve — a convergence-budget confound, not a capacity result.
+The sweep as designed cannot cleanly answer the modes-vs-channels question, because none
+of the larger configs were trained long enough to reach their achievable accuracy.
+
+**The one signal that survives the confound**: within the large-parameter tier (all
+similarly under-converged, all at the same 50 epochs), there is a consistent monotonic
+trend — more channels / fewer modes converges faster than fewer channels / more modes at
+matched parameter count: `tierB-wide-narrow` (44ch) > `default` (32ch) >
+`tierB-narrow-wide` (18ch) > `tierA-mid` (20ch) > `tierA-narrow-wide` (16ch), on both
+det.MAE and spatial R². The project's existing default sits in the middle of that
+ordering, not at the front — `tierB-wide-narrow` beats it at nearly the same parameter
+count and identical training budget, a free improvement at this budget if the trend holds
+under full convergence (see below).
+
+**A bigger and more consequential finding than the one the sweep was built to check.**
+This project's own methodology, stated explicitly in the A3/A3b/geometry7 Kaggle
+notebooks ("same budget for all models — fair comparison, not each model's own default"),
+assumes a fixed epoch count is a fair comparison across architectures of different
+capacity. This sweep shows that assumption is not safe: larger-capacity models need more
+gradient steps to converge, so a fixed-epoch comparison systematically penalises them.
+Every prior FNO-vs-CondFNO-vs-CNO-FNO comparison in this project used exactly that
+fixed-epoch convention across models of different effective capacity, and none of them
+checked whether the losing architecture was undertrained rather than genuinely worse.
+This does not mean any specific prior result in this report is wrong — CNO-FNO's added
+capacity (CNN encoder/decoder, FiLM conditioning) is modest relative to plain FNO, and the
+gap to ridge everywhere in this project is large enough (10-100x on det.MAE) that a
+convergence effect alone is very unlikely to close it — but it is a real, previously
+unexamined confound in the comparison protocol, worth flagging for any future architecture
+comparison in this project, not just this sweep.
+
+**What does not change**: even the best-converged config here (0.553 K det.MAE) is ~60x
+worse than ridge's 0.009 K on this same split (§9.1). Nothing here threatens the central
+finding — ridge is not at risk of being caught by more epochs on this evidence.
+
+**Confirmatory run in progress**: `default` vs. `tierB-wide-narrow` retrained at 200
+epochs (`--only default tierB-wide-narrow --epochs 200`) to check whether
+`tierB-wide-narrow`'s edge over the project default holds, grows, or vanishes once both
+are actually converged. Results pending — this paragraph will be updated once that run
+completes rather than left as a stale placeholder.
+
 ---
 
 ## 10. Discussion

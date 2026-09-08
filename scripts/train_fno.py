@@ -102,6 +102,12 @@ def parse_args():
                         'whno (Walsh-Hadamard spectral basis — no Gibbs ringing at '
                         'sharp material-interface discontinuities, trade-off: no '
                         'smooth-frequency prior for bulk regions; see src/fno/whno.py)')
+    # NOTE (2026-09-09): channels=32, modes=(16,16,12) is a historical default, not a
+    # value confirmed to be compute-optimal. scripts/fno_modes_channels_sweep.py found
+    # that at a matched ~6.3M-parameter budget, a channel-heavy/mode-light split
+    # (44 channels, modes (12,12,8)) beat this default on both det.MAE and spatial R^2
+    # within the same short training budget -- see docs/report.md Sec 9.12 for the full
+    # result and its convergence-budget caveat before treating that as settled.
     p.add_argument('--channels', type=int, default=32,
                    help='Hidden channel width. 32=default, 64=publication accuracy '
                         '(~4x more spectral parameters). Ignored by fno/cond-fno '

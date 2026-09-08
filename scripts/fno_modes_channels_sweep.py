@@ -1,0 +1,242 @@
+"""
+Modes-vs-channels compute-optimal sweep for baseline FNO.
+
+Motivation (2026-09-08 research session): the neural-operator scaling literature
+(e.g. the "optimal Fourier cutoff" line of work summarized against this project's own
+config choices) reports that at a FIXED parameter budget, there is a real accuracy
+tradeoff between spending that budget on more spectral modes vs. more hidden channels,
+and the optimal split is not universal across PDE types. This project has used the same
+hardcoded `channels=32, modes=(16,16,12)` for every FNO run on every geometry
+(`scripts/train_fno.py`'s default) without ever checking whether that split is actually
+a good one relative to other splits at a similar total parameter count. This script is
+that check.
+
+Design: hold total parameter count roughly fixed within two tiers (~4.6-4.8M and
+~6.1-6.7M params -- close enough for a first-pass comparison, not exactly matched; the
+project's own default falls in the second tier), vary (channels, modes) within each
+tier, train every candidate for the SAME epoch budget on the SAME data with the SAME
+seed (isolates architecture shape as the only variable, same convention as
+kaggle_pinn_sampling_comparison.ipynb), and score with the same detrended metrics
+scripts/baselines.py uses so results are directly comparable to the ridge reference
+already on record (docs/report.md Sec 9.1: geometry1 ridge det.MAE=0.009, spatial R^2=0.999).
+
+This is a fast, CPU-scale first pass, not a publication run -- same caveat this
+project's other CPU-scale FNO smoke tests carry (docs/report.md Sec 9.7 etc.): a
+config that loses here might still win at GPU scale/full epoch budget. The question
+this script answers is narrower and cheaper: at matched capacity and a matched
+(short) training budget, does the project's existing default sit anywhere near the
+best point on the modes/channels tradeoff curve, or is it leaving accuracy on the
+table for free (same params, different split)?
+
+Usage:
+    python scripts/fno_modes_channels_sweep.py
+    python scripts/fno_modes_channels_sweep.py --epochs 80 --geometry geometry1
+"""
+import argparse
+import json
+import logging
+import sys
+import time
+import warnings
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import numpy as np
+import torch
+
+from src.core.geometry_builders import get_geometry_by_name
+from src.reproducibility import set_seed
+from src.pinn.data_loader import NormStats, compute_norm_stats
+from src.fno.model import build_fno
+from src.fno.data_loader import FNODataset, predict_to_flat
+from src.fno.trainer import FNOTrainer
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
+                     datefmt='%H:%M:%S')
+log = logging.getLogger('fno_sweep')
+warnings.filterwarnings('ignore', message='FNO3d: modes.*clamped')
+
+# (label, channels, modes) -- see module docstring for how these were chosen.
+# "default" is this project's existing scripts/train_fno.py hardcoded default,
+# included as the point everything else is being checked against.
+CANDIDATES = [
+    ('cpu-fast-preset',   16, (8, 8, 6)),     # this project's own --cpu-fast preset
+    ('tierA-narrow-wide', 16, (28, 28, 10)),  # ~4.8M params
+    ('tierA-mid',         20, (22, 22, 10)),  # ~4.6M params
+    ('tierB-narrow-wide', 18, (28, 28, 10)),  # ~6.1M params
+    ('default',           32, (16, 16, 12)),  # ~6.3M params -- CURRENT PROJECT DEFAULT
+    ('tierB-wide-narrow', 44, (12, 12, 8)),   # ~6.7M params
+]
+
+REFERENCE = {
+    'mean':              {'mae_detrended_K': 0.270, 'spatial_r2': 0.586, 'hotspot_loc_err_um': 1470.8},
+    'nearest-neighbour': {'mae_detrended_K': 0.138, 'spatial_r2': 0.466, 'hotspot_loc_err_um': 0.0},
+    'kNN (k=3)':         {'mae_detrended_K': 0.141, 'spatial_r2': 0.876, 'hotspot_loc_err_um': 2048.5},
+    'ridge':             {'mae_detrended_K': 0.009, 'spatial_r2': 0.999, 'hotspot_loc_err_um': 2080.2},
+}
+
+
+def metrics(pred: np.ndarray, true: np.ndarray, coords: np.ndarray) -> dict:
+    """Byte-for-byte identical to scripts/baselines.py::metrics."""
+    err = pred - true
+    ss_res = float(np.sum(err ** 2))
+    ss_tot = float(np.sum((true - true.mean()) ** 2))
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float('nan')
+
+    d_pred, d_true = pred - pred.mean(), true - true.mean()
+    d_err = d_pred - d_true
+    d_ss_tot = float(np.sum(d_true ** 2))
+    spatial_r2 = 1.0 - float(np.sum(d_err ** 2)) / d_ss_tot if d_ss_tot > 0 else float('nan')
+
+    i_pred, i_true = int(np.argmax(pred)), int(np.argmax(true))
+    return {
+        'mae_K': float(np.mean(np.abs(err))),
+        'mae_detrended_K': float(np.mean(np.abs(d_err))),
+        'r2': r2,
+        'spatial_r2': spatial_r2,
+        'hotspot_loc_err_um': float(np.linalg.norm(coords[i_pred] - coords[i_true])),
+    }
+
+
+def collect_files(data_dir: Path, geom: str, split: str):
+    files = sorted(data_dir.rglob(f'{geom}_{split}_*.npz'))
+    return files or sorted(data_dir.glob(f'{geom}_{split}_*.npz'))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--geometry', default='geometry1')
+    ap.add_argument('--data', type=Path, default=Path('data/3d-ice'))
+    ap.add_argument('--output', type=Path, default=Path('results/fno_modes_channels_sweep'))
+    ap.add_argument('--only', nargs='+', default=None, metavar='LABEL',
+                   help='Run only these candidate labels (see CANDIDATES) instead of '
+                        'the full sweep -- e.g. for a longer confirmatory run on the '
+                        'two most informative configs from a prior short sweep.')
+    ap.add_argument('--epochs', type=int, default=50)
+    ap.add_argument('--batch-size', type=int, default=4)
+    ap.add_argument('--lr', type=float, default=1e-3)
+    ap.add_argument('--blocks', type=int, default=4)
+    ap.add_argument('--seed', type=int, default=42)
+    args = ap.parse_args()
+
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    geometry = get_geometry_by_name(args.geometry)
+    geometries = {args.geometry: geometry}
+    grid_shape = geometry.mesh_resolution
+
+    train_files = collect_files(args.data, args.geometry, 'train')
+    test_files = collect_files(args.data, args.geometry, 'test')
+    assert train_files, f'No training files found for {args.geometry} in {args.data}'
+    assert test_files, f'No test files found for {args.geometry} in {args.data}'
+    log.info('Files: %d train, %d test', len(train_files), len(test_files))
+
+    # Grid from data, not the declared mesh -- same correction every other script in
+    # this project applies (3D-ICE's z-grid is adaptive).
+    d0 = np.load(train_files[0], allow_pickle=True)
+    n_pts = d0['coords'].shape[0]
+    nx, ny = grid_shape[0], grid_shape[1]
+    if nx * ny > 0 and n_pts % (nx * ny) == 0:
+        data_grid = (nx, ny, n_pts // (nx * ny))
+        if data_grid != tuple(grid_shape):
+            log.info('Grid from data: %s (geometry declares %s)', data_grid, tuple(grid_shape))
+            grid_shape = data_grid
+
+    norm_path = args.output / 'norm_stats.json'
+    if norm_path.exists():
+        norm_stats = NormStats.load(norm_path)
+    else:
+        norm_stats = compute_norm_stats(train_files, geometries)
+        norm_stats.save(norm_path)
+
+    nx, ny, nz = grid_shape
+    xs = np.linspace(0, geometry.die_width, nx)
+    ys = np.linspace(0, geometry.die_length, ny)
+    zs = np.linspace(0, geometry.get_total_height(), nz)
+    X, Y, Z = np.meshgrid(xs, ys, zs, indexing='ij')
+    coords = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
+
+    device = torch.device('cpu')
+    candidates = CANDIDATES
+    if args.only:
+        wanted = set(args.only)
+        candidates = [c for c in CANDIDATES if c[0] in wanted]
+        missing = wanted - {c[0] for c in candidates}
+        if missing:
+            log.error('Unknown --only label(s): %s. Valid labels: %s',
+                      sorted(missing), [c[0] for c in CANDIDATES])
+            sys.exit(1)
+    log.info('Sweep: %d candidates, %d epochs each, device=%s', len(candidates), args.epochs, device)
+
+    results = {}
+    for label, channels, modes in candidates:
+        # Same seed for every candidate -- isolates (channels, modes) as the only
+        # variable, same convention as kaggle_pinn_sampling_comparison.ipynb.
+        set_seed(args.seed, deterministic=True)
+
+        train_dataset = FNODataset(train_files, norm_stats, grid_shape)
+        val_dataset = FNODataset(test_files, norm_stats, grid_shape)
+
+        model = build_fno(grid_shape=grid_shape, modes=modes, hidden_ch=channels,
+                          n_blocks=args.blocks, device=device)
+        n_params = model.n_parameters
+        log.info('[%s] channels=%d modes=%s params=%d', label, channels, modes, n_params)
+
+        out_dir = args.output / label
+        t0 = time.time()
+        trainer = FNOTrainer(
+            model=model, norm_stats=norm_stats, train_data=train_dataset, val_data=val_dataset,
+            output_dir=out_dir, batch_size=args.batch_size, epochs=args.epochs, lr=args.lr,
+            device=device, geometry_name=f'{args.geometry}_{label}', pde_weight=0.0, flux_weight=0.0,
+            geometry=geometry, log_interval=max(1, args.epochs // 5),
+        )
+        trainer.train()
+        elapsed = time.time() - t0
+
+        model.eval()
+        all_m = []
+        with torch.no_grad():
+            for item in val_dataset.items:
+                T_pred_K, T_true_K = predict_to_flat(model, item, device, norm_stats)
+                all_m.append(metrics(T_pred_K, T_true_K, coords))
+        agg = {k: float(np.mean([m[k] for m in all_m])) for k in all_m[0]}
+        agg['n_params'] = n_params
+        agg['channels'] = channels
+        agg['modes'] = list(modes)
+        agg['train_time_s'] = elapsed
+        agg['best_val_mae_K'] = trainer.best_val_mae
+        results[label] = agg
+        log.info('[%s] det.MAE=%.4f spatial_R2=%.4f hotspot_err=%.0fum time=%.1fmin',
+                 label, agg['mae_detrended_K'], agg['spatial_r2'], agg['hotspot_loc_err_um'],
+                 elapsed / 60)
+
+        # Save incrementally so a partial run is still readable if interrupted.
+        with open(args.output / 'sweep_results.json', 'w') as f:
+            json.dump({'reference': REFERENCE, 'results': results,
+                       'config': {'geometry': args.geometry, 'epochs': args.epochs,
+                                  'batch_size': args.batch_size, 'seed': args.seed}}, f, indent=2)
+
+    print('\n' + '=' * 100)
+    print(f'{"config":<20} {"channels":>8} {"modes":>16} {"params":>10} '
+          f'{"det.MAE(K)":>11} {"spatial R2":>11} {"hotspot(um)":>12} {"train(min)":>11}')
+    print('-' * 100)
+    for name, r in REFERENCE.items():
+        print(f'{name:<20} {"":>8} {"":>16} {"":>10} {r["mae_detrended_K"]:>11.3f} '
+              f'{r["spatial_r2"]:>11.3f} {r["hotspot_loc_err_um"]:>12.0f} {"":>11}')
+    print('-' * 100)
+    best_label = min(results, key=lambda k: results[k]['mae_detrended_K'])
+    for label, r in results.items():
+        marker = '  <-- BEST' if label == best_label else ''
+        marker += '  (project default)' if label == 'default' else ''
+        print(f'{label:<20} {r["channels"]:>8} {str(r["modes"]):>16} {r["n_params"]:>10,} '
+              f'{r["mae_detrended_K"]:>11.4f} {r["spatial_r2"]:>11.4f} '
+              f'{r["hotspot_loc_err_um"]:>12.0f} {r["train_time_s"]/60:>11.1f}{marker}')
+    print('=' * 100)
+    print(f'\nBest config: {best_label}. Project default is "default" '
+          f'(channels=32, modes=(16,16,12)).')
+    print(f'Full results: {args.output / "sweep_results.json"}')
+
+
+if __name__ == '__main__':
+    main()
