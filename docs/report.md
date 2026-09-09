@@ -974,11 +974,39 @@ comparison in this project, not just this sweep.
 worse than ridge's 0.009 K on this same split (§9.1). Nothing here threatens the central
 finding — ridge is not at risk of being caught by more epochs on this evidence.
 
-**Confirmatory run in progress**: `default` vs. `tierB-wide-narrow` retrained at 200
-epochs (`--only default tierB-wide-narrow --epochs 200`) to check whether
-`tierB-wide-narrow`'s edge over the project default holds, grows, or vanishes once both
-are actually converged. Results pending — this paragraph will be updated once that run
-completes rather than left as a stale placeholder.
+**Confirmatory run (200 epochs, completed 2026-09-09): the edge was mostly the
+convergence-speed artifact, not a final-accuracy win.** `default` vs. `tierB-wide-narrow`
+retrained at 200 epochs each (`--only default tierB-wide-narrow --epochs 200`):
+
+| config | channels | modes | params | det.MAE (K) | spatial R² | hotspot loc. err (µm) | train time |
+|---|---|---|---|---|---|---|---|
+| default (project's) | 32 | (16,16,12) | 6.30M | 1.091 | **0.839** | 5083 | 99.3 min |
+| tierB-wide-narrow | 44 | (12,12,8) | 6.70M | **1.087** | 0.823 | **4191** | 152.5 min |
+
+At full convergence (both models' rL2 plateaued around 0.024-0.026, val MAE stable
+5.2-5.9 K by epoch 200) the two configs are statistically indistinguishable on det.MAE
+(1.091 vs 1.087, a 0.4% difference), the ranking on spatial R² actually **flips back** in
+the project default's favour (0.839 vs 0.823), and only hotspot localisation still favours
+`tierB-wide-narrow` (4191 vs 5083 µm). Compare this to the 50-epoch result, where
+`tierB-wide-narrow` led clearly on both det.MAE (1.667 vs 1.698) and spatial R² (0.580 vs
+0.503) — that gap has now mostly closed. The honest reading: `tierB-wide-narrow`'s
+apparent 50-epoch advantage was substantially a convergence-speed effect (the
+channel-heavy config warms up faster early in training), not a genuinely better final
+accuracy at matched parameter count. It also costs 54% more wall-clock time to reach a
+result that is not meaningfully better than the existing default.
+
+**Conclusion for this project's FNO configuration**: the modes-vs-channels sweep does not
+show the existing default (`channels=32, modes=(16,16,12)`) is leaving free accuracy on
+the table once training is run to actual convergence — the two most different points
+tested land in the same place. The genuinely load-bearing finding from this whole
+exercise is not about modes vs. channels at all; it is the convergence-budget confound
+itself (§9.12 above), which is a real, previously unexamined gap in this project's
+fixed-epoch "fair comparison" protocol for *any* pair of architectures with different
+effective capacity, and should be kept in mind for any future architecture comparison in
+this project, not just this one.
+
+Both configs remain, as expected, far behind ridge (0.009 K det.MAE, §9.1) even at full
+200-epoch convergence — nothing in this section threatens the central finding.
 
 ---
 
