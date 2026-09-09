@@ -1378,21 +1378,57 @@ spatial std is ~0.3 K, i.e. roughly 30× the signal.
 
 ## 11. Conclusion
 
-We release a six-geometry, 275-simulation 3D-IC thermal benchmark with its full generation
-pipeline, and report a negative result we believe is more useful than the surrogate accuracy
-figures we set out to produce: on this data, closed-form ridge regression reconstructs the
-spatial temperature field at R² = 0.999 and extrapolates to unseen power patterns, magnitudes
-and ambient temperatures at R² > 0.9. The benchmark is discriminative only for extrapolation
-in the convective coefficient.
+> **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
+> temperature field at R² = 0.999" and "extrapolates ... at R² > 0.9", and framed the
+> dataset release as a contribution. All three were stale or unsupportable: the R² figures
+> came from §9.1b's superseded pre-regime-fix dataset (§9.5 had already recorded that the
+> regime fix moved them), and IC-ThermBench (arXiv:2608.23977, Aug 2026) is now an open
+> 2.5D/3D-IC thermal benchmark with 50,000 samples against this repo's 275. Corrected below
+> rather than quietly adjusted.
 
-Two practices follow. First, **report a linear baseline** — it costs milliseconds and bounds
-what any architecture can claim to contribute. Second, **report spatially-detrended error**:
-raw MAE on 3D-IC thermal fields is dominated by a per-scenario offset, and a constant
-predictor can look competitive while capturing no spatial structure.
+We release a six-geometry, 275-simulation 3D-IC thermal dataset with its full generation
+pipeline. This is no longer a novel contribution on its own — IC-ThermBench (arXiv:2608.23977)
+is larger, has a unified evaluation pipeline, and defines five generalization scopes — so the
+dataset should be read as the substrate for the finding below, not as the finding.
+
+The finding is a negative result we believe is more useful than the surrogate accuracy figures
+we set out to produce. Measured on the current dataset (§9.1a, 2026-09-09), closed-form ridge
+regression reconstructs the spatial temperature field at **spatial R² 0.89–0.99** across the
+six geometries — beating or matching every other baseline, and beating plain kNN only
+narrowly, with kNN actually ahead on geometry3. No neural architecture tried in this project
+has beaten it on that metric. Out-of-distribution behaviour is materially worse than
+in-distribution (§9.5) but has not been re-measured since the 2026-08-06 dataset correction
+and should not be quoted numerically until it is.
+
+**The sharper result, and the one we would lead with now (§9.12c).** Ridge's error is not
+uniformly distributed over the field. On geometry1 its mean absolute *peak-temperature* error
+is **3.76 K** against a whole-field detrended MAE of **0.407 K** — roughly 9× worse exactly
+where thermal sign-off decisions are made. Under 5-fold cross-validation it recovers 9.3% of
+the 100 hottest cells and places the peak within 2 mm in 16% of scenarios; on geometry6 the
+*trivial mean-field predictor* recovers more of the hot region than ridge does. So the honest
+statement is not "a linear model solves 3D-IC thermal prediction" but:
+
+> **A linear model saturates the metric this field usually reports, while failing the metric
+> the application actually needs.**
+
+That reframing is the contribution, and it is not a criticism of ridge alone — every model
+tried here, neural included, fails hotspot localisation in absolute terms.
+
+Three practices follow. First, **report a linear baseline** — it costs milliseconds and bounds
+what any architecture can claim to contribute. IC-ThermBench's eight baselines, published this
+year for exactly this domain, contain no non-neural model at all, so this remains unaddressed.
+Second, **report spatially-detrended error**: raw MAE on 3D-IC thermal fields is dominated by
+a per-scenario offset, and a constant predictor can look competitive while capturing no spatial
+structure. Third, **report hotspot metrics separately from field metrics, and state whether
+the peak is well-posed** — argmax-based localisation is meaningful on geometry1 (100 hottest
+cells span 324 µm) and close to meaningless on geometry6 (9402 µm, several near-equal peaks).
+IC-ThermBench's Tmax-Err and Top-50 MAE are convergent evidence for the second half of this;
+localisation distance remains unreported even there.
 
 We also record what this benchmark would need to become discriminative — higher power
 density, per-cell power maps, variable floorplans, extrapolation splits by default — and
-release the baseline and OOD tooling so those conditions can be checked rather than assumed.
+release the baseline, hotspot and OOD tooling (`scripts/baselines.py`,
+`scripts/hotspot_eval.py`) so those conditions can be checked rather than assumed.
 
 ---
 

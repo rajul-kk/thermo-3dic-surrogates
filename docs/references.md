@@ -33,6 +33,24 @@ are held to" without a citation. No single authoritative absolute-°C figure was
 verified sources cluster around 1–4% relative error instead (CTM-vs-detailed-model <1%,
 junction-to-case test method ±4%, CFD-vs-measurement ~2%).
 
+**Added 2026-09-10 (§2, prior-art sections):** a literature pass prompted by §9.12c's
+hotspot result turned up four papers, all verified against their arXiv listings (title,
+author list, submission date) on 2026-09-10:
+
+- **arXiv:2608.23977 (IC-ThermBench)** — the most consequential citation added since
+  McGreivy & Hakim, and for opposite reasons at once. Its eight baselines contain **no
+  non-neural model at all**, which is direct, in-domain, 2026 evidence for this paper's
+  central claim; and it is an open 2.5D/3D-IC thermal benchmark with 50,000 samples,
+  which **removes "we release a benchmark" from this repo's available novelty claims**.
+  Full assessment in §2's baseline-reporting section.
+- **arXiv:2608.16080 (DeepOHeat-v2)** — reports peak-temperature gap 1.12 K → 0.11 K,
+  which reframes this repo's own 8–15 K peak errors as a training-budget artifact rather
+  than an FNO property.
+- **arXiv:2605.22663 (Therm-FM)** — **name collision** with this repo's own Therm-FM
+  component, plus prior art for its multi-fidelity pretrain/fine-tune story.
+- **arXiv:2503.04049** — predicts hotspot *position* as an explicit output; venue claim
+  flagged ⚠ unconfirmed.
+
 **Added 2026-08-16 (§7, §9):** arXiv:2604.03290 (Barua, Udoy & Aziz 2026, "A Review of
 Multiscale Thermal Modeling in Heterogeneous 3D ICs") — flagged unverified on 2026-08-11
 — is now **fully confirmed**: author names independently confirmed via search, full text
@@ -206,6 +224,50 @@ adaptation, not a direct replication.)
   cross-domain problem — and McGreivy & Hakim explicitly note under-reporting of negative
   results, which is the category this paper falls in.
 
+- **Hang, D., Yang, W., Ding, K., Xin, H. & Wei, J. (2026). "IC-ThermBench: An Open,
+  Progressive Benchmark for Generalizable 2.5D/3D-IC Thermal Learning."** arXiv:2608.23977
+  (submitted 25 Aug 2026, revised 7 Sep 2026). **Found 2026-09-10. This is simultaneously
+  the strongest available evidence FOR this repo's central claim and the most serious
+  threat to its benchmark-contribution claim. Read both halves before citing it.**
+
+  *Why it supports the central claim, better than McGreivy & Hakim does.* IC-ThermBench is
+  the most recent, most rigorous, exactly-on-domain benchmark for this problem class. It
+  was built specifically to fix inconsistent evaluation (its own motivation: existing
+  studies "rely on different datasets, simulators, data splits, and metrics"), it enforces
+  a common evaluation contract, and it evaluates **eight** baselines: U-Net; FNO, U-FNO,
+  SAU-FNO, DeepOHeat as operator models; and Therm-FM T/B/L as pretrained PDE foundation
+  models. **Not one of the eight is non-neural.** No ridge, no kNN, no nearest-neighbour,
+  nothing classical. Verified against the paper's own baseline list, 2026-09-10.
+  That is a far sharper citation than McGreivy & Hakim's cross-domain 79% statistic: a
+  benchmark whose entire purpose is fair comparison, in precisely this domain, published
+  this year, still omits the trivial baseline. Cite it by name in `docs/report.md` §10
+  wherever the baseline-omission claim is made.
+
+  *Why it damages the benchmark-contribution claim.* It is an open benchmark for
+  2.5D/3D-IC thermal learning with a 50,000-sample 2.5D chiplet extension, five
+  generalization scopes (fixed-design, within-family under layout/material/BC variation,
+  and cross-package OOD), and a unified generation/training/inference/evaluation pipeline.
+  This repo has 335 samples and no such pipeline. **"We release a benchmark for 3D-IC
+  thermal surrogates" is no longer an available novelty claim** and must be removed
+  wherever it appears. What survives is narrower and still defensible: the specific
+  *finding* (a closed-form linear fit is competitive on the field metric this domain
+  reports), the interface-uncertainty methodology (§9.9), and `scripts/baselines.py` as
+  the missing baseline tooling — which IC-ThermBench's own baseline list shows the field
+  still lacks.
+
+  *Also relevant to §9.12c.* IC-ThermBench reports hotspot quality separately from field
+  accuracy, using **Tmax-Err/ETmax** ("the absolute difference between predicted and true
+  maximum temperatures", explicitly noting "the predicted and true maxima need not occur
+  at the same location") and **Top-50 MAE** ("the mean absolute error over the 50 hottest
+  locations selected from the ground-truth field"), alongside RMSE/MAE/R²/MaxAE. This
+  independently converges on the metric family `scripts/hotspot_eval.py` was built with
+  (peak-temperature error, top-1% hot-cell recall). One genuine gap remains: ETmax
+  *deliberately* ignores location, so hotspot **localisation distance** is still not a
+  standard reported metric even here — which is exactly the axis §9.12c measures.
+
+  *Noted neutrally*: IC-ThermBench shares authors (Haiyang Xin, Wenkai Yang) with Therm-FM,
+  one of the eight models it benchmarks.
+
 ### Prior art on operator learning for 3D-IC thermal simulation (closely related work)
 - **Self-Attention to Operator Learning-based 3D-IC Thermal Simulation (SAU-FNO).**
   (Oct 2025, IEEE). arXiv:2510.15968. Self-attention + U-Net + FNO for 3D-IC thermal
@@ -232,6 +294,57 @@ adaptation, not a direct replication.)
   configuration as branch input, coordinates as trunk input. **This is prior art for
   "DeepONet for chip thermal" — do not present this repo's `PI-DeepONet` as a novel
   application without citing and differentiating against DeepOHeat-v1.**
+
+- **DeepOHeat-v2: Self-Improving Operator Learning for Fast and Trustworthy Thermal
+  Optimization in 3D-IC Design.** Yu, X., Li, Y., Liu, Z., Ai, X., Zeng, Z., Li, H. &
+  Zhang, Z. (Aug 2026). arXiv:2608.16080. Added 2026-09-10. A third paper in the
+  DeepOHeat line (v1 and v2 are separate papers, as DeepOHeat and DeepOHeat-v1 already
+  were). Three points bear directly on this repo's current work:
+  1. It replaces the physics loss with **a discretized form that handles conductivity
+     discontinuities natively**, motivated by exactly the failure mode this repo built
+     WHNO and geometry7 around — "high-contrast material stacks due to discontinuous
+     conductivities." Prior art for the interface-discontinuity angle.
+  2. It reports the **surrogate-vs-true peak temperature gap** as a headline metric,
+     reducing it from 1.12 K to 0.11 K. This is the §9.12c metric, and it is a useful
+     reality check on this repo's own numbers: a properly-trained operator model reaches
+     0.11 K peak error, while this repo's CPU-budget 150–200-epoch FNOs sit at 8–15 K.
+     **Do not read this repo's large peak errors as an intrinsic property of FNO** —
+     on this evidence they reflect training budget.
+  3. It introduces a **"hotspot trust gate"** that flags uncertain predictions and routes
+     them to a reference solver. Prior art for any hotspot-uncertainty direction this
+     repo might take from §9.12c.
+
+- **Therm-FM: Foundation Model is ALL YOU NEED for 3D-ICs Thermal Simulation.** Huang, Z.,
+  Xin, H., Yang, W., Wei, Y., Yu, Z., Zhang, Y., Xing, W. W., Lin, T.-J. & He, L.
+  (May 2026). arXiv:2605.22663. Added 2026-09-10. Adapts a pretrained PDE foundation model
+  to steady-state and transient 3D-IC thermal simulation via pretrained diffusion priors
+  plus a thermal-equivalent multi-fidelity training strategy (cheap approximate sims +
+  limited high-fidelity calibration); reports up to 10.6× mean-error reduction with far
+  less training data.
+
+  **Two consequences for this repo, both concrete.** (a) **Name collision**: this repo has
+  its own component called "Therm-FM" (`scripts/finetune_therm_fm.py`,
+  `notebooks/kaggle_therm_fm.ipynb`), named independently and predating awareness of this
+  paper, but a published paper of the same name now exists in the same domain. Rename this
+  repo's component before any external release. (b) **Prior art for the multi-fidelity
+  pretrain-then-fine-tune story**: this repo's Therm-FM pretrains on geometry1 and
+  few-shot fine-tunes on geometry3, and `scripts/generate_lf_data.py` supplies a
+  low-fidelity tier — that combination is what this paper does, at greater scale and with
+  a foundation-model initialisation. Cite and differentiate before claiming novelty for it;
+  see also MFIT above for the multi-fidelity half.
+
+- **Neural Network Surrogate Model for Junction Temperature and Hotspot Position in 3D
+  Multi-Layer High Bandwidth Memory (HBM) Chiplets under Varying Thermal Conditions.**
+  Zhang, C., Liu, Y. & Chen, Q. (Mar 2025). arXiv:2503.04049. Added 2026-09-10.
+  Predicts **hotspot position as an explicit model output**, alongside junction
+  temperature, for 1/2/4/8-layer HBM stacks, trained on 13,494 FEA (ANSYS) samples.
+  Directly relevant to §9.12c: it establishes that treating hotspot *location* as a
+  first-class prediction target — rather than a derived argmax of a predicted field, which
+  is what every model in this repo does — is already an existing approach. If §9.12c's
+  localisation thread is pursued, this is the design alternative to compare against.
+  > ⚠ **Venue unconfirmed (checked 2026-09-10).** A search result claimed acceptance at
+  > IEEE/RSJ IROS 2025; the arXiv listing shows no venue, and IROS is a robotics
+  > conference, which makes that implausible. Cite as arXiv-only until confirmed.
 
 ---
 
