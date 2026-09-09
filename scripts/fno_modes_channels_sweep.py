@@ -18,7 +18,8 @@ tier, train every candidate for the SAME epoch budget on the SAME data with the 
 seed (isolates architecture shape as the only variable, same convention as
 kaggle_pinn_sampling_comparison.ipynb), and score with the same detrended metrics
 scripts/baselines.py uses so results are directly comparable to the ridge reference
-already on record (docs/report.md Sec 9.1: geometry1 ridge det.MAE=0.009, spatial R^2=0.999).
+(docs/report.md Sec 9.1a, re-measured 2026-09-09: geometry1 ridge det.MAE=0.407,
+spatial R^2=0.970, hotspot localisation error 7399 um).
 
 This is a fast, CPU-scale first pass, not a publication run -- same caveat this
 project's other CPU-scale FNO smoke tests carry (docs/report.md Sec 9.7 etc.): a
@@ -69,11 +70,21 @@ CANDIDATES = [
     ('tierB-wide-narrow', 44, (12, 12, 8)),   # ~6.7M params
 ]
 
+# geometry1 baselines, re-measured 2026-09-09 on the CURRENT dataset
+# (regenerate: python scripts/baselines.py --geometry geometry1 --data data/3d-ice;
+# see docs/report.md Sec 9.1a).
+#
+# CORRECTION 2026-09-09: this dict originally carried docs/report.md Sec 9.1's
+# 2026-07-31 numbers (ridge det.MAE 0.009, spatial R^2 0.999). Those describe a
+# superseded pre-regime-fix dataset -- Sec 9.5 had already said so -- and quoting them
+# here made this sweep's first write-up claim a ~60x FNO-vs-ridge gap when the real
+# gap on current data is ~2.7x. Re-measure with scripts/baselines.py rather than
+# copying numbers out of the report if this is ever pointed at a different dataset.
 REFERENCE = {
-    'mean':              {'mae_detrended_K': 0.270, 'spatial_r2': 0.586, 'hotspot_loc_err_um': 1470.8},
-    'nearest-neighbour': {'mae_detrended_K': 0.138, 'spatial_r2': 0.466, 'hotspot_loc_err_um': 0.0},
-    'kNN (k=3)':         {'mae_detrended_K': 0.141, 'spatial_r2': 0.876, 'hotspot_loc_err_um': 2048.5},
-    'ridge':             {'mae_detrended_K': 0.009, 'spatial_r2': 0.999, 'hotspot_loc_err_um': 2080.2},
+    'mean':              {'mae_detrended_K': 2.308, 'spatial_r2': -0.540, 'hotspot_loc_err_um': 5880.3},
+    'nearest-neighbour': {'mae_detrended_K': 0.733, 'spatial_r2': 0.870, 'hotspot_loc_err_um': 7734.2},
+    'kNN (k=3)':         {'mae_detrended_K': 0.465, 'spatial_r2': 0.962, 'hotspot_loc_err_um': 7100.6},
+    'ridge':             {'mae_detrended_K': 0.407, 'spatial_r2': 0.970, 'hotspot_loc_err_um': 7399.5},
 }
 
 

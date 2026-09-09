@@ -249,11 +249,65 @@ We introduce three post-hoc explainability methods for chip thermal surrogates, 
 
 ## 9. Results
 
-### 9.1 Baselines (measured 2026-07-31, `scripts/baselines.py`)
+### 9.1 Baselines (`scripts/baselines.py`)
 
-No neural model has been trained yet; every number below is from a non-neural baseline.
 `det.MAE` and `spat.R²` are computed after removing each field's mean, so they score spatial
 structure only.
+
+#### 9.1a Current measurement — all six geometries (re-measured 2026-09-09)
+
+**Read this table, not the 2026-07-31 one below it.** §9.5 already noted that the
+2026-07-31 numbers describe a superseded dataset and that only geometry1 had been
+re-measured after the regime fix; §9.5's own geometry1 figures have since been superseded
+too, by the 2026-08-06 dataset correction. Until now no single table in this report
+carried current numbers for all six geometries. This one does. Regenerate with
+`python scripts/baselines.py --geometry <geom> --data data/3d-ice` (`results/` is
+gitignored, so the JSON artifacts are local-only):
+
+| Geometry | signal σ (K) | baseline | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
+|---|---|---|---|---|---|
+| geometry1 | 3.999 | mean | 2.308 | −0.540 | 5880 |
+| geometry1 | | nearest-neighbour | 0.733 | 0.870 | 7734 |
+| geometry1 | | kNN (k=3) | 0.465 | 0.962 | 7101 |
+| geometry1 | | **ridge** | **0.407** | **0.970** | 7399 |
+| geometry2a | 1.637 | kNN (k=3) | 0.166 | 0.985 | 5890 |
+| geometry2a | | **ridge** | **0.145** | **0.986** | 5028 |
+| geometry3 | 1.308 | **kNN (k=3)** | **0.212** | **0.931** | 14551 |
+| geometry3 | | ridge | 0.218 | 0.925 | 18622 |
+| geometry4 | 2.627 | kNN (k=3) | 0.425 | **0.903** | 16195 |
+| geometry4 | | **ridge** | **0.320** | 0.891 | 8830 |
+| geometry5 | 1.621 | kNN (k=3) | 0.242 | 0.947 | 16669 |
+| geometry5 | | **ridge** | **0.173** | **0.959** | 13123 |
+| geometry6 | 1.815 | kNN (k=3) | 0.245 | 0.954 | 24722 |
+| geometry6 | | **ridge** | **0.228** | **0.956** | 31685 |
+
+**Two things change materially versus the superseded table.**
+
+1. **Ridge's margin is thin, not overwhelming.** On the current dataset ridge's spatial R²
+   is 0.89–0.99, not 0.999, and its lead over plain kNN is small everywhere and *negative*
+   on geometry3 (kNN 0.212 det.MAE / 0.931 R² vs ridge 0.218 / 0.925) and on geometry4's R²
+   (kNN 0.903 vs ridge 0.891). The correct current statement is "a closed-form linear fit is
+   competitive with, and usually marginally better than, k-nearest-neighbours" — not "a
+   linear model solves the benchmark." The regime fix (§9.5) did what it was meant to do:
+   the benchmark is no longer trivially linear-solvable.
+2. **Hotspot localisation is a uniform failure, for every baseline, on every geometry.**
+   Errors run 5.0–31.7 mm. geometry6's ridge error (31.7 mm) is most of that package's
+   42 mm width — i.e. chance-level. No baseline localises hotspots at all. Note also that
+   hotspot location is *not* degenerate in this dataset and so this is a real task being
+   failed, not an artifact: geometry1 has 45 distinct hotspot cells across 45 scenarios and
+   geometry6 has 54 across 55 (geometry7, by contrast, has only 6 across 40 — that one *is*
+   partly degenerate, relevant when reading §9.11).
+
+This sharpens rather than reverses §10's argument, and in the direction §9.1's own
+2026-08-16 hotspot correction was already pointing: the linear baseline saturates the
+metric this field usually reports (field-level R²) while **failing outright** the metric
+chip-thermal work actually needs (where the hotspot is). See §9.12b for the first
+measurement in this project of a neural model beating ridge on that second metric.
+
+#### 9.1b Superseded table (measured 2026-07-31, retained for history)
+
+Kept because §9.2/§9.5 and the revision history above refer to it. These numbers describe
+the pre-regime-fix, pre-2026-08-06-correction dataset and must not be quoted as current.
 
 **In-distribution (shipped `*_test_*` split):**
 
@@ -970,9 +1024,15 @@ convergence effect alone is very unlikely to close it — but it is a real, prev
 unexamined confound in the comparison protocol, worth flagging for any future architecture
 comparison in this project, not just this sweep.
 
-**What does not change**: even the best-converged config here (0.553 K det.MAE) is ~60x
-worse than ridge's 0.009 K on this same split (§9.1). Nothing here threatens the central
-finding — ridge is not at risk of being caught by more epochs on this evidence.
+**Correction (2026-09-09): the ridge reference used in this section was stale.** The
+paragraph here originally read "even the best-converged config (0.553 K det.MAE) is ~60x
+worse than ridge's 0.009 K," quoting §9.1's 2026-07-31 table without re-measuring it —
+the same failure mode this report criticises elsewhere, committed inside a section written
+to check someone else's assumption. §9.5 had *already* recorded that those numbers describe
+a superseded dataset. Re-measured on the current data (§9.1a), geometry1 ridge scores
+det.MAE **0.407 K**, spatial R² **0.970**. The real gap is therefore ~2.7x on det.MAE, not
+60x. Ridge still leads on field reconstruction; the margin is much smaller than this
+section originally claimed.
 
 **Confirmatory run (200 epochs, completed 2026-09-09): the edge was mostly the
 convergence-speed artifact, not a final-accuracy win.** `default` vs. `tierB-wide-narrow`
@@ -1005,8 +1065,44 @@ fixed-epoch "fair comparison" protocol for *any* pair of architectures with diff
 effective capacity, and should be kept in mind for any future architecture comparison in
 this project, not just this one.
 
-Both configs remain, as expected, far behind ridge (0.009 K det.MAE, §9.1) even at full
-200-epoch convergence — nothing in this section threatens the central finding.
+#### 9.12b The first result in this project where a neural model beats ridge — and it is on hotspot localisation
+
+Scoring the two converged 200-epoch FNOs against the **current** ridge baseline (§9.1a)
+rather than the stale one changes the reading of this experiment substantially:
+
+| model | det.MAE (K) | spatial R² | hotspot loc. err (µm) |
+|---|---|---|---|
+| ridge (current, §9.1a) | **0.407** | **0.970** | 7399 |
+| kNN (k=3) | 0.465 | 0.962 | 7101 |
+| FNO, default (32ch, 200 ep) | 1.091 | 0.839 | 5083 |
+| FNO, tierB-wide-narrow (44ch, 200 ep) | 1.087 | 0.823 | **4191** |
+
+Both FNO configurations **beat ridge on hotspot localisation** — 4191 µm and 5083 µm
+against ridge's 7399 µm, a 31–43% reduction in localisation error — while losing to it on
+field reconstruction by ~2.7x on det.MAE. As far as this report records, that is the first
+metric, on any geometry or regime tried in this project, on which a trained neural operator
+beats the closed-form linear baseline.
+
+Three caveats keep this from being over-claimed, and they are load-bearing:
+1. **n = 5 test scenarios.** Any hotspot-localisation number on this split is a
+   low-confidence read, the same caveat §9.11 carries.
+2. **These FNOs are CPU-budget models**, 200 epochs against the project's normal 400–500,
+   trained purely to answer a modes-vs-channels question. They were not tuned for this.
+3. **Both are still bad in absolute terms.** 4–5 mm of localisation error on a 10 mm die is
+   not a usable hotspot predictor. FNO is less bad than ridge here, not good.
+
+What makes it worth recording anyway is the *direction*: it is exactly the split §9.1a and
+§10 predict — the linear model owns the smooth, global, superposition-driven part of the
+field (which field-level R² measures), while the neural model does relatively better at the
+sharp local extremum (which is what chip-thermal work actually needs, and what the
+operator-learning literature for 3D-ICs — DeepOHeat, SAU-FNO — is motivated by). It is also
+a direct, if preliminary, answer to the question of whether this benchmark's headline metric
+choice has been flattering the linear baseline: on this evidence, yes.
+
+**This should be measured properly before it is claimed.** The honest next step is a
+GPU-scale run at full epoch budget across more than five test scenarios, scoring hotspot
+localisation as a first-class metric rather than a footnote column — not another CPU
+smoke test.
 
 ---
 
