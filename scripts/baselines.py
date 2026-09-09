@@ -195,10 +195,22 @@ def aggregate(per_scenario: List[Dict[str, float]]) -> Dict[str, float]:
 
 # ── Baselines ──────────────────────────────────────────────────────────────────
 
-def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
+def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
                 k: int, ridge_lambda: float, power_pca: int = 0
-                ) -> Dict[str, List[Dict[str, float]]]:
-    """Run every baseline; return {baseline_name: [per-scenario metrics]}."""
+                ) -> List[Dict[str, np.ndarray]]:
+    """
+    Fit every baseline on `train` and return raw predicted fields for `test`.
+
+    Returns one dict per test scenario: {baseline_name: predicted (N,) field in K}.
+
+    Split out of `fit_predict` (2026-09-09) so callers that need different metrics
+    -- scripts/hotspot_eval.py scores hotspot-specific quantities rather than the
+    detrended field metrics below -- reuse these exact baseline implementations
+    instead of reimplementing ridge/kNN. Two copies of a baseline that silently
+    drift apart would invalidate every comparison in this project that relies on
+    them, and this repo has already been bitten once by a duplicated metric
+    definition living in a notebook.
+    """
     X_tr = np.stack([feature_vector(sc['meta'], block_keys) for sc in train])
     X_te = np.stack([feature_vector(sc['meta'], block_keys) for sc in test])
 
@@ -237,24 +249,35 @@ def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
     W = np.linalg.solve(A.T @ A + reg, A.T @ Y_tr)           # (n_feat, n_points)
 
     mean_field = Y_tr.mean(0)
-    results: Dict[str, List[Dict[str, float]]] = {n: [] for n in ('mean', 'nn', 'knn', 'ridge')}
+    preds: List[Dict[str, np.ndarray]] = []
 
-    for ti, sc in enumerate(test):
+    for ti in range(len(test)):
         x = (X_te[ti] - mu) / sigma
-        true, coords = sc['temp'], sc['coords']
-
-        results['mean'].append(metrics(mean_field, true, coords))
 
         d = np.linalg.norm(Z_tr - x, axis=1)
-        results['nn'].append(metrics(Y_tr[int(np.argmin(d))], true, coords))
-
         idx = np.argsort(d)[:min(k, len(train))]
         w = 1.0 / np.maximum(d[idx], 1e-9)
         w /= w.sum()
-        results['knn'].append(metrics(w @ Y_tr[idx], true, coords))
 
-        results['ridge'].append(metrics(np.append(x, 1.0) @ W, true, coords))
+        preds.append({
+            'mean':  mean_field,
+            'nn':    Y_tr[int(np.argmin(d))],
+            'knn':   w @ Y_tr[idx],
+            'ridge': np.append(x, 1.0) @ W,
+        })
 
+    return preds
+
+
+def fit_predict(train: List[dict], test: List[dict], block_keys: List[str],
+                k: int, ridge_lambda: float, power_pca: int = 0
+                ) -> Dict[str, List[Dict[str, float]]]:
+    """Run every baseline; return {baseline_name: [per-scenario metrics]}."""
+    preds = predict_all(train, test, block_keys, k, ridge_lambda, power_pca)
+    results: Dict[str, List[Dict[str, float]]] = {n: [] for n in ('mean', 'nn', 'knn', 'ridge')}
+    for sc, pred in zip(test, preds):
+        for name, field in pred.items():
+            results[name].append(metrics(field, sc['temp'], sc['coords']))
     return results
 
 

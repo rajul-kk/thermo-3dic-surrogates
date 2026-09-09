@@ -301,8 +301,13 @@ gitignored, so the JSON artifacts are local-only):
 This sharpens rather than reverses §10's argument, and in the direction §9.1's own
 2026-08-16 hotspot correction was already pointing: the linear baseline saturates the
 metric this field usually reports (field-level R²) while **failing outright** the metric
-chip-thermal work actually needs (where the hotspot is). See §9.12b for the first
-measurement in this project of a neural model beating ridge on that second metric.
+chip-thermal work actually needs (where the hotspot is).
+
+Two caveats on the hotspot column specifically, both resolved in §9.12c: these are
+5-scenario numbers, and argmax-to-argmax distance is only a meaningful score where the
+true peak is sharp (it is on geometry1, ~324 µm across; it is not on geometry6, ~9.4 mm).
+§9.12c re-measures hotspot quality under 5-fold CV (45 and 55 scenarios) with metrics that
+survive multi-modal fields, and those numbers should be preferred over this column.
 
 #### 9.1b Superseded table (measured 2026-07-31, retained for history)
 
@@ -1065,7 +1070,7 @@ fixed-epoch "fair comparison" protocol for *any* pair of architectures with diff
 effective capacity, and should be kept in mind for any future architecture comparison in
 this project, not just this one.
 
-#### 9.12b The first result in this project where a neural model beats ridge — and it is on hotspot localisation
+#### 9.12b A neural model beats ridge on hotspot localisation (first pass — see §9.12c, which narrows this substantially)
 
 Scoring the two converged 200-epoch FNOs against the **current** ridge baseline (§9.1a)
 rather than the stale one changes the reading of this experiment substantially:
@@ -1099,10 +1104,78 @@ operator-learning literature for 3D-ICs — DeepOHeat, SAU-FNO — is motivated 
 a direct, if preliminary, answer to the question of whether this benchmark's headline metric
 choice has been flattering the linear baseline: on this evidence, yes.
 
-**This should be measured properly before it is claimed.** The honest next step is a
-GPU-scale run at full epoch budget across more than five test scenarios, scoring hotspot
-localisation as a first-class metric rather than a footnote column — not another CPU
-smoke test.
+**This should be measured properly before it is claimed.** The honest next step is a run
+at full epoch budget across more than five test scenarios, scoring hotspot localisation as
+a first-class metric rather than a footnote column — not another CPU smoke test.
+
+#### 9.12c Scored properly, the "neural win" is real but much narrower than 9.12b implied (2026-09-09)
+
+Two things were built to test §9.12b rather than accept it: `scripts/hotspot_eval.py`
+(k-fold CV over pooled train+test scenarios, so every scenario is scored once as a
+held-out point, with hotspot metrics that survive multi-modal fields) and
+`scripts/hotspot_eval_fno_cv.py` (the same folds, with an FNO trained per fold).
+
+**First, a diagnostic that decides whether the headline metric means anything.** Whether
+argmax-to-argmax distance is a meaningful score depends entirely on how sharp the true
+peak is, and that turns out to be geometry-dependent:
+
+| geometry | median spread of 100 hottest cells | ΔT across those cells | argmax distance is… |
+|---|---|---|---|
+| geometry1 | **324 µm** | 0.207 K | meaningful — a sharp, well-posed target |
+| geometry6 | **9402 µm** | 1.646 K | largely noise — several near-equal hot regions |
+
+So geometry1's 5-7 mm baseline errors are a genuine failure to find a hot region only
+~300 µm across. geometry6's 15-31 mm "errors" are substantially an artifact of a package
+with six HBM stacks and no single well-defined hotspot, and should not be quoted as a
+failure of the same kind. §9.1a's hotspot column should be read with this table beside it.
+
+**Baselines, 5-fold CV (45 scenarios on geometry1, 55 on geometry6 — not 5):**
+
+| geometry | baseline | \|peak err\| (K) | median loc err (µm) | top-1% recall | hit ≤2 mm |
+|---|---|---|---|---|---|
+| geometry1 | mean | 16.875 | 6378 | 0.034 | 0.09 |
+| geometry1 | nearest-neighbour | 6.311 | 6307 | 0.032 | 0.00 |
+| geometry1 | kNN (k=3) | 5.306 | 6300 | 0.032 | 0.07 |
+| geometry1 | **ridge** | **3.759** | **4374** | **0.093** | **0.16** |
+| geometry6 | kNN (k=3) | 6.640 | 13750 | 0.370 | 0.16 |
+| geometry6 | **ridge** | **3.416** | 18528 | 0.382 | 0.05 |
+| geometry6 | mean | 15.864 | 15579 | **0.435** | 0.16 |
+
+Ridge is the best *baseline* on hotspot metrics too, not just on field reconstruction — but
+in absolute terms it fails the task: on geometry1 it recovers 9.3% of the top-1% hottest
+cells and lands within 2 mm of the true peak in 16% of scenarios. Note also that on
+geometry6 the **trivial mean-field predictor recovers more of the hot region (0.435) than
+ridge does (0.382)** — predicting the training-set average finds the hot cells better than
+the fitted linear model there.
+
+**The single most useful number in this section**: on geometry1, ridge's mean absolute
+*peak-temperature* error is **3.76 K**, against a detrended whole-field MAE of **0.407 K**
+(§9.1a) — roughly 9x worse at the peak than across the field. Ridge's error is not
+uniformly distributed; it concentrates exactly where the engineering decision is made.
+
+**And the qualification to §9.12b.** Re-scoring the same two 200-epoch FNO checkpoints
+with the fuller metric set (shipped 5-scenario split, so directly comparable to §9.12b's
+numbers and carrying the same n=5 caveat):
+
+| model | \|peak err\| (K) | median loc err (µm) | top-1% recall | hit ≤2 mm |
+|---|---|---|---|---|
+| kNN (k=3) | **1.777** | 7616 | 0.038 | 0.00 |
+| ridge | 2.132 | 7169 | 0.032 | 0.00 |
+| FNO, default | 14.860 | 4469 | 0.025 | **0.40** |
+| FNO, tierB-wide-narrow | 8.060 | **3324** | **0.054** | 0.20 |
+
+The FNOs do localise better — 3.3-4.5 mm vs ridge's 7.2 mm, and they post the only
+non-zero hit rates within 2 mm — but they are **4-7x worse at predicting how hot the peak
+actually is** (8.1-14.9 K vs ridge's 2.1 K). §9.12b's framing ("a neural operator beats
+ridge") was drawn from the localisation column alone and is too generous. The accurate
+statement is a **metric split**: the linear model knows how hot it gets but not where; the
+neural model knows roughly where but not how hot. For thermal sign-off, which needs both,
+neither is usable, and it is not obvious that being 15 K wrong about peak temperature is
+the better failure to have.
+
+A k-fold FNO run on identical folds (`scripts/hotspot_eval_fno_cv.py`) is what would settle
+whether the localisation advantage survives at n=45; until that lands, both §9.12b and this
+subsection rest on five scenarios.
 
 ---
 
