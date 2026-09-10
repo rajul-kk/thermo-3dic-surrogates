@@ -1,6 +1,6 @@
 # Plan: adding the missing non-neural baseline to IC-ThermBench
 
-**Status:** scoped 2026-09-10. Data downloaded and verified (4.6 GB, `data/ic-thermbench/`, gitignored). Channel semantics measured (§2). No baseline results yet — next step is the loader and metric-parity harness (§6, steps 2-3).
+**Status:** scoped 2026-09-10. Data downloaded and verified (4.6 GB, `data/ic-thermbench/`, gitignored). Channel semantics measured (§2). Loader and metric parity **done and verified exactly** (§6 steps 2-3). Next: run the three baselines (§5).
 **Owner question this answers:** what contribution is left after IC-ThermBench, and can this
 repo make it without GPU compute?
 
@@ -160,10 +160,28 @@ RAM 1-2 GB, no GPU.**
    `data/` is gitignored, so nothing here gets committed. *(started 2026-09-10)*
 2. **Loader** for their tensor contract, reproducing the index split exactly. Verify against
    their `data_provider/data_loader.py` rather than reimplementing from the docs.
-3. **Metric parity harness.** Match `rmse`/`mae`/`r2`/`max_absolute_error` and their
-   float64-CPU denormalisation order exactly. *Validate by reproducing one published number
-   from a released checkpoint before trusting any baseline number.* Without this step the
-   comparison is worthless.
+3. ~~**Metric parity harness.**~~ **DONE 2026-09-10, by a stronger route than planned.**
+   The original plan was to reimplement their metrics and validate by reproducing a
+   published number from a released checkpoint (a 44 GB download). Two things made that
+   unnecessary:
+   - Their `utils/metrics.py` is pure numpy, self-contained, MIT-licensed, and its own
+     docstring says *"This is the benchmark's only metric implementation... Do not write a
+     second 'equivalent' implementation."* It is now vendored verbatim at
+     `third_party/ic_thermbench/metrics.py` (md5 recorded, licence included). Parity is by
+     construction rather than by test, which is strictly stronger.
+   - `scripts/ic_thermbench_data.py::verify_against_upstream` checks our loaded arrays
+     against **their own loader and splitter** and requires exact equality. Run on S2:
+     all six arrays (train/val/test × x/y) match exactly, with counts 10,800 / 1,200 /
+     3,000 as documented.
+
+   The checkpoint route would only have tested *their model's* correctness, which was never
+   in question. Note also that normalisation does not enter our path at all: their metrics
+   are computed after denormalisation on raw kelvin fields, our loader yields exactly those
+   same kelvin arrays, and our baselines predict in kelvin directly.
+
+   **Sanity check passed**: the trivial mean-field predictor scores 16.31 K RMSE on S2
+   (against Therm-FM's 0.4427 K), confirming the benchmark is not solvable by a constant
+   and that nothing is leaking through the split.
 4. **Run the three baselines** on S2/S3/S4 (train/test), S5 zero-shot, and S5 few-shot at
    the same K values they report.
 5. **Hotspot metrics** via `scripts/hotspot_eval.py`, including the peak well-posedness
