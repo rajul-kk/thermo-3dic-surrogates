@@ -1227,9 +1227,124 @@ that are more useful than the claim would have been:
    sharper demonstration of the argument than any external example, and it should be
    reported as one.
 
----
+### 9.13 The linear baseline on IC-ThermBench: it loses, and that reframes this paper (2026-09-10)
 
-## 10. Discussion
+IC-ThermBench (arXiv:2608.23977) evaluates eight baselines — U-Net, FNO, U-FNO, SAU-FNO,
+DeepOHeat, Therm-FM T/B/L — and **not one is non-neural**. This section supplies the
+missing row. Method and pre-registered predictions are in `docs/ic_thermbench_plan.md`,
+written and committed *before* any baseline was run.
+
+Parity is not asserted, it is enforced: their metric module is vendored verbatim
+(`third_party/ic_thermbench/metrics.py`, their own docstring forbids writing a second
+implementation), and our loader is checked array-exact against their own loader and
+splitter (`scripts/ic_thermbench_data.py::verify_against_upstream`). Their split is
+index-based and unshuffled: 10,800 train / 1,200 val / 3,000 test. λ was selected on
+**their** validation split, never on test.
+
+**Results (their metrics, their test split; RMSE is per-sample then averaged):**
+
+| scope | baseline | RMSE ↓ | MAE | R² | MaxAE | peak-T err | Top-50 MAE | params |
+|---|---|---|---|---|---|---|---|---|
+| **S2** | *published best (Therm-FM)* | ***0.4427*** | — | — | — | — | — | — |
+| | *published runner-up (SAU-FNO)* | *0.7028* | — | — | — | — | — | — |
+| | mean field | 16.305 | 14.591 | 0.212 | 28.63 | 20.13 | 21.04 | 4 k |
+| | kNN (k=3) | 4.406 | 3.502 | 0.855 | 11.80 | 3.68 | 4.53 | 0 |
+| | ridge-pca | 3.430 | 2.758 | 0.961 | 9.41 | 3.51 | 4.14 | 3.1 M |
+| | ridge-green | 3.131 | 2.514 | 0.962 | 8.78 | 3.10 | 3.73 | 18.9 M |
+| | **ridge-per-geom** | **1.943** | 1.483 | 0.980 | 6.96 | 1.93 | 1.86 | 21.1 M |
+| **S3** | *published best (Therm-FM)* | ***0.7161*** | — | — | — | — | — | — |
+| | mean field | 15.942 | 14.339 | 0.092 | 27.00 | 19.27 | 20.26 | 4 k |
+| | kNN (k=3) | 10.889 | 9.523 | 0.317 | 21.86 | 10.61 | 14.65 | 0 |
+| | ridge-green | 4.603 | 3.785 | 0.922 | 11.89 | 4.03 | 5.37 | 35.7 M |
+| | ridge-pca | 4.159 | 3.460 | 0.936 | 10.16 | 4.36 | 5.32 | 4.2 M |
+| | **ridge-per-geom** | **2.488** | 1.985 | 0.972 | 7.92 | 1.91 | 2.25 | 21.0 M |
+| **S4** | *published best (Therm-FM)* | ***0.9334*** | — | — | — | — | — | — |
+| | mean field | 24.123 | 22.738 | 0.031 | 35.94 | 25.03 | 25.03 | 4 k |
+| | kNN (k=3) | 20.654 | 19.500 | 0.177 | 32.79 | 21.50 | 23.79 | 0 |
+| | ridge-green | 8.116 | 7.152 | 0.895 | 16.72 | 7.73 | 8.56 | 35.7 M |
+| | ridge-pca | 6.946 | 6.090 | 0.918 | 14.04 | 6.84 | 7.49 | 4.2 M |
+| | **ridge-per-geom** | **3.203** | 2.635 | 0.984 | 9.05 | 2.76 | 3.03 | 21.2 M |
+
+**The headline: the linear baseline loses, clearly and on every scope.** The best linear
+model is 4.4× / 3.5× / 3.4× worse than Therm-FM on S2 / S3 / S4, and worse than every one
+of their eight neural baselines. **IC-ThermBench is not linear-solvable.** Their benchmark
+discriminates, which is exactly what a benchmark is for, and it is the opposite of what
+this project found on its own dataset (§9.1a).
+
+**This reframes the paper, and the reframing is an improvement.** The claim "a closed-form
+linear fit is competitive on 3D-IC thermal benchmarks" is now falsified as a general
+statement — by an independent benchmark 300× larger than ours, tested with our own tooling,
+in a run we predicted the wrong direction on. What survives is the *methodological* claim,
+and it survives intact and stronger:
+
+> Run the linear baseline. It costs minutes. It is **diagnostic in both directions**: on
+> this project's dataset it revealed a benchmark that was near-linear-solvable, i.e. a
+> benchmark-design fault (§9.2–§9.5); on IC-ThermBench it certifies the opposite. The two
+> results are the same diagnostic returning opposite verdicts — and the field ran it in
+> neither case.
+
+A benchmark that *passes* the linear check has earned the neural architectures evaluated on
+it. IC-ThermBench passes. Ours, before the regime fix, did not. That is a more useful thing
+to be able to say than "linear models win", and it is the version we can defend.
+
+#### 9.13a The mechanism: most of the linear model's deficit is missing layout conditioning
+
+Conduction is exactly linear in the source for a *fixed* operator, `T = T_amb + G·Q`. So why
+does a dense ridge operator lose? Measurement answers it directly: hashing the
+`grid_x`/`grid_y` channels shows **the substrate geometry takes only ~20 discrete values
+(20 groups on S2, 10 on S3/S4) while the power map varies essentially per sample** (1,895
+distinct support patterns in 2,000 samples). There are ~10–20 *different operators*, each
+driven by a continuously varying source. A single global linear map is mis-specified by
+construction, and no amount of regularisation repairs that: a linear model given geometry
+as a feature can only add a geometry-dependent *offset*; making `G` itself depend on
+geometry requires a geometry × power interaction, which is precisely what it cannot form.
+
+Fitting one ridge per geometry group tests this, and the effect is large:
+
+| scope | ridge-green (global) | ridge-per-geom | error removed |
+|---|---|---|---|
+| S2 | 3.131 | 1.943 | **38%** |
+| S3 | 4.603 | 2.488 | **46%** |
+| S4 | 8.116 | 3.203 | **61%** |
+
+(Every test sample's geometry was seen in training, so no fallbacks were used.) **A large and
+growing share of what the neural operators provide on this benchmark is the ability to
+condition on layout, not nonlinearity in the source.** The residual gap to Therm-FM is real
+and is not explained by this, but the decomposition is, as far as we can find, not reported
+anywhere — and it is available for the price of a few minutes of CPU.
+
+#### 9.13b Prediction accounting, including one that was plainly wrong
+
+`docs/ic_thermbench_plan.md` §4 recorded four predictions before running anything. Scoring
+them honestly:
+
+- **S2 — correct, and resolved to the branch we flagged as uncertain.** The prediction was
+  "strong if the operator is shared across layouts; clearly worse if not." It is not shared
+  (~20 discrete geometries, measured), and ridge is clearly worse. The uncertainty was
+  genuine and the measurement settled it.
+- **S3 — correct in direction.** "Clear degradation" from added per-cell conductivity:
+  ridge-green 3.131 → 4.603 (+47%). Worth noting Therm-FM degraded proportionally *more*
+  (0.4427 → 0.7161, +62%), so material variation is not uniquely hard for linear models.
+  It is uniquely hard for *distance-based* ones: kNN collapses 4.41 → 10.89.
+- **S4 — WRONG, and instructively so.** We predicted ridge would degrade *less* than the
+  neural models from S3→S4, reasoning that S4's three added channels enter the linear
+  solution exactly (ambient is additive; `r_convec_k_per_w` is already the `1/h` form that
+  `scripts/baselines.py` hand-constructs). Actual: ridge-green degraded **+76%** (4.603 →
+  8.116) against Therm-FM's **+30%**. The error in the reasoning is specific and worth
+  keeping: `h` does not enter additively at all — it sets the convective boundary condition
+  and therefore changes `G` itself, so its effect *multiplies* the power term. Having `1/h`
+  available as a feature is useless to a model that cannot form `h × power` interactions.
+  The prediction only becomes right once layout conditioning is supplied: ridge-per-geom
+  degrades +29%, essentially matching Therm-FM's +30%.
+- **Hotspot regime (§9.4's per-cell-power claim) — not yet separable.** Their inputs are
+  per-cell power maps as predicted, and their peaks are sharp: the 100 hottest cells span
+  ~4.1 cells (6.4% of the 64-cell width) on S2–S4, comparable to geometry1's well-posed
+  case (§9.12c) rather than geometry6's diffuse one. So argmax localisation *would* be a
+  meaningful metric here — and IC-ThermBench does not report it (their ETmax explicitly
+  ignores location). That remains an additive contribution rather than a tested claim.
+
+One prediction in four was wrong, in the flattering direction, and it was recorded in
+advance where it could be scored. That is the point of recording them.
 
 **Why a linear model wins.** Steady-state conduction with temperature-independent $k$ is a
 linear map from sources and boundary data to the temperature field:
