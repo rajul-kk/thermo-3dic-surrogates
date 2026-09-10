@@ -255,6 +255,17 @@ adaptation, not a direct replication.)
   the missing baseline tooling — which IC-ThermBench's own baseline list shows the field
   still lacks.
 
+  **Update 2026-09-10 — we ran our baseline on it, and it changes both halves above.**
+  `docs/report.md` §9.13: the linear baseline **loses on every scope** (3.4-4.4x worse than
+  Therm-FM), so IC-ThermBench is *not* linear-solvable and this repo's central empirical
+  claim does not generalise to it. That is a genuine falsification of the strong form of the
+  claim, obtained with our own tooling on their data. It also converts the relationship from
+  "they scooped us" into a citable contribution: we supply the missing non-neural row of
+  their Table 4, and §9.13a decomposes *why* the linear model loses — ~38-61% of its deficit
+  is missing layout conditioning, not nonlinearity in the source, measured by fitting one
+  ridge per geometry group. When citing IC-ThermBench, cite it as the benchmark this
+  project's diagnostic was validated against, not merely as prior art that displaced us.
+
   *Also relevant to §9.12c.* IC-ThermBench reports hotspot quality separately from field
   accuracy, using **Tmax-Err/ETmax** ("the absolute difference between predicted and true
   maximum temperatures", explicitly noting "the predicted and true maxima need not occur
