@@ -430,8 +430,16 @@ def run_scope(data_root: Path, scope: str, n_pca: int, raw_grid: bool,
     if return_state:
         state = FittedRidge(split.channels, spatial, raw_names, pca_names,
                             pca_cache, mu, sd, W, lam_best)
-        # The training mean field is what a "mean" baseline transfers as.
-        return results, state, mean_field
+        # ridge-pca as a second transferable model. On out-of-distribution scopes the
+        # dense raw-feature operator is numerically hopeless -- standardising unseen
+        # inputs by training statistics sends rarely-varying cells to huge z-scores,
+        # which a 4,096-column operator then amplifies. The PCA variant projects onto
+        # directions that actually carry training variance, so it degrades rather than
+        # explodes. Both are reported: the blowup is real and worth showing, but the
+        # PCA model is the linear baseline's honest best effort out of distribution.
+        state_pca = FittedRidge(split.channels, spatial, [], list(spatial),
+                                pca_cache, mu2, sd2, W2, lam2)
+        return results, state, state_pca, mean_field
     return results
 
 
@@ -444,8 +452,8 @@ def run_transfer(data_root: Path, source: str, target: str, n_pca: int,
     statistics, scored on all target samples.
     """
     log.info('=== transfer %s -> %s (zero-shot) ===', source, target)
-    _, state, mean_field = run_scope(data_root, source, n_pca, raw_grid, knn_k,
-                                     return_state=True)
+    _, state, state_pca, mean_field = run_scope(data_root, source, n_pca, raw_grid,
+                                                knn_k, return_state=True)
 
     tgt = load_scope(data_root, target, split_data=False)
     log.info('%s', tgt.summary())
@@ -456,10 +464,13 @@ def run_transfer(data_root: Path, source: str, target: str, n_pca: int,
     y = tgt.y_test.reshape(len(tgt.y_test), -1).astype(np.float64)
     out = {
         'ridge-green': score(state.predict(tgt.x_test), y, 'r'),
+        'ridge-pca':   score(state_pca.predict(tgt.x_test), y, 'rp'),
         'mean':        score(np.repeat(mean_field[None], len(y), axis=0), y, 'm'),
     }
     out['ridge-green']['lambda'] = state.lam
     out['ridge-green']['n_params'] = int(state.W.size)
+    out['ridge-pca']['lambda'] = state_pca.lam
+    out['ridge-pca']['n_params'] = int(state_pca.W.size)
     out['mean']['n_params'] = int(mean_field.size)
     return out
 
