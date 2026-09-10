@@ -1070,7 +1070,14 @@ fixed-epoch "fair comparison" protocol for *any* pair of architectures with diff
 effective capacity, and should be kept in mind for any future architecture comparison in
 this project, not just this one.
 
-#### 9.12b A neural model beats ridge on hotspot localisation (first pass — see §9.12c, which narrows this substantially)
+#### 9.12b ⚠ RETRACTED — an apparent neural win on hotspot localisation, which did not survive cross-validation (see §9.12d)
+
+> **Retracted 2026-09-10.** The claim below was measured on 5 test scenarios. Under 5-fold
+> cross-validation on the same geometry (45 scenarios, §9.12d), it reverses completely for
+> both FNO configurations tested. The subsection is kept rather than deleted because the
+> project's central argument is about evaluation practice, and this is a worked example of
+> the exact failure mode it criticises, produced by this project, in this project's own
+> results. Read §9.12d before using anything below.
 
 Scoring the two converged 200-epoch FNOs against the **current** ridge baseline (§9.1a)
 rather than the stale one changes the reading of this experiment substantially:
@@ -1175,7 +1182,50 @@ the better failure to have.
 
 A k-fold FNO run on identical folds (`scripts/hotspot_eval_fno_cv.py`) is what would settle
 whether the localisation advantage survives at n=45; until that lands, both §9.12b and this
-subsection rest on five scenarios.
+subsection rest on five scenarios. **It landed — see §9.12d. It does not survive.**
+
+#### 9.12d The localisation advantage was an n=5 artifact — retraction, measured (2026-09-10)
+
+`scripts/hotspot_eval_fno_cv.py` trains one FNO per fold on the *same* folds
+`scripts/hotspot_eval.py` uses (same `kfold_indices` call, same seed), so FNO and the
+baselines are scored on identical held-out scenarios. Both FNO configurations from §9.12
+were run at 150 epochs, 5 folds, 45 held-out scenarios on geometry1.
+
+**`tierB-wide-narrow` (the stronger claim — the better localiser at n=5), complete 5-fold:**
+
+| model | \|peak err\| (K) | median loc err (µm) | loc p90 (µm) | top-1% recall | hit ≤1 mm | hit ≤2 mm |
+|---|---|---|---|---|---|---|
+| mean | 16.875 | 6378 | 9100 | 0.034 | 0.02 | 0.09 |
+| nearest-neighbour | 6.311 | 6307 | 9915 | 0.032 | 0.00 | 0.00 |
+| kNN (k=3) | 5.306 | 6300 | 9748 | 0.032 | 0.00 | 0.07 |
+| **ridge** | **3.759** | **4374** | **9320** | **0.093** | **0.04** | **0.16** |
+| FNO, tierB-wide-narrow | 10.539 | 6268 | 9465 | 0.065 | 0.02 | 0.07 |
+
+**Ridge wins every column.** For comparison, the same two models at n=5 (§9.12c) had FNO
+ahead on localisation (3324 µm vs ridge's 7169), on recall (0.054 vs 0.032) and on hit-rate
+(0.20 vs 0.00). The `default` configuration reversed the same way (measured at n=27:
+FNO 5301 µm vs ridge 4810 µm). **Both configurations, properly cross-validated, lose to
+ridge on peak error, localisation and hot-cell recall.**
+
+§9.12b's claim is therefore withdrawn in full. No neural architecture tried in this project
+beats the closed-form linear baseline on any metric, on any geometry or regime tested.
+
+**What this episode is worth keeping.** The retracted claim was not careless — it used the
+project's own shipped test split, the metric already in `scripts/baselines.py`, and it was
+caveated at the time ("n = 5 test scenarios", "needs a GPU-scale run before being claimed").
+It was still wrong, and the direction of the error was the flattering one. Two things follow
+that are more useful than the claim would have been:
+
+1. **Five-scenario test splits can invert an architecture ranking.** This benchmark ships
+   5-scenario test splits (§4), and so do the throttle/leakage/geometry7 pilots on which
+   §9.7-§9.11's neural-vs-ridge comparisons rest. Every one of those comparisons carries
+   this same risk and none has been cross-validated. That is a limitation of this report,
+   stated here rather than left for a reader to find.
+2. **A negative result about our own positive result.** §10 argues the field publishes
+   architecture wins that a stronger baseline or a better evaluation would erase. This
+   project produced exactly such a win and erased it internally within a day. That is a
+   sharper demonstration of the argument than any external example, and it should be
+   reported as one.
 
 ---
 
@@ -1414,7 +1464,7 @@ statement is not "a linear model solves 3D-IC thermal prediction" but:
 That reframing is the contribution, and it is not a criticism of ridge alone — every model
 tried here, neural included, fails hotspot localisation in absolute terms.
 
-Three practices follow. First, **report a linear baseline** — it costs milliseconds and bounds
+Four practices follow. First, **report a linear baseline** — it costs milliseconds and bounds
 what any architecture can claim to contribute. IC-ThermBench's eight baselines, published this
 year for exactly this domain, contain no non-neural model at all, so this remains unaddressed.
 Second, **report spatially-detrended error**: raw MAE on 3D-IC thermal fields is dominated by
@@ -1424,6 +1474,13 @@ the peak is well-posed** — argmax-based localisation is meaningful on geometry
 cells span 324 µm) and close to meaningless on geometry6 (9402 µm, several near-equal peaks).
 IC-ThermBench's Tmax-Err and Top-50 MAE are convergent evidence for the second half of this;
 localisation distance remains unreported even there.
+
+Fourth, and learned the hard way, **cross-validate before reporting an architecture ranking
+from a small test split**. This project measured an apparent neural win over ridge on hotspot
+localisation from a 5-scenario split, caveated it, and had it reverse completely under 5-fold
+cross-validation on the same geometry — for both configurations tested (§9.12d). Five-scenario
+test splits are what this benchmark and its pilots ship, and they are enough to invert a
+ranking in the flattering direction.
 
 We also record what this benchmark would need to become discriminative — higher power
 density, per-cell power maps, variable floorplans, extrapolation splits by default — and
