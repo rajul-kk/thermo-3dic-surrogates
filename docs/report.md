@@ -1346,6 +1346,64 @@ them honestly:
 One prediction in four was wrong, in the flattering direction, and it was recorded in
 advance where it could be scored. That is the point of recording them.
 
+#### 9.13c S5 zero-shot: the linear operator is not merely wrong, it is unstable — and the trivial baseline nearly matches the best neural model
+
+Their S5 protocol freezes an S4-trained model and scores it on 5,000 samples from five
+unseen package systems, with preprocessing statistics unchanged. Applying our S4 fits the
+same way:
+
+| model | RMSE ↓ | MAE | R² | peak-T err |
+|---|---|---|---|---|
+| *published best (Therm-FM)* | ***15.51*** | — | — | — |
+| *published runner-up (U-Net)* | *19.10* | — | — | — |
+| **mean field (trivial)** | **29.638** | 28.905 | −0.151 | 29.57 |
+| ridge-pca | 1740.5 | 1389.3 | −9037.5 | 1715.7 |
+| ridge-green | 1973.5 | 1841.3 | −11668.5 | 888.8 |
+
+Two findings, and they point in opposite directions.
+
+**1. The linear operators do not degrade, they detonate.** ~1,700–2,000 K RMSE is not a
+score, it is a numerically degenerate extrapolation — the same failure mode
+`scripts/baselines.py` already guards against in its `power_pca` note (an unregularised fit
+there once produced 3e12 K). It is worth stating precisely *why*, because the obvious
+explanation is wrong. We checked whether S5's inputs simply lie far outside S4's range;
+mostly they do not:
+
+| channel | max abs z-score within S4 train | max abs z-score on S5 |
+|---|---|---|
+| `chiplet_power` | 98.8 | **61.7** |
+| `local_thermal_k` | 34.9 | **31.5** |
+| `grid_x` | 1.7 | 2.7 |
+| `grid_y` | 1.7 | 2.3 |
+
+The power and conductivity maps are *inside* the range S4 itself spans. Only the geometry
+channels move outside, and only modestly (1.7 → 2.7). But geometry is precisely the input
+that selects the operator, and the model has just ~10 discrete training values along that
+axis, so a linear map extrapolating there is unconstrained: a small move in the one
+direction that matters produces an unbounded output. The instability is a real property of
+the fitted model, not an artefact of our transfer path, and it is a genuine limitation of
+linear surrogates for structural OOD that a benchmark without non-neural baselines cannot
+surface. It should be reported as instability rather than as a competitive number, and we
+do not claim the specific value means anything beyond "unbounded".
+
+Note also that λ was selected on S4's *in-distribution* validation split, exactly as their
+models select checkpoints. That protocol optimises for interpolation and offers no
+protection against this. We deliberately did not re-tune λ against S5, which would be
+selecting on the test set.
+
+**2. The far more interesting number is the trivial one.** On S5 zero-shot the **mean-field
+predictor scores 29.64 K against Therm-FM's 15.51 K** — the best neural model in the field's
+newest benchmark is **only 1.9× better than predicting the training-set average**, on the
+scope their own paper identifies as the benchmark's main distinction (a 16.6× degradation
+from S4). U-Net at 19.10 K is 1.55× better than the trivial baseline.
+
+That is exactly the observation §10 argues the field's evaluation practice hides, and it is
+invisible in their Table 4 because it contains no trivial baseline to compare against. It
+does not diminish IC-ThermBench — S2–S4 are genuinely discriminative (§9.13) and the S5 gap
+is honestly reported as their headline finding. But "structural OOD transfer is largely
+unsolved" is a much sharper statement when the reference point is a predictor with no
+parameters at all, and supplying that reference point costs seconds.
+
 **Why a linear model wins.** Steady-state conduction with temperature-independent $k$ is a
 linear map from sources and boundary data to the temperature field:
 $T(x) = T_{amb} + \sum_b A_b(x) Q_b$, where the impedance $A_b$ is scenario-independent. Our
@@ -1556,6 +1614,12 @@ pipeline. This is no longer a novel contribution on its own — IC-ThermBench (a
 is larger, has a unified evaluation pipeline, and defines five generalization scopes — so the
 dataset should be read as the substrate for the finding below, not as the finding.
 
+> **Second revision, 2026-09-10 (same day).** After the rewrite below was written, we ran
+> this project's own baseline tooling against IC-ThermBench (§9.13). **The linear baseline
+> loses there, clearly, on every scope.** That falsifies the strong form of this paper's
+> claim, so the framing below is narrowed accordingly: the contribution is a *diagnostic*
+> and what it reveals, not an assertion that linear models suffice for this domain.
+
 The finding is a negative result we believe is more useful than the surrogate accuracy figures
 we set out to produce. Measured on the current dataset (§9.1a, 2026-09-09), closed-form ridge
 regression reconstructs the spatial temperature field at **spatial R² 0.89–0.99** across the
@@ -1596,6 +1660,24 @@ localisation from a 5-scenario split, caveated it, and had it reverse completely
 cross-validation on the same geometry — for both configurations tested (§9.12d). Five-scenario
 test splits are what this benchmark and its pilots ship, and they are enough to invert a
 ranking in the flattering direction.
+
+**What the linear check is actually for (§9.13).** Running this project's own baseline against
+IC-ThermBench settles the scope of the claim. There, the linear baseline **loses** — 3.4–4.4×
+worse than Therm-FM on S2–S4, worse than all eight of their neural baselines. So "a linear fit
+is competitive on 3D-IC thermal benchmarks" is false as a general statement, and we say so.
+The diagnostic is what generalises, and it is diagnostic **in both directions**: on our dataset
+it exposed a benchmark that was near-linear-solvable, i.e. a design fault we then fixed
+(§9.5); on IC-ThermBench it certifies a benchmark that genuinely discriminates. A benchmark
+that passes this check has earned the architectures evaluated on it. The field ran it in
+neither case, and it costs minutes.
+
+Two things that only became visible by running it. **(a)** Most of the linear model's deficit
+on IC-ThermBench is *missing layout conditioning*, not nonlinearity in the source: the
+substrate geometry takes ~10–20 discrete values while the power map varies per sample, and
+fitting one operator per geometry removes 38–61% of the error (§9.13a). **(b)** On their
+structural-OOD scope, the best neural model is only **1.9× better than predicting the training
+mean** (15.51 K vs 29.64 K), while the linear operator is unstable rather than merely
+inaccurate (§9.13c). Neither is visible in a results table containing no trivial baseline.
 
 We also record what this benchmark would need to become discriminative — higher power
 density, per-cell power maps, variable floorplans, extrapolation splits by default — and
