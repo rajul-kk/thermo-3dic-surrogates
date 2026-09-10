@@ -1392,7 +1392,7 @@ protection against this. We deliberately did not re-tune λ against S5, which wo
 selecting on the test set.
 
 **2. The far more interesting number is the trivial one.** On S5 zero-shot the **mean-field
-predictor scores 29.64 K against Therm-FM's 15.51 K** — the best neural model in the field's
+predictor scores 29.64 K against Therm-FM's 15.51 K**  <!-- anchor:s5-trivial --> — the best neural model in the field's
 newest benchmark is **only 1.9× better than predicting the training-set average**, on the
 scope their own paper identifies as the benchmark's main distinction (a 16.6× degradation
 from S4). U-Net at 19.10 K is 1.55× better than the trivial baseline.
@@ -1403,6 +1403,107 @@ does not diminish IC-ThermBench — S2–S4 are genuinely discriminative (§9.13
 is honestly reported as their headline finding. But "structural OOD transfer is largely
 unsolved" is a much sharper statement when the reference point is a predictor with no
 parameters at all, and supplying that reference point costs seconds.
+
+### 9.14 Why our benchmark is linear-solvable and theirs is not — and why that is a criticism of ours (2026-09-11)
+
+§9.13 leaves an obvious question: ridge is competitive on our data and loses badly on theirs,
+so what is the actual structural difference? Two candidate explanations were tested. The
+appealing one is wrong; the real one is unflattering to this benchmark.
+
+**Rejected: "IC-ThermBench scores hotspots, which is where ridge is weakest."** §9.12c
+established that ridge's error concentrates at the peak, so a hotspot-weighted benchmark
+would disadvantage it. But their headline metric is field-wide RMSE, not a hotspot metric,
+and ridge loses on *that* by 7×. Decomposing squared error by region settles it:
+
+| dataset / model | top-1% cells hold … of signal variance | … and absorb … of squared error | concentration |
+|---|---|---|---|
+| IC-ThermBench S2 / ridge | 3.4% | 2.1% | 2.1× |
+| this project geometry1 / ridge | 4.4% | 2.4% | **2.4×** |
+
+Ridge's error is **no more hotspot-concentrated on their data than on ours** — marginally
+less. The difficulty is spread across the whole field. This explanation is refuted.
+
+**The actual difference: our benchmark holds the thermal operator fixed, and theirs does
+not.** Three measurements, each a structural property of the datasets rather than of any
+model:
+
+| property | this project | IC-ThermBench S2 |
+|---|---|---|
+| distinct heat-source support patterns | **1** (every geometry: g1, g4, g6, g7) | 269 in 277 samples of one grid group |
+| mean pairwise IoU of source support | **1.000** | 0.449 |
+| physical cell size across samples | fixed per geometry | **varies: 0.667 / 0.875 / 0.414 mm per cell** |
+
+Our heat sources **never move**. Across all 45 geometry1 scenarios, all 45 geometry4, all 55
+geometry6 and all 40 geometry7, the power field has exactly one support pattern; only the
+*amplitudes* on those fixed blocks change, alongside HTC and ambient. The medium is fixed,
+the mesh is fixed, cell *i* always denotes the same physical place. That makes the map
+
+  T(x) = T_amb + Σ_b A_b(x)·Q_b,  with A_b fixed
+
+**exactly, and only, ridge's hypothesis class.** We did not discover that a linear model is
+surprisingly competitive; we constructed a benchmark whose solution is a fixed linear
+operator and then reported that fitting a fixed linear operator works.
+
+IC-ThermBench breaks this in two independent ways. Chiplets move between samples (IoU 0.449),
+so the medium — silicon islands in a substrate — is rearranged and the operator changes. And
+their 64×64 array is a *normalised* grid over packages of different physical size:
+`grid_x`/`grid_y` are per-sample physical coordinate maps, uniform within a sample but with
+cell pitch varying roughly 2× across samples. Cell *i* is a different physical location, at a
+different physical scale, in different samples. A single linear map over array indices is
+comparing incommensurable domains, which is why grouping by grid hash — restoring a common
+physical scale — recovers 38–61% of the error (§9.13a).
+
+#### 9.14a The regime our benchmark occupies has been solved by classical methods since 2007
+
+This is the part that should have been checked at the start. For a **fixed package geometry
+with varying power maps**, chip-thermal EDA has a standard, validated technique: compute the
+thermal impulse response (Green's function / point spread function) once by FEM, then convolve
+it with any power map. It is called **power blurring**, and the "influence coefficient"
+formulation — determine the matrix by applying linearly independent power vectors and solving
+— is the same object our ridge baseline estimates from data.
+
+- Kemper, Zhang, Bian & Shakouri (2007), *Ultrafast Temperature Profile Calculation in IC
+  Chips* (arXiv:0709.1850): explicitly assumes a fixed package geometry, reuses one PSF across
+  varying power maps, reports **hot-spot temperatures within 1 °C** and **three orders of
+  magnitude** speedup over FEA.
+- Ziabari, Park, … Shakouri, *Power Blurring: Fast Static and Transient Thermal Analysis
+  Method for Packaged Integrated Circuits and Power Devices*, **IEEE TVLSI** (2013): within
+  **2%** of a commercial FEM tool, orders-of-magnitude faster.
+
+So the fixed-floorplan/varying-power problem was solved to ~1 °C, a thousand times faster than
+FEM, **fifteen years before** the neural-operator papers this project critiques. Our §9.1
+result is a rediscovery of that fact from the ML side, not a new one.
+
+**This makes the paper's central recommendation sharper, not weaker.** "Report a linear
+baseline" is vague and easy to wave away. The defensible version is specific:
+
+> If a thermal-surrogate benchmark holds the package geometry and source locations fixed and
+> varies only power amplitudes, it is the regime power blurring already solves to ~1 °C. A
+> neural surrogate evaluated only there should be compared against **power blurring or an
+> influence-coefficient fit**, by name — not merely against other networks. If a benchmark
+> intends to test something beyond that regime, it must vary what makes the operator change:
+> source *placement*, medium, or domain scale.
+
+IC-ThermBench does vary those things, which is why it discriminates and why its neural models
+earn their result. Ours did not, which is why ours did not.
+
+#### 9.14b What this benchmark would have to change
+
+§11 already lists "variable floorplans" among the conditions this benchmark needs; §9.14 turns
+that from a suggestion into the *primary* defect, ahead of power density or per-cell power. In
+priority order:
+
+1. **Move the sources.** Randomise block placement per scenario rather than only amplitude.
+   This alone converts a fixed-operator problem into a varying-operator one, and it is the
+   single change most likely to make the benchmark discriminate.
+2. **Vary the medium.** geometry7's bridge/organic heterogeneity (§9.11) is the right kind of
+   structure, but it is currently *fixed* within the geometry — its islands never move.
+3. **Vary domain scale.** Different package extents on a common normalised grid, as
+   IC-ThermBench does, is a genuinely harder axis and one this project has never tested.
+
+Until at least (1) is done, results on this dataset should be read as characterising a
+fixed-operator regime, and the honest scope of §9.1's finding is: *within the regime classical
+superposition methods already solve, a learned linear operator also solves it.*
 
 **Why a linear model wins.** Steady-state conduction with temperature-independent $k$ is a
 linear map from sources and boundary data to the temperature field:

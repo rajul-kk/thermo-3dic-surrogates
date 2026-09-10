@@ -189,6 +189,53 @@ adaptation, not a direct replication.)
   this repo's claim that sensitivity maps are "actionable for floorplan decisions" — that
   application already exists in the literature.
 
+### Classical superposition thermal methods — **the regime this benchmark occupies was solved in 2007** (added 2026-09-11)
+
+**This is the most consequential citation gap found in this project so far. Read it before
+claiming anything about linear models being surprisingly competitive.**
+
+For a **fixed package geometry with varying power maps** — which is exactly what this
+project's benchmark is (§9.14: every geometry has *one* heat-source support pattern across
+all its scenarios, mean pairwise IoU 1.000, only amplitudes vary) — chip-thermal EDA has a
+standard technique: compute the thermal impulse response once by FEM, then convolve it with
+any power map. The "influence coefficient" formulation, determining the matrix by applying
+linearly independent power vectors and solving, is the same object `scripts/baselines.py`'s
+ridge estimates from data.
+
+- **Kemper, T., Zhang, Y., Bian, Z. & Shakouri, A. (2007). "Ultrafast Temperature Profile
+  Calculation in IC Chips."** arXiv:0709.1850 (submitted 12 Sep 2007). Power blurring, a
+  matrix-convolution method by analogy with image blurring. Explicitly assumes a fixed
+  package geometry and reuses one point-spread function across varying power maps. Reports
+  **hot-spot temperatures within 1 °C** and **three orders of magnitude** speedup over FEA.
+- **Ziabari, A., Park, J.-H., … Shakouri, A. "Power Blurring: Fast Static and Transient
+  Thermal Analysis Method for Packaged Integrated Circuits and Power Devices."** *IEEE
+  Transactions on VLSI Systems* (2013), DOI 10.1109/TVLSI.2013.2293422. Accurate within
+  **2%** of a commercial FEM tool, orders-of-magnitude speedup, static and transient.
+
+**Consequences, both directions.**
+
+*Against this project:* §9.1's result — a closed-form linear fit is competitive on our
+benchmark — is a **rediscovery**, from the ML side, of something the EDA field established
+and productised fifteen years earlier. It must not be presented as a novel observation about
+linear models. The novelty was never "linear works"; it is at most "the neural-operator
+literature is not checking against the classical method that already works here."
+
+*For this project:* it converts the central recommendation from the vague "report a linear
+baseline" into something specific and hard to dismiss — *if your benchmark fixes the geometry
+and source locations and varies only power amplitudes, compare against power blurring or an
+influence-coefficient fit by name.* It also supplies the diagnostic for benchmark design:
+a benchmark only escapes this regime if it varies what makes the operator change (source
+placement, medium, or domain scale). IC-ThermBench varies all three and discriminates
+(§9.13); ours varies none and does not (§9.14).
+
+- **Kemper et al.'s successors for the varying-geometry case** are worth noting as the
+  boundary of the classical approach: *Method of Images for the Fast Calculation of
+  Temperature Distributions in Packaged VLSI Chips* (arXiv:0801.1006) and *VarSim: A Fast
+  Process Variation-aware Thermal Modeling Methodology Using Green's Functions*
+  (arXiv:2307.12119) extend Green's-function methods to boundaries and process variation.
+  Neither covers the moving-chiplet / varying-domain-scale regime IC-ThermBench poses, which
+  is the honest place to look for what neural operators actually buy.
+
 ### Prior art on the baseline-reporting problem itself (**critical — read before making any novelty claim about this paper's central finding**)
 
 - **McGreivy, N. & Hakim, A. (2024). "Weak baselines and reporting biases lead to
