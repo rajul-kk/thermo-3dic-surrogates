@@ -97,10 +97,13 @@ This paper makes the following contributions:
 > and §9.15b now has three datasets where ridge is the *worst* model tested. Contributions
 > 2 and 4 are narrowed accordingly; 7–9 are new.
 
-1. An open **benchmark of 335 3D-ICE simulations across eight package geometries** covering
+1. An open **benchmark of 275 3D-ICE simulations across six package geometries** covering
    single-die mobile and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet
-   assemblies with up to six HBM stacks — with the full generation pipeline, plus four
-   layout-randomised variants (180 further solves) introduced in §9.15.
+   assemblies with up to six HBM stacks — with the full generation pipeline. A further
+   **310 solves** make up the placement-varied extensions: 180 layout-randomised (four
+   geometries × 45, §9.15b), 90 rigid-translation (§9.15) and a 40-scenario geometry7
+   pilot. **585 real 3D-ICE solves in total**; counts verified against the files on disk
+   rather than quoted from an earlier draft.
 2. **A demonstration that closed-form ridge regression solves the fixed-placement
    benchmark** at spatial R² 0.89–0.99 with no training and no GPU, holding under
    extrapolation to unseen power patterns, magnitudes and ambient temperatures. Ridge's
