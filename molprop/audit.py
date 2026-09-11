@@ -64,6 +64,14 @@ def main():
             others = [r for r in ordered[1:] if r.model != 'trivial']
             ties = [r.model for r in others if not separable(best, r)]
             print(f'best: {best.model}' + (f'  (not separable from: {", ".join(ties)})' if ties else ''))
+            if split == 'scaffold_det':
+                # The deterministic split takes no seed, so every seed sees the SAME split and
+                # the reported std captures model-seed variance only -- not split variance.
+                # Separability verdicts here are therefore much weaker than on the seeded
+                # splits, and tiny gaps will read as "separable". Do not compare the two.
+                print('  [!] scaffold_det is seedless: std reflects model-seed variance only, '
+                      'NOT split variance. Separability here is far weaker evidence than on '
+                      'the seeded splits.')
             metric = 'roc_auc' if ds.task == 'classification' else 'rmse'
             rows = published.for_cell(name, 'scaffold' if split == 'scaffold_det' else split,
                                       metric)
