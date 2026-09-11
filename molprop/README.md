@@ -1,6 +1,6 @@
 # molprop — a baseline audit for molecular property prediction
 
-**Status:** design + implementation, 2026-09-11. No results yet.
+**Status:** first full run complete, 2026-09-11. Results in §7 below; the deterministic-scaffold pass is still running at time of writing.
 
 Self-contained: this directory does not import from the 3D-IC thermal code and does not
 depend on it. It reuses the *method* that produced `docs/report.md` §9.13, not the code.
@@ -156,6 +156,91 @@ Three outcomes, all publishable, which is the point of choosing this question:
 - **Not separable within seed variance** → the most likely outcome on the small datasets,
   and arguably the most useful: it means published differences of ~0.02 AUC on BBBP/BACE
   are not evidence of anything.
+
+## 7. Results — first full run (2026-09-11)
+
+4 datasets x 2 splits x 6 models x 4 featurisers, budget 24 trials, 5 seeds, CPU only.
+**Zero cells hit `BUDGET NOT MATCHED`**, so the matched-budget control held throughout.
+Raw: `molprop/results/audit_scaffold_random.json` (gitignored).
+
+"Separable" below means the gap exceeds the **sum** of the two standard deviations — the
+deliberately conservative test of §3.3.
+
+| dataset / split | best model | is the best separable from `linear`? |
+|---|---|---|
+| bbbp / scaffold | lightgbm 0.9259 | **no** |
+| bbbp / random | rf 0.9299 | **no** |
+| bace / scaffold | xgboost 0.8770 | **no** |
+| bace / random | **linear 0.9064** | **no** — the linear model *is* the best |
+| esol / scaffold | lightgbm 0.8234 | **yes** |
+| esol / random | xgboost 0.5356 | **yes** |
+| freesolv / scaffold | xgboost 2.0097 | no — but see the instability note below |
+| freesolv / random | lightgbm 0.9441 | **no** |
+
+### 7.1 The headline
+
+**On all four classification cells, a tuned logistic regression on fingerprints is
+statistically indistinguishable from tuned gradient-boosted trees** — and on BACE/random it
+is the single best model. Only ESOL separates method from noise, on both splits.
+
+This is the outcome §4 called most likely and most useful. Published differences of ~0.02 AUC
+on BBBP or BACE are not evidence about architecture: our entire six-model spread on BBBP/random
+is 0.012 AUC, *narrower than the 0.887–0.935 spread across the five published architectures*
+for the same dataset and split type.
+
+### 7.2 "Not separable" means two different things, and they should not be conflated
+
+- **BBBP, BACE, FreeSolv/random** — the models genuinely perform alike. Small gaps, small
+  spreads.
+- **FreeSolv/scaffold** — `linear` trails xgboost by 0.75 RMSE, a large gap, but its seed
+  spread is **±1.22**, larger than the gap itself. It is not that the two are equivalent; it
+  is that a 642-molecule scaffold split cannot rank the linear model at all. A single-seed
+  paper could show linear winning or losing by ~2 RMSE here purely by draw.
+
+Reporting only "not separable" would hide that distinction, so both are stated.
+
+### 7.3 Where the non-neural baselines beat published neural results
+
+Comparable only where the split type matches and the split has no tie-break ambiguity, i.e.
+the **random** cells. Published values from `published.py` (FP-GNN Table 1, arXiv:2205.03834).
+
+| cell | our best non-neural | best published | published worst |
+|---|---|---|---|
+| esol / random (RMSE) | **xgboost 0.5356** | HRGCN+ 0.563 | FP-GNN 0.675 |
+| freesolv / random (RMSE) | lightgbm 0.9441 | FP-GNN 0.905 | MoleculeNet/MPNN 1.150 |
+| bbbp / random (AUC) | rf 0.9299 | FP-GNN 0.935 | Attentive FP 0.887 |
+| bace / random (AUC) | **linear 0.9064** | Chemprop 0.898 | FP-GNN 0.881 |
+
+On **ESOL/random our tuned XGBoost beats every published model**, neural included. The
+sharpest single data point: Wu et al. report XGBoost at 0.582 on this exact cell and we get
+0.536 with the same model family — **a 0.046 improvement from tuning alone, which exceeds the
+gap between four of the six published models.** That is the audit's thesis in its own terms:
+a baseline's published number is substantially a function of how hard someone tuned it.
+
+On **BACE/random our logistic regression (0.9064) exceeds all four published values.**
+
+Caveat stated plainly: random splits differ by seed between studies, and our ±0.02–0.04 is the
+same order as the published spread. The defensible claim is that **our non-neural baselines
+land at or above the top of the published range**, not that any specific model was beaten by a
+specific margin.
+
+### 7.4 What the featuriser selection shows
+
+On both ESOL cells and FreeSolv/random every tree model independently selected a
+descriptor-containing featuriser (`morgan+desc` or `descriptors`), while `linear` and `knn`
+fell back to `maccs`. Physicochemical descriptors carry real signal for solubility and
+hydration free energy, and only the tree models exploit it. That is a mechanism for the ESOL
+gap, not merely a number — and it is visible only because the featuriser was searched under
+the same budget as the hyperparameters (§3.2) rather than fixed in advance.
+
+### 7.5 What this does not show
+
+- ClinTox and Lipophilicity were not run (§2).
+- No GNN was trained here. Neural numbers are quoted from their papers, as §3.5 states.
+  A GNN tuned as hard as these baselines might well separate on the classification sets.
+- The scaffold cells above use the **randomised** tie-break and are therefore *not*
+  comparable to published scaffold numbers. See §2b — that is what the `scaffold_det` pass
+  exists to supply.
 
 ## 5. Compute
 
