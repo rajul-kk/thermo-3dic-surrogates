@@ -18,6 +18,13 @@ There is an active, unresolved contradiction in the literature:
   "by a significant margin", and that fingerprint-enhanced GNNs beat all baselines on eight
   MoleculeNet datasets.
 
+**The contradiction is visible inside single papers, not only between them.** In FP-GNN's own
+Table 1 (arXiv:2205.03834), XGBoost — a non-neural baseline — beats the paper's proposed
+architecture on ESOL (0.582 vs 0.675 RMSE) and Lipophilicity (0.574 vs 0.625 RMSE), and ties
+the best model on BBBP random (0.926). On BACE random, FP-GNN (0.881) is beaten by XGBoost,
+HRGCN+ and Chemprop alike. These are quoted from the proposing paper, not measured here; see
+`published.py`.
+
 Both cannot be generally true. Contradictions of this shape almost always come from
 differences in **protocol** rather than differences in **method**:
 

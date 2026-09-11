@@ -70,7 +70,48 @@ P: List[Published] = [
               'arXiv:2205.03834 Table 1', 'best published value recorded here'),
     Published('freesolv', 'random', 'rmse', 'XGBoost', 1.025, 'non-neural',
               'arXiv:2205.03834 Table 1'),
+    Published('freesolv', 'random', 'rmse', 'FP-GNN', 0.905, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    # --- ESOL, random (RMSE, lower better). The proposing paper's own model is LAST here. ---
+    Published('esol', 'random', 'rmse', 'MoleculeNet (MPNN)', 0.580, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('esol', 'random', 'rmse', 'Chemprop (optimized)', 0.587, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('esol', 'random', 'rmse', 'Attentive FP', 0.587, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('esol', 'random', 'rmse', 'HRGCN+', 0.563, 'neural',
+              'arXiv:2205.03834 Table 1', 'best published value'),
+    Published('esol', 'random', 'rmse', 'XGBoost', 0.582, 'non-neural',
+              'arXiv:2205.03834 Table 1', 'beats Chemprop, Attentive FP and FP-GNN'),
+    Published('esol', 'random', 'rmse', 'FP-GNN', 0.675, 'neural',
+              'arXiv:2205.03834 Table 1', 'worst of the six in the proposing paper own table'),
+    # --- Lipophilicity, random (RMSE, lower better) ---
+    Published('lipophilicity', 'random', 'rmse', 'MoleculeNet (GraphConv)', 0.655, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('lipophilicity', 'random', 'rmse', 'Chemprop (optimized)', 0.563, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('lipophilicity', 'random', 'rmse', 'Attentive FP', 0.553, 'neural',
+              'arXiv:2205.03834 Table 1', 'best published value'),
+    Published('lipophilicity', 'random', 'rmse', 'HRGCN+', 0.603, 'neural',
+              'arXiv:2205.03834 Table 1'),
+    Published('lipophilicity', 'random', 'rmse', 'XGBoost', 0.574, 'non-neural',
+              'arXiv:2205.03834 Table 1', 'beats HRGCN+ and FP-GNN'),
+    Published('lipophilicity', 'random', 'rmse', 'FP-GNN', 0.625, 'neural',
+              'arXiv:2205.03834 Table 1'),
 ]
+
+# Where a non-neural model already wins in the published tables themselves.
+NONNEURAL_WINS_IN_PUBLISHED = """Read the quoted table rather than its abstract and the picture is already mixed, before this
+audit runs a single model. In FP-GNN's own Table 1 (arXiv:2205.03834), XGBoost -- a
+non-neural baseline -- beats the paper's proposed architecture on:
+
+  ESOL (random, RMSE)          XGBoost 0.582  vs  FP-GNN 0.675
+  Lipophilicity (random, RMSE) XGBoost 0.574  vs  FP-GNN 0.625
+  BBBP (random, ROC-AUC)       XGBoost 0.926  ties HRGCN+ 0.926, beats Chemprop 0.917
+
+and on BACE (random) FP-GNN (0.881) is beaten by XGBoost (0.889), HRGCN+ (0.891) and
+Chemprop (0.898). The contradiction this audit exists to adjudicate is therefore visible
+inside single papers, not only between them."""
 
 # The single most important thing in this file.
 SPLIT_LABEL_WARNING = """\
