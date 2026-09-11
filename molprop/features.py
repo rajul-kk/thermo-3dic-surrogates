@@ -54,8 +54,15 @@ def descriptors(smiles: List[str]) -> np.ndarray:
             except Exception:
                 v = 0.0
             out[i, j] = v
+    # Clip BEFORE the cast: RDKit's Ipc is routinely ~1e60, which overflows to +inf in
+    # float32. Cleaning in float64 and then casting re-introduces the inf the clean removed,
+    # and sklearn then rejects every trial that sampled a descriptor featuriser.
     out[~np.isfinite(out)] = 0.0
-    return out.astype(np.float32)
+    lim = np.finfo(np.float32).max / 4.0
+    np.clip(out, -lim, lim, out=out)
+    out = out.astype(np.float32)
+    out[~np.isfinite(out)] = 0.0
+    return out
 
 
 def morgan_plus_descriptors(smiles: List[str]) -> np.ndarray:

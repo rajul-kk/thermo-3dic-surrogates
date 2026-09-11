@@ -110,3 +110,19 @@ class TestProtocolControls:
         a = Result('d', 's', 'a', 'regression', scores=[float('nan')])
         b = Result('d', 's', 'b', 'regression', scores=[1.0])
         assert not separable(a, b)
+
+
+def test_featurisers_are_finite_and_float32():
+    """RDKit's Ipc descriptor is ~1e60 and overflows to +inf on the cast to float32.
+
+    A single inf makes sklearn reject every trial that sampled a descriptor featuriser,
+    so RF/kNN/linear silently got half the tuning budget of XGBoost/LightGBM -- which
+    breaks the matched-budget control the whole audit rests on.
+    """
+    from molprop.features import FEATURISERS
+    smiles = ['CCO', 'c1ccccc1', 'CC(=O)Oc1ccccc1C(=O)O',
+              'C1CCCCC1', 'CN1C=NC2=C1C(=O)N(C)C(=O)N2C']
+    for name, fn in FEATURISERS.items():
+        X = fn(smiles)
+        assert X.dtype == np.float32, name
+        assert np.isfinite(X).all(), f'{name} produced non-finite values'

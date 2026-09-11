@@ -92,6 +92,7 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
         best = (float('-inf') if ds.task == 'classification' else float('inf'), None, None)
         trials = 1 if model_name == 'trivial' else budget
         failures = 0
+        first_failure = None
         for _ in range(trials):
             fname = featurisers[int(rng.integers(len(featurisers)))]
             X = feats[fname]
@@ -107,15 +108,17 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
                 # strings, so every RF trial sampling max_features=0.3 raised) was caught
                 # this way rather than quietly biasing the result.
                 failures += 1
-                log.debug('%s trial failed: %s', model_name, exc)
+                if first_failure is None:
+                    first_failure = f'{type(exc).__name__}: {exc}'
                 continue
             if better(s, best[0], ds.task):
                 best = (s, (fname, params), mdl)
 
         if failures:
             log.warning('%s/%s/%s seed %d: %d/%d trials FAILED -- effective budget was '
-                        'smaller than other models, comparison may be unfair',
-                        ds.name, split_kind, model_name, seed, failures, trials)
+                        'smaller than other models, comparison may be unfair. First: %s',
+                        ds.name, split_kind, model_name, seed, failures, trials,
+                        first_failure)
         res.failed_trials += failures
         if best[1] is None:
             res.scores.append(float('nan'))
