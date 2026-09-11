@@ -91,30 +91,67 @@ cannot currently tell you whether they do.
 
 This paper makes the following contributions:
 
-1. An open **six-geometry benchmark of 275 3D-ICE simulations** covering single-die mobile
-   and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet assemblies with up
-   to six HBM stacks — with the full generation pipeline.
-2. **A demonstration that closed-form ridge regression solves this benchmark** (spatial
-   R² = 0.999), and that the result holds under extrapolation to unseen power patterns,
-   power magnitudes and ambient temperatures. Any neural architecture evaluated on data of
-   this kind must be compared against a linear model before its capacity is credited.
-3. **Spatially-detrended error as an evaluation metric.** We show raw MAE on 3D-IC thermal
-   data is dominated by a per-scenario scalar offset — 88% of variance here is explained by
-   the ambient input alone — and that detrending is required to measure spatial fidelity.
-4. **Identification of hotspot localisation as the discriminating metric.** Replacing
-   block-scalar power with a per-cell field — same budget, same cooling, same geometry —
-   leaves field R² largely intact (0.78–0.98) while collapsing hotspot localisation from
-   8–1442 µm to 4547–6044 µm on a 10 mm die. Field R² is dominated by the linear component
-   that needs no network; hotspot localisation is not, and is also the quantity thermal
-   design actually cares about.
-5. **Evidence that the result is structural, not a parameter-range artefact.** A full
-   regeneration on a physically grounded operating point raises the median spatial
-   gradient from 1.10 K to 10.77 K and still leaves ridge at R² > 0.94 on every split.
-   Configurations that *do* defeat the linear model turn out to be physically impossible.
-   We give the conditions a non-degenerate 3D-IC thermal benchmark must satisfy.
-6. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
+> **Revised 2026-09-11.** The previous list was written when ridge scored R² 0.999 and
+> the project had no dataset a linear model failed on. Both have changed: the 0.999 figure
+> was a stale pre-regime-fix number (§9.1a re-measures all six geometries at 0.89–0.99),
+> and §9.15b now has three datasets where ridge is the *worst* model tested. Contributions
+> 2 and 4 are narrowed accordingly; 7–9 are new.
+
+1. An open **benchmark of 335 3D-ICE simulations across eight package geometries** covering
+   single-die mobile and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet
+   assemblies with up to six HBM stacks — with the full generation pipeline, plus four
+   layout-randomised variants (180 further solves) introduced in §9.15.
+2. **A demonstration that closed-form ridge regression solves the fixed-placement
+   benchmark** at spatial R² 0.89–0.99 with no training and no GPU, holding under
+   extrapolation to unseen power patterns, magnitudes and ambient temperatures. Ridge's
+   margin over a 3-nearest-neighbour lookup is thin and sometimes negative (§9.1a), which
+   sharpens rather than weakens the point: if kNN is competitive, the benchmark is not
+   measuring operator learning.
+3. **Spatially-detrended error as an evaluation metric.** Raw MAE on 3D-IC thermal data is
+   dominated by a per-scenario scalar offset — 88% of variance here is explained by the
+   ambient input alone — so detrending is required to measure spatial fidelity at all.
+4. **Identification of hotspot localisation as a discriminating metric.** Replacing
+   block-scalar power with a per-cell field — same budget, cooling and geometry — leaves
+   field R² largely intact (0.78–0.98) while collapsing hotspot localisation from 8–1442 µm
+   to 4547–6044 µm on a 10 mm die. Under 5-fold CV, however, ridge still beat both FNO
+   configurations we trained on every hotspot metric (§9.12d), so this is a metric that
+   separates *tasks*, not a metric on which neural operators have been shown to win.
+5. **Evidence that the fixed-placement result is structural, not a parameter-range
+   artefact.** Regeneration on a physically grounded operating point raises the median
+   spatial gradient from 1.10 K to 10.77 K and still leaves ridge above R² 0.94 on every
+   split; configurations that *do* defeat the linear model turn out to be physically
+   impossible. We state the conditions a non-degenerate 3D-IC thermal benchmark must meet.
+6. **A supplied missing baseline for an external benchmark.** On IC-ThermBench
+   (arXiv:2608.23977) — which reports only neural models — the strongest linear baseline is
+   3.4–4.4× worse than Therm-FM, so that benchmark is *not* linear-solvable; we decompose
+   how much of the gap is attributable to layout conditioning versus material variation
+   (§9.13, §9.14). This is the control the benchmark's own paper omits.
+7. **A benchmark fix that works, with the failed attempt reported.** Randomising chiplet
+   placement moves the dataset out of the linear regime: on three shelf-layout geometries
+   ridge becomes the *worst* model tested, and on geometry6 its median spatial R² is
+   negative and its detrended error exceeds the signal (§9.15b). Rigid translation — the
+   obvious first attempt, and one that achieves better source movement than IC-ThermBench
+   by support-overlap IoU — does *not* work, and we report why (§9.15).
+8. **The finding that "linear-solvable" is a property of the input representation, not of
+   the dataset** (§9.15c). The same 45 files score linear R² 0.962 from the full per-cell
+   power field and −0.667 from the compact block-summary vector that surrogate papers
+   actually consume. Any claim that a benchmark is or is not linear-solvable is
+   ill-posed without naming the representation — including claims made earlier in this
+   paper.
+9. **A protocol for auditing surrogate benchmarks, and evidence it transfers.** The method —
+   fix the protocol, supply the missing non-neural baseline, report what survives — is
+   packaged as `scripts/baselines.py`, `scripts/layout_cv.py` and
+   `scripts/benchmark_linearity_audit.py`, and applied to a second field entirely
+   (molecular property prediction, `molprop/`) to test whether the result is about thermal
+   data or about how surrogate benchmarks are evaluated.
+10. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
    autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
    toolkit, released as infrastructure rather than as accuracy claims.
+
+**Stated plainly for examiners:** contributions 2, 7 and 8 are negative or corrective
+results. This paper's central claim is not that a new architecture is better; it is that the
+standard evaluation setup in this domain cannot distinguish a trained neural operator from a
+closed-form linear solve, that this is fixable, and that we fixed it and show the fix working.
 
 ---
 
