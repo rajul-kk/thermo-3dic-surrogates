@@ -27,3 +27,9 @@ docs/superpowers/
 # OS
 .DS_Store
 Thumbs.db
+
+goal.md
+
+# molprop local artifacts
+molprop/cache/
+molprop/results/
