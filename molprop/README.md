@@ -52,8 +52,8 @@ types:
 | BACE | binary classification | 1,513 | ROC-AUC | **yes** |
 | ESOL (delaney) | regression | 1,128 | RMSE | **yes** |
 | FreeSolv (SAMPL) | regression | 642 | RMSE | **yes** |
-| ClinTox | binary classification (2 tasks) | 1,478 | ROC-AUC | not yet — supported, not run |
-| Lipophilicity | regression | 4,200 | RMSE | not yet — supported, not run |
+| ClinTox | binary classification (2 tasks) | 1,480 | ROC-AUC | not yet — supported, not run |
+| Lipophilicity (`lipo`) | regression | 4,200 | RMSE | not yet — supported, not run |
 
 The first four are what the reported run covers; ClinTox and Lipophilicity are implemented and
 loadable but were left out to keep the matched-budget sweep inside a CPU-only time budget

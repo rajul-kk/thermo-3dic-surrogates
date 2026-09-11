@@ -186,3 +186,15 @@ def test_deterministic_scaffold_split_is_harder_and_seedless():
     det_te = set(a[2].tolist())
     overlap = len(rand_te & det_te) / len(rand_te | det_te)
     assert overlap < 0.5, f'the two splits should differ substantially (jaccard {overlap:.2f})'
+
+
+def test_published_dataset_keys_match_the_loader():
+    """A published row keyed 'lipophilicity' when the loader says 'lipo' is silently dead.
+
+    It would never match a cell, so the audit would print 'none recorded' and nobody would
+    notice the reference data existed.
+    """
+    from molprop.published import P
+    from molprop.data import DATASETS
+    unmatched = {p.dataset for p in P} - set(DATASETS)
+    assert not unmatched, f'published.py keys not in the loader: {unmatched}'

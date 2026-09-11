@@ -86,17 +86,17 @@ P: List[Published] = [
     Published('esol', 'random', 'rmse', 'FP-GNN', 0.675, 'neural',
               'arXiv:2205.03834 Table 1', 'worst of the six in the proposing paper own table'),
     # --- Lipophilicity, random (RMSE, lower better) ---
-    Published('lipophilicity', 'random', 'rmse', 'MoleculeNet (GraphConv)', 0.655, 'neural',
+    Published('lipo', 'random', 'rmse', 'MoleculeNet (GraphConv)', 0.655, 'neural',
               'arXiv:2205.03834 Table 1'),
-    Published('lipophilicity', 'random', 'rmse', 'Chemprop (optimized)', 0.563, 'neural',
+    Published('lipo', 'random', 'rmse', 'Chemprop (optimized)', 0.563, 'neural',
               'arXiv:2205.03834 Table 1'),
-    Published('lipophilicity', 'random', 'rmse', 'Attentive FP', 0.553, 'neural',
+    Published('lipo', 'random', 'rmse', 'Attentive FP', 0.553, 'neural',
               'arXiv:2205.03834 Table 1', 'best published value'),
-    Published('lipophilicity', 'random', 'rmse', 'HRGCN+', 0.603, 'neural',
+    Published('lipo', 'random', 'rmse', 'HRGCN+', 0.603, 'neural',
               'arXiv:2205.03834 Table 1'),
-    Published('lipophilicity', 'random', 'rmse', 'XGBoost', 0.574, 'non-neural',
+    Published('lipo', 'random', 'rmse', 'XGBoost', 0.574, 'non-neural',
               'arXiv:2205.03834 Table 1', 'beats HRGCN+ and FP-GNN'),
-    Published('lipophilicity', 'random', 'rmse', 'FP-GNN', 0.625, 'neural',
+    Published('lipo', 'random', 'rmse', 'FP-GNN', 0.625, 'neural',
               'arXiv:2205.03834 Table 1'),
 ]
 
