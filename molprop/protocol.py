@@ -52,6 +52,7 @@ class Result:
     scores: List[float] = field(default_factory=list)
     featuriser: Optional[str] = None
     seconds: float = 0.0
+    failed_trials: int = 0
 
     @property
     def mean(self) -> float:
@@ -90,6 +91,7 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
         rng = np.random.default_rng(seed)
         best = (float('-inf') if ds.task == 'classification' else float('inf'), None, None)
         trials = 1 if model_name == 'trivial' else budget
+        failures = 0
         for _ in range(trials):
             fname = featurisers[int(rng.integers(len(featurisers)))]
             X = feats[fname]
@@ -99,11 +101,22 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
                 mdl.fit(X[tr], y_all[tr])
                 s = score(y_all[va], _predict(mdl, X[va], ds.task), ds.task)
             except Exception as exc:
+                # Count failures: a silently-skipped trial means this model got a smaller
+                # effective budget than its competitors, which would invalidate the
+                # comparison. One such bug (numpy coercing a mixed hyperparameter list to
+                # strings, so every RF trial sampling max_features=0.3 raised) was caught
+                # this way rather than quietly biasing the result.
+                failures += 1
                 log.debug('%s trial failed: %s', model_name, exc)
                 continue
             if better(s, best[0], ds.task):
                 best = (s, (fname, params), mdl)
 
+        if failures:
+            log.warning('%s/%s/%s seed %d: %d/%d trials FAILED -- effective budget was '
+                        'smaller than other models, comparison may be unfair',
+                        ds.name, split_kind, model_name, seed, failures, trials)
+        res.failed_trials += failures
         if best[1] is None:
             res.scores.append(float('nan'))
             continue

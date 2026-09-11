@@ -8,9 +8,11 @@ import numpy as np
 
 def _space_rf(rng) -> Dict[str, Any]:
     return {'n_estimators': int(rng.choice([200, 400, 800])),
-            'max_depth': rng.choice([None, 8, 16, 32]),
+            'max_depth': [None, 8, 16, 32][int(rng.integers(4))],
             'min_samples_leaf': int(rng.choice([1, 2, 4, 8])),
-            'max_features': rng.choice(['sqrt', 'log2', 0.3]),
+            # Indexed rather than rng.choice on a mixed list: numpy coerces a mixed
+            # list to strings, turning 0.3 into np.str_('0.3'), which sklearn rejects.
+            'max_features': ['sqrt', 'log2', 0.3][int(rng.integers(3))],
             'n_jobs': -1}
 
 
@@ -29,8 +31,8 @@ def _space_linear(rng) -> Dict[str, Any]:
 
 def _space_knn(rng) -> Dict[str, Any]:
     return {'n_neighbors': int(rng.choice([1, 3, 5, 10, 20])),
-            'weights': rng.choice(['uniform', 'distance']),
-            'metric': rng.choice(['jaccard', 'euclidean'])}
+            'weights': str(rng.choice(['uniform', 'distance'])),
+            'metric': str(rng.choice(['jaccard', 'euclidean']))}
 
 
 def build(name: str, params: Dict[str, Any], task: str):
