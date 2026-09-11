@@ -82,9 +82,28 @@ Morgan r=2/2048), BBBP:
 
 **A 19-point AUC gap from the tie-break rule alone** — larger than most architecture gaps the
 literature reports, and roughly 14× the seed spread, so no amount of seed averaging within one
-convention reveals it. The deterministic figure lands essentially on the published RF baseline
-(≈0.71 in the MolCLR table), which is evidence that the deterministic convention is what
-published MoleculeNet numbers use.
+convention reveals it.
+
+**This is not merely our problem: it reproduces a spread that already exists in the published
+literature.** FP-GNN's Table 1 (arXiv:2205.03834) lists three BBBP results all labelled
+*scaffold*:
+
+| source (all labelled "scaffold split") | BBBP ROC-AUC |
+|---|---|
+| MoleculeNet (GraphConv), DeepChem splitter | **0.690** |
+| Chemprop (optimized) | 0.886 |
+| FP-GNN | **0.916** |
+
+a **22.6-point published spread under one split label** — and our two tie-break conventions
+(0.705 / 0.895), with model, features and data held fixed, very nearly bracket it. The
+deterministic value also lands within 0.02 of the MoleculeNet row, which is what one would
+expect if MoleculeNet's DeepChem-derived split is the deterministic convention.
+
+We do **not** claim this explains the whole published spread — we have not confirmed which
+convention Chemprop and FP-GNN used, and `published.py` records that explicitly rather than
+asserting a head-to-head. The defensible claim is narrower and still strong: *a difference of
+the same magnitude as the entire published spread is obtainable without changing the model at
+all.*
 
 Consequences for this audit, adopted as rules:
 

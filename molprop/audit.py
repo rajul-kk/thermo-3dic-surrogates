@@ -64,13 +64,22 @@ def main():
             others = [r for r in ordered[1:] if r.model != 'trivial']
             ties = [r.model for r in others if not separable(best, r)]
             print(f'best: {best.model}' + (f'  (not separable from: {", ".join(ties)})' if ties else ''))
-            pub = published.get(name, split)
-            if pub:
+            metric = 'roc_auc' if ds.task == 'classification' else 'rmse'
+            rows = published.for_cell(name, 'scaffold' if split == 'scaffold_det' else split,
+                                      metric)
+            if rows:
                 print('published for reference (quoted, not reproduced):')
-                for label, (val, src) in pub.items():
-                    print(f'  {label:<22}{val:>9.4f}   {src}')
+                for r in rows:
+                    kind = 'non-neural' if r.kind == 'non-neural' else ''
+                    print(f'  {r.model:<24}{r.value:>8.3f}  {kind:<11}{r.source}')
+                if split in ('scaffold', 'scaffold_det'):
+                    # Published 'scaffold' numbers differ by up to 22.6 points on BBBP purely
+                    # by tie-break convention, so this is not a like-for-like comparison.
+                    print('  [!] published "scaffold" rows are NOT mutually comparable; '
+                          'see published.SPLIT_LABEL_WARNING')
             else:
-                print('published reference: none recorded yet (see molprop/published.py)')
+                print('published reference: none recorded for this cell '
+                      '(see molprop/published.py)')
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, 'w') as f:
