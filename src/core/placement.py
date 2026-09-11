@@ -16,7 +16,7 @@ This module moves the sources. It translates a *chiplet* — a `DiePrint` togeth
 moves with its heat, changing the lateral material distribution and therefore the thermal
 operator itself. IC-ThermBench has that property; this benchmark lacked it.
 
-CORRECTION (2026-09-11, docs/report.md �9.15): rigid translation alone turned out NOT to be
+CORRECTION (2026-09-11, docs/report.md §9.15): rigid translation alone turned out NOT to be
 enough. Translating chiplets gives the layout only ~2 degrees of freedom each, and because
 the temperature field is laterally smooth a linear model handed the displacement covers it
 to first order -- ridge's error relative to the signal moved by <10% even at a support
