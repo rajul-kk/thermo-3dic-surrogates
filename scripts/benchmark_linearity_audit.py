@@ -91,54 +91,75 @@ def _rel_l2(pred: np.ndarray, true: np.ndarray) -> float:
     return float((num / den).mean())
 
 
+def _kfold(n: int, k: int, seed: int = 0):
+    idx = np.random.default_rng(seed).permutation(n)
+    return [np.asarray(p) for p in np.array_split(idx, k)]
+
+
 def audit(X: np.ndarray, Y: np.ndarray, name: str,
-          val_frac: float = 0.1, test_frac: float = 0.2) -> Dict[str, float]:
+          test_frac: float = 0.2, n_folds: int = 5,
+          X_test: np.ndarray = None, Y_test: np.ndarray = None) -> Dict[str, float]:
     """
     Run the audit on paired input/output fields. X: (N, P), Y: (N, Q), both flattened.
     Splits are contiguous (no shuffling) so a caller controls ordering.
     """
     t0 = time.time()
-    n = len(X)
-    n_test = max(1, int(round(test_frac * n)))
-    n_val = max(1, int(round(val_frac * (n - n_test))))
-    n_tr = n - n_test - n_val
-    if n_tr < 4:
-        raise ValueError(f'{name}: only {n} samples, too few to audit')
-
-    Xtr, Xva, Xte = X[:n_tr], X[n_tr:n_tr + n_val], X[n_tr + n_val:]
-    Ytr, Yva, Yte = Y[:n_tr], Y[n_tr:n_tr + n_val], Y[n_tr + n_val:]
+    # Transfer mode: fit entirely on X/Y, evaluate on a DIFFERENT dataset. Needed for
+    # IC-ThermBench S5, which is an evaluation-only OOD scope -- auditing it in-distribution
+    # (the first version of this script) measures a different and much easier question.
+    if X_test is not None:
+        Xtr, Ytr, Xte, Yte = X, Y, X_test, Y_test
+    else:
+        n = len(X)
+        n_test = max(1, int(round(test_frac * n)))
+        Xtr, Ytr = X[:n - n_test], Y[:n - n_test]
+        Xte, Yte = X[n - n_test:], Y[n - n_test:]
+    n_tr = len(Xtr)
+    if n_tr < 8:
+        raise ValueError(f'{name}: only {n_tr} training samples, too few to audit')
 
     dof = participation_ratio(Xtr)
 
-    def fit_eval(feat_tr, feat_va, feat_te, tag):
-        mu, sd = feat_tr.mean(0), feat_tr.std(0)
-        sd[sd < 1e-12] = 1.0
-        A = _with_intercept((feat_tr - mu) / sd)
-        Av = _with_intercept((feat_va - mu) / sd)
-        At = _with_intercept((feat_te - mu) / sd)
+    folds = _kfold(n_tr, min(n_folds, max(2, n_tr // 4)))
+
+    def cv_select(make_feats):
+        """Choose lambda by k-fold CV on the training split. Never touches test."""
         best = None
         for lam in LAMBDAS:
-            W = _ridge(A, Ytr, lam)
-            score = _spatial_r2(Av @ W, Yva)
-            if best is None or score > best[0]:
-                best = (score, lam, W)
-        _, lam, W = best
-        pred = At @ W
+            scores = []
+            for f in folds:
+                tr_i = np.setdiff1d(np.arange(n_tr), f)
+                Ftr, Fva = make_feats(tr_i, f)
+                mu, sd = Ftr.mean(0), Ftr.std(0)
+                sd[sd < 1e-12] = 1.0
+                W = _ridge(_with_intercept((Ftr - mu) / sd), Ytr[tr_i], lam)
+                scores.append(_spatial_r2(_with_intercept((Fva - mu) / sd) @ W, Ytr[f]))
+            m = float(np.nanmean(scores))
+            if best is None or m > best[0]:
+                best = (m, lam)
+        return best
+
+    def fit_eval(feat_tr, feat_te, lam, tag):
+        mu, sd = feat_tr.mean(0), feat_tr.std(0)
+        sd[sd < 1e-12] = 1.0
+        W = _ridge(_with_intercept((feat_tr - mu) / sd), Ytr, lam)
+        pred = _with_intercept((feat_te - mu) / sd) @ W
         return {f'{tag}_spatial_r2': _spatial_r2(pred, Yte),
                 f'{tag}_r2': _pooled_r2(pred, Yte),
                 f'{tag}_rel_l2': _rel_l2(pred, Yte),
                 f'{tag}_lambda': lam,
                 f'{tag}_params': int(W.size)}
 
-    out: Dict[str, float] = {'n_samples': n, 'n_train': n_tr,
-                             'in_cells': X.shape[1], 'out_cells': Y.shape[1],
+    out: Dict[str, float] = {'n_samples': n_tr + len(Xte), 'n_train': n_tr,
+                             'in_cells': Xtr.shape[1], 'out_cells': Ytr.shape[1],
                              'effective_dof': dof}
 
     # Dense operator: the exact solution form for a linear PDE with a fixed operator.
-    if X.shape[1] <= 20000:
-        out.update(fit_eval(Xtr, Xva, Xte, 'dense'))
+    if Xtr.shape[1] <= 20000:
+        _, lam_d = cv_select(lambda a, b: (Xtr[a], Xtr[b]))
+        out.update(fit_eval(Xtr, Xte, lam_d, 'dense'))
     else:
-        log.info('%s: %d input cells, skipping dense fit', name, X.shape[1])
+        log.info('%s: %d input cells, skipping dense fit', name, Xtr.shape[1])
 
     # PCA-restricted, with the WIDTH selected on validation. Sweeping k is what makes this
     # comparable across benchmarks whose sample counts differ by three orders of magnitude.
@@ -146,16 +167,15 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
     for k in PCA_GRID:
         if k > max(2, n_tr // 3):
             break
-        mu_p, basis = _pca(Xtr, k)
-        proj = lambda M: (M - mu_p) @ basis.T
-        cand = fit_eval(proj(Xtr), proj(Xva), proj(Xte), 'pca')
-        mu2, sd2 = proj(Xtr).mean(0), proj(Xtr).std(0)
-        sd2[sd2 < 1e-12] = 1.0
-        Wv = _ridge(_with_intercept((proj(Xtr) - mu2) / sd2), Ytr, cand['pca_lambda'])
-        vscore = _spatial_r2(_with_intercept((proj(Xva) - mu2) / sd2) @ Wv, Yva)
-        if best_pca is None or vscore > best_pca[0]:
-            best_pca = (vscore, k, cand)
-    _, k_best, cand = best_pca
+        def mk(a, b, _k=k):
+            mu_p, basis = _pca(Xtr[a], _k)
+            return (Xtr[a] - mu_p) @ basis.T, (Xtr[b] - mu_p) @ basis.T
+        cvscore, lam_k = cv_select(mk)
+        if best_pca is None or cvscore > best_pca[0]:
+            best_pca = (cvscore, k, lam_k)
+    _, k_best, lam_k = best_pca
+    mu_p, basis = _pca(Xtr, k_best)
+    cand = fit_eval((Xtr - mu_p) @ basis.T, (Xte - mu_p) @ basis.T, lam_k, 'pca')
     cand['pca_k'] = k_best
     out.update(cand)
 
@@ -201,6 +221,12 @@ def _icthermbench(scope: str) -> Tuple[np.ndarray, np.ndarray]:
     return X.astype(np.float64), y.reshape(len(y), -1).astype(np.float64)
 
 
+# Transfer pairs: fit on the source, score on the target without refitting. Mirrors
+# IC-ThermBench's own S5 protocol (frozen S4 model, unchanged preprocessing).
+TRANSFERS: Dict[str, Tuple[str, str]] = {
+    'icthermbench/S4->S5': ('level4', 'level5'),
+}
+
 REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     # This project, fixed placement (the regime §9.14 diagnoses).
     'ours/geometry1-fixed':   lambda: _ours('data/3d-ice', 'geometry1'),
@@ -215,7 +241,8 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     'icthermbench/S2': lambda: _icthermbench('level2'),
     'icthermbench/S3': lambda: _icthermbench('level3'),
     'icthermbench/S4': lambda: _icthermbench('level4'),
-    'icthermbench/S5': lambda: _icthermbench('level5'),
+    # S5 is deliberately absent here: it is an evaluation-only OOD scope, so auditing it
+    # in-distribution measures the wrong question. It is handled as a transfer pair below.
 }
 
 
@@ -247,6 +274,24 @@ def main():
             X, Y = X[:args.max_samples], Y[:args.max_samples]
         try:
             results[name] = audit(X, Y, name)
+        except Exception as exc:
+            log.error('%s: audit failed (%s)', name, exc)
+
+    for name, (src, tgt) in TRANSFERS.items():
+        if args.datasets is not None and not any(name.startswith(p) for p in args.datasets):
+            continue
+        try:
+            Xs, Ys = _icthermbench(src)
+            Xt, Yt = _icthermbench(tgt)
+        except Exception as exc:
+            log.warning('%s: unavailable (%s)', name, exc)
+            continue
+        if len(Xs) > args.max_samples:
+            Xs, Ys = Xs[:args.max_samples], Ys[:args.max_samples]
+        if len(Xt) > args.max_samples:
+            Xt, Yt = Xt[:args.max_samples], Yt[:args.max_samples]
+        try:
+            results[name] = audit(Xs, Ys, name, X_test=Xt, Y_test=Yt)
         except Exception as exc:
             log.error('%s: audit failed (%s)', name, exc)
 
