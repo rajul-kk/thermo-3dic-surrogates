@@ -1505,6 +1505,70 @@ Until at least (1) is done, results on this dataset should be read as characteri
 fixed-operator regime, and the honest scope of §9.1's finding is: *within the regime classical
 superposition methods already solve, a learned linear operator also solves it.*
 
+### 9.15 Implementing the fix: moving the sources is not enough — layout degrees of freedom are what matter (2026-09-11)
+
+§9.14b named "move the sources" as the primary fix. It was implemented
+(`src/core/placement.py`, `scripts/gen_moving_source_pilot.py`), three new pilots were
+generated as real 3D-ICE solves, and **the first attempt did not work.** The second did. The
+difference between them is the actual finding, and it corrects §9.14's framing.
+
+A chiplet is translated as a rigid unit — its `DiePrint` plus the `PowerBlock`s it contains —
+so in 2.5D geometries the silicon island moves with its heat and the lateral material map
+changes. Per-block *positions* are now exported and consumed by `scripts/baselines.py`; a
+baseline that could not see where the heat moved would be a strawman, not a fair test.
+(Verified no regression: fixed-placement geometry1 scores an unchanged 0.407 / 0.970.)
+
+**Results. `norm err` is det.MAE divided by that dataset's own signal σ, because moving the
+sources roughly doubles the spatial variance and raw det.MAE is therefore not comparable
+across rows:**
+
+| dataset | layout DOF | support IoU | σ (K) | det.MAE | **norm err** | spatial R² |
+|---|---|---|---|---|---|---|
+| geometry1, fixed (§9.1a) | 0 (amplitudes only) | 1.000 | 4.00 | 0.407 | **0.102** | 0.970 |
+| geometry1, rigid translate | 2 | 0.472 | 9.09 | 0.999 | **0.110** | 0.919 |
+| geometry1, independent blocks | 8 | 0.347 | 9.28 | 2.218 | **0.239** | **0.770** |
+| geometry4, fixed (§9.1a) | 0 (amplitudes only) | 1.000 | 2.63 | 0.320 | **0.122** | 0.891 |
+| geometry4, rigid translate | 4 | 0.735 | 5.92 | 0.755 | **0.128** | 0.962 |
+
+**Attempt 1 (rigid translation) failed.** Relative to the signal, ridge barely moved: +8% on
+geometry1, +5% on geometry4, and geometry4's spatial R² actually *improved* (0.891 → 0.962).
+This is despite geometry1's rigid-translate pilot reaching a support overlap of **IoU 0.472 —
+better source movement than IC-ThermBench's 0.449**. So the sources genuinely moved as much as
+theirs, and the benchmark still did not discriminate.
+
+**Attempt 2 (independent per-block placement) worked.** Giving the layout 8 degrees of freedom
+instead of 2 more than doubled ridge's relative error (0.102 → 0.239) and dropped spatial R²
+from 0.970 to 0.770. The distance-based baselines collapsed outright: kNN to R² 0.611,
+nearest-neighbour to **R² −0.294**, i.e. worse than predicting a constant.
+
+**The correction to §9.14: support-overlap is the wrong diagnostic; layout dimensionality is
+the right one.** IoU ordered these datasets wrongly — geometry1's rigid-translate pilot has a
+*lower* IoU (0.472) than the independent-block pilot needs to break ridge, yet it left ridge
+intact. The mechanism is that a rigid translation is a two-parameter family and the
+temperature field is laterally smooth, so a linear model handed the displacement covers it to
+first order (`T(x − d) ≈ T(x) − d·∇T`). Independent placement changes the *relative*
+arrangement of the sources, so the field's structure changes rather than merely shifting, and
+no first-order response in a handful of placement parameters suffices.
+
+This also explains IC-ThermBench without appeal to its material variation: its layouts come
+from a placement optimiser over ~20 chiplets, which is a high-dimensional layout space, not
+translations of one arrangement. §9.14's "chiplets move" framing was right about the symptom
+and wrong about the cause.
+
+**Status of the fix.** geometry1 with independent block placement is the first configuration
+in this project where a closed-form linear fit is clearly inadequate (R² 0.770, and the signal
+is 9.3 K, so 2.2 K of detrended error is real). That is a benchmark worth training a neural
+operator on, and it is the first one here of which that can be said. It does **not** rescue
+the original six-geometry dataset, whose results remain characterisations of a fixed-operator
+regime.
+
+**Two caveats stated plainly.** (a) 45 scenarios is a small sample for an 8-dimensional layout
+space; the degradation is unambiguous but the *absolute* numbers will move with more data.
+(b) Independent block placement is physically loose — real floorplans are not uniform random
+rectangles — so this is a benchmark-design demonstration, not a claim about realistic
+floorplans. Reproducing IC-ThermBench's approach properly would mean sampling from a placement
+optimiser, as ATPlace2.5D does.
+
 **Why a linear model wins.** Steady-state conduction with temperature-independent $k$ is a
 linear map from sources and boundary data to the temperature field:
 $T(x) = T_{amb} + \sum_b A_b(x) Q_b$, where the impedance $A_b$ is scenario-independent. Our

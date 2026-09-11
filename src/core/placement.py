@@ -14,8 +14,17 @@ confined to it cannot discriminate between surrogate architectures.
 This module moves the sources. It translates a *chiplet* — a `DiePrint` together with the
 `PowerBlock`s sitting on it — as a rigid unit, so that in 2.5D geometries the silicon island
 moves with its heat, changing the lateral material distribution and therefore the thermal
-operator itself. That is the property IC-ThermBench has (chiplets move between samples, mean
-pairwise support IoU 0.449) and this benchmark lacked.
+operator itself. IC-ThermBench has that property; this benchmark lacked it.
+
+CORRECTION (2026-09-11, docs/report.md �9.15): rigid translation alone turned out NOT to be
+enough. Translating chiplets gives the layout only ~2 degrees of freedom each, and because
+the temperature field is laterally smooth a linear model handed the displacement covers it
+to first order -- ridge's error relative to the signal moved by <10% even at a support
+overlap of IoU 0.472, which is MORE movement than IC-ThermBench's 0.449. What actually
+breaks a linear fit is layout DIMENSIONALITY: `random_block_placement` below, which places
+each block independently (8 DOF on geometry1), drops ridge's spatial R^2 from 0.970 to
+0.770 and doubles its relative error. Support-overlap metrics order these datasets wrongly;
+degrees of freedom order them correctly.
 
 The distinction matters and is the point of the experiment in
 `scripts/gen_moving_source_pilot.py`:
