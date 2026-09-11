@@ -88,6 +88,14 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
         if len(tr) < 10 or len(te) < 5:
             res.scores.append(float('nan'))
             continue
+        if ds.task == 'classification' and len(np.unique(y_all[te])) < 2:
+            # A single-class test split makes ROC-AUC undefined, so every score becomes NaN
+            # and the cell quietly reports nothing. That is a broken split, not a result.
+            log.error('%s/%s: test split is single-class (seed %d) -- ROC-AUC is undefined, '
+                      'so this cell cannot be scored. The split is broken, not the model.',
+                      ds.name, split_kind, seed)
+            res.scores.append(float('nan'))
+            continue
 
         rng = np.random.default_rng(seed)
         best = (float('-inf') if ds.task == 'classification' else float('inf'), None, None)

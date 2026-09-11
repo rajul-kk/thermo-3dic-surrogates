@@ -137,9 +137,12 @@ def scaffold_split_deterministic(smiles: List[str], frac: Tuple[float, float, fl
             scaf = smi
         groups.setdefault(scaf, []).append(i)
 
-    # Sort by group size descending, ties broken by first appearance in the file -- the
-    # deterministic convention. Train is filled first, so test receives the smallest groups.
-    sets = sorted(groups.values(), key=lambda g: (len(g), -g[0]), reverse=True)
+    # Sort by group size descending, ties by first appearance -- the deterministic convention.
+    # Train is filled first, so test receives the smallest groups. The tie term must be
+    # `g[0]`, not `-g[0]`: under reverse=True the negated form inverts the tie order and, on
+    # BBBP, hands the test set every positive molecule (pos_rate 1.000), which makes ROC-AUC
+    # undefined and silently NaNs the whole cell.
+    sets = sorted(groups.values(), key=lambda g: (len(g), g[0]), reverse=True)
     n = len(smiles)
     n_tr, n_va = int(frac[0] * n), int(frac[1] * n)
     tr, va, te = [], [], []

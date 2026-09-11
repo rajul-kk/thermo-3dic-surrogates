@@ -198,3 +198,19 @@ def test_published_dataset_keys_match_the_loader():
     from molprop.data import DATASETS
     unmatched = {p.dataset for p in P} - set(DATASETS)
     assert not unmatched, f'published.py keys not in the loader: {unmatched}'
+
+
+def test_deterministic_split_test_set_has_both_classes():
+    """A single-class test split silently NaNs every score in the cell.
+
+    The first implementation negated the tie-break term, which handed BBBP's test set every
+    positive molecule (pos_rate 1.000) and made ROC-AUC undefined for all six models.
+    """
+    from molprop.data import load, scaffold_split_deterministic
+    for name in ['bbbp', 'bace']:
+        ds = load(name)
+        y = ds.y if ds.y.ndim == 1 else ds.y[:, 0]
+        _, _, te = scaffold_split_deterministic(ds.smiles, (0.8, 0.1, 0.1))
+        assert len(np.unique(y[te])) == 2, (
+            f'{name}: deterministic test split is single-class '
+            f'(pos_rate {y[te].mean():.3f}) -- ROC-AUC would be undefined')
