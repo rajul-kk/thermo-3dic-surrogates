@@ -43,7 +43,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -88,7 +88,8 @@ def power_pca_features(train: List[dict], test: List[dict], n_comp: int
     return proj(train), proj(test)
 
 
-def feature_vector(meta: dict, block_keys: List[str]) -> np.ndarray:
+def feature_vector(meta: dict, block_keys: List[str],
+                   pos_keys: Optional[List[str]] = None) -> np.ndarray:
     """
     Build the scenario parameter vector.
 
@@ -96,14 +97,31 @@ def feature_vector(meta: dict, block_keys: List[str]) -> np.ndarray:
     to 1/h, so 1/h is the term that enters the temperature field linearly. Giving
     the linear models this feature is what makes `ridge` a fair — rather than
     strawman — baseline.
+
+    `pos_keys` are per-block `block_x_*` / `block_y_*` positions, added 2026-09-11 for the
+    moving-source datasets (docs/report.md §9.14). Once chiplet placement varies per
+    scenario, a baseline that only sees per-block POWER cannot know where the heat went, and
+    beating it would prove nothing. They are constant for fixed-placement datasets, where
+    the zero-variance guard in `predict_all` neutralises them.
     """
     htc = float(meta.get('htc', 0.0))
     feats = [float(meta.get(k, 0.0)) for k in block_keys]
+    for k in (pos_keys or []):
+        feats.append(float(meta.get(k, 0.0)))
     feats.append(htc)
     feats.append(1.0 / htc if htc > 0 else 0.0)
     feats.append(float(meta.get('t_ambient_kelvin', 298.15)))
     feats.append(float(meta.get('tsv_density', 0.0)))
     return np.asarray(feats, dtype=np.float64)
+
+
+def collect_position_keys(scenarios: List[dict]) -> List[str]:
+    """Union of per-block position metadata keys, sorted for determinism."""
+    keys = set()
+    for sc in scenarios:
+        keys.update(k for k in sc['meta']
+                    if k.startswith('block_x_') or k.startswith('block_y_'))
+    return sorted(keys)
 
 
 def collect_block_keys(scenarios: List[dict]) -> List[str]:
@@ -211,8 +229,13 @@ def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
     them, and this repo has already been bitten once by a duplicated metric
     definition living in a notebook.
     """
-    X_tr = np.stack([feature_vector(sc['meta'], block_keys) for sc in train])
-    X_te = np.stack([feature_vector(sc['meta'], block_keys) for sc in test])
+    # Per-block positions enter the feature vector whenever the dataset carries them.
+    # For fixed-placement data they are constant and the zero-variance guard below drops
+    # them; for moving-source data (docs/report.md 9.14) they are what tells the baseline
+    # where the heat actually went.
+    pos_keys = collect_position_keys(train + test)
+    X_tr = np.stack([feature_vector(sc['meta'], block_keys, pos_keys) for sc in train])
+    X_te = np.stack([feature_vector(sc['meta'], block_keys, pos_keys) for sc in test])
 
     if power_pca > 0:
         # Append a linear summary of the full power field so ridge sees the actual

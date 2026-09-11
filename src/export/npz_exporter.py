@@ -156,6 +156,26 @@ class NPZExporter:
             for block_name, power_wcm2 in nominal_blocks.items():
                 metadata[f'nominal_block_power_{block_name}'] = float(power_wcm2)
 
+        # Per-block POSITION (added 2026-09-11, docs/report.md §9.14). Until chiplet
+        # placement was randomised these were constant for a given geometry and carried no
+        # information, which is precisely the defect §9.14 diagnoses. With
+        # src/core/placement.py they vary per scenario, and a baseline that cannot see
+        # where the heat moved would be an unfair strawman rather than a fair comparison --
+        # so the positions are exported alongside the powers. They stay constant (and
+        # harmless) for fixed-placement datasets.
+        for block in geometry.power_blocks:
+            metadata[f'block_x_{block.name}'] = float(block.x)
+            metadata[f'block_y_{block.name}'] = float(block.y)
+
+        offsets = scenario_params.get('chiplet_offsets')
+        metadata['placement_randomized'] = bool(offsets)
+        if offsets:
+            # Raw offsets for auditing/reproduction; positions above are what models use.
+            for die_name, (dx, dy) in offsets.items():
+                key = die_name or 'blocks'
+                metadata[f'placement_dx_{key}'] = float(dx)
+                metadata[f'placement_dy_{key}'] = float(dy)
+
         # Add layer information
         layer_info = {}
         for i, layer in enumerate(geometry.layers):
