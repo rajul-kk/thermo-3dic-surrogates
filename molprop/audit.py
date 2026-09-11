@@ -25,7 +25,7 @@ def main():
     ap.add_argument('--datasets', nargs='+', default=['bbbp', 'bace', 'esol'],
                     choices=sorted(D.DATASETS))
     ap.add_argument('--splits', nargs='+', default=['scaffold', 'random'],
-                    choices=['scaffold', 'random'])
+                    choices=['scaffold', 'scaffold_det', 'random'])
     ap.add_argument('--models', nargs='+', default=DEFAULT_MODELS)
     ap.add_argument('--featurisers', nargs='+', default=DEFAULT_FEATS)
     ap.add_argument('--budget', type=int, default=24,

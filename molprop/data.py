@@ -115,6 +115,45 @@ def scaffold_split(smiles: List[str], frac: Tuple[float, float, float],
     return np.array(tr), np.array(va), np.array(te)
 
 
+def scaffold_split_deterministic(smiles: List[str], frac: Tuple[float, float, float]
+                                 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """DeepChem's ScaffoldSplitter ordering: no tie-breaking, so the split is fixed.
+
+    This is the split published MoleculeNet numbers are computed on, and it is far harder
+    than the randomised-tie-break version above: same model and features, BBBP RF scores
+    0.705 here against 0.895 there (see molprop/README.md). It takes no seed, because it
+    has no randomness -- which is itself the point.
+    """
+    from rdkit import Chem, RDLogger
+    from rdkit.Chem.Scaffolds import MurckoScaffold
+    RDLogger.DisableLog('rdApp.*')
+
+    groups: Dict[str, List[int]] = {}
+    for i, smi in enumerate(smiles):
+        try:
+            scaf = MurckoScaffold.MurckoScaffoldSmiles(
+                mol=Chem.MolFromSmiles(smi), includeChirality=False)
+        except Exception:
+            scaf = smi
+        groups.setdefault(scaf, []).append(i)
+
+    # Sort by group size descending, ties broken by first appearance in the file -- the
+    # deterministic convention. Train is filled first, so test receives the smallest groups.
+    sets = sorted(groups.values(), key=lambda g: (len(g), -g[0]), reverse=True)
+    n = len(smiles)
+    n_tr, n_va = int(frac[0] * n), int(frac[1] * n)
+    tr, va, te = [], [], []
+    for g in sets:
+        if len(tr) + len(g) > n_tr:
+            if len(va) + len(g) > n_va:
+                te += g
+            else:
+                va += g
+        else:
+            tr += g
+    return np.array(tr), np.array(va), np.array(te)
+
+
 def random_split(n: int, frac: Tuple[float, float, float],
                  seed: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Uniform random split -- the easier setting, and a prime suspect for the disagreement."""
@@ -128,6 +167,8 @@ def make_split(ds: Dataset, kind: str, seed: int,
     """Dispatch to scaffold or random splitting."""
     if kind == 'scaffold':
         return scaffold_split(ds.smiles, frac, seed)
+    if kind == 'scaffold_det':
+        return scaffold_split_deterministic(ds.smiles, frac)
     if kind == 'random':
         return random_split(len(ds.smiles), frac, seed)
     raise ValueError(f'unknown split {kind!r}')

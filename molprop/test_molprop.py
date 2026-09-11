@@ -167,3 +167,22 @@ def test_budget_counts_successful_trials_not_attempts():
     assert calls['n'] > 8, f'budget was not refilled after failures ({calls["n"]} attempts)'
     assert not res.budget_unmatched, 'budget should have been fillable within the cap'
     assert res.failed_trials > 0, 'failures should still be counted and reported'
+
+
+def test_deterministic_scaffold_split_is_harder_and_seedless():
+    """The published MoleculeNet 'scaffold split' is one fixed ordering, not a family.
+
+    Randomising the tie-break between equal-sized scaffold groups makes BBBP ~19 AUC points
+    easier for the same model, which is larger than most reported architecture gaps. Both
+    splits are legitimately scaffold-disjoint, so this is a protocol difference, not a bug.
+    """
+    from molprop.data import load, scaffold_split, scaffold_split_deterministic
+    ds = load('bbbp')
+    a = scaffold_split_deterministic(ds.smiles, (0.8, 0.1, 0.1))
+    b = scaffold_split_deterministic(ds.smiles, (0.8, 0.1, 0.1))
+    assert (a[2] == b[2]).all(), 'deterministic split must not vary between calls'
+
+    rand_te = set(scaffold_split(ds.smiles, (0.8, 0.1, 0.1), 0)[2].tolist())
+    det_te = set(a[2].tolist())
+    overlap = len(rand_te & det_te) / len(rand_te | det_te)
+    assert overlap < 0.5, f'the two splits should differ substantially (jaccard {overlap:.2f})'

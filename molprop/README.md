@@ -63,6 +63,40 @@ descriptors, and ECFP+descriptors concatenated. The featuriser is treated as par
 model and selected under the same budget, since "which fingerprint" is exactly the axis the
 fingerprint-vs-GNN papers differ on.
 
+## 2b. A protocol result found while building this: "scaffold split" is not one split
+
+Measured 2026-09-11, before any model comparison was run.
+
+Bemis-Murcko scaffold splitting groups molecules by scaffold and assigns whole groups to
+train/val/test. Most scaffolds are singletons (BBBP: 1,025 scaffold groups for 2,039
+molecules), so **the order in which equal-sized groups are assigned decides the split**, and
+that choice is not usually stated in papers.
+
+Two defensible conventions, same data, same scaffold-disjointness, same model (RF, 400 trees,
+Morgan r=2/2048), BBBP:
+
+| scaffold-split convention | BBBP test ROC-AUC |
+|---|---|
+| deterministic, ties by file order (DeepChem `ScaffoldSplitter`) | **0.705** |
+| randomised tie-break, 5 seeds | **0.895 ± 0.013** |
+
+**A 19-point AUC gap from the tie-break rule alone** — larger than most architecture gaps the
+literature reports, and roughly 14× the seed spread, so no amount of seed averaging within one
+convention reveals it. The deterministic figure lands essentially on the published RF baseline
+(≈0.71 in the MolCLR table), which is evidence that the deterministic convention is what
+published MoleculeNet numbers use.
+
+Consequences for this audit, adopted as rules:
+
+1. **`scaffold_det` is the split to use when comparing against published numbers.** The
+   randomised variant (`scaffold`) is statistically better — it has a variance estimate at all
+   — but its absolute numbers are **not comparable to published tables**, and this README's
+   earlier framing that they were is wrong.
+2. Both are reported, because the gap between them is itself a result: it bounds how much of
+   a published "scaffold split" difference can be protocol rather than method.
+3. This strengthens the audit's premise rather than undermining it. The literature
+   disagreement in §1 is exactly the shape of thing an unstated tie-break rule produces.
+
 ## 3. The protocol, which is the actual contribution
 
 Every control below exists because its absence is a plausible explanation for the published
