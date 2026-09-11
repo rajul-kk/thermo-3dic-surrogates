@@ -8,7 +8,8 @@
 > parametric input," with an *expected* MAE of < 2 K. Measurements on 2026-07-31 with
 > `scripts/baselines.py` showed closed-form ridge regression already reaches spatial
 > R² = 0.999 (geometry1) with detrended MAE 0.009 K — beating the < 2 K target before any
-> network was trained — on a dataset whose median within-scenario spatial range was 1.10 K
+> network was trained (that specific figure was itself later superseded by a dataset
+> correction; §9.1a carries the current numbers) — on a dataset whose median within-scenario spatial range was 1.10 K
 > against a 68 K between-scenario range, and whose "continuous" TSV input took four
 > discrete values. The paper below is the rewrite: a benchmark-and-negative-result paper,
 > not a PINN-accuracy paper. Three follow-on passes are folded into the sections below
@@ -35,9 +36,11 @@ generation pipeline needed to reproduce and extend it.
 
 Our principal finding is methodological and cautionary. Evaluating four non-neural
 baselines on this data, we find that **per-point ridge regression — a closed-form solve
-requiring no GPU and no training — reconstructs the spatial temperature field at R² = 0.999**,
-and extrapolates to unseen power patterns, unseen power magnitudes, and unseen ambient
-temperatures at R² > 0.9. This is not a defect of any particular architecture but a
+requiring no GPU and no training — reconstructs the spatial temperature field at
+R² = 0.89–0.99 across all six geometries**, and extrapolates to unseen power patterns,
+unseen power magnitudes, and unseen ambient temperatures at R² > 0.9. (An earlier draft
+reported R² = 0.999 from a superseded dataset; that figure is retracted — see §9.1a for the
+current measurement on every geometry.) This is not a defect of any particular architecture but a
 consequence of the physics: steady-state conduction is linear in the volumetric sources and
 in ambient temperature, and when a scenario space is parameterised by a handful of block
 powers and boundary scalars, the entire solution manifold is low-dimensional and nearly
@@ -63,8 +66,20 @@ source made function-valued — leaves the linear model's field-level R² largel
 one of a few fixed positions and "predicting" it is memorising a short list; with a
 continuous field it must be computed. This isolates where an operator surrogate can earn
 its cost, and implies such work should be judged on **hotspot localisation rather than
-field R²**, since field R² is dominated by the linear component that needs no network. We
-release the dataset, baselines, and OOD split tooling so future surrogate claims can be
+field R²**, since field R² is dominated by the linear component that needs no network.
+
+Finally, we show the problem is fixable and fix it. Randomising chiplet *placement* per
+scenario — so that the thermal operator itself varies rather than only its inputs — moves
+the benchmark out of the linear regime: across three re-laid-out geometries, cross-validated
+over 45 scenarios each, ridge becomes the **worst** of the four baselines, and on the densest
+package its median spatial R² is negative and its detrended error exceeds the signal it is
+predicting. The obvious first attempt — translating each chiplet rigidly — does *not* work
+despite achieving greater source movement than an external benchmark by support-overlap
+measures, and we report why. We also find that **"linearly solvable" is a property of the
+input representation rather than of the dataset**: the same files admit a linear fit at
+R² 0.96 from the full per-cell power field and fail at R² −0.67 from the compact
+block-summary vector that surrogate models are conventionally given. We release the dataset,
+baselines, cross-validation and linearity-audit tooling so future surrogate claims can be
 checked against a linear model before an architecture is credited.
 
 ---
