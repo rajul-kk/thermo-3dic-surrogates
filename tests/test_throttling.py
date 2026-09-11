@@ -1,14 +1,5 @@
 """
-Package-level thermal throttling (DVFS): the first mechanism in this
-benchmark where power is a function of the temperature field being solved
-for, rather than a fixed scenario input. Real chips do this (Tjmax-triggered
-power derating); every other change so far (per-cell power, TSV fields,
-underfill layouts, microchannel cooling at fixed flow) keeps the source
-fixed per scenario.
-
-These tests use a stub simulator (no real 3D-ICE needed) whose peak
-temperature is a deterministic function of total requested power, so the
-derate/convergence math can be checked exactly.
+Package-level thermal throttling (DVFS): the first mechanism in this benchmark where power is a function of the temperature field being solved
 """
 from __future__ import annotations
 

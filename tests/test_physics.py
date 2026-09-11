@@ -1,11 +1,4 @@
-"""
-Analytic checks on the PINN physics kernel.
-
-The PDE residual is the one piece of this codebase with no independent oracle --
-if its chain rule or unit conversion is wrong, training silently optimises the
-wrong objective and every downstream number is invalid. These tests pin it
-against closed-form solutions on manufactured temperature fields.
-"""
+"""Analytic checks on the PINN physics kernel."""
 
 from __future__ import annotations
 
@@ -27,12 +20,7 @@ GEOM = (1000.0, 1000.0, 500.0)          # L_x, L_y, L_z in µm
 
 
 class AnalyticField(nn.Module):
-    """
-    Model stub returning a prescribed closed-form normalised temperature.
-
-    `fn` maps normalised coords (N,3) -> normalised temperature (N,), so the
-    exact derivatives are known and the residual can be checked analytically.
-    """
+    """Model stub returning a prescribed closed-form normalised temperature."""
 
     def __init__(self, fn):
         super().__init__()
@@ -118,18 +106,7 @@ def test_source_term_sign_is_positive():
 # ── The quantitative check: does div(k grad T) carry the right units? ──────────
 
 def test_quadratic_field_matches_analytic_divergence():
-    """
-    Manufactured solution: T_hat = c * z_hat^2, constant k, no source.
-
-    In physical units T(z) = c * T_range * (z/L_z)^2 + T_min, so
-
-        d2T/dz2 = 2 * c * T_range / L_z^2      [K/um^2]
-        div(k grad T) = k * 2 * c * T_range / L_z^2
-
-    The residual must equal that. This is the test that pins the chain rule:
-    an extra or missing factor of T_range (or of L_z) shows up here and nowhere
-    in the zero-residual tests above.
-    """
+    """Manufactured solution: T_hat = c * z_hat^2, constant k, no source."""
     c, k = 0.25, 100.0
     r, _ = run_residual(lambda cc: c * cc[:, 2] ** 2, k_value=k)
     expected = k * 2.0 * c * T_RANGE / (GEOM[2] ** 2)

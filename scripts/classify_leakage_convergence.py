@@ -1,21 +1,5 @@
 """
-Turn the eyeballed "total nominal power >~271W predicts leakage runaway" observation
-(scripts/analyze_leakage_convergence.py) into an actual fitted, cross-validated
-classifier, using only features known BEFORE the leakage feedback loop runs (total
-nominal power, HTC, ambient temperature, leakage_fraction, k_double_c) -- i.e. features
-that would let you predict "will this operating point even have a steady state?"
-without paying for the iterative 3D-ICE solve at all.
-
-Deliberately excludes leakage_iterations/leakage_multiplier -- those are OUTPUTS of the
-feedback loop, not predictors; a classifier trained on them would be cheating.
-
-Small-sample caveat stated up front: n=20 (growing to n=45 as
-data/3d-ice-leakage-pilot/geometry1 fills in, see gen_leakage_pilot.py --extra-train).
-Leave-one-out CV is used specifically because a train/test split would be meaningless at
-this sample size.
-
-Usage:
-    python scripts/classify_leakage_convergence.py --data data/3d-ice-leakage-pilot/geometry1
+Turn the eyeballed "total nominal power >~271W predicts leakage runaway" observation (scripts/analyze_leakage_convergence.py) into an actual fitted, cross-validated
 """
 import argparse
 import glob

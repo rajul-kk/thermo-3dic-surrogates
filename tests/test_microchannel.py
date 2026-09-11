@@ -1,19 +1,5 @@
 """
-Microchannel liquid cooling: an opt-in `cooling_mode='microchannel_2rm'` scenario
-mode that replaces the idealised `bottom heat sink` boundary condition with an
-explicitly modelled 3D-ICE 4.0 `microchannel 2rm` coolant layer.
-
-This is the one change in the benchmark that is NOT confined to the linear
-conduction regime every other fix operates in (per-cell power, TSV fields,
-underfill layouts) -- advection along the coolant flow direction is not linear
-in the boundary data the way a fixed HTC scalar is. See goal.md.
-
-Validated against the real 3D-ICE 4.0 binary at geometry6's ~455W core-fraction
-TDP ceiling (stable, peak 167.4 C -- see goal.md for the full result and the
-honest caveat that the illustrative coolant parameters used there ran hotter
-than an air-cooled comparison, i.e. this proves the mechanism works, not that
-the chosen parameters are a good cooler). These tests check the .stk emission
-mechanics without requiring the real executable.
+Microchannel liquid cooling: an opt-in `cooling_mode='microchannel_2rm'` scenario mode that replaces the idealised `bottom heat sink` boundary condition with an
 """
 from __future__ import annotations
 
@@ -111,12 +97,7 @@ def test_default_cooling_mode_is_unaffected():
 
 
 def test_geometry_without_coolant_layer_name_raises_loudly():
-    """
-    coolant_layer_name=None (the default) means no layer can become a channel.
-    Silently falling back would skip 'bottom heat sink' (cooling_mode requested
-    it) without ever emitting a 'channel' element either -- an ill-posed
-    problem with no heat-rejection boundary at all. Must fail loudly instead.
-    """
+    """coolant_layer_name=None (the default) means no layer can become a channel."""
     geometry = build_geometry1()
     assert geometry.coolant_layer_name is None
     with pytest.raises(ValueError, match="coolant_layer_name"):

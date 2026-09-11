@@ -1,10 +1,4 @@
-"""
-Validate a generated NPZ dataset for shape, key, and physical correctness.
-
-Usage:
-    python scripts/validate_dataset.py data/mock
-    python scripts/validate_dataset.py data/3d-ice --strict
-"""
+"""Validate a generated NPZ dataset for shape, key, and physical correctness."""
 
 import sys
 import argparse

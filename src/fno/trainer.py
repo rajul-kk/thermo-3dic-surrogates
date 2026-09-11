@@ -1,29 +1,4 @@
-"""
-FNO training loop.
-
-Unlike the PINN, this is pure data-driven training — no PDE collocation, no
-autograd second derivatives, no curriculum staging. The FNO is a regression
-model: minimise MSE(T_pred, T_3DICE) over the full 3D field.
-
-The relative L2 loss (rL2) normalises by ||T_true||₂ per sample so that
-low-power scenarios (small absolute temperatures) contribute equally to
-high-power scenarios. This is standard for neural operator training and
-prevents the model from ignoring cold scenarios.
-
-Loss: L = mean_over_batch(||T_pred - T_true||₂ / ||T_true||₂)
-
-Optimiser: AdamW with weight decay 1e-4 (FNO complex weights need regularisation
-to prevent spectral overfitting). Cosine LR schedule, no warm restarts needed
-since the loss landscape is smooth compared to the PINN.
-
-Mixed precision: enabled for CUDA. The complex spectral weights stay in float32;
-only the real-valued activations use float16 (torch handles this automatically
-via autocast).
-
-Memory note: one 3D field at float32 for grid (100,100,40) = 1.6MB. Batch of 4
-= 6.4MB. Negligible compared to the 200MB activation memory for the FNO layers
-themselves. Batch size of 4 fits comfortably on 8GB GPU.
-"""
+"""FNO training loop."""
 
 import logging
 import time
@@ -45,11 +20,7 @@ _log = logging.getLogger(__name__)
 
 
 def relative_l2_loss(T_pred: torch.Tensor, T_true: torch.Tensor) -> torch.Tensor:
-    """
-    Relative L2 loss per sample, averaged over batch.
-
-    T_pred, T_true: (B, nx, ny, nz)
-    """
+    """Relative L2 loss per sample, averaged over batch."""
     diff_norm = (T_pred - T_true).flatten(1).norm(dim=1)           # (B,)
     true_norm = T_true.flatten(1).norm(dim=1).clamp(1e-8)         # (B,)
     return (diff_norm / true_norm).mean()
@@ -66,34 +37,7 @@ def mae_kelvin(
 
 
 class FNOTrainer:
-    """
-    Trains FNO3d (or CondFNO3d) on a fixed-geometry dataset.
-
-    PI-FNO support: set pde_weight > 0 to add the finite-difference PDE
-    residual loss.  Requires `geometry` to be passed so cell spacings and
-    layer conductivities can be computed.  The PI loss is computed in FP32
-    regardless of AMP setting (F.pad and float arithmetic stay in FP32 under
-    autocast, so this is free).
-
-    Args:
-        model:        FNO3d or CondFNO3d instance
-        norm_stats:   global normalisation constants (shared with PINN)
-        train_data:   FNODataset with training scenarios
-        val_data:     FNODataset with test scenarios
-        output_dir:   directory for checkpoints and logs
-        batch_size:   scenarios per training step (4 is the standard)
-        epochs:       training epochs
-        lr:           initial learning rate
-        weight_decay: AdamW weight decay (regularises spectral weights)
-        device:       training device
-        pde_weight:   λ for whole-volume finite-difference PDE loss (0 = pure
-                      data-driven baseline FNO)
-        flux_weight:  λ for interface-isolated flux-continuity loss (0 =
-                      disabled). Independent of pde_weight — can be used
-                      alone or combined. See interface_flux_loss() docstring.
-        geometry:     geometry object (required when pde_weight > 0 or
-                      flux_weight > 0)
-    """
+    """Trains FNO3d (or CondFNO3d) on a fixed-geometry dataset."""
 
     def __init__(
         self,

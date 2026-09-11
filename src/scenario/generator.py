@@ -1,12 +1,4 @@
-"""
-Scenario generator for benchmark thermal simulations.
-
-Generates training and test scenarios with parameter sweeps:
-- Power density variations
-- Heat transfer coefficient (HTC) variations
-- Ambient temperature variations
-- Power distribution patterns
-"""
+"""Scenario generator for benchmark thermal simulations."""
 
 from typing import Dict, List, Any
 from dataclasses import dataclass, field
@@ -18,19 +10,7 @@ from ..core.geometry import Geometry
 
 @dataclass
 class ScenarioParameters:
-    """
-    Parameters for a single thermal scenario.
-
-    Attributes:
-        name: Scenario identifier
-        geometry_name: Associated geometry name
-        scenario_type: 'train' or 'test'
-        power_blocks: Dictionary mapping block names to power densities (W/cm²)
-        htc: Heat transfer coefficient (W/m²·K)
-        t_ambient: Ambient temperature (°C)
-        pattern: Power distribution pattern name
-        description: Human-readable description
-    """
+    """Parameters for a single thermal scenario."""
     name: str
     geometry_name: str
     scenario_type: str  # 'train' or 'test'
@@ -82,39 +62,7 @@ class ScenarioParameters:
 
 
 class ScenarioGenerator:
-    """
-    Generate training and test scenarios for thermal benchmarks.
-
-    Creates parameter sweeps across power density, HTC, ambient and spatial pattern.
-
-    Operating regime (revised 2026-07-31)
-    -------------------------------------
-    The original ranges (0.1-20 W/cm2, HTC 1000-10000, ambient 25-65 C) produced a
-    SPATIALLY DEGENERATE dataset: median within-scenario spatial dT was 1.10 K against
-    a 68 K between-scenario range, and 88% of temperature variance was explained by the
-    ambient input alone. Closed-form ridge regression reconstructed the field at
-    spatial R2 = 0.999, so the benchmark could not discriminate between architectures.
-    See docs/report.md 9.2.
-
-    Three coupled changes fix the regime:
-
-    1. POWER up ~15x. Self-heating scales with total power. The old peak of 20 W/cm2
-       was far below the 100-300 W/cm2 of real CPU hotspots (references.md already
-       flagged this as conservative); the consequence was that self-heating (0.1-36 K)
-       never dominated the ambient sweep.
-
-    2. HTC up. The fraction of the temperature drop that appears as SPATIAL structure
-       (rather than a uniform offset) is R_cond / (R_cond + R_conv), and R_conv = 1/h.
-       For the geometry1 stack R_cond ~ 7.9e-5 m2K/W, so h=1000 puts only ~7% of the
-       drop inside the stack while h=50000 puts ~80% there. Low HTC was actively
-       flattening the field.
-
-    3. AMBIENT narrowed to 25-45 C. A 60 K ambient sweep swamped a 0.1-36 K
-       self-heating signal; real datacentre inlet air is 15-45 C anyway.
-
-    Together these target a junction rise of roughly 40-90 K with spatial gradients of
-    tens of K, instead of ~1 K.
-    """
+    """Generate training and test scenarios for thermal benchmarks."""
 
     # Thermal design power per package class, in watts.
     #
@@ -253,12 +201,7 @@ class ScenarioGenerator:
         self._active_block_area_cm2: Dict[str, float] = {}
 
     def _set_active_geometry(self, geometry: Geometry) -> None:
-        """
-        Select the TDP budget and block areas for `geometry`.
-
-        Must precede any _apply_pattern call: the pattern needs block areas to
-        convert a total-watt budget into per-block W/cm2.
-        """
+        """Select the TDP budget and block areas for `geometry`."""
         self._active_tdp_w = self.TDP_BY_GEOMETRY_W.get(
             geometry.name, self.TDP_DEFAULT_W)
         # Block areas in cm2 (geometry dimensions are in µm; 1 cm2 = 1e8 µm2).
@@ -269,12 +212,7 @@ class ScenarioGenerator:
 
     def _enforce_cooling_adequacy(
             self, scenarios: List[ScenarioParameters]) -> List[ScenarioParameters]:
-        """
-        Raise each scenario's HTC to match its peak power density.
-
-        Applied last, after power maps exist, so it sees the true peak including
-        the per-geometry power scale. Mutates and returns the same list.
-        """
+        """Raise each scenario's HTC to match its peak power density."""
         for s in scenarios:
             if not s.power_blocks:
                 continue
@@ -302,21 +240,7 @@ class ScenarioGenerator:
                           kind: str = 'mixed',
                           resolution: int = 0,
                           seed_base: int = 0) -> List[ScenarioParameters]:
-        """
-        Replace each scenario's block powers with a per-cell power map.
-
-        The TDP budget, the silicon density ceiling and the cooling-adequacy rule
-        all still apply -- the map only changes HOW the budget is distributed in
-        space, not how much there is. `power_blocks` is recomputed from the map so
-        anything summarising a scenario by block keeps working.
-
-        Args:
-            scenarios:  Scenarios to modify in place.
-            geometry:   Geometry supplying die extents and active layers.
-            kind:       Power map family (see src/scenario/power_maps.py).
-            resolution: Map resolution per axis; defaults to the lateral mesh.
-            seed_base:  Offset so different splits get different maps.
-        """
+        """Replace each scenario's block powers with a per-cell power map."""
         from .power_maps import generate_power_map
 
         self._set_active_geometry(geometry)
@@ -388,14 +312,7 @@ class ScenarioGenerator:
     def attach_tsv_maps(self, scenarios: List[ScenarioParameters], geometry: Geometry,
                         resolution: int = 32, contrast: float = 0.8,
                         seed_base: int = 0) -> List[ScenarioParameters]:
-        """
-        Give each scenario a spatially varying TSV density field.
-
-        Replaces the geometry's single `tsv_density` scalar on every TSV layer.
-        The mean is preserved, so a scenario's overall TSV budget is unchanged --
-        only its spatial distribution varies. `contrast=0` reproduces the old
-        uniform behaviour exactly.
-        """
+        """Give each scenario a spatially varying TSV density field."""
         from .tsv_maps import generate_tsv_density_map
 
         tsv_layers = [l.name for l in geometry.layers if 'tsv' in l.name.lower()]
@@ -416,20 +333,7 @@ class ScenarioGenerator:
     def attach_throttling(self, scenarios: List[ScenarioParameters],
                           throttle_temp_c: float = 95.0, gain: float = 2.0,
                           power_floor: float = 0.3) -> List[ScenarioParameters]:
-        """
-        Enable package-level thermal throttling (DVFS) on each scenario.
-
-        Real chips reduce power when the hottest point on the package exceeds a
-        junction-temperature limit -- power becomes a function of the very
-        temperature field being solved for, a closed feedback loop no fixed
-        power source can express. Every other mechanism in this benchmark
-        (per-cell power, TSV fields, underfill layouts, even microchannel
-        cooling at fixed flow rate) still maps a scenario-fixed source to a
-        temperature field; this is the first one that doesn't. Applied by
-        main.py's process_scenario via src/scenario/throttling.py, which
-        iteratively re-solves and derates -- not implemented here, since it
-        requires calling the simulator multiple times per scenario.
-        """
+        """Enable package-level thermal throttling (DVFS) on each scenario."""
         for s in scenarios:
             s.throttle_enabled = True
             s.throttle_temp_c = throttle_temp_c
@@ -438,26 +342,12 @@ class ScenarioGenerator:
         return scenarios
 
     def _clamp_bc(self, htc: float, ambient_c: float) -> tuple:
-        """
-        Bring a pool entry's boundary conditions into the current regime.
-
-        The extra-scenario pools are literal tables written for the old power
-        levels; unclamped they pair scaled power with HTCs as low as 500 W/m2K
-        and ambients up to 75 C, which produced a 273 C junction on geometry2a.
-        """
+        """Bring a pool entry's boundary conditions into the current regime."""
         return (min(max(htc, self.MIN_HTC), self.MAX_HTC),
                 min(ambient_c, self.MAX_AMBIENT_C))
 
     def generate_all_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
-        """
-        Generate all scenarios (train + test) for a geometry.
-
-        Args:
-            geometry: Geometry object
-
-        Returns:
-            List of ScenarioParameters (15 training + 5 test = 20 scenarios)
-        """
+        """Generate all scenarios (train + test) for a geometry."""
         self._set_active_geometry(geometry)
         scenarios = []
 
@@ -478,15 +368,7 @@ class ScenarioGenerator:
         return scenarios
 
     def generate_training_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
-        """
-        Generate 15 training scenarios with diverse parameter combinations.
-
-        Strategy:
-        - Cover all power patterns (6 patterns including extreme_hotspot)
-        - Vary power levels, HTC, and ambient temperature
-        - Include 5 extreme scenarios for PINN robustness (Tier 1 improvement)
-        - Ensure good coverage of parameter space
-        """
+        """Generate 15 training scenarios with diverse parameter combinations."""
         self._set_active_geometry(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
@@ -712,11 +594,7 @@ class ScenarioGenerator:
         return scenarios
 
     def generate_test_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
-        """
-        Generate 5 test scenarios with interpolation values.
-
-        Use parameter values NOT in training set to test PINN generalization.
-        """
+        """Generate 5 test scenarios with interpolation values."""
         self._set_active_geometry(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
@@ -786,20 +664,7 @@ class ScenarioGenerator:
     def _apply_pattern(self, block_names: List[str], pattern: str,
                       base_power: float,
                       rdl_joule_fraction: float = 0.05) -> Dict[str, float]:
-        """
-        Apply power distribution pattern to blocks.
-
-        Args:
-            block_names: List of power block names
-            pattern: Pattern type ('uniform', 'hotspot', 'checkerboard', 'gradient',
-                                   'dual_hotspot', 'extreme_hotspot')
-            base_power: Base power level to scale the pattern. Multiplied by
-                POWER_SCALE here, so callers keep using the original relative
-                numbers and every pattern shifts regime together.
-
-        Returns:
-            Dictionary mapping block names to power densities in W/cm²
-        """
+        """Apply power distribution pattern to blocks."""
         n_blocks = len(block_names)
         power_map = {}
 
@@ -934,13 +799,7 @@ class ScenarioGenerator:
 
     def _normalise_to_tdp(self, power_map: Dict[str, float],
                           workload: float) -> Dict[str, float]:
-        """
-        Rescale a relative power map so total dissipation equals workload x TDP.
-
-        The pattern fixes the spatial distribution; this fixes the total. Blocks with
-        no known area (or a degenerate map) are left untouched rather than silently
-        divided by zero.
-        """
+        """Rescale a relative power map so total dissipation equals workload x TDP."""
         target_w = self._active_tdp_w * workload * self.CORE_FRACTION_OF_TDP
         current_w = sum(p * self._active_block_area_cm2.get(n, 0.0)
                         for n, p in power_map.items())
@@ -1057,23 +916,7 @@ class ScenarioGenerator:
         start_index: int = 16,
         pool_start_idx: int = 0,
     ) -> List[ScenarioParameters]:
-        """
-        Generate n_extra additional training scenarios starting at start_index.
-
-        Uses a fixed parameter pool that fills gaps in the original 15 scenarios:
-        denser HTC coverage (500–15000), more power levels, random_smooth pattern,
-        and extra split-chiplet scenarios for 2.5D geometries.
-
-        Args:
-            geometry:      Target geometry.
-            n_extra:       Number of extra scenarios to generate.
-            start_index:   File index for the first scenario (e.g. 16 if 15 exist).
-            pool_start_idx: Index into the pool to start drawing from (default 0).
-                           Use this to avoid duplicating scenarios from a prior call.
-
-        Returns:
-            List of n_extra ScenarioParameters.
-        """
+        """Generate n_extra additional training scenarios starting at start_index."""
         self._set_active_geometry(geometry)
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
         pool = (self._EXTRA_POOL_2P5D
@@ -1119,13 +962,7 @@ class ScenarioGenerator:
         return scenarios
 
     def save_to_yaml(self, output_dir: Path, geometry_name: str) -> None:
-        """
-        Save scenarios to YAML file.
-
-        Args:
-            output_dir: Output directory for YAML files
-            geometry_name: Geometry identifier
-        """
+        """Save scenarios to YAML file."""
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1149,15 +986,7 @@ class ScenarioGenerator:
         print(f"Saved {len(geom_scenarios)} scenarios to {output_file}")
 
     def load_from_yaml(self, yaml_file: Path) -> List[ScenarioParameters]:
-        """
-        Load scenarios from YAML file.
-
-        Args:
-            yaml_file: Path to YAML file
-
-        Returns:
-            List of ScenarioParameters
-        """
+        """Load scenarios from YAML file."""
         with open(yaml_file, 'r') as f:
             data = yaml.safe_load(f)
 

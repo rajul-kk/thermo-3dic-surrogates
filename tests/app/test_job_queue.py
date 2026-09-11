@@ -1,14 +1,5 @@
 """
-JobQueue's simulator was previously hardcoded (ICESimulator constructed
-directly inside _run_job), so no test could exercise the real job pipeline
--- process_scenario, NPZExporter, StatisticsCalculator -- without a real
-3D-ICE/WSL install. tests/app/test_smoke.py works around this by replacing
-the entire _run_job method with a hand-rolled fake, which means it never
-actually exercises process_scenario or the export/stats path at all.
-
-simulator_factory is a proper injection point: only the expensive 3D-ICE
-subprocess is stubbed, everything else (coords generation, power field
-regeneration, npz export, statistics) runs for real.
+JobQueue's simulator was previously hardcoded (ICESimulator constructed directly inside _run_job), so no test could exercise the real job pipeline
 """
 import time
 from pathlib import Path

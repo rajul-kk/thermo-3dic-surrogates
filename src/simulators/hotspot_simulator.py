@@ -1,13 +1,4 @@
-"""
-HotSpot thermal simulator wrapper.
-
-Wraps the HotSpot block/grid simulator for geometry1 (single-die, steady-state).
-Generates .flp and .ptrace inputs, runs HotSpot in grid mode, and parses the
-per-cell temperature output.
-
-Scope: geometry1 only (single active silicon die layer). Multi-die stacks
-(geometry2a/2b/2c) are not supported — HotSpot has no native TSV model.
-"""
+"""HotSpot thermal simulator wrapper."""
 
 import subprocess
 import shlex
@@ -20,22 +11,7 @@ from ..core.geometry import Geometry
 
 
 class HotSpotSimulator(ThermalSimulator):
-    """
-    Wrapper for HotSpot thermal simulator (grid model, steady-state).
-
-    Handles:
-    - Floorplan file (.flp) with power block geometry (in metres)
-    - Power trace file (.ptrace) with per-block power values
-    - HotSpot config via command-line flags
-    - Grid steady-state output (.grid.steady) parsing
-
-    Unit system: HotSpot uses SI metres/watts. Geometry stores µm, so
-    conversion × 1e-6 is applied when writing files.
-
-    Effective thermal resistance: all non-die layers are lumped into
-    r_convec (K/W) together with the convective BC, so the HotSpot
-    package model (spreader + sink) is set to negligibly thin.
-    """
+    """Wrapper for HotSpot thermal simulator (grid model, steady-state)."""
 
     GRID_ROWS = 64
     GRID_COLS = 64
@@ -164,12 +140,7 @@ class HotSpotSimulator(ThermalSimulator):
             )
 
     def parse_results(self, result_path: Path) -> Dict[str, np.ndarray]:
-        """
-        Parse HotSpot grid steady-state output for the die layer (Layer 0).
-
-        Returns:
-            dict with 'coords' (N,3) float32 and 'temperature' (N,) float32.
-        """
+        """Parse HotSpot grid steady-state output for the die layer (Layer 0)."""
         result_path = Path(result_path)
         if not hasattr(self, '_geometry'):
             raise RuntimeError(
@@ -252,10 +223,7 @@ class HotSpotSimulator(ThermalSimulator):
                             t_chip, k_chip, p_chip, chip_side,
                             r_convec, ambient, grid_steady_dest: Path):
         """
-        Run HotSpot via a WSL staging directory to avoid path-with-spaces
-        issues when passing Windows paths through WSL argument parsing.
-        Files are copied to /tmp inside WSL, hotspot runs there, and the
-        grid output is copied back.
+        Run HotSpot via a WSL staging directory to avoid path-with-spaces issues when passing Windows paths through WSL argument parsing.
         """
         # Create a WSL temp dir with no spaces
         r = subprocess.run(['wsl', 'mktemp', '-d'],
@@ -316,11 +284,7 @@ class HotSpotSimulator(ThermalSimulator):
 
     def _generate_floorplan_file(self, geometry: Geometry,
                                  scenario: Dict[str, Any]) -> None:
-        """Write HotSpot floorplan file.
-
-        Format (tab-separated, all in metres):
-            name  width  height  left-x  bottom-y
-        """
+        """Write HotSpot floorplan file."""
         self._scenario = scenario
         flp_file = self.config_dir / "hotspot.flp"
         lines = [
@@ -340,12 +304,7 @@ class HotSpotSimulator(ThermalSimulator):
 
     def _generate_power_trace_file(self, geometry: Geometry,
                                    scenario: Dict[str, Any]) -> None:
-        """Write HotSpot power trace file (single steady-state time step).
-
-        Format:
-            block1  block2  ...   (tab-separated names)
-            P1      P2      ...   (tab-separated watts)
-        """
+        """Write HotSpot power trace file (single steady-state time step)."""
         ptrace_file = self.config_dir / "hotspot.ptrace"
         power_scenario = scenario.get('power_blocks', {})
         names = [b.name for b in geometry.power_blocks]

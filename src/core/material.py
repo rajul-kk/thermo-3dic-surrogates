@@ -1,13 +1,4 @@
-"""
-Material property library for thermal simulations.
-
-Defines material thermal properties for common 3D-IC packaging materials:
-- Silicon (die substrate)
-- Copper (heat spreader, TSVs, heat sink)
-- TIM (Thermal Interface Material)
-- TSV-enhanced silicon (equivalent conductivity)
-- Bonding materials
-"""
+"""Material property library for thermal simulations."""
 
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -15,16 +6,7 @@ from typing import Dict, Optional
 
 @dataclass
 class Material:
-    """
-    Thermal material properties.
-
-    Attributes:
-        name: Material identifier
-        k_thermal: Thermal conductivity in W/m·K
-        volumetric_heat_capacity: ρCp in J/m³·K
-        density: Density in kg/m³ (optional, for reference)
-        description: Human-readable description
-    """
+    """Thermal material properties."""
     name: str
     k_thermal: float  # W/m·K
     volumetric_heat_capacity: float  # J/m³·K
@@ -40,11 +22,7 @@ class Material:
 
 
 class MaterialLibrary:
-    """
-    Library of standard thermal materials for 3D-IC packaging.
-
-    All properties at room temperature (300K) unless otherwise noted.
-    """
+    """Library of standard thermal materials for 3D-IC packaging."""
 
     # Standard materials
     _materials: Dict[str, Material] = {
@@ -206,18 +184,7 @@ class MaterialLibrary:
 
     @classmethod
     def get(cls, name: str) -> Material:
-        """
-        Retrieve material by name.
-
-        Args:
-            name: Material identifier
-
-        Returns:
-            Material object
-
-        Raises:
-            KeyError: If material not found
-        """
+        """Retrieve material by name."""
         if name not in cls._materials:
             raise KeyError(
                 f"Material '{name}' not found. Available materials: "
@@ -227,12 +194,7 @@ class MaterialLibrary:
 
     @classmethod
     def add(cls, material: Material) -> None:
-        """
-        Add or update a material in the library.
-
-        Args:
-            material: Material object to add
-        """
+        """Add or update a material in the library."""
         cls._materials[material.name] = material
 
     @classmethod
@@ -245,20 +207,7 @@ class MaterialLibrary:
                                k_silicon: float,
                                k_copper: float,
                                tsv_fraction: float) -> float:
-        """
-        Calculate effective thermal conductivity for TSV region.
-
-        Uses arithmetic mean (parallel conductors, upper bound):
-        k_eff = (1 - φ) * k_Si + φ * k_Cu
-
-        Args:
-            k_silicon: Silicon thermal conductivity (W/m·K)
-            k_copper: Copper thermal conductivity (W/m·K)
-            tsv_fraction: TSV area fraction (0.0-1.0)
-
-        Returns:
-            Effective thermal conductivity (W/m·K)
-        """
+        """Calculate effective thermal conductivity for TSV region."""
         if not (0.0 <= tsv_fraction <= 1.0):
             raise ValueError(f"TSV fraction must be 0-1, got {tsv_fraction}")
 
@@ -268,16 +217,7 @@ class MaterialLibrary:
     def create_tsv_material(cls,
                            tsv_density: float,
                            name: Optional[str] = None) -> Material:
-        """
-        Create a custom TSV-enhanced silicon material.
-
-        Args:
-            tsv_density: TSV area fraction (0.0-1.0)
-            name: Custom material name (auto-generated if None)
-
-        Returns:
-            Material object with equivalent properties
-        """
+        """Create a custom TSV-enhanced silicon material."""
         k_si = cls.get('silicon').k_thermal
         k_cu = cls.get('copper').k_thermal
         rho_cp_si = cls.get('silicon').volumetric_heat_capacity
@@ -298,26 +238,7 @@ class MaterialLibrary:
 
     @classmethod
     def k_silicon_temp_dependent(cls, T_kelvin: float) -> float:
-        """
-        Temperature-dependent silicon thermal conductivity.
-
-        Model: k(T) = k_300K × (300/T)^α
-        where α = 1.3 for 300K < T < 1000K
-
-        Reference: Glassbrenner & Slack (1964), Physical Review 134(4A)
-
-        Args:
-            T_kelvin: Temperature in Kelvin
-
-        Returns:
-            Thermal conductivity in W/m·K
-
-        Examples:
-            >>> k_300 = MaterialLibrary.k_silicon_temp_dependent(300)
-            >>> print(f"{k_300:.1f}")  # 148.0 W/m·K
-            >>> k_400 = MaterialLibrary.k_silicon_temp_dependent(400)
-            >>> print(f"{k_400:.1f}")  # ~80 W/m·K (47% drop)
-        """
+        """Temperature-dependent silicon thermal conductivity."""
         k_300K = 148.0  # W/m·K at room temperature
         alpha = 1.3  # Power law exponent
         T_ref = 300.0  # Reference temperature (K)

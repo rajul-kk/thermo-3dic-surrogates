@@ -1,12 +1,4 @@
-"""
-Leakage-power / temperature positive feedback.
-
-Unlike throttling (negative feedback, self-limiting), leakage feedback is
-self-amplifying and above a critical loop gain has no steady state at all.
-These tests use a stub simulator whose peak temperature is a deterministic
-linear function of total power, so the fixed point -- and the gain at which it
-ceases to exist -- can be computed by hand and checked exactly.
-"""
+"""Leakage-power / temperature positive feedback."""
 from __future__ import annotations
 
 import sys

@@ -1,16 +1,4 @@
-"""
-Track B validation gate: leave-one-geometry-out.
-
-Train FNO on 5 geometries (resampled onto a common grid), test zero-shot on
-the 6th, with and without the distance-to-power-block geometry-aware field
-(src/core/mesh.py:generate_distance_to_power_block_field). This is the actual
-test goal.md's Track B specified before committing to the mechanism being
-useful -- the field existing and being wired in (already done) doesn't by
-itself demonstrate it helps zero-shot generalization.
-
-Usage:
-    python scripts/experiment_geometry_aware.py --holdout geometry4 --epochs 60
-"""
+"""Track B validation gate: leave-one-geometry-out."""
 import argparse
 import logging
 import sys

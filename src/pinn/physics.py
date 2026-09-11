@@ -1,16 +1,4 @@
-"""
-Physics helpers for the thermal PINN.
-
-Provides:
-  - thermal_conductivity(): layer-wise k(T) with silicon temperature dependence
-  - pde_residual(): ∇·(k(T)∇T) + Q using autograd second derivatives
-  - bc_residual_top(): convective BC at top surface: -k dT/dz = h(T - T_amb)
-  - bc_residual_adiabatic(): dT/dn = 0 on side/bottom faces
-
-All tensors in normalised units unless stated otherwise. Temperatures are
-denormalised to Kelvin internally for k(T) evaluation, then returned to
-normalised space for the PDE residual.
-"""
+"""Physics helpers for the thermal PINN."""
 
 from typing import Dict, Optional, Tuple
 import torch
@@ -34,22 +22,7 @@ def thermal_conductivity(
     col_k_lateral: Optional[torch.Tensor] = None, # (N,) per-point k override for 2p5d lateral variation
     col_si_lateral: Optional[torch.Tensor] = None, # (N,) per-point si mask override
 ) -> torch.Tensor:
-    """
-    Compute pointwise thermal conductivity k(T) in W/m·K.
-
-    Silicon layers: k(T) = k_base * (300/T_K)^1.3  (temperature-dependent)
-    All other layers: k = k_base  (constant)
-
-    Args:
-        T_norm:        (N,) normalised temperature [0,1]
-        layer_ids:     (N,) int, layer index for each point
-        layer_k:       (n_layers,) base thermal conductivity per layer
-        si_layer_mask: (n_layers,) bool, True where material == silicon
-        T_min, T_max:  normalisation bounds in Kelvin
-
-    Returns:
-        (N,) k values in W/m·K
-    """
+    """Compute pointwise thermal conductivity k(T) in W/m·K."""
     T_K = T_norm * (T_max - T_min) + T_min   # denormalise to Kelvin
     T_K = T_K.clamp(100.0, 1685.0)           # physical bounds for silicon model
 
@@ -93,16 +66,7 @@ def pde_residual(
     region_ids_col: Optional[torch.Tensor] = None,    # (N_col,) chiplet region ids; passed to model
     tim_k_norm: Optional[torch.Tensor] = None,        # scalar TIM conductivity norm; passed to model
 ) -> torch.Tensor:
-    """
-    Compute PDE residual r = ∇·(k(T)∇T) + Q at collocation points.
-
-    The network outputs T̂ (normalised). Spatial coordinates are also normalised
-    to [0,1]. The chain rule converts derivatives from normalised to physical space:
-        dT/dx_phys = (dT̂/dx̂) * (T_range) / L_x
-
-    Returns:
-        (N_col,) residual values (should be ~0 everywhere inside the domain)
-    """
+    """Compute PDE residual r = ∇·(k(T)∇T) + Q at collocation points."""
     coords_col = coords_col.requires_grad_(True)
 
     T_hat = model(
@@ -178,19 +142,7 @@ def bc_residual_top(
     outward_normal_sign: float = 1.0,   # +1 at z=1 (outward normal = +z); -1 at z=0 (outward normal = -z)
 ) -> torch.Tensor:
     """
-    Convective BC residual: -k * dT/dn = h * (T - T_amb), where n is the
-    OUTWARD surface normal.
-
-    Despite the name (kept for backward compatibility — originally this was
-    only ever called at z=1), this function works at ANY z-face; pass
-    outward_normal_sign=-1.0 when evaluating at z=0 (bottom), since the
-    outward normal there points in -z, flipping the sign of dT/dn relative
-    to dT/dz. Ground truth for this dataset (see ice_simulator.py's "bottom
-    heat sink" directive) applies convective cooling at z=0, layer index 0
-    — callers should use outward_normal_sign=-1.0 in the normal case here,
-    not the historical z=1/+1.0 default.
-
-    Returns (N_bc,) residual (should be ~0).
+    Convective BC residual: -k * dT/dn = h * (T - T_amb), where n is the OUTWARD surface normal.
     """
     coords_top = coords_top.requires_grad_(True)
     T_hat = model(
@@ -225,11 +177,7 @@ def bc_residual_adiabatic(
     normal_dim: int,                # 0=x, 1=y, 2=z (which face normal)
     geom_scale: Tuple[float, float, float],
 ) -> torch.Tensor:
-    """
-    Adiabatic BC residual: dT/dn = 0.
-
-    Returns (N_bc,) residual.
-    """
+    """Adiabatic BC residual: dT/dn = 0."""
     coords_side = coords_side.requires_grad_(True)
     T_hat = model(coords_side, layer_ids_side, power_side, htc_norm, t_amb_norm, tsv_frac)
 

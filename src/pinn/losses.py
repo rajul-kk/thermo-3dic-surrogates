@@ -1,22 +1,4 @@
-"""
-Loss functions for the thermal PINN.
-
-Components:
-  L_data      -- MSE between predicted and 3D-ICE temperatures (data fidelity)
-  L_pde       -- PDE residual ||∇·(k∇T) + Q||² (physics)
-  L_bc_top    -- Convective BC at top surface
-  L_bc_sides  -- Adiabatic BC on side and bottom faces
-  L_interface -- Temperature continuity at layer boundaries
-
-Adaptive weighting (NTK-based):
-  λ_i is updated each epoch as: max_grad_norm / grad_norm_i
-  with EMA smoothing to prevent oscillation.
-
-Training curriculum:
-  Stage 1 (epochs 0-1000):    data loss only
-  Stage 2 (epochs 1000-3000): data + 0.1*pde + 0.5*bc
-  Stage 3 (epochs 3000+):     data + adaptive λ_pde*pde + adaptive λ_bc*bc
-"""
+"""Loss functions for the thermal PINN."""
 
 from dataclasses import dataclass, field
 from typing import Dict, Optional
@@ -70,13 +52,7 @@ class LossWeights:
         model: nn.Module,
         loss_dict: Dict[str, torch.Tensor],
     ) -> None:
-        """
-        NTK-based adaptive weight update (Wang et al. 2022).
-
-        For each loss component i: compute ||∂L_i/∂θ||₂.
-        Set λ_i = max_j(||∂L_j/∂θ||₂) / ||∂L_i/∂θ||₂.
-        Apply EMA smoothing.
-        """
+        """NTK-based adaptive weight update (Wang et al. 2022)."""
         grad_norms: Dict[str, float] = {}
         for name, loss in loss_dict.items():
             if loss.requires_grad:

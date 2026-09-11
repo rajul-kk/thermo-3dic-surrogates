@@ -1,34 +1,4 @@
-"""
-k-fold cross-validated FNO vs. ridge/kNN on hotspot metrics.
-
-Companion to scripts/hotspot_eval.py, which does the same thing for the non-neural
-baselines only. This one trains an FNO per fold, so it is expensive (hours on CPU) and
-must be run in the background.
-
-Why: docs/report.md Sec 9.12b recorded two CPU-budget FNOs beating ridge on hotspot
-localisation -- the first metric in this project on which a neural operator wins -- but
-on only 5 test scenarios, and scored on argmax distance alone. Re-scoring those same
-checkpoints with the fuller metric set (2026-09-09) showed the win is real but much
-narrower than it looked:
-
-    model                   |peak err| K   loc err um   top1% recall   <=2mm
-    ridge                          2.132         7169          0.032    0.00
-    kNN                            1.777         7616          0.038    0.00
-    FNO-default                   14.860         4469          0.025    0.40
-    FNO-tierB-wide-narrow          8.060         3324          0.054    0.20
-
-i.e. FNO localises the hotspot better (3.3-4.5 mm vs ridge's 7.2 mm, and the only
-non-zero hit rates within 2 mm) while being 4-7x WORSE at predicting the peak
-temperature. Knowing where the hotspot is but being 15 K wrong about how hot it is, is
-not straightforwardly more useful than the reverse. Both halves need saying.
-
-Those numbers are n=5. This script gets the sample size up by training one FNO per fold
-on the SAME fold split scripts/hotspot_eval.py uses (same seed, same kfold_indices call),
-so FNO and the baselines are scored on identical held-out scenarios.
-
-Usage (expect ~6 h on CPU for the defaults; run it in the background):
-    python scripts/hotspot_eval_fno_cv.py --geometry geometry1 --folds 5 --epochs 150
-"""
+"""k-fold cross-validated FNO vs. ridge/kNN on hotspot metrics."""
 import argparse
 import json
 import logging

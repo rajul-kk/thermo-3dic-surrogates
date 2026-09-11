@@ -1,36 +1,4 @@
-"""
-Loader for IC-ThermBench S2-S5, reproducing their split exactly.
-
-See docs/ic_thermbench_plan.md for why this experiment exists. This module is
-deliberately small and does one thing: turn their released `.mat` files into
-train/val/test arrays that are *index-for-index identical* to what their own
-`data_provider/data_loader.py` produces, without depending on their repo at runtime.
-
-Their pipeline, reproduced here (verified against their source 2026-09-10):
-
-    load_mat_pair()          input.mat["data"]  (B, P, Z, Y, X) float32
-                             output.mat["data"] (B,    Z, Y, X) float32, kelvin
-                             transposed to      (B, X, Y, Z, P) and (B, X, Y, Z)
-
-    split_train_val_test()   train_ratio = 0.8 (data_factory.TRAIN_RATIO, "shared by
-                             the whole benchmark; changing it invalidates every result")
-                               trainval = first int(0.8 * B) samples
-                               test     = everything after that      -> last 20%
-                               n_train  = int(0.9 * trainval)
-                               train    = trainval[:n_train]
-                               val      = trainval[n_train:]
-
-The split slices by index and never shuffles. Their archives store samples
-case-interleaved so each segment stays case-balanced; restacking by case before
-splitting would silently change the semantics while leaving sample counts intact.
-`verify_against_upstream()` checks our arrays against theirs when their repo is
-available, so this claim is tested rather than asserted.
-
-Channel semantics (measured, docs/ic_thermbench_plan.md §2): `chiplet_power`,
-`grid_x`, `grid_y` and `local_thermal_k` are genuine per-cell maps; `ambient_K`,
-`h_w_m2k` and `r_convec_k_per_w` are constant within a sample and vary across
-samples, i.e. per-sample scalars.
-"""
+"""Loader for IC-ThermBench S2-S5, reproducing their split exactly."""
 from __future__ import annotations
 
 import logging
@@ -112,13 +80,7 @@ def split_indices(total: int, train_ratio: float = TRAIN_RATIO) -> Dict[str, sli
 
 
 def load_scope(data_root: Path, scope: str, split_data: bool = True) -> Split:
-    """
-    Load one scope.
-
-    `split_data=False` returns everything in the test slot with train/val empty --
-    the correct handling for S5, which their docs describe as a pure evaluation
-    dataset that must not go through the train_ratio split.
-    """
+    """Load one scope."""
     if scope not in SCOPES:
         raise ValueError(f'unknown scope {scope!r}; expected one of {sorted(SCOPES)}')
     folder = data_root / f'{scope}_steady'
@@ -149,16 +111,7 @@ def spatial_channel_indices(channels: List[str]) -> Dict[str, int]:
 
 
 def verify_against_upstream(data_root: Path, scope: str, upstream_repo: Path) -> bool:
-    """
-    Check our arrays match theirs exactly, using their code as the reference.
-
-    This is the parity test docs/ic_thermbench_plan.md §6 step 2 asks for. It needs
-    their repo checked out (and torch, which their loader returns tensors from), so
-    it is a separate opt-in function rather than an import-time dependency.
-
-    Returns True on exact match; raises AssertionError describing the first
-    disagreement otherwise.
-    """
+    """Check our arrays match theirs exactly, using their code as the reference."""
     import sys
     sys.path.insert(0, str(upstream_repo))
     from data_provider.data_loader import load_mat_pair as their_load  # noqa: E402

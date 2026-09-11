@@ -1,22 +1,5 @@
 """
-Generate a 40-scenario pilot dataset for geometry7 (CoWoS-L reticle-stitched
-package, see src/core/geometry_builders.py build_geometry7 docstring).
-
-geometry7 is NOT part of the standard 6-geometry benchmark dataset -- it is a
-pilot testing whether this benchmark's central "ridge already solves this"
-finding survives a structurally new mechanism: sparse high-k (silicon LSI
-bridge) islands in an otherwise low-k (organic substrate) passive spreading
-layer, replacing every other 2.5D geometry's uniform-material interposer.
-
-40 scenarios = the same 15 base-train + 5 test scenarios every geometry gets
-(ScenarioGenerator.generate_all_scenarios), plus 20 extra-train scenarios
-(ScenarioGenerator.generate_extra_training_scenarios) drawing denser HTC/power
-coverage from the 2.5D-geometry pool -- the same recipe used to grow
-geometry1..6 from their base 20 to the full per-geometry counts recorded in
-docs/geometry_reference.md.
-
-Usage:
-    python scripts/gen_geometry7_pilot.py --output data/3d-ice-geometry7-pilot
+Generate a 40-scenario pilot dataset for geometry7 (CoWoS-L reticle-stitched package, see src/core/geometry_builders.py build_geometry7 docstring).
 """
 import argparse
 import logging

@@ -1,10 +1,5 @@
 """
-Structural checks on geometry definitions, and correctness checks on the
-non-neural baselines and the seeding helper.
-
-The baseline tests matter because `scripts/baselines.py` is the yardstick every
-surrogate is measured against -- if ridge is subtly wrong, every comparison built
-on it is wrong too.
+Structural checks on geometry definitions, and correctness checks on the non-neural baselines and the seeding helper.
 """
 
 from __future__ import annotations
@@ -91,9 +86,7 @@ def test_every_geometry_has_an_explicit_tdp():
 
 def test_total_dissipation_respects_the_tdp_budget():
     """
-    Total power must never exceed TDP x MAX_WORKLOAD_FRACTION. This is what makes
-    the operating point citable instead of tuned: it is a design input, not a knob
-    chosen to hit a target temperature.
+    Total power must never exceed TDP x MAX_WORKLOAD_FRACTION. This is what makes the operating point citable instead of tuned: it is a design input, not a knob
     """
     from src.scenario.generator import ScenarioGenerator
     for geom in ALL_GEOMS:
@@ -115,9 +108,7 @@ def test_total_dissipation_respects_the_tdp_budget():
 @pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
 def test_power_density_never_exceeds_the_silicon_ceiling(geom):
     """
-    Silicon cannot dissipate arbitrarily much per unit area, whatever the package
-    budget. Without this ceiling, normalising to TDP let a concentrated pattern
-    pour a whole 125 W budget into one 0.09 cm2 block -- 1618 W/cm2.
+    Silicon cannot dissipate arbitrarily much per unit area, whatever the package budget. Without this ceiling, normalising to TDP let a concentrated pattern
     """
     from src.scenario.generator import ScenarioGenerator
     g = ScenarioGenerator()
@@ -132,10 +123,7 @@ def test_power_density_never_exceeds_the_silicon_ceiling(geom):
 @pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
 def test_all_scenarios_stay_inside_the_declared_bc_envelope(geom):
     """
-    Every scenario -- including those drawn from the legacy extra pools -- must
-    respect MIN_HTC/MAX_HTC/MAX_AMBIENT_C. The pools are literal tables written
-    for the old power levels and contain HTCs down to 500 W/m2K, which combined
-    with scaled power produced physically impossible temperatures.
+    Every scenario -- including those drawn from the legacy extra pools -- must respect MIN_HTC/MAX_HTC/MAX_AMBIENT_C. The pools are literal tables written
     """
     from src.scenario.generator import ScenarioGenerator
     g = ScenarioGenerator()
@@ -154,10 +142,7 @@ def test_all_scenarios_stay_inside_the_declared_bc_envelope(geom):
 @pytest.mark.parametrize('geom', ALL_GEOMS, ids=GEOM_NAMES)
 def test_cooling_capability_matches_power_density(geom):
     """
-    No scenario may pair a high power density with cooling that could not remove
-    the heat. Power and HTC are physically coupled -- a 300 W/cm2 hotspot cannot
-    be air-cooled -- and sweeping them independently manufactured 220-259 C
-    junctions, which are not chips.
+    No scenario may pair a high power density with cooling that could not remove the heat. Power and HTC are physically coupled -- a 300 W/cm2 hotspot cannot
     """
     from src.scenario.generator import ScenarioGenerator
     g = ScenarioGenerator()
@@ -179,9 +164,7 @@ def test_cooling_capability_matches_power_density(geom):
 
 def _synthetic_scenarios(n_scen=25, n_pts=200, n_blocks=3, seed=0, noise=0.0):
     """
-    Build scenarios whose temperature is an EXACT linear function of the block
-    powers and ambient -- the regime steady-state conduction actually lives in.
-    Ridge must recover this to machine precision.
+    Build scenarios whose temperature is an EXACT linear function of the block powers and ambient -- the regime steady-state conduction actually lives in.
     """
     rng = np.random.default_rng(seed)
     coords = rng.random((n_pts, 3)) * 1000.0
@@ -228,12 +211,7 @@ def test_feature_vector_includes_reciprocal_htc():
 
 def test_collect_block_keys_prefers_nominal_power_for_throttled_scenarios():
     """
-    Regression test for a real bug: the delivered (post-throttle) power is the
-    ALREADY-RESOLVED answer for a throttled scenario, not an input a model
-    should get to see. Feeding ridge the delivered power made a throttled
-    dataset score a *higher* R^2 (0.989) than the same geometry without
-    throttling (0.970) -- the closed feedback loop was invisible to it.
-    nominal_block_power_* (the pre-throttle request) is the correct feature.
+    Regression test for a real bug: the delivered (post-throttle) power is the ALREADY-RESOLVED answer for a throttled scenario, not an input a model
     """
     throttled = [{'meta': {
         'throttle_enabled': True,

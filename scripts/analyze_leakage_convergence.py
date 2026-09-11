@@ -1,17 +1,5 @@
 """
-Does the leakage pilot's 30% runaway rate come from (leakage_fraction, k_double_c) --
-the two parameters the pilot actually swept -- or from the underlying scenario's own
-power/HTC/pattern, which varied incidentally across the 4 repeats of each (frac,
-k_double) pair?
-
-Motivated by eyeballing gen_leakage_pilot.py's output: each of the 5 (leakage_fraction,
-k_double_c) settings appears 4 times, paired with a different base power scenario each
-time, and the outcome (converged/runaway) is NOT consistent within a setting -- e.g.
-(0.15, 25.0) converges 3/4 times and runs away once. That means loop gain alone doesn't
-determine stability here; something about the base scenario does too.
-
-Usage:
-    python scripts/analyze_leakage_convergence.py --data data/3d-ice-leakage-pilot/geometry1
+Does the leakage pilot's 30% runaway rate come from (leakage_fraction, k_double_c) -- the two parameters the pilot actually swept -- or from the underlying scenario's own
 """
 import argparse
 import glob

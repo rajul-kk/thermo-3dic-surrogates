@@ -1,29 +1,4 @@
-"""
-Train the Autoregressive Operator (ARO) thermal surrogate.
-
-Multi-fidelity training pipeline:
-  1. Pre-train on LF (analytical) + HF (3D-ICE) data with teacher forcing
-  2. Fine-tune on HF only with teacher forcing disabled
-
-Example
--------
-# All geometries, multi-fidelity (LF pretrain + HF fine-tune):
-python scripts/train_aro.py \
-    --hf-data  data/3d-ice \
-    --lf-data  data/lf \
-    --geometries geometry1 geometry2a geometry3 \
-    --pretrain-epochs 200 \
-    --finetune-epochs 100 \
-    --output checkpoints/aro
-
-# HF only (no LF):
-python scripts/train_aro.py \
-    --hf-data  data/3d-ice \
-    --geometries geometry1 \
-    --pretrain-epochs 300 \
-    --finetune-epochs 0 \
-    --output checkpoints/aro_hf_only
-"""
+"""Train the Autoregressive Operator (ARO) thermal surrogate."""
 
 import argparse
 import logging

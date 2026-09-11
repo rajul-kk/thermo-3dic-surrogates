@@ -1,37 +1,4 @@
-"""
-Therm-FM: few-shot fine-tuning of a pre-trained CNOFNOHybrid for a new geometry.
-
-Strategy
---------
-Given a CNOFNOHybrid pre-trained on 6-7 geometries (encoder has learned
-structural features: conduction paths, TSV influence, boundary layers), we
-freeze ~90% of parameters and only update:
-  - FiLM generator (maps scenario BCs to per-block gamma/beta modulations)
-  - Last 2 FNO blocks of the latent trunk (fine spatial adjustment)
-  - Decoder (reconstructs T from the FNO latent)
-  - Final projection layer (if any)
-
-This is ~10% of total parameters, allowing 5-20 shot fine-tuning in
-<1 minute on a T4 without catastrophic forgetting of the source geometries.
-
-Usage
------
-# 10-shot fine-tune for a new geometry:
-python scripts/finetune_therm_fm.py \
-    --pretrained  checkpoints/cno_fno/cno_fno_best.pt \
-    --new-data    data/new_geometry \
-    --geometry    geometry_new \
-    --output      checkpoints/therm_fm \
-    --shots       10 \
-    --epochs      100
-
-# All 5 shots (fast iteration):
-python scripts/finetune_therm_fm.py \
-    --pretrained checkpoints/cno_fno/cno_fno_best.pt \
-    --new-data   data/new_geometry \
-    --geometry   geometry_new \
-    --shots      5  --epochs 50 --output checkpoints/therm_fm
-"""
+"""Therm-FM: few-shot fine-tuning of a pre-trained CNOFNOHybrid for a new geometry."""
 
 import argparse
 import logging

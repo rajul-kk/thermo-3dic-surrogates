@@ -1,23 +1,4 @@
-"""
-Generate low-fidelity analytical thermal data for all (or selected) geometries.
-
-Runs the 1D-resistance + 2D-Gaussian simulator for every train/test scenario
-produced by the standard ScenarioGenerator.  Output is written to data/lf/
-in the same NPZ format as the 3D-ICE HF files — drop-in compatible with the
-ARO dataset loader.
-
-Usage
------
-# All geometries:
-python scripts/generate_lf_data.py --output data/lf
-
-# Specific geometries:
-python scripts/generate_lf_data.py --output data/lf \
-    --geometries geometry1 geometry4 geometry5
-
-# Quiet run (no progress bar):
-python scripts/generate_lf_data.py --output data/lf --quiet
-"""
+"""Generate low-fidelity analytical thermal data for all (or selected) geometries."""
 
 import argparse
 import logging

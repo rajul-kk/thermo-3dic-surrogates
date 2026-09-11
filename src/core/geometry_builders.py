@@ -1,12 +1,4 @@
-"""
-Geometry builders for benchmark geometries.
-
-Provides functions to create the 4 standard geometries:
-- Geometry 1: 2D cross-sectional stack
-- Geometry 2a: 3D stack with 3% TSV density
-- Geometry 2b: 3D stack with 5% TSV density
-- Geometry 2c: 3D stack with 10% TSV density
-"""
+"""Geometry builders for benchmark geometries."""
 
 from typing import List
 from .geometry import Geometry, Layer, PowerBlock, DiePrint
@@ -14,29 +6,7 @@ from .material import MaterialLibrary
 
 
 def build_geometry1() -> Geometry:
-    """
-    Build Geometry 1: 2D Cross-Sectional Stack.
-
-    Layer stack (bottom to top):
-    1. Heat Sink (Cu): 5000 μm   -- convective (HTC) ground-truth BC applied
-       here by 3D-ICE ("bottom heat sink" directive in ice_simulator.py);
-       this layer genuinely removes heat to ambient in the real simulation.
-    2. TIM (bottom): 100 μm
-    3. Heat Spreader (Cu): 1000 μm
-    4. TIM (top): 100 μm
-    5. Silicon Die: 150 μm
-
-    NOTE: src/pinn/trainer.py's own physics-loss BC term (bc_residual_top,
-    via self.top_layer_id) currently enforces a convective condition at the
-    OPPOSITE end of the stack (topmost layer, near the die) instead of here
-    at heat_sink -- a real mismatch with the ground-truth physics above,
-    not yet fixed. See project notes for details before trusting PDE/BC loss
-    diagnostics from PINN training on this geometry.
-
-    Floorplan:
-    - Die: 10mm × 10mm
-    - 4 power blocks: 3mm × 3mm each (positioned in corners)
-    """
+    """Build Geometry 1: 2D Cross-Sectional Stack."""
     # Get materials
     mat_cu = MaterialLibrary.get('copper')
     mat_tim = MaterialLibrary.get('tim')
@@ -154,29 +124,7 @@ def build_geometry1() -> Geometry:
 
 
 def build_geometry2(tsv_density: float, variant_name: str) -> Geometry:
-    """
-    Build Geometry 2 variants: 3D Stack with TSV.
-
-    Args:
-        tsv_density: TSV area fraction (only 'geometry2a' at 0.03 is built; the
-            function keeps the density parameter so a variant is one call away)
-        variant_name: Variant identifier (only 'geometry2a' is currently used)
-
-    Layer stack (bottom to top):
-    1. Heat Sink (Cu): 5000 μm
-    2. TIM: 100 μm
-    3. Heat Spreader (Cu): 1000 μm
-    4. TIM: 100 μm
-    5. Die 2 Active (Si): 50 μm
-    6. Die 2 TSV Region: 100 μm (enhanced k)
-    7. Hybrid Bonding Layer: 5 μm (Cu-Cu pillar array, k_eff=60 W/m·K)
-    8. Die 1 TSV Region: 100 μm (enhanced k)
-    9. Die 1 Active (Si): 50 μm
-
-    Floorplan:
-    - Die: 8mm × 8mm
-    - Per die: 2 cores (2.5mm × 2.5mm) + 1 TSV region (2mm × 2mm)
-    """
+    """Build Geometry 2 variants: 3D Stack with TSV."""
     # Get materials
     mat_cu = MaterialLibrary.get('copper')
     mat_tim = MaterialLibrary.get('tim')
@@ -356,27 +304,7 @@ def build_geometry2(tsv_density: float, variant_name: str) -> Geometry:
 
 
 def build_geometry3() -> Geometry:
-    """
-    Build Geometry 3: Server-class single die (25mm × 25mm).
-
-    Represents a high-end CPU/GPU die at 4× the area of geometry1.
-    Same layer structure as geometry1 (plus TIM2) but with a thicker spreader
-    and 8 power blocks arranged as two rows of 4 core clusters separated by an
-    IO/interconnect gap — a topology absent from the mobile-class geometries.
-
-    Layer stack (bottom to top):
-    1. Heat Sink (Cu): 5000 µm
-    2. TIM (bottom): 100 µm
-    3. Heat Spreader (Cu): 2000 µm  (thicker than geometry1 for server thermal budget)
-    4. TIM (top): 100 µm
-    5. Die (Si): 200 µm
-    6. TIM2: 50 µm  (die-to-cooler interface)
-
-    Power blocks — 2 rows × 4 cols, each 4mm × 4mm:
-      Row 1 (y=2000): x = 2000, 7500, 13000, 18500
-      Row 2 (y=16000): same x positions
-      Gap y∈[6000,16000] = 10mm represents IO/crossbar area
-    """
+    """Build Geometry 3: Server-class single die (25mm × 25mm)."""
     mat_cu = MaterialLibrary.get('copper')
     mat_tim = MaterialLibrary.get('tim')
     mat_si = MaterialLibrary.get('silicon')
@@ -471,39 +399,12 @@ def build_geometry3() -> Geometry:
 
 
 def build_geometry2a() -> Geometry:
-    """
-    Build Geometry 2a: 3D Stack with 3% TSV density.
-
-    geometry2b (5%) and geometry2c (10%) were removed 2026-08-06: they were the
-    same base 3D-TSV-stack geometry differing only in this one scalar, which
-    (a) is not exposed as a model input anywhere in the pipeline and (b) produced
-    bit-identical ridge-regression baselines to geometry2a (spatial R^2=0.991,
-    MAE=2.207 to 3 decimals, all three) -- three near-zero-marginal-information
-    copies of one benchmark. TSV density variation is still exercised as a
-    spatial field within this single geometry via ScenarioGenerator.attach_tsv_maps.
-    """
+    """Build Geometry 2a: 3D Stack with 3% TSV density."""
     return build_geometry2(0.03, 'geometry2a')
 
 
 def build_geometry4() -> Geometry:
-    """
-    Geometry 4: 2.5D chiplet assembly — two chiplets on a silicon interposer.
-
-    Interposer footprint: 25mm × 14mm
-    Chiplet A (compute, 10×12mm): x=2mm, y=1mm — 4 power blocks (2×2)
-    Chiplet B (IO,     8×12mm): x=15mm, y=1mm — 4 power blocks (2×2)
-    Gap between chiplets: 3mm (x: 12mm to 15mm)
-
-    Layer stack (bottom to top):
-      heat_sink   5000µm Cu   — full interposer footprint
-      tim_sink     100µm TIM  — full
-      spreader    1000µm Cu   — full
-      tim_die      100µm TIM  — full
-      die_zone     150µm      — Si inside chiplet footprints, underfill (k=0.7) in gap
-      interposer   100µm Si   — full (shared routing substrate)
-
-    Total height: 6450µm   Mesh: 100×56×40 = 224k points (250µm/cell xy)
-    """
+    """Geometry 4: 2.5D chiplet assembly — two chiplets on a silicon interposer."""
     mat_cu = MaterialLibrary.get('copper')
     mat_tim = MaterialLibrary.get('tim')
     mat_si = MaterialLibrary.get('silicon')
@@ -574,38 +475,7 @@ def build_geometry4() -> Geometry:
 
 
 def build_geometry5() -> Geometry:
-    """
-    Geometry 5 (Tier 0+1 upgraded): CoWoS-style HBM-stack + compute die on shared interposer.
-
-    Same interposer footprint as geometry4 (25mm × 14mm).
-    Chiplet A (compute, 10×12mm, x=2mm, y=1mm): single 50µm low-k Si die — die_zone_1 only.
-    Chiplet B (HBM-style, 8×12mm, x=15mm, y=1mm): two-die TSV stack:
-      die1=50µm (die_zone_1) + TSV=100µm composite (tsv_zone) + die2=50µm (die_zone_2).
-
-    Tier 0 upgrades applied:
-      - RDL power layer (rdl_layer, 5µm, active) added above interposer
-      - Die k reduced to 80 W/m·K (low-k dielectric composite at N5/N3 node)
-
-    Tier 1 upgrades applied:
-      - C4 bump array (c4_bumps, 100µm, k=15 W/m·K) between RDL and die_zone_1
-      - TIM1 updated to indium solder (tim_top, 50µm, k=80 W/m·K)
-      - TIM2 thickness updated to 125µm (tim_sink)
-      - Interposer thickness updated to 300µm (Kou 2022 published dims)
-
-    Layer stack (bottom to top):
-      heat_sink   5000µm Cu         — full
-      tim_sink     125µm TIM grease — full  (TIM2, Tier 1)
-      spreader    1000µm Cu         — full
-      tim_top       50µm In solder  — full  (TIM1, Tier 1; k=80)
-      interposer   300µm Si         — full  (Tier 1 published dims)
-      rdl_layer      5µm Si low-k   — full, active  (Tier 0 RDL self-heating)
-      c4_bumps     100µm k=15       — full  (Tier 1 C4 bump array)
-      die_zone_1    50µm Si low-k   — active; A+B footprints, underfill in gap
-      tsv_zone     100µm TSV        — B only, underfill elsewhere
-      die_zone_2    50µm Si low-k   — active; B only, underfill elsewhere
-
-    Total height: 6785µm   Mesh: 100×56×50 ≈ 280k points (11 layers, +hybrid_bonding 5µm)
-    """
+    """Geometry 5 (Tier 0+1 upgraded): CoWoS-style HBM-stack + compute die on shared interposer."""
     mat_cu    = MaterialLibrary.get('copper')
     mat_tim   = MaterialLibrary.get('tim')
     mat_si    = MaterialLibrary.get('silicon')
@@ -703,26 +573,7 @@ def build_geometry5() -> Geometry:
 
 
 def build_geometry6() -> Geometry:
-    """
-    Geometry 6: geometry5 + 6 HBM stacks — CoWoS-style with full HBM complement.
-
-    Extends geometry5 to 6 HBM stacks side-by-side on the interposer, matching the
-    HBM count of AMD MI300X (6× HBM3).  Chiplet A (compute) is unchanged.
-    Each HBM stack is 4×12mm with its own die_zone_1 / hybrid_bonding / tsv_zone /
-    die_zone_2 floorplan blocks.
-
-    Footprint: 42mm × 14mm
-      chipA  : x=1mm,  y=1mm, 10×12mm
-      hbm1   : x=12mm, y=1mm,  4×12mm
-      hbm2   : x=17mm, y=1mm,  4×12mm
-      hbm3   : x=22mm, y=1mm,  4×12mm
-      hbm4   : x=27mm, y=1mm,  4×12mm
-      hbm5   : x=32mm, y=1mm,  4×12mm
-      hbm6   : x=37mm, y=1mm,  4×12mm  (right margin 1mm → 42mm total)
-
-    Layer stack: identical to upgraded geometry5 (11 layers, Tier 0+1 + hybrid bonding).
-    Total height: 6785µm   Mesh: 56×168×50 ≈ 470k points (250µm/cell in x and y)
-    """
+    """Geometry 6: geometry5 + 6 HBM stacks — CoWoS-style with full HBM complement."""
     mat_cu    = MaterialLibrary.get('copper')
     mat_tim   = MaterialLibrary.get('tim')
     mat_si    = MaterialLibrary.get('silicon')
@@ -818,88 +669,7 @@ def build_geometry6() -> Geometry:
 
 
 def build_geometry7() -> Geometry:
-    """
-    Geometry 7: CoWoS-L-class reticle-stitched package (Rubin/Rubin-Ultra-like).
-
-    Structurally distinct from geometry4/5/6, which all model CoWoS-S (a single
-    monolithic silicon interposer spanning the whole package). Modern
-    disaggregated GPU packages (NVIDIA Rubin/Rubin Ultra class, per public
-    reporting as of 2026-08: 2 near-reticle compute dies + I/O dies on a
-    multi-reticle CoWoS-L interposer with 8 HBM4 stacks) instead use LOCAL
-    silicon interconnect (LSI) bridges and power/ground via-dense regions
-    embedded in a much lower-conductivity organic (ABF/BT) substrate, placed
-    only where die-to-die routing or power delivery density actually requires
-    it. That is a genuine lateral-conductivity structure no other geometry in
-    this benchmark has: a passive spreading layer that is MOSTLY low-k organic
-    film with a higher-k composite only under specific regions, rather than
-    either a uniform material or an active die layer's silicon-vs-underfill
-    pattern.
-
-    **Revision 2026-08-18**: the first version covered only narrow seams
-    (compute-compute reticle stitch, HBM near-edges) with pure silicon
-    (k=148), leaving each compute die's own footprint almost entirely over
-    bare organic substrate. Under a power-concentrating scenario
-    (`split_chiplet_a_hot`), that forced ~180 W/cm2 through 300um of k=0.5
-    W/m*K material, producing a simulated 1125C peak -- confirmed as the real
-    mechanism (not a solver bug) via a back-of-envelope series-resistance
-    estimate matching the simulated rise within 1.5% (docs/compute.md). Fixed
-    by giving each compute die's FULL footprint bridge/via coverage (real
-    packages route dense copper power/ground vias through the organic
-    substrate under high-current compute dies, not just narrow signal
-    bridges) at a recalibrated, intermediate conductivity (k=60, the
-    'lsi_bridge_via' material -- see its docstring in material.py for why not
-    148) rather than either leaving the gap uncovered or overcorrecting to
-    full silicon, which would erase the CoWoS-L-vs-CoWoS-S distinction this
-    geometry exists to test. I/O dies and most of the inter-HBM field remain
-    bare organic substrate -- they were never the source of the extreme
-    values (I/O dies are low-power; HBM power is capped by the generator's
-    existing HBM density ceiling), so widening their coverage too would dilute
-    the comparison without fixing anything.
-
-    Footprint: 62mm x 14mm (868 mm^2 -- ~1.48x geometry6's 588 mm^2, reflecting
-    a larger reticle-stitched package; NOT a literal match to any specific real
-    package's exact dimensions, which are not public).
-
-    Layout (y: 1-13mm for all blocks; x from left edge):
-      chipA (compute)  : x=1mm,    9x12mm   -- 2x2 sub-block grid
-      chipB (compute)  : x=10.5mm, 9x12mm   -- 2x2 sub-block grid (0.5mm seam to chipA)
-      io1 (I/O die)    : x=20mm,   3x5.5mm  (upper)
-      io2 (I/O die)    : x=20mm,   3x5.5mm  (lower)
-      hbm1..hbm8        : x=24.5, 29, 33.5, 38, 42.5, 47, 51.5, 56mm; 4x12mm each,
-                          4.5mm pitch (0.5mm gap between stacks)
-
-    LSI bridge / power-via islands (substrate_organic layer, k=60 composite
-    footprints in an organic-substrate k=0.5 field -- see 'lsi_bridge_via' in
-    material.py):
-      bridge_chipA     : x=1mm,   9x12mm  -- full compute-die coverage (power/ground vias)
-      bridge_chipB     : x=10.5mm, 9x12mm -- full compute-die coverage (power/ground vias)
-                          (0.5mm true reticle-stitch gap x=10-10.5mm stays bare organic)
-      bridge_hbm{1..8} : x=hbm[n]-0.5mm, 1x12mm  -- each HBM's D2D bridge to the
-                          compute cluster (spans the 0.5mm gap + 0.5mm under the
-                          stack's near edge)
-
-    Layer stack (bottom to top) -- same 11-layer count and thicknesses as
-    geometry5/6, isolating the CoWoS-L change to exactly one layer:
-      heat_sink         5000um Cu           -- full
-      tim_sink           125um TIM grease   -- full
-      spreader           1000um Cu           -- full
-      tim_top              50um In solder    -- full
-      substrate_organic   300um ABF/BT organic (k=0.5) + Si bridge islands (k=148)
-                                              -- REPLACES geometry5/6's uniform-Si
-                                                 'interposer' layer; the one
-                                                 structural change this geometry
-                                                 tests
-      rdl_layer             5um Si low-k     -- full, active
-      c4_bumps            100um k=15         -- full
-      die_zone_1            50um Si low-k    -- active; chipA/B, io1/2, hbm d1
-                                                 footprints, underfill elsewhere
-      hybrid_bonding         5um k=60         -- full
-      tsv_zone             100um             -- hbm tsv footprints, underfill elsewhere
-      die_zone_2            50um Si low-k    -- active; hbm d2 footprints only
-
-    Total height: 6785um (identical to geometry5/6). Mesh: 56x248x50 (die_length
-    14000/56=250um, die_width 62000/248=250um -- same 250um cell pitch as geometry6).
-    """
+    """Geometry 7: CoWoS-L-class reticle-stitched package (Rubin/Rubin-Ultra-like)."""
     mat_cu    = MaterialLibrary.get('copper')
     mat_tim   = MaterialLibrary.get('tim')
     mat_si_lk = MaterialLibrary.get('silicon_low_k')
@@ -1026,12 +796,7 @@ def build_geometry7() -> Geometry:
 
 
 def build_all_geometries() -> List[Geometry]:
-    """
-    Build all benchmark geometries.
-
-    Returns:
-        List: [geometry1, geometry2a, geometry3, geometry4, geometry5, geometry6]
-    """
+    """Build all benchmark geometries."""
     return [
         build_geometry1(),
         build_geometry2a(),
@@ -1043,20 +808,7 @@ def build_all_geometries() -> List[Geometry]:
 
 
 def get_geometry_by_name(name: str) -> Geometry:
-    """
-    Get geometry by name.
-
-    Args:
-        name: One of 'geometry1', 'geometry2a', 'geometry3'..'geometry7'
-              ('geometry7' is a CoWoS-L pilot, not part of the standard
-              6-geometry benchmark dataset -- see build_geometry7 docstring)
-
-    Returns:
-        Geometry object
-
-    Raises:
-        ValueError: If geometry name is invalid
-    """
+    """Get geometry by name."""
     builders = {
         'geometry1':  build_geometry1,
         'geometry2a': build_geometry2a,

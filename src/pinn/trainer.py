@@ -1,15 +1,4 @@
-"""
-PINN training loop with curriculum staging and adaptive loss weighting.
-
-Training stages:
-  Stage 1 (epochs   0-1000): data loss only — network learns the temperature distribution
-  Stage 2 (epochs 1000-3000): add PDE + BC at fixed low weights
-  Stage 3 (epochs 3000-8000): NTK-based adaptive weights updated every 50 epochs
-
-Optimizer: Adam with CosineAnnealingWarmRestarts (T_0=2000)
-Gradient clipping: max_norm=1.0 (PDE second derivatives can spike)
-Mixed precision: enabled when CUDA is available
-"""
+"""PINN training loop with curriculum staging and adaptive loss weighting."""
 
 import logging
 import random
@@ -59,36 +48,7 @@ def _build_layer_tensors(
 
 
 class Trainer:
-    """
-    Trains a FourierPINN for a single geometry.
-
-    Args:
-        model:           FourierPINN instance
-        geometry:        target Geometry (single geometry per trainer)
-        norm_stats:      global normalization statistics
-        train_data:      ThermalDataset with training scenarios
-        val_data:        ThermalDataset with validation/test scenarios
-        output_dir:      directory for checkpoints and logs
-        n_col:           number of collocation points for PDE loss per step
-        n_bc_top:        number of BC points on top surface per step
-        n_bc_side:       number of BC points per side face per step (ignored when hard_adiabatic)
-        epochs:          total training epochs
-        lr:              initial Adam learning rate
-        device:          training device
-        hard_adiabatic:  if True, bc_sides loss is skipped (model.hard_adiabatic handles it)
-        log_interval:    print loss every N epochs
-        val_interval:    run validation every N epochs.
-        sampling_strategy: one of 'rar' (default, PDE-residual-proportional —
-            original RAR-D behaviour), 'hessian' (curvature/Laplacian-trace
-            weighted), 'importance' (softmax-temperature resampling of the
-            residual field — simplified proxy for adversarial adaptive
-            sampling), 'curriculum' (blends uniform -> residual-weighted
-            sampling over training, see src/pinn/sampling.py for citations).
-        sampling_temperature: softmax temperature for 'importance'/'curriculum'
-            strategies (lower = sharper toward high-signal points).
-        curriculum_warmup_frac: fraction of total epochs to stay at pure
-            uniform sampling before ramping toward adaptive (curriculum only).
-    """
+    """Trains a FourierPINN for a single geometry."""
 
     def __init__(
         self,
@@ -336,11 +296,7 @@ class Trainer:
 
     def _batched_data_loss(self) -> List[torch.Tensor]:
         """
-        Run all S training scenarios through forward_batched_scenarios in one
-        call, returning a list of per-scenario data-loss tensors (with grad).
-
-        Shared Fourier + layer features computed once → significant GPU saving
-        when S=15 and N_data is large (60k pts for geometry1).
+        Run all S training scenarios through forward_batched_scenarios in one call, returning a list of per-scenario data-loss tensors (with grad).
         """
         scenarios = self.train_data.scenarios
         S = len(scenarios)
@@ -549,15 +505,7 @@ class Trainer:
         col_coords: torch.Tensor,
         col_ids: torch.Tensor,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """
-        Return (col_k_lateral, col_si_lateral) for 2p5d_stack geometries.
-
-        For each point in a die-zone layer that falls outside all chiplet footprints,
-        overrides k with underfill_k and marks the point as non-silicon so the
-        temperature-dependent k(T) correction is not applied to underfill.
-
-        Returns (None, None) for all other geometry types — zero overhead.
-        """
+        """Return (col_k_lateral, col_si_lateral) for 2p5d_stack geometries."""
         if (self.geometry.geometry_type != '2p5d_stack'
                 or not self.geometry.die_footprints):
             return None, None
@@ -604,14 +552,7 @@ class Trainer:
         self,
         coords: torch.Tensor,   # (N, 3) normalised
     ) -> Optional[torch.Tensor]:
-        """
-        Return (N,) int tensor of chiplet region IDs for 2p5d_stack geometries.
-
-        Region encoding: 0 = underfill/outside chiplets, 1 = first chiplet footprint,
-        2 = second chiplet footprint (and so on for more chiplets).
-
-        Returns None for non-2p5d geometries — zero overhead, model.forward ignores None.
-        """
+        """Return (N,) int tensor of chiplet region IDs for 2p5d_stack geometries."""
         if (self.geometry.geometry_type != '2p5d_stack'
                 or not getattr(self.geometry, 'die_footprints', None)):
             return None
@@ -632,16 +573,8 @@ class Trainer:
         return torch.from_numpy(region_np).to(self.device)
 
     def _rar_update(self, epoch: int) -> None:
-        """Append rar_add_n points to the persistent collocation set, chosen
-        according to self.sampling_strategy:
-
-          'rar'        — residual-proportional (original RAR-D; eps uniform floor)
-          'hessian'    — curvature (Laplacian-trace) proportional, same eps floor
-          'importance' — softmax-temperature resampling of the residual field
-          'curriculum' — blends uniform -> residual-weighted over training
-                         (blend factor grows from 0 at warmup to 1 at epochs=self.epochs)
-
-        See src/pinn/sampling.py for the literature basis of each.
+        """
+        Append rar_add_n points to the persistent collocation set, chosen according to self.sampling_strategy:
         """
         sc = self.train_data.scenarios[0]
         htc_t = torch.tensor(sc.htc_norm, dtype=torch.float32, device=self.device)

@@ -1,33 +1,4 @@
-"""
-Explainability module for the FourierPINN thermal surrogate.
-
-Four complementary methods, all zero-retraining:
-
-Option 1 — PDE residual maps
-  residual_map(): absolute heat-equation residual at every data-grid point.
-  High residual → model predicts a physically inconsistent gradient there.
-
-Option 2 — Engineering sensitivity maps
-  power_block_sensitivity(): dT/dQ per power block via finite difference.
-    Returns the thermal influence matrix: "if block k increases by 1 W/cm²,
-    how much does temperature rise at each grid point?"
-  htc_sensitivity_map(): dT/dHTC spatial map via finite difference.
-    "Where does improved cooling most reduce temperature?"
-
-Option 3 — Targeted Integrated Gradients (IG)
-  hotspot_ig(): IG attribution at the predicted hotspot + z-profile through
-    the stack. Answers "what caused this hotspot temperature?" by decomposing
-    it into contributions from (x,y,z position, power, HTC, ambient, TSV frac).
-    Cost: < 3 s per scenario on i7 because IG is computed for ~7 representative
-    points (hotspot + one per layer), not all 400k grid points.
-
-Option 5 — MC Dropout uncertainty
-  mc_dropout_uncertainty(): Predictive mean ± std via 100 stochastic passes.
-    Requires Dropout layers in the model (enabled by default in build_model).
-    High std → model is uncertain; add training data there.
-
-All plotting functions follow the scatter z-slice pattern from evaluate.py.
-"""
+"""Explainability module for the FourierPINN thermal surrogate."""
 
 import logging
 from pathlib import Path
@@ -73,23 +44,7 @@ def residual_map(
     norm_stats: NormStats,
     device: torch.device,
 ) -> np.ndarray:
-    """
-    Compute the absolute PDE residual |∇·(k∇T) + Q| at every data-grid point.
-
-    Uses sc.coords and sc.layer_ids (the full data grid, not random collocation
-    points), so the residual map spatially aligns with the temperature field.
-
-    Args:
-        model:       Trained FourierPINN (in eval mode).
-        sc:          ScenarioData — provides coords, layer_ids, scenario params.
-        geometry:    Geometry object for block-power lookup.
-        norm_stats:  NormStats for denormalisation constants.
-        device:      Compute device.
-
-    Returns:
-        (N,) float32 numpy array of absolute residual magnitudes.
-        Units are internally consistent (dimensionless in normalised space).
-    """
+    """Compute the absolute PDE residual |∇·(k∇T) + Q| at every data-grid point."""
     model.eval()
     layer_k, si_mask = _layer_tensors(geometry, device)
 
@@ -132,11 +87,7 @@ def _forward_K(
     device: torch.device,
     power_override: Optional[torch.Tensor] = None,
 ) -> np.ndarray:
-    """
-    Run a single forward pass and return temperature in Kelvin (N,).
-
-    If power_override is provided it replaces sc.power (already normalised).
-    """
+    """Run a single forward pass and return temperature in Kelvin (N,)."""
     model.eval()
     T_range = norm_stats.T_max - norm_stats.T_min
 
@@ -159,18 +110,7 @@ def power_block_sensitivity(
     device: torch.device,
     delta_wcm2: float = 0.1,
 ) -> Dict[str, np.ndarray]:
-    """
-    Thermal influence coefficients: dT[i]/dQ_k [K per W/cm²] for each block k.
-
-    Uses central finite difference with perturbation δQ = delta_wcm2 W/cm².
-    Cost: 2 × n_blocks forward passes + 1 base pass.
-
-    Args:
-        delta_wcm2: Power perturbation in W/cm² (default 0.1 — 10% of 1 W/cm² baseline).
-
-    Returns:
-        {block_name: (N,) float32 array of dT_K/dQ_wcm2}
-    """
+    """Thermal influence coefficients: dT[i]/dQ_k [K per W/cm²] for each block k."""
     layer_name_to_idx = {l.name: i for i, l in enumerate(geometry.layers)}
 
     # Precompute base power field (normalised) from current scenario power_blocks
@@ -220,16 +160,7 @@ def htc_sensitivity_map(
     device: torch.device,
     delta_htc: float = 50.0,
 ) -> np.ndarray:
-    """
-    Cooling effectiveness: dT[i]/dHTC [K per W/m²·K] at each grid point.
-
-    Higher magnitude → that region's temperature is most sensitive to cooling.
-    Uses central finite difference with δHTC = delta_htc W/m²·K.
-    Cost: 2 forward passes.
-
-    Returns:
-        (N,) float32 array. Negative values (temperature drops as HTC rises).
-    """
+    """Cooling effectiveness: dT[i]/dHTC [K per W/m²·K] at each grid point."""
     T_range = norm_stats.T_max - norm_stats.T_min
     htc_range = norm_stats.htc_max - norm_stats.htc_min
     delta_norm = delta_htc / htc_range
@@ -261,27 +192,7 @@ def mc_dropout_uncertainty(
     device: torch.device,
     n_samples: int = 100,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Predictive mean and std via MC Dropout.
-
-    Temporarily sets model to train() mode (activates Dropout) and runs
-    n_samples forward passes with different dropout masks. Returns the
-    empirical mean and standard deviation of predicted temperature.
-
-    High std → model is uncertain; these are regions where adding more
-    training scenarios would most improve prediction reliability.
-
-    Requires FourierPINN to have been built with dropout_p > 0 (default).
-    If dropout_p=0.0 all samples will be identical (std ≈ 0).
-
-    Args:
-        n_samples: Number of stochastic forward passes (default 100).
-                   ~200–300 s on i7 for geometry1 (400k points).
-
-    Returns:
-        T_mean_K: (N,) float32 predictive mean in Kelvin
-        T_std_K:  (N,) float32 predictive std in Kelvin
-    """
+    """Predictive mean and std via MC Dropout."""
     T_range = norm_stats.T_max - norm_stats.T_min
 
     htc_t  = torch.tensor(sc.htc_norm,   dtype=torch.float32, device=device)
@@ -316,12 +227,7 @@ def plot_residual_map(
     output_path: Path,
     z_fraction: float = 0.95,
 ) -> None:
-    """
-    Scatter plot of absolute PDE residual at a z-slice.
-
-    z_fraction=0.95 selects a slice near the top of the domain (inside TIM2).
-    Use z_fraction≈(die_z_top/total_height) to slice through the die instead.
-    """
+    """Scatter plot of absolute PDE residual at a z-slice."""
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -374,13 +280,7 @@ def _ig_point(
     bl_tsv:   torch.Tensor,
     n_steps: int,
 ) -> Tuple[Dict[str, float], float]:
-    """
-    Integrated Gradients for a single grid point.
-
-    Returns:
-        attrs:        {feature_name: attribution_in_K}  sum ≈ T_pt_K - T_bl_K
-        baseline_T_K: predicted temperature at baseline (same layer_id as point)
-    """
+    """Integrated Gradients for a single grid point."""
     T_range = norm_stats.T_max - norm_stats.T_min
 
     x_pt  = sc.coords[idx:idx+1].clone().to(device).float()
@@ -441,23 +341,7 @@ def hotspot_ig(
     n_steps: int = 50,
     include_z_profile: bool = True,
 ) -> Dict:
-    """
-    Integrated Gradients attribution at the predicted hotspot + z-profile.
-
-    Decomposes hotspot temperature into contributions from spatial location
-    (x, y, z), power density, HTC, ambient temperature, and TSV fraction,
-    relative to a neutral baseline (domain centre, zero power, mid HTC/ambient).
-
-    Cost on i7:
-      Hotspot only (n_steps=50):    ~0.1 s
-      + z-profile (6–10 layers):    ~0.6–1.0 s
-      Total per scenario:           < 2 s
-
-    Returns dict with keys:
-        hotspot_idx, hotspot_T_K, baseline_T_K, completeness_error,
-        hotspot_attrs {feature: float_K}, z_profile [list of layer dicts],
-        feature_names
-    """
+    """Integrated Gradients attribution at the predicted hotspot + z-profile."""
     T_range = norm_stats.T_max - norm_stats.T_min
 
     bl_coord = torch.tensor([[0.5, 0.5, 0.5]], dtype=torch.float32)
@@ -525,11 +409,7 @@ def plot_ig_attribution(
     geometry=None,
 ) -> None:
     """
-    Two-panel figure: hotspot attribution bar chart (left) + z-profile
-    attribution heatmap (right, feature × layer).
-
-    Bar heights sum to approximately T_hotspot − T_baseline.
-    Red = feature increased temperature; blue = decreased it.
+    Two-panel figure: hotspot attribution bar chart (left) + z-profile attribution heatmap (right, feature × layer).
     """
     try:
         import matplotlib.pyplot as plt

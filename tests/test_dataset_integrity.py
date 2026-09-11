@@ -1,18 +1,4 @@
-"""
-Dataset integrity checks.
-
-These are the tests that would have caught the three data incidents this project
-has already had:
-
-  1. 155 files of synthetic-fallback garbage produced when `--ice-executable`
-     was omitted and the error was swallowed.
-  2. 13 files cross-contaminated by parallel jobs sharing a temp directory.
-  3. Four files with 1600-5000 C temperatures left inside `data/3d-ice/`, where a
-     recursive glob would silently ingest them.
-
-They are deliberately cheap (metadata + array statistics only) so they can run on
-every commit, and they skip cleanly when no dataset is present.
-"""
+"""Dataset integrity checks."""
 
 from __future__ import annotations
 
@@ -52,12 +38,7 @@ def files():
 
 
 def test_archive_dirs_are_not_inside_live_data_root():
-    """
-    `*_old_*` archives must live outside data/3d-ice/.
-
-    They contain known-corrupted files. Any script globbing data/3d-ice/**/*.npz
-    would train on them silently.
-    """
+    """`*_old_*` archives must live outside data/3d-ice/."""
     strays = [p.name for p in DATA_ROOT.glob('*_old_*') if p.is_dir()]
     assert not strays, (
         f"stale archive dirs inside the live data root: {strays}. "

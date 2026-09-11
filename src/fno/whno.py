@@ -1,40 +1,4 @@
-"""
-Walsh-Hadamard Neural Operator (WHNO) for 3D thermal field prediction.
-
-Motivation
-----------
-FNO's spectral convolution uses a truncated Fourier (sinusoidal) basis, which
-suffers the Gibbs phenomenon at sharp discontinuities: ringing/overshoot near
-jumps, requiring hundreds of retained modes to resolve accurately (see e.g.
-"Walsh-Hadamard Neural Operators for Solving PDEs with Discontinuous
-Coefficients", Nov 2025). Our thermal stacks have exactly this problem —
-material conductivity jumps by up to 37x at layer interfaces (Si k=148 vs
-TIM k=4 W/m·K), which are piecewise-CONSTANT in z.
-
-The Walsh-Hadamard basis is itself piecewise-constant (square waves, not
-sinusoids), so it is a structurally better match for representing
-piecewise-constant coefficient fields — no Gibbs ringing at a jump that
-happens to align with (or be well-approximated by) a Walsh basis function.
-This module swaps FNO3d's SpectralConv3d (FFT-based) for a Walsh-Hadamard
-equivalent, keeping everything else (lift/blocks/proj structure, FiLM
-conditioning compatibility, training loop) identical so it's a drop-in
-alternative for ablation against FNO3d / CNO-FNO.
-
-Implementation notes
----------------------
-- The Fast Walsh-Hadamard Transform (FWHT) requires power-of-2 length along
-  each transformed axis. Real grids (100x100x40, 56x168x50, ...) are NOT
-  powers of 2, so each spatial dim is zero-padded up to the next power of 2
-  before the transform and cropped back after the inverse transform.
-- FWHT in natural (Hadamard) order does not order coefficients by smoothness
-  the way Fourier's low-to-high frequency ordering does. To truncate to
-  "low modes" analogously to FNO's mode truncation, coefficients are
-  permuted into SEQUENCY order (ordered by number of sign changes, i.e.
-  smoothness) via a bit-reversal + Gray-code permutation before truncating
-  to the lowest-sequency `modes` coefficients.
-- WHT coefficients are real-valued (no complex arithmetic needed), unlike
-  FFT — the learnable spectral weight is a plain real tensor.
-"""
+"""Walsh-Hadamard Neural Operator (WHNO) for 3D thermal field prediction."""
 
 from __future__ import annotations
 
@@ -56,11 +20,7 @@ def next_pow2(n: int) -> int:
 
 
 def fwht_last_dim(x: torch.Tensor) -> torch.Tensor:
-    """
-    Unnormalised Fast Walsh-Hadamard Transform along the LAST dimension.
-    Length of the last dim must be a power of 2. Self-inverse up to a
-    factor of n (call twice and divide by n to invert).
-    """
+    """Unnormalised Fast Walsh-Hadamard Transform along the LAST dimension."""
     orig_shape = x.shape
     n = orig_shape[-1]
     assert n & (n - 1) == 0, f"fwht_last_dim: length {n} is not a power of 2"
@@ -86,19 +46,7 @@ def fwht_along_dim(x: torch.Tensor, dim: int) -> torch.Tensor:
 
 def hadamard_to_sequency_perm(n: int, device=None) -> torch.Tensor:
     """
-    Permutation mapping natural (Hadamard-ordered) FWHT coefficient index ->
-    sequency-ordered index (ordered by number of sign changes in the
-    corresponding Walsh function, i.e. by smoothness — index 0 is constant,
-    higher indices oscillate least-to-most).
-
-    Computed numerically (not via a closed-form bit-reversal/Gray-code
-    formula) by reconstructing the natural-order Hadamard matrix through
-    fwht_last_dim itself (applying it to the identity matrix), then sorting
-    rows by their number of sign changes. This guarantees the permutation is
-    self-consistent with THIS module's specific FWHT butterfly convention,
-    regardless of which of several nonequivalent "natural order" conventions
-    a closed-form formula might assume — verified against scipy.linalg.hadamard
-    sign-change ordering in tests/test_whno.py.
+    Permutation mapping natural (Hadamard-ordered) FWHT coefficient index -> sequency-ordered index (ordered by number of sign changes in the
     """
     eye = torch.eye(n, device=device)
     H = fwht_last_dim(eye)   # row i of H == i-th natural-order Walsh function
@@ -113,14 +61,7 @@ def hadamard_to_sequency_perm(n: int, device=None) -> torch.Tensor:
 # ---------------------------------------------------------------------------
 
 class WalshConv3d(nn.Module):
-    """
-    3D "spectral" convolution via truncated Walsh-Hadamard transform.
-
-    Mirrors SpectralConv3d's interface and role (truncated-basis global
-    mixing operator) but uses the Walsh-Hadamard basis, real-valued weights,
-    and sequency-ordered mode truncation instead of Fourier low-frequency
-    truncation.
-    """
+    """3D "spectral" convolution via truncated Walsh-Hadamard transform."""
 
     def __init__(
         self,
@@ -203,13 +144,7 @@ class WHNOBlock(nn.Module):
 
 
 class WHNO3d(nn.Module):
-    """
-    Walsh-Hadamard Neural Operator — drop-in alternative to FNO3d.
-
-    Same input/output contract as FNO3d.forward: (Q_norm, layer_id_norm,
-    htc_norm, t_amb_norm, tsv_frac) -> normalised temperature field on the
-    same grid. Interchangeable in train_fno.py via --model whno.
-    """
+    """Walsh-Hadamard Neural Operator — drop-in alternative to FNO3d."""
 
     def __init__(
         self,

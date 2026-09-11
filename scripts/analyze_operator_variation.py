@@ -1,18 +1,5 @@
 """
-Why is our benchmark linear-solvable and IC-ThermBench's not? (docs/report.md 9.14)
-
-Two diagnostics, both structural properties of the data rather than of any model:
-
-1. Error decomposition -- does the linear model's error concentrate at hotspots, and does it
-   concentrate MORE on IC-ThermBench than on ours? (Answer: no. 2.1x vs 2.4x. The
-   "their benchmark scores hotspots, which is ridge's weakness" hypothesis is refuted.)
-
-2. Source-support and domain-scale variation -- see analyze_source_variation() below and
-   docs/report.md 9.14 for the numbers that actually explain the difference: our heat sources
-   never move (one support pattern per geometry, IoU 1.000) while theirs move per sample
-   (IoU 0.449), and their physical cell pitch varies ~2x across samples while ours is fixed.
-
-Run: python scripts/analyze_operator_variation.py
+Why is our benchmark linear-solvable and IC-ThermBench's not? (docs/report.md 9.14) Two diagnostics, both structural properties of the data rather than of any model:
 """
 
 import sys, glob, numpy as np

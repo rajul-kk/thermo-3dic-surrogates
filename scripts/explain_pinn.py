@@ -1,41 +1,4 @@
-"""
-CLI entry point for PINN explainability analysis.
-
-Runs three complementary explainability methods on a trained checkpoint:
-
-  Option 1 — PDE residual maps: where does the model violate the heat equation?
-  Option 2 — Engineering sensitivity maps: power block influence + HTC sensitivity
-  Option 5 — MC Dropout uncertainty: where is the model uncertain?
-
-Usage:
-    python scripts/explain_pinn.py \\
-        --checkpoint checkpoints/geometry1/geometry1_best.pt \\
-        --data data/3d-ice \\
-        --output results/explain/geometry1 \\
-        --split test
-
-    # Only specific methods:
-    python scripts/explain_pinn.py \\
-        --checkpoint checkpoints/geometry1/geometry1_best.pt \\
-        --data data/3d-ice \\
-        --output results/explain/geometry1 \\
-        --methods residual sensitivity
-
-    # Control MC Dropout samples (fewer = faster but noisier):
-    python scripts/explain_pinn.py ... --mc-samples 50
-
-Outputs per scenario (--split test, default):
-    pde_residual_<scenario>.png        PDE residual at die z-slice
-    sensitivity_block_<b>_<scenario>.png   per-block dT/dQ influence map
-    sensitivity_htc_<scenario>.png     cooling effectiveness map
-    uncertainty_<scenario>.png         MC Dropout predictive std
-    explain_summary.json               aggregate statistics
-
-Notes:
-    MC Dropout requires the model to have been trained with dropout_p > 0
-    (the default in build_model). Models trained with dropout_p=0 will
-    produce near-zero uncertainty estimates.
-"""
+"""CLI entry point for PINN explainability analysis."""
 
 import argparse
 import json

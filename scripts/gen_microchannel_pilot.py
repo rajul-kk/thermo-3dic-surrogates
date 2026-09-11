@@ -1,19 +1,4 @@
-"""
-Generate a pilot batch of microchannel-cooled geometry6 scenarios.
-
-The process_scenario -> NPZExporter pipeline was already confirmed correct for
-microchannel-cooled geometries (2026-08-09, see goal.md) -- what was actually
-missing was a way to select a microchannel-cooled geometry at all, since none
-of the 6 registered geometries have coolant_layer_name set. This builds one
-ad hoc (geometry6 + a thin copper base plate below the channel, matching the
-pattern already validated against the real 3D-ICE 4.0 binary) and runs a
-small scenario sweep through the real pipeline, varying coolant flow rate --
-the axis that actually introduces advection, i.e. the one thing in this
-benchmark that isn't confined to the linear-conduction regime.
-
-Usage:
-    python scripts/gen_microchannel_pilot.py --n 12 --output data/3d-ice-microchannel-pilot
-"""
+"""Generate a pilot batch of microchannel-cooled geometry6 scenarios."""
 import argparse
 import logging
 import sys

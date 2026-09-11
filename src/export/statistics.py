@@ -1,9 +1,4 @@
-"""
-Thermal statistics calculator for benchmark scenarios.
-
-Computes temperature statistics and hotspot locations from simulation data.
-Exports results as JSON for validation and analysis.
-"""
+"""Thermal statistics calculator for benchmark scenarios."""
 
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List, Any
@@ -13,16 +8,7 @@ from ..core.geometry import Geometry
 
 
 class StatisticsCalculator:
-    """
-    Compute thermal statistics from simulation results.
-
-    Calculates:
-    - Min/max/mean/median temperature
-    - Temperature standard deviation
-    - Hotspot location and peak temperature
-    - Temperature distribution percentiles
-    - Per-layer statistics
-    """
+    """Compute thermal statistics from simulation results."""
 
     def __init__(self):
         """Initialize statistics calculator."""
@@ -35,20 +21,7 @@ class StatisticsCalculator:
                               power_density: np.ndarray,
                               layer_indices: np.ndarray,
                               geometry: Geometry) -> Dict[str, Any]:
-        """
-        Compute comprehensive statistics for a single scenario.
-
-        Args:
-            scenario_name: Scenario identifier
-            coords: (N, 3) array of (x, y, z) coordinates in μm
-            temperatures: (N,) array of temperatures in K
-            power_density: (N,) array of volumetric power density in W/m³
-            layer_indices: (N,) array of layer indices
-            geometry: Geometry object
-
-        Returns:
-            Dictionary with comprehensive statistics
-        """
+        """Compute comprehensive statistics for a single scenario."""
         stats = {
             'scenario_name': scenario_name,
             'geometry': geometry.name,
@@ -131,17 +104,7 @@ class StatisticsCalculator:
                           coords: np.ndarray,
                           temperatures: np.ndarray,
                           geometry: Geometry) -> Dict[str, float]:
-        """
-        Compute temperature gradients in x, y, z directions.
-
-        Args:
-            coords: (N, 3) coordinate array
-            temperatures: (N,) temperature array
-            geometry: Geometry object
-
-        Returns:
-            Dictionary with gradient statistics
-        """
+        """Compute temperature gradients in x, y, z directions."""
         gradients = {}
 
         # Lateral gradients (x, y)
@@ -174,15 +137,7 @@ class StatisticsCalculator:
         return gradients
 
     def _compute_distribution(self, temperatures: np.ndarray) -> Dict[str, int]:
-        """
-        Compute temperature distribution histogram.
-
-        Args:
-            temperatures: (N,) temperature array
-
-        Returns:
-            Dictionary with bin counts
-        """
+        """Compute temperature distribution histogram."""
         # Create bins from min to max temperature
         t_min, t_max = np.min(temperatures), np.max(temperatures)
         t_range = t_max - t_min
@@ -202,14 +157,7 @@ class StatisticsCalculator:
         return distribution
 
     def save_stats(self, output_file: Path, stats: Dict[str, Any], pretty: bool = True) -> None:
-        """
-        Save statistics to JSON file.
-
-        Args:
-            output_file: Path to output JSON file
-            stats: Statistics dictionary
-            pretty: Whether to pretty-print JSON
-        """
+        """Save statistics to JSON file."""
         output_file = Path(output_file)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -220,15 +168,7 @@ class StatisticsCalculator:
                 json.dump(stats, f, default=str)
 
     def load_stats(self, input_file: Path) -> Dict[str, Any]:
-        """
-        Load statistics from JSON file.
-
-        Args:
-            input_file: Path to JSON file
-
-        Returns:
-            Statistics dictionary
-        """
+        """Load statistics from JSON file."""
         with open(input_file, 'r') as f:
             return json.load(f)
 
@@ -238,19 +178,7 @@ class StatisticsCalculator:
                      simulation_data: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
                      output_dir: Optional[Path] = None,
                      verbose: bool = True) -> Dict[str, Dict[str, Any]]:
-        """
-        Compute statistics for multiple scenarios.
-
-        Args:
-            scenarios: List of ScenarioParameters objects
-            geometries: Dict mapping geometry names to Geometry objects
-            simulation_data: Dict mapping scenario names to (coords, temps, power, layer) tuples
-            output_dir: Optional directory to save JSON files
-            verbose: Print progress messages
-
-        Returns:
-            Dictionary mapping scenario names to statistics
-        """
+        """Compute statistics for multiple scenarios."""
         all_stats = {}
 
         for i, scenario in enumerate(scenarios):
@@ -304,16 +232,7 @@ class StatisticsCalculator:
     @staticmethod
     def create_summary_stats(all_stats: Dict[str, Dict[str, Any]],
                             by_geometry: bool = True) -> Dict[str, Any]:
-        """
-        Create aggregate statistics across multiple scenarios.
-
-        Args:
-            all_stats: Dictionary of per-scenario statistics
-            by_geometry: Whether to group by geometry
-
-        Returns:
-            Dictionary with aggregate statistics
-        """
+        """Create aggregate statistics across multiple scenarios."""
         summary = {
             'total_scenarios': len(all_stats),
             'global_stats': {}

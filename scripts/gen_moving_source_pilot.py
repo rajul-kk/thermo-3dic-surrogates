@@ -1,36 +1,5 @@
 """
-Moving-source pilot: the fix for the defect in docs/report.md §9.14, and a controlled test
-of the mechanism claimed there.
-
-§9.14 measured that every geometry in this benchmark has exactly ONE heat-source support
-pattern across all its scenarios (mean pairwise IoU 1.000). Sources never move, so the
-thermal operator is fixed and the solution map is exactly a linear model's hypothesis class.
-This script regenerates a geometry's scenarios with per-scenario chiplet placement
-(`src/core/placement.py`), which is what IC-ThermBench varies and this benchmark did not.
-
-It is set up as a CONTROLLED experiment, not just a harder dataset, because "move the
-sources" is not by itself sufficient to break linearity and it matters to show which part
-does the work:
-
-  geometry1  laterally homogeneous silicon die. Moving the power blocks changes where heat
-             enters but NOT the medium, so the operator is unchanged and T remains a fixed
-             linear functional of the per-cell power map.
-             PREDICTION: a linear model given the per-cell power map should stay strong.
-
-  geometry4  2.5D assembly: each chiplet IS a material region (silicon island in k=0.7
-             underfill). Moving it rearranges the medium, so the operator changes per
-             scenario and no single fixed linear map suffices.
-             PREDICTION: the linear model should degrade markedly.
-
-If both degrade equally, the mechanism claimed in §9.14 (operator variation, not source
-translation) is wrong and the section needs rewriting. That is the point of running both.
-
-Every scenario is a real 3D-ICE solve; the placement is applied to the geometry handed to
-the simulator, so the .stk file, the material map and the exported per-cell power field all
-reflect the moved chiplets.
-
-Usage:
-    python scripts/gen_moving_source_pilot.py --geometry geometry4 --n 45
+Moving-source pilot: the fix for the defect in docs/report.md §9.14, and a controlled test of the mechanism claimed there.
 """
 import argparse
 import logging

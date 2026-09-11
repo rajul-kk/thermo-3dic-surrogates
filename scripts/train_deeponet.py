@@ -1,46 +1,4 @@
-"""
-CLI entry point for PI-DeepONet training.
-
-One model — all 5 uniform-stack geometries simultaneously.
-geometry4/5 (2.5D chiplet assemblies with lateral conductivity variation) are
-excluded: the trunk's (x,y,z,layer_id) coordinates cannot represent sharp
-temperature gradients at chiplet boundaries without explicit region encoding.
-geometry4/5 use per-geometry CNO-FNO models instead.
-
-Usage
------
-# Train cross-geometry PI-DeepONet on all 5 stack geometries (default)
-python scripts/train_deeponet.py \\
-    --data data/3d-ice \\
-    --output checkpoints/deeponet/ \\
-    --epochs 1000 \\
-    --pde-weight 0.1
-
-# Data-only baseline (no physics loss) — pure DeepONet
-python scripts/train_deeponet.py \\
-    --data data/3d-ice \\
-    --output checkpoints/deeponet/ \\
-    --pde-weight 0.0
-
-# Subset of geometries (e.g. to compare against single-geometry FNO)
-python scripts/train_deeponet.py \\
-    --geometries geometry1 geometry3 \\
-    --data data/3d-ice \\
-    --output checkpoints/deeponet/
-
-# CPU-fast (smaller model, fewer epochs)
-python scripts/train_deeponet.py \\
-    --data data/3d-ice \\
-    --output checkpoints/deeponet/ \\
-    --cpu-fast
-
-Key advantages over per-geometry FNO
--------------------------------------
-- Single model: train once, evaluate on all 5 stack geometries
-- Arbitrary query resolution: trunk evaluates at any (x,y,z), not fixed grid
-- Better parametric extrapolation via physics loss on trunk gradients
-- ~3x cheaper per epoch than FNO (no 3D FFT overhead)
-"""
+"""CLI entry point for PI-DeepONet training."""
 
 import argparse
 import logging

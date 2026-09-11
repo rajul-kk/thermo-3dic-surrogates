@@ -1,38 +1,4 @@
-"""
-torch.func-based PDE residual for PINN training.
-
-Replaces the autograd.grad(..., create_graph=True) approach in physics.py with
-torch.func.vmap + torch.func.grad.  The key differences:
-
-  OLD path (physics.py):
-    col_coords.requires_grad_(True)
-    T = model(col_coords, ...)          -- retains graph for N=20k pts
-    grad1 = autograd.grad(T, col_coords, create_graph=True)[0]
-    kTx = k * grad1[:, 0]
-    div_x = autograd.grad(kTx, col_coords)[0][:, 0]
-    → Entire N-point computation graph held in GPU memory until backward()
-    → For 15 scenarios: 15 × N-pt graphs retained simultaneously
-
-  NEW path (this file):
-    params = dict(model.named_parameters())
-    def T_scalar(coord, ...): ...           -- single-point scalar function
-    dT_dcoord = vmap(grad(T_scalar))(coords, ...)  -- N independent grads, no graph
-    → No retained graph at all
-    → Memory proportional to one forward pass, not 15 × N-pt graphs
-    → 2nd derivative via nested vmap(grad(grad(...))) — still no create_graph
-
-GPU speedup over create_graph path (estimated):
-  - Eliminates ~70% of GPU memory allocated to retained autograd graphs
-  - vmap vectorizes N gradient calls into one kernel launch per layer
-  - Measured speedup: 1.5–2.5× per epoch on CUDA
-  - Does NOT require PyTorch 2.x — works from 1.13+ (torch.func)
-
-Caveats:
-  - nn.Embedding inside vmap requires functional_call (provided here)
-  - Dropout is disabled during PDE evaluation (grad needs deterministic output)
-  - k(T) temperature-dependent conductivity: quasi-linearised (k frozen per step),
-    same as the autograd path — not a regression
-"""
+"""torch.func-based PDE residual for PINN training."""
 
 from __future__ import annotations
 
@@ -66,12 +32,7 @@ def pde_residual_func(
     col_k_lateral: Optional[torch.Tensor] = None,
     col_si_lateral: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """
-    Compute per-point PDE residual |∇·(k∇T) + Q|  via vmap + grad.
-
-    Returns (N,) residual (not yet squared/reduced — same contract as
-    pde_residual in physics.py).
-    """
+    """Compute per-point PDE residual |∇·(k∇T) + Q| via vmap + grad."""
     from torch.func import vmap, grad, functional_call
 
     params  = {k: v for k, v in model.named_parameters()}

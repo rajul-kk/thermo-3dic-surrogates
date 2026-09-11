@@ -1,19 +1,4 @@
-"""
-Main orchestration script for 3D-IC Thermal PINN Benchmark System.
-
-This script:
-1. Loads geometry definitions (Geometry 1, Geometry 2a/2b/2c with varying TSV density)
-2. Loads scenario parameters from YAML configs
-3. Runs thermal simulations (3D-ICE or synthetic data)
-4. Exports results to NumPy .npz format for PINN training
-5. Computes comprehensive thermal statistics
-6. Generates validation visualizations
-
-Usage:
-    python main.py --simulator 3d-ice --geometry geometry1 --output data/geometry1/train
-    python main.py --simulator mock --all-geometries --all-scenarios
-    python main.py --generator-only --output data/all_scenarios
-"""
+"""Main orchestration script for 3D-IC Thermal PINN Benchmark System."""
 
 import sys
 import argparse
@@ -81,20 +66,7 @@ def generate_synthetic_temperature(coords: np.ndarray,
                                    geometry: object,
                                    ambient_temp: float = 25.0,
                                    power_field: np.ndarray = None) -> np.ndarray:
-    """
-    Generate synthetic temperature field using simplified thermal model.
-
-    This enables testing without 3D-ICE when simulator unavailable.
-
-    Args:
-        coords: (N, 3) coordinate array [um]
-        geometry: Geometry object
-        ambient_temp: Ambient temperature [degC]
-        power_field: (N,) volumetric power density [W/m³]
-
-    Returns:
-        (N,) temperature array in Kelvin
-    """
+    """Generate synthetic temperature field using simplified thermal model."""
     # Base temperature = ambient
     temps = np.ones_like(coords[:, 0]) * (ambient_temp + 273.15)
 
@@ -286,22 +258,7 @@ def process_geometry(geometry_name: str,
                      skip_test: bool = False,
                      train_start_index: int = 1,
                      allow_synthetic_fallback: bool = False) -> Dict:
-    """
-    Process all scenarios for a single geometry.
-
-    Args:
-        geometry_name: Name of geometry
-        geometry: Geometry object
-        scenarios_per_type: Dict with 'train' and 'test' lists of scenario params
-        simulator: ThermalSimulator instance
-        output_base: Base output directory
-        use_synthetic: Use synthetic thermal data
-        skip_train: Skip training scenarios
-        skip_test: Skip test scenarios
-
-    Returns:
-        Dict with aggregated statistics
-    """
+    """Process all scenarios for a single geometry."""
     logger.info(f"\n{'='*80}")
     logger.info(f"Processing {geometry_name}")
     logger.info(f"{'='*80}")

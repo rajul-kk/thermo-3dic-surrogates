@@ -1,31 +1,4 @@
-"""
-PI-DeepONet training loop.
-
-Training strategy
------------------
-Each epoch iterates over all scenarios (batch_size=4 scenarios at a time).
-For each scenario, the trunk is evaluated at a random subset of the N data
-points for the data loss, and at a separate set of collocation points for the
-PDE residual (when pde_weight > 0).
-
-Physics loss via trunk autograd
---------------------------------
-The key advantage over PI-FNO and standalone PINN:
-
-  T(x) = branch(u) · trunk(x)
-  ∂T/∂x_i = branch(u) · ∂trunk/∂x_i          (chain rule, branch has no x)
-
-So the PDE only differentiates the TRUNK (a small MLP, ~200k params) through
-N_col collocation points.  Branch is fixed per scenario — no need to
-backpropagate through the sensor/geometry encoding.  This is ~5-10× cheaper
-than the PINN PDE loss per step, and requires no create_graph for the spatial
-derivatives.
-
-The data loss is MSE(T_pred, T_true) at n_data randomly sampled grid points.
-Using random subsets avoids loading all N=60k points to GPU per scenario;
-n_data=4096 points per scenario per step captures sufficient signal while
-keeping GPU memory manageable.
-"""
+"""PI-DeepONet training loop."""
 
 from __future__ import annotations
 
@@ -64,14 +37,7 @@ def _pde_residual_deeponet(
     power_std: float,
 ) -> torch.Tensor:
     """
-    Compute PDE residual ∇·(k∇T) + Q = 0 at collocation points via
-    autograd through the trunk network only.
-
-    branch_coeffs: pre-computed (1, n_basis) — identical for both PIDeepONet
-    and PICNODeepONet. Passing it in avoids computing the branch twice and
-    keeps the interface model-agnostic.
-
-    Returns scalar loss.
+    Compute PDE residual ∇·(k∇T) + Q = 0 at collocation points via autograd through the trunk network only.
     """
     b = branch_coeffs                              # (1, n_basis)
     t = model.trunk(col_coords)                    # (N_col, n_basis)
@@ -135,24 +101,7 @@ def _pde_residual_deeponet(
 
 
 class DeepONetTrainer:
-    """
-    Trains PIDeepONet across multiple geometries simultaneously.
-
-    Args:
-        model:        PIDeepONet instance
-        geometries:   dict of {geom_name: Geometry} (for layer tensors)
-        norm_stats:   global normalisation statistics
-        train_data:   MultiGeomDataset
-        val_data:     MultiGeomDataset
-        output_dir:   checkpoint directory
-        batch_size:   scenarios per step
-        epochs:       training epochs
-        lr:           learning rate
-        pde_weight:   λ for physics loss (0 = pure data-driven)
-        n_data:       data points per scenario per step (random subset of N)
-        n_col:        collocation points per scenario per step (PI loss)
-        device:       training device
-    """
+    """Trains PIDeepONet across multiple geometries simultaneously."""
 
     def __init__(
         self,

@@ -1,11 +1,4 @@
-"""
-Geometry data structures and builders for thermal simulations.
-
-Defines the core classes for representing thermal stack geometries:
-- Layer: Single material layer in the thermal stack
-- PowerBlock: Power dissipation region
-- Geometry: Complete geometry specification with layers and power map
-"""
+"""Geometry data structures and builders for thermal simulations."""
 
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -13,19 +6,7 @@ from typing import List, Tuple, Optional
 
 @dataclass
 class Layer:
-    """
-    Represents a single layer in the thermal stack.
-
-    Attributes:
-        name: Layer identifier (e.g., 'die', 'tim_top', 'spreader')
-        material: Material name (references MaterialLibrary)
-        thickness: Layer thickness in micrometers (μm)
-        k_thermal: Thermal conductivity in W/m·K
-        volumetric_heat_capacity: Volumetric heat capacity in J/m³·K
-        z_bottom: Bottom z-coordinate in μm (set during stack assembly)
-        z_top: Top z-coordinate in μm (set during stack assembly)
-        is_active: Whether this layer has power dissipation
-    """
+    """Represents a single layer in the thermal stack."""
     name: str
     material: str
     thickness: float  # μm
@@ -57,20 +38,7 @@ class Layer:
 
 @dataclass
 class PowerBlock:
-    """
-    Represents a power dissipation region in a die layer.
-
-    Attributes:
-        name: Block identifier
-        x: Bottom-left x-coordinate in μm
-        y: Bottom-left y-coordinate in μm
-        width: Block width in μm
-        height: Block height in μm
-        power_density: Power density in W/cm² (set by scenario)
-        is_tsv_region: True if this block represents a TSV array region
-        die_index: Die index for multi-die stacks (0-based)
-        layer_name: Name of the associated die layer
-    """
+    """Represents a power dissipation region in a die layer."""
     name: str
     x: float  # μm
     y: float  # μm
@@ -99,15 +67,7 @@ class PowerBlock:
         return (self.width * self.height) / 1e12  # μm² to m²
 
     def power_watts(self, power_density_wcm2: Optional[float] = None) -> float:
-        """
-        Calculate total power in Watts.
-
-        Args:
-            power_density_wcm2: Override default power density (W/cm²)
-
-        Returns:
-            Total power in Watts
-        """
+        """Calculate total power in Watts."""
         pd = power_density_wcm2 if power_density_wcm2 is not None else self.power_density
         return pd * self.area_cm2
 
@@ -119,12 +79,7 @@ class PowerBlock:
 
 @dataclass
 class DiePrint:
-    """
-    Footprint of a single chiplet on a shared interposer (2p5d_stack geometries).
-
-    Defines which (x, y) region of the die_layer_name layer contains Si die
-    material vs underfill/gap material.
-    """
+    """Footprint of a single chiplet on a shared interposer (2p5d_stack geometries)."""
     name: str
     x: float           # µm from left edge of interposer
     y: float           # µm from bottom edge of interposer
@@ -139,19 +94,7 @@ class DiePrint:
 
 @dataclass
 class Geometry:
-    """
-    Complete geometry specification for thermal simulation.
-
-    Attributes:
-        name: Geometry identifier (e.g., 'geometry1', 'geometry2a')
-        geometry_type: Type identifier ('2d_stack' or '3d_stack')
-        layers: List of Layer objects from bottom to top
-        power_blocks: List of PowerBlock objects
-        die_width: Die width in μm
-        die_length: Die length in μm
-        mesh_resolution: Grid resolution (nx, ny, nz)
-        tsv_density: TSV area fraction (0.0-1.0), 0 for no TSVs
-    """
+    """Complete geometry specification for thermal simulation."""
     name: str
     geometry_type: str  # "2d_stack" or "3d_stack"
     layers: List[Layer] = field(default_factory=list)
@@ -198,19 +141,7 @@ class Geometry:
         return self.layers[-1].z_top
 
     def get_layer_at_z(self, z: float) -> Optional[Layer]:
-        """
-        Find the layer containing the given z-coordinate.
-
-        Uses half-open intervals [z_bottom, z_top) for interior layers.
-        The top surface of the last layer (z == total height) is included
-        so that convective BC points are correctly assigned.
-
-        Args:
-            z: Z-coordinate in μm
-
-        Returns:
-            Layer object or None if not found
-        """
+        """Find the layer containing the given z-coordinate."""
         n = len(self.layers)
         for i, layer in enumerate(self.layers):
             if i < n - 1:
@@ -222,18 +153,7 @@ class Geometry:
         return None
 
     def get_layer_index_at_z(self, z: float) -> int:
-        """
-        Get the index of the layer containing z-coordinate.
-
-        Uses half-open intervals [z_bottom, z_top) for interior layers.
-        The top surface of the last layer (z == total height) is included.
-
-        Args:
-            z: Z-coordinate in μm
-
-        Returns:
-            Layer index (0-based) or -1 if not found
-        """
+        """Get the index of the layer containing z-coordinate."""
         n = len(self.layers)
         for i, layer in enumerate(self.layers):
             if i < n - 1:
@@ -245,33 +165,14 @@ class Geometry:
         return -1
 
     def get_power_block_at_xy(self, x: float, y: float) -> Optional[PowerBlock]:
-        """
-        Find the power block containing point (x, y).
-
-        Args:
-            x, y: Coordinates in μm
-
-        Returns:
-            PowerBlock object or None if point is not in any block
-        """
+        """Find the power block containing point (x, y)."""
         for block in self.power_blocks:
             if block.contains_point(x, y):
                 return block
         return None
 
     def validate(self) -> None:
-        """
-        Raise ValueError if the geometry has any structural inconsistency.
-
-        Checks (fatal):
-          1. Layer z-ranges are contiguous (no gaps or overlaps)
-          2. No duplicate layer names
-          3. PowerBlock.layer_name references exist in the layer stack
-          4. Power blocks lie within the die footprint
-
-        Checks (warning only):
-          5. Power block pairs that overlap by more than 5% of the smaller block's area
-        """
+        """Raise ValueError if the geometry has any structural inconsistency."""
         import warnings
 
         errors = []

@@ -1,12 +1,4 @@
-"""
-Visualization utilities for thermal simulation data.
-
-Provides functions to create publication-quality plots of:
-- Temperature fields (2D slices, 3D volumes)
-- Power distribution maps
-- Layer cross-sections
-- Scenario comparisons
-"""
+"""Visualization utilities for thermal simulation data."""
 
 from pathlib import Path
 from typing import Optional, Tuple
@@ -25,22 +17,7 @@ def plot_temperature_field_2d(coords: np.ndarray,
                               title: str = '',
                               output_file: Optional[Path] = None,
                               figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
-    """
-    Create 2D temperature field visualization (cross-section).
-
-    Args:
-        coords: (N, 3) coordinate array in μm
-        temperatures: (N,) temperature array in K
-        layer_indices: (N,) layer index array
-        geometry: Geometry object
-        plane: Cross-section plane ('z_mid', 'z_top', 'y_mid', 'x_mid')
-        title: Plot title
-        output_file: Optional file path to save plot
-        figsize: Figure size (width, height)
-
-    Returns:
-        Matplotlib figure object
-    """
+    """Create 2D temperature field visualization (cross-section)."""
     fig, ax = plt.subplots(figsize=figsize)
 
     # Select plane
@@ -106,19 +83,7 @@ def plot_power_map_2d(coords: np.ndarray,
                       geometry: Geometry,
                       output_file: Optional[Path] = None,
                       figsize: Tuple[int, int] = (10, 8)) -> plt.Figure:
-    """
-    Create 2D power distribution map (die-level view).
-
-    Args:
-        coords: (N, 3) coordinate array in μm
-        power_density: (N,) power density array in W/m³
-        geometry: Geometry object
-        output_file: Optional file path to save plot
-        figsize: Figure size
-
-    Returns:
-        Matplotlib figure object
-    """
+    """Create 2D power distribution map (die-level view)."""
     fig, ax = plt.subplots(figsize=figsize)
 
     # Get die layer (top active layer)
@@ -179,20 +144,7 @@ def plot_temperature_profile(coords: np.ndarray,
                             direction: str = 'z',
                             output_file: Optional[Path] = None,
                             figsize: Tuple[int, int] = (10, 6)) -> plt.Figure:
-    """
-    Create 1D temperature profile along a direction.
-
-    Args:
-        coords: (N, 3) coordinate array in μm
-        temperatures: (N,) temperature array in K
-        geometry: Geometry object
-        direction: Direction for profile ('x', 'y', or 'z')
-        output_file: Optional file path to save plot
-        figsize: Figure size
-
-    Returns:
-        Matplotlib figure object
-    """
+    """Create 1D temperature profile along a direction."""
     fig, ax = plt.subplots(figsize=figsize)
 
     if direction == 'z':
@@ -238,17 +190,7 @@ def plot_temperature_profile(coords: np.ndarray,
 def plot_scenario_comparison(scenarios_data: dict,
                             output_file: Optional[Path] = None,
                             figsize: Tuple[int, int] = (14, 8)) -> plt.Figure:
-    """
-    Create comparison plot of multiple scenarios.
-
-    Args:
-        scenarios_data: Dict mapping scenario names to temperature arrays
-        output_file: Optional file path to save plot
-        figsize: Figure size
-
-    Returns:
-        Matplotlib figure object
-    """
+    """Create comparison plot of multiple scenarios."""
     fig, axes = plt.subplots(2, 2, figsize=figsize)
     axes = axes.flatten()
 
@@ -280,17 +222,7 @@ def create_visualization_summary(coords: np.ndarray,
                                 geometry: Geometry,
                                 scenario_name: str,
                                 output_dir: Path) -> None:
-    """
-    Create a comprehensive set of visualization plots.
-
-    Args:
-        coords: (N, 3) coordinate array
-        temperatures: (N,) temperature array
-        power_density: (N,) power density array
-        geometry: Geometry object
-        scenario_name: Scenario identifier
-        output_dir: Directory to save plots
-    """
+    """Create a comprehensive set of visualization plots."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

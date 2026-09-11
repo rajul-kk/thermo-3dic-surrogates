@@ -1,20 +1,5 @@
 """
-Therm-FM weight-drift XAI: diff a pretrained CNOFNOHybrid checkpoint against
-its few-shot fine-tuned result to see WHAT changed to adapt to a new
-geometry.
-
-Pure post-hoc checkpoint analysis — no forward passes, no retraining, no
-compute cost beyond loading two .pt files. Bucketed by the same parameter
-groups finetune_therm_fm.py freezes/unfreezes (encoder, film_gen, decoder,
-proj, tail latent_blocks), so drift in the frozen encoder should be exactly
-zero — this doubles as a correctness check that freezing actually worked.
-
-Usage
------
-python scripts/explain_therm_fm.py \
-    --pretrained checkpoints/cno_fno/cno_fno_best.pt \
-    --finetuned  checkpoints/therm_fm/therm_fm_best.pt \
-    --output     results/therm_fm_drift
+Therm-FM weight-drift XAI: diff a pretrained CNOFNOHybrid checkpoint against its few-shot fine-tuned result to see WHAT changed to adapt to a new
 """
 
 import argparse
@@ -55,16 +40,7 @@ def compute_weight_drift(
     finetuned_sd: Dict[str, torch.Tensor],
 ) -> List[Dict]:
     """
-    Per-parameter drift: L2 norm of the difference (absolute) and relative
-    drift (||delta|| / ||pretrained||). Returns a list of per-parameter
-    records, each also tagged with its coarse group.
-
-    Some parameters (e.g. FiLM's final layer, GroupNorm biases) are
-    deliberately zero-initialized so the layer starts as an identity
-    transform. For these, ||pretrained|| ~ 0 makes relative drift explode
-    to a meaningless huge number even for a tiny absolute update. Such
-    tensors are flagged 'near_zero_init' and excluded from relative-drift
-    aggregation — absolute drift is the only meaningful metric for them.
+    Per-parameter drift: L2 norm of the difference (absolute) and relative drift (||delta|| / ||pretrained||). Returns a list of per-parameter
     """
     records = []
     common_keys = sorted(set(pretrained_sd) & set(finetuned_sd))
@@ -146,9 +122,9 @@ def summarize_by_group(records: List[Dict]) -> Dict[str, Dict]:
 
 
 def plot_drift_summary(summary: Dict[str, Dict], output_path: Path) -> None:
-    """Two-panel bar chart: absolute drift norm (always defined) and mean
-    relative drift (NaN for groups made entirely of near-zero-init tensors,
-    shown as a gap rather than a misleading zero or huge spike)."""
+    """
+    Two-panel bar chart: absolute drift norm (always defined) and mean relative drift (NaN for groups made entirely of near-zero-init tensors,
+    """
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt

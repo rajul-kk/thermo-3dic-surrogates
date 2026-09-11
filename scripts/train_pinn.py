@@ -1,22 +1,4 @@
-"""
-CLI entry point for PINN training.
-
-Usage:
-    python scripts/train_pinn.py \\
-        --geometry geometry1 \\
-        --data data/3d-ice \\
-        --output checkpoints/ \\
-        --epochs 8000 \\
-        --n-col 20000 \\
-        --fourier-sigma 10.0 \\
-        [--device cuda]
-
-The script:
-  1. Loads train/test .npz files for the given geometry
-  2. Computes or loads normalization statistics
-  3. Trains a FourierPINN with curriculum staging
-  4. Saves best checkpoint + norm_stats.json to --output
-"""
+"""CLI entry point for PINN training."""
 
 import argparse
 import json

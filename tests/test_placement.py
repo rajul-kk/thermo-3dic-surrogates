@@ -1,10 +1,4 @@
-"""
-Tests for src/core/placement.py — per-scenario chiplet placement (docs/report.md §9.14-9.15).
-
-The behaviours worth pinning down are the ones that were wrong on the first attempt:
-stacked footprints must move as one chiplet, blocks must stay registered with the die they
-sit on, and nothing may leave the package footprint.
-"""
+"""Tests for src/core/placement.py — per-scenario chiplet placement (docs/report.md §9.14-9.15)."""
 import numpy as np
 import pytest
 

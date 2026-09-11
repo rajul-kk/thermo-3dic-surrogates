@@ -1,14 +1,4 @@
-"""
-Reproducibility helpers shared by all training entry points.
-
-Every training script must call `set_seed()` before constructing models or
-datasets. Without it, run-to-run variance is unbounded and seed-variance error
-bars (which reviewers expect alongside any reported metric) cannot be produced.
-
-`deterministic=True` additionally pins cuDNN into deterministic algorithm
-selection. This costs throughput and is off by default; turn it on for the runs
-whose numbers go into a paper table.
-"""
+"""Reproducibility helpers shared by all training entry points."""
 
 from __future__ import annotations
 
@@ -23,15 +13,7 @@ _log = logging.getLogger(__name__)
 
 
 def set_seed(seed: int, deterministic: bool = False) -> None:
-    """
-    Seed Python, NumPy and Torch (CPU + all CUDA devices).
-
-    Args:
-        seed: Integer seed applied to every RNG.
-        deterministic: If True, force deterministic cuDNN kernels and set
-            CUBLAS_WORKSPACE_CONFIG so matmul reductions are reproducible.
-            Slower; use for final reported runs.
-    """
+    """Seed Python, NumPy and Torch (CPU + all CUDA devices)."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

@@ -1,20 +1,4 @@
-"""
-Cross-geometry FNO loading.
-
-The point of this benchmark is several geometries with distinct physics, learned
-by neural operators. FNO takes an FFT over the spatial dims, so it needs one grid
-shape -- but the eight geometries produce five:
-
-    (100, 100,  6)  geometry1, geometry3
-    ( 80,  80, 10)  geometry2a/b/c
-    (100,  56,  6)  geometry4
-    (100,  56, 11)  geometry5
-    ( 56, 168, 11)  geometry6
-
-FNODataset(target_grid=...) resamples them onto a shared grid. These tests pin
-the two properties that make that safe: the shapes really do unify, and the
-geometries remain distinguishable afterwards.
-"""
+"""Cross-geometry FNO loading."""
 
 from __future__ import annotations
 
@@ -75,9 +59,7 @@ def test_every_field_shares_the_target_shape(dataset):
 
 def test_physical_extents_distinguish_geometries(dataset):
     """
-    Without extent conditioning an 8x8 mm die and a 42x14 mm die resample to
-    identical arrays, and the operator would be asked to learn contradictory
-    mappings from the same input.
+    Without extent conditioning an 8x8 mm die and a 42x14 mm die resample to identical arrays, and the operator would be asked to learn contradictory
     """
     by_geom = {it['geometry']: tuple(it['geom_extent_norm'].tolist())
                for it in dataset.items}

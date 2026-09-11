@@ -1,20 +1,5 @@
 """
-Package-level thermal throttling (DVFS): iterative power derating when peak
-temperature exceeds a junction-temperature limit.
-
-Real chips (mobile SoCs, laptop CPUs) reduce power when the hottest point on
-the package exceeds Tjmax (commonly ~95-105 C). This makes power a function
-of the very temperature field being solved for -- a real, closed-loop
-nonlinearity that a scenario-fixed power source cannot express. Every other
-mechanism in this benchmark (per-cell power, TSV fields, underfill layouts,
-microchannel cooling at a fixed flow rate) still maps a fixed source to a
-temperature field; throttling is the first one that doesn't.
-
-3D-ICE itself only solves a single fixed-source steady state, so the loop
-lives here: solve, check peak T, derate, re-solve, repeat until the peak
-settles within tolerance of the threshold or the power floor is hit. This
-means throttled scenarios cost several 3D-ICE solves instead of one -- see
-goal.md for the measured cost.
+Package-level thermal throttling (DVFS): iterative power derating when peak temperature exceeds a junction-temperature limit.
 """
 
 from typing import Any, Dict, Tuple
@@ -30,31 +15,7 @@ def apply_throttling(
     max_iterations: int = 6,
     tol_c: float = 0.3,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-    """
-    Iteratively solve and derate power until peak temperature converges.
-
-    Mutates `scenario_params['power_blocks']` in place to the FINAL derated
-    values, so any code that reads scenario_params after this call (npz
-    export, statistics) sees the power that was actually delivered, not the
-    nominal un-throttled request.
-
-    Args:
-        simulator: A ThermalSimulator (must implement .simulate()).
-        geometry: Geometry object.
-        scenario_params: Scenario dict; must carry 'throttle_temp_c',
-            'throttle_gain', 'throttle_power_floor' (see ScenarioParameters).
-        scenario_name: Passed through to simulator.simulate().
-        max_iterations: Hard cap so a pathological config can't loop forever.
-        tol_c: Converged once peak temperature is within this many degrees
-            of throttle_temp_c (only reachable while power is above the floor).
-
-    Returns:
-        (parsed, throttle_info) where `parsed` matches
-        ThermalSimulator.simulate()'s return shape ({'coords', 'temperature'})
-        from the FINAL iteration, and throttle_info is a dict of
-        {throttle_iterations, throttle_derate_factor, throttle_triggered,
-        throttle_peak_temp_c, throttle_converged} for logging/export.
-    """
+    """Iteratively solve and derate power until peak temperature converges."""
     threshold_c = float(scenario_params.get('throttle_temp_c', 95.0))
     gain = float(scenario_params.get('throttle_gain', 2.0))
     power_floor = float(scenario_params.get('throttle_power_floor', 0.3))

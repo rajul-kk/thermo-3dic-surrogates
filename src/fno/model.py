@@ -1,35 +1,4 @@
-"""
-FNO3d: Fourier Neural Operator for 3D steady-state heat conduction.
-
-The operator learns  F: (Q, params) -> T  where:
-  Q      -- volumetric power density field, shape (nx, ny, nz)
-  params -- scenario scalars: htc_norm, t_amb_norm, tsv_frac
-  T      -- temperature field, shape (nx, ny, nz)
-
-All fields are on the geometry's Cartesian mesh. Coordinates are NOT passed as
-input — the FNO encodes spatial structure through the spectral basis implicitly.
-If you want coordinate-conditioned output, add them as extra input channels;
-for this thermal problem they hurt more than they help because the mesh is
-fixed per geometry and the spectral modes already encode position.
-
-Input channels per voxel (IN_CH = 5):
-  0: Q_norm          normalised power density
-  1: layer_id_norm   layer index / (n_layers-1), encodes material discontinuities
-  2: htc_norm        broadcast scalar
-  3: t_amb_norm      broadcast scalar
-  4: tsv_frac        real per-cell TSV area fraction field where the geometry
-                     carries TSVs (zero elsewhere), not a broadcast scalar --
-                     see src/scenario/tsv_maps.py and _as_field() below. Falls
-                     back to broadcasting when given a genuine scalar, for
-                     compatibility with data predating this field.
-
-Hidden channels: 32 (sufficient for smooth thermal fields; increase to 64 for
-publication accuracy runs).
-
-Mode counts: clamped at init to floor(grid_dim/2) per Nyquist. The defaults
-(16, 16, 12) cover the dominant thermal modes for both geometry1 (100×100×40)
-and geometry2 (80×80×50) without aliasing.
-"""
+"""FNO3d: Fourier Neural Operator for 3D steady-state heat conduction."""
 
 import torch
 import torch.nn as nn
@@ -42,14 +11,7 @@ OUT_CH = 1      # temperature field
 
 
 def _as_field(t: torch.Tensor, B: int, nx: int, ny: int, nz: int) -> torch.Tensor:
-    """
-    Expand a conditioning input to (B, 1, nx, ny, nz).
-
-    Accepts either a real per-cell field already shaped (B, nx, ny, nz) -- as
-    tsv_frac now is, see src/fno/data_loader.py -- or a scalar/per-batch scalar,
-    which is broadcast uniformly as htc_norm/t_amb_norm still are. Old files/
-    call sites that only ever had a scalar TSV density keep working unchanged.
-    """
+    """Expand a conditioning input to (B, 1, nx, ny, nz)."""
     if t.dim() >= 3 and t.shape[-3:] == (nx, ny, nz):
         return t.view(B, 1, nx, ny, nz)
     v = t.view(-1) if t.dim() >= 1 else t.unsqueeze(0)
@@ -58,30 +20,14 @@ def _as_field(t: torch.Tensor, B: int, nx: int, ny: int, nz: int) -> torch.Tenso
 
 
 def _as_scalar(t: torch.Tensor, B: int) -> torch.Tensor:
-    """
-    Reduce a conditioning input to (B,) for use in a FiLM-style scalar summary.
-
-    A real per-cell field (B, nx, ny, nz) is mean-pooled to its per-scenario
-    average; a scalar passes through unchanged. Used where a spatial signal
-    (tsv_frac) needs to additionally feed a per-scenario modulation vector, not
-    just the stacked input channels.
-    """
+    """Reduce a conditioning input to (B,) for use in a FiLM-style scalar summary."""
     if t.dim() >= 3:
         return t.reshape(t.shape[0], -1).mean(dim=-1)
     return t.view(B) if t.numel() >= B else t.expand(B)
 
 
 class SpectralConv3d(nn.Module):
-    """
-    3D spectral convolution via truncated FFT.
-
-    Learns complex weights R of shape (in_ch, out_ch, mx, my, mz) in frequency
-    space. The forward pass FFTs the input, multiplies the low-mode block by R,
-    then IFFTs back. High-frequency modes are zeroed (not learned).
-
-    Weight init: uniform on the unit circle, scaled by 1/sqrt(in_ch * out_ch).
-    This keeps activations stable at init regardless of mode count.
-    """
+    """3D spectral convolution via truncated FFT."""
 
     def __init__(self, in_ch: int, out_ch: int, modes: Tuple[int, int, int]):
         super().__init__()
@@ -122,16 +68,7 @@ class SpectralConv3d(nn.Module):
 
 
 class FNOBlock(nn.Module):
-    """
-    Single FNO layer: spectral path + local (pointwise) path + residual.
-
-    spectral(x) captures long-range correlations via truncated FFT.
-    local(x) = Conv3d(kernel=1) handles high-frequency and local features
-               that the spectral path drops when modes are truncated.
-
-    The two paths are summed (not concatenated) before activation.
-    Activation: GELU — smooth, performs better than ReLU for operator learning.
-    """
+    """Single FNO layer: spectral path + local (pointwise) path + residual."""
 
     def __init__(self, channels: int, modes: Tuple[int, int, int]):
         super().__init__()
@@ -145,21 +82,7 @@ class FNOBlock(nn.Module):
 
 
 class FNO3d(nn.Module):
-    """
-    Fourier Neural Operator for 3D thermal field prediction.
-
-    Takes the power density + layer/scenario features on the geometry grid,
-    outputs the normalised temperature field on the same grid.
-
-    Args:
-        grid_shape:   (nx, ny, nz) of the target geometry mesh
-        modes:        (mx, my, mz) spectral modes to retain — clamped to
-                      floor(grid_dim/2) automatically; defaults suit both
-                      geometry1 (100×100×40) and geometry2 (80×80×50)
-        hidden_ch:    width of the hidden representation (32 for fast runs,
-                      64 for publication accuracy)
-        n_blocks:     number of FNO layers; 4 is the standard from Li et al.
-    """
+    """Fourier Neural Operator for 3D thermal field prediction."""
 
     def __init__(
         self,
@@ -266,19 +189,7 @@ def build_fno(
 
 class FiLMGenerator(nn.Module):
     """
-    Small MLP that maps physics parameters → (γ, β) scaling vectors for each
-    FNO block.  FiLM (Feature-wise Linear Modulation) conditions the spectral
-    filters on HTC, T_amb and TSV_frac rather than broadcasting them as plain
-    input channels.
-
-    Why this is better than input-channel broadcasting:
-    - The spectral filters explicitly adapt their frequency response to the
-      cooling and material conditions — a physically meaningful inductive bias.
-    - Extrapolation to unseen (HTC, T_amb) pairs is constrained to the
-      parametric manifold learned by the generator, not blind spectral blending.
-
-    param_dim: 3  (htc_norm, t_amb_norm, tsv_frac)
-    output:    2 * n_blocks * hidden_ch  (γ and β per block per channel)
+    Small MLP that maps physics parameters → (γ, β) scaling vectors for each FNO block. FiLM (Feature-wise Linear Modulation) conditions the spectral
     """
 
     def __init__(self, n_blocks: int, hidden_ch: int, param_dim: int = 3):
@@ -335,27 +246,7 @@ class FiLMFNOBlock(nn.Module):
 
 
 class AxialAttentionFiLMBlock(nn.Module):
-    """
-    FiLMFNOBlock + axial self-attention (x → y → z) in the latent space.
-
-    Full 3D self-attention on 4k–7k tokens costs ~830 MB/sample for the
-    attention matrix alone (e.g. g2/g6 at 7200 tokens × 4 heads).
-    Axial factorisation attends along each spatial axis independently:
-      x-axis: ly*lz parallel sequences of length lx  (max 25 tokens)
-      y-axis: lx*lz parallel sequences of length ly  (max 42 tokens for g6)
-      z-axis: lx*ly parallel sequences of length lz  (max 18 tokens)
-    Peak attention matrix: 42² × 16 bytes × 4 heads = 112 KB/sample regardless
-    of geometry. Captures full 3D correlations via the x→y→z composition.
-
-    On PyTorch 2.x, nn.MultiheadAttention dispatches to
-    F.scaled_dot_product_attention (FlashAttention-2) on CUDA automatically
-    when need_weights=False — no extra package required.
-
-    Args:
-        channels: hidden channel width (must be divisible by n_heads)
-        modes:    spectral modes (passed through to SpectralConv3d)
-        n_heads:  attention heads; default 4 → head_dim = channels/4
-    """
+    """FiLMFNOBlock + axial self-attention (x → y → z) in the latent space."""
 
     def __init__(
         self,
@@ -417,23 +308,7 @@ class AxialAttentionFiLMBlock(nn.Module):
 
 
 class CondFNO3d(nn.Module):
-    """
-    Physics-parameter-conditioned FNO3d.
-
-    Improvements implemented:
-      #2 — BC encoding: HTC/T_amb drive spectral filter modulation (not just
-           broadcast channels), giving the operator a physically-structured
-           boundary-condition response.
-      #4 — Physical parameter conditioning: FiLMGenerator maps the full
-           (htc_norm, t_amb_norm, tsv_frac) tuple to per-block (γ, β) pairs.
-
-    The baseline FNO still receives the three scalars as input channels (5-ch
-    input unchanged), so the FiLM modulation is *additional* — it fine-tunes
-    the spectral response rather than replacing the information path.
-
-    n_parameters ≈ base_FNO + 64*64 + 64*64 + 64*(2*n_blocks*hidden_ch)
-                ≈ base + ~400k for default (4 blocks, 32 ch) — small overhead.
-    """
+    """Physics-parameter-conditioned FNO3d."""
 
     def __init__(
         self,
@@ -577,18 +452,7 @@ class _CNOResBlock(nn.Module):
 
 
 class CNOFNOHybrid(nn.Module):
-    """
-    CNO encoder + FiLM-FNO latent + CNO decoder — the combined best-of-three model.
-
-    Forward signature matches FNO3d / CondFNO3d: same inputs, same output shape.
-    Works as a drop-in replacement in FNOTrainer with PI loss enabled.
-
-    Args:
-        grid_shape:   (nx, ny, nz) full-resolution geometry mesh
-        ch:           channel width throughout (encoder, FNO latent, decoder)
-        n_fno_blocks: FNO blocks applied in the latent space
-        n_cno_layers: stride-2 downsampling stages (2 → 4× spatial reduction)
-    """
+    """CNO encoder + FiLM-FNO latent + CNO decoder — the combined best-of-three model."""
 
     def __init__(
         self,
@@ -734,15 +598,7 @@ def build_cno_fno(
     n_heads: int = 4,
     device: Optional[torch.device] = None,
 ) -> CNOFNOHybrid:
-    """Build the combined CNO + FiLM-FNO best model.
-
-    Args:
-        use_attention: Add axial self-attention (SAU-FNO style) to each latent
-                       FiLM-FNO block. Uses x→y→z factorised attention so the
-                       attention matrix stays under 112 KB/sample regardless of
-                       geometry. Dispatches to FlashAttention on PyTorch 2.x CUDA.
-        n_heads:       Attention heads. Must divide ch evenly (default 4 → head_dim=ch/4).
-    """
+    """Build the combined CNO + FiLM-FNO best model."""
     model = CNOFNOHybrid(grid_shape, ch, n_fno_blocks, n_cno_layers, use_attention, n_heads)
     if device is not None:
         model = model.to(device)

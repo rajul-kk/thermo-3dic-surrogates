@@ -1,20 +1,4 @@
-"""
-PINN evaluation: metrics and comparison plots.
-
-Metrics reported per scenario and aggregated:
-  mae_K            mean absolute error in Kelvin
-  rmse_K           root mean squared error
-  max_err_K        maximum point error
-  r2               coefficient of determination
-  hotspot_T_err_K  temperature error at the true hotspot location
-  hotspot_loc_err  distance between predicted and true hotspot (µm)
-  pde_res_rms      RMS of PDE residual at test points (optional)
-
-Plots:
-  - Temperature field z-slice comparison: 3D-ICE vs PINN
-  - Error map at a z-slice
-  - Z-axis temperature profile through hotspot
-"""
+"""PINN evaluation: metrics and comparison plots."""
 
 import json
 import logging
@@ -37,13 +21,7 @@ def predict_scenario(
     device: torch.device,
     norm_stats: NormStats,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Run inference on a single scenario.
-
-    Returns:
-        T_pred_K: (N,) predicted temperatures in Kelvin
-        T_true_K: (N,) ground-truth temperatures in Kelvin
-    """
+    """Run inference on a single scenario."""
     model.eval()
     T_range = norm_stats.T_max - norm_stats.T_min
 
@@ -103,11 +81,7 @@ def evaluate_dataset(
     norm_stats: NormStats,
     device: torch.device,
 ) -> Dict[str, object]:
-    """
-    Evaluate model on all scenarios in a dataset.
-
-    Returns dict with per-scenario metrics and aggregate statistics.
-    """
+    """Evaluate model on all scenarios in a dataset."""
     results = {}
     all_mae = []
     all_rmse = []

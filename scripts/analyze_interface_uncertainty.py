@@ -1,19 +1,5 @@
 """
-Quantify how much interface-property uncertainty moves the answer, and compare
-that spread against the model-vs-model differences surrogate papers optimise.
-
-The question this answers: neural thermal surrogates compete over sub-Kelvin
-field-error improvements. If plausible uncertainty in the interface properties
-fed to the simulator moves peak junction temperature (or hotspot location) by
-MORE than those differences, the accuracy race is being run inside the noise
-floor of its own inputs.
-
-Reads the sweep produced by scripts/gen_interface_uncertainty_pilot.py, in which
-power/HTC/ambient are held fixed and exactly one interface conductivity varies
-per scenario. Writes results/interface_uncertainty.json.
-
-Usage:
-    python scripts/analyze_interface_uncertainty.py
+Quantify how much interface-property uncertainty moves the answer, and compare that spread against the model-vs-model differences surrogate papers optimise.
 """
 import argparse
 import ast
@@ -48,11 +34,7 @@ REFERENCE_SURROGATE_GAP_K = 1.088
 
 def load(data_dir):
     """
-    Returns (single_rows, interaction_rows). A file whose layer_k_overrides has
-    TWO keys (from --interactions) is an interaction run, not a single-parameter
-    sweep point -- folding it into a single layer's group by taking only its
-    first key (an earlier bug in this function) silently corrupts that group's
-    peak-T spread with data from a different, two-variable experiment.
+    Returns (single_rows, interaction_rows). A file whose layer_k_overrides has TWO keys (from --interactions) is an interaction run, not a single-parameter
     """
     single_rows, interaction_rows = [], []
     for f in sorted(data_dir.glob('*.npz')):

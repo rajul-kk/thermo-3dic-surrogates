@@ -1,19 +1,4 @@
-"""
-Data loading and normalization for PINN training.
-
-Handles:
-  - Loading .npz files from the 3D-ICE dataset
-  - Computing and storing global normalization statistics
-  - Batching by scenario (not by individual point)
-  - Sampling random collocation points for PDE/BC evaluation
-
-Normalization convention:
-  coords:    [0,1] per axis (divided by domain extent)
-  temp:      [0,1] using global T_min / T_max across the dataset
-  power:     zero-mean unit-variance using dataset mean/std
-  htc:       [0,1] using known physical range [500, 10000] W/m²·K
-  t_amb:     [0,1] using known physical range [25, 85] °C
-"""
+"""Data loading and normalization for PINN training."""
 
 import json
 import logging
@@ -37,12 +22,7 @@ _T_GLOBAL_MIN, _T_GLOBAL_MAX = 298.0, 600.0  # K (conservative upper bound)
 
 @dataclass
 class NormStats:
-    """
-    Global normalization statistics.
-
-    Computed once over the full training set and frozen.
-    Stored alongside model checkpoints so inference can denormalize correctly.
-    """
+    """Global normalization statistics."""
     T_min: float = _T_GLOBAL_MIN
     T_max: float = _T_GLOBAL_MAX
     htc_min: float = _HTC_MIN
@@ -92,12 +72,7 @@ def compute_norm_stats(
     npz_files: List[Path],
     geometries: Dict[str, Geometry],
 ) -> NormStats:
-    """
-    Compute global normalization statistics from the training dataset.
-
-    Scans all .npz files to determine power distribution.
-    Temperature bounds are physical constants, not data-driven.
-    """
+    """Compute global normalization statistics from the training dataset."""
     all_power = []
     geom_extents: Dict[str, List[float]] = {}
 
@@ -177,15 +152,7 @@ def _layer_sampling_weight(layer_name: str) -> float:
 
 
 class ThermalDataset(Dataset):
-    """
-    Dataset of thermal simulation scenarios.
-
-    Each item is a full scenario (all N points). Batching by scenario
-    ensures each gradient step sees a spatially complete temperature field,
-    not random crops.
-
-    All data is loaded into RAM at __init__ (total ~800 MB for 80 scenarios).
-    """
+    """Dataset of thermal simulation scenarios."""
 
     def __init__(
         self,
@@ -282,13 +249,7 @@ def sample_collocation_points(
     geometry: Geometry,
     device: torch.device,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Sample random interior collocation points for PDE loss.
-
-    Returns:
-        coords_norm: (n, 3) uniform in [0,1]³ (normalised)
-        layer_ids:   (n,) layer index for each point
-    """
+    """Sample random interior collocation points for PDE loss."""
     L_x, L_y, L_z = geom_extents
     coords_norm = torch.rand(n, 3, device=device)
 
@@ -307,17 +268,7 @@ def sample_collocation_stratified(
     geometry: Geometry,
     device: torch.device,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Sample n collocation points with layer-importance-weighted z-distribution.
-
-    Die/TSV layers receive proportionally more points; the heat sink receives fewer.
-    x, y remain uniform over the die footprint.
-    Layer ids are assigned directly from the per-layer z-interval (no z-lookup loop).
-
-    Returns:
-        coords_norm: (n, 3) normalised in [0,1]³
-        layer_ids:   (n,) layer index for each point
-    """
+    """Sample n collocation points with layer-importance-weighted z-distribution."""
     L_x, L_y, L_z = geom_extents
 
     raw_w = np.array([
@@ -353,15 +304,7 @@ def sample_bc_top_points(
     layer_id: int,
     z_value: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Sample n points on a z-face for the convective BC.
-
-    Despite the name (kept for backward compatibility), z_value defaults to
-    0.0 (bottom face) — 3D-ICE's ground truth applies convective cooling at
-    layer index 0 ("bottom heat sink" directive in ice_simulator.py), not at
-    z=1. Pass z_value=1.0, layer_id=<top layer index> to recover the old
-    (incorrect for this dataset) behaviour if ever needed elsewhere.
-    """
+    """Sample n points on a z-face for the convective BC."""
     coords = torch.rand(n, 3, device=device)
     coords[:, 2] = z_value
     layer_ids = torch.full((n,), layer_id, dtype=torch.long, device=device)
@@ -374,16 +317,7 @@ def sample_bc_side_points(
     geometry: Geometry,
     geom_extents: List[float],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Sample points on all 4 side faces + bottom face for adiabatic BC.
-
-    Returns coords_norm (5*n_per_face, 3) and layer_ids.
-
-    .. deprecated::
-        Use sample_bc_faces_grouped() instead — this function passes all five
-        face groups as a single concatenated tensor, making it impossible to
-        call bc_residual_adiabatic with the correct normal_dim per face.
-    """
+    """Sample points on all 4 side faces + bottom face for adiabatic BC."""
     coords_list = []
     for dim, val in [(0, 0.0), (0, 1.0), (1, 0.0), (1, 1.0), (2, 0.0)]:
         c = torch.rand(n_per_face, 3, device=device)
@@ -412,25 +346,7 @@ def power_at_colloc_points(
     power_std: float,
     device: torch.device,
 ) -> torch.Tensor:
-    """
-    Return normalised volumetric power density at collocation points.
-
-    Uses vectorised numpy block-membership tests (fast: O(N × n_blocks) in C).
-    Points outside any active power block get Q=0, which is physically correct
-    for non-active layers and for die-layer points in non-powered regions.
-
-    Args:
-        col_coords_norm: (N, 3) normalised coordinates in [0,1]
-        col_layer_ids:   (N,) integer layer indices
-        geometry:        Geometry object (for power block positions and layer info)
-        power_blocks_wcm2: {block_name: power_density_W/cm²} for this scenario
-        geom_extents:    [L_x, L_y, L_z] in µm
-        power_mean, power_std: normalisation constants from NormStats
-        device:          target device for returned tensor
-
-    Returns:
-        (N,) normalised power density tensor on `device`
-    """
+    """Return normalised volumetric power density at collocation points."""
     if not power_blocks_wcm2:
         return torch.zeros(col_coords_norm.shape[0], device=device)
 
@@ -471,25 +387,7 @@ def sample_bc_faces_grouped(
     geometry: Geometry,
     geom_extents: List[float],
 ) -> List[Tuple[torch.Tensor, torch.Tensor, int]]:
-    """
-    Sample adiabatic BC points grouped by face normal direction.
-
-    Replaces sample_bc_side_points. Returns one entry per normal direction so
-    bc_residual_adiabatic is called with the correct normal_dim for each group.
-
-    z=1 (not z=0) carries the adiabatic BC here: 3D-ICE's ground truth only
-    specifies a convective condition at z=0 (layer 0, "bottom heat sink" —
-    see sample_bc_top_points), so every OTHER exposed face — including the
-    top face near the die/TIM2, previously and incorrectly left unconstrained
-    — defaults to adiabatic (dT/dn=0), matching an unspecified-BC-is-adiabatic
-    solver convention.
-
-    Returns:
-        List of (coords_norm, layer_ids, normal_dim) for:
-          normal_dim=0: x=0 and x=1 faces  (2 * n_per_face points)
-          normal_dim=1: y=0 and y=1 faces  (2 * n_per_face points)
-          normal_dim=2: z=1 top face       (    n_per_face points)
-    """
+    """Sample adiabatic BC points grouped by face normal direction."""
     L_x, L_y, L_z = geom_extents
     groups: List[Tuple[torch.Tensor, torch.Tensor, int]] = []
 

@@ -1,11 +1,4 @@
-"""
-The orchestrator must not report success over empty or partial output.
-
-Per-scenario failures were logged and then swallowed: a run in which every
-scenario raised still printed "PROCESSING COMPLETE" and returned 0. A batch
-script driving this saw success while producing no files, which is how a broken
-run can be mistaken for a finished dataset.
-"""
+"""The orchestrator must not report success over empty or partial output."""
 
 from __future__ import annotations
 
@@ -28,9 +21,7 @@ def run_main(*args, cwd=None):
 
 def test_unreachable_simulator_exits_nonzero(tmp_path):
     """
-    A bogus 3D-ICE executable makes every scenario fail. With the synthetic
-    fallback off (the default), that must surface as a non-zero exit rather than
-    a cheerful summary over an empty directory.
+    A bogus 3D-ICE executable makes every scenario fail. With the synthetic fallback off (the default), that must surface as a non-zero exit rather than
     """
     r = run_main('--simulator', '3d-ice', '--geometry', 'geometry1',
                  '--skip-train', '--ice-executable', 'definitely-not-a-real-binary',

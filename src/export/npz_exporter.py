@@ -1,9 +1,4 @@
-"""
-NumPy data exporter for thermal simulation results.
-
-Converts 3D-ICE/HotSpot simulation output to PINN-ready NumPy format.
-Exports (coords, temp, power, layer) arrays as compressed .npz files.
-"""
+"""NumPy data exporter for thermal simulation results."""
 
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Any
@@ -14,23 +9,10 @@ from ..core.mesh import (generate_coords_and_indices, generate_power_density_fie
 
 
 class NPZExporter:
-    """
-    Export thermal simulation results to NumPy .npz format.
-
-    Output Format:
-    - coords: (N, 3) array of (x, y, z) coordinates in micrometers
-    - temp: (N,) array of temperatures in Kelvin
-    - power: (N,) array of volumetric power density in W/m³
-    - layer: (N,) array of layer indices (0-based)
-    """
+    """Export thermal simulation results to NumPy .npz format."""
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize exporter.
-
-        Args:
-            output_dir: Directory for output .npz files
-        """
+        """Initialize exporter."""
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -40,22 +22,7 @@ class NPZExporter:
                        scenario_params: Dict[str, Any],
                        temperature_field: np.ndarray,
                        coords: Optional[np.ndarray] = None) -> Path:
-        """
-        Export a single simulation scenario to .npz format.
-
-        Args:
-            scenario_name: Scenario identifier (e.g., 'geometry1_train_001')
-            geometry: Geometry object defining the physical structure
-            scenario_params: Scenario parameters dict with:
-                - power_blocks: {block_name: power_density_W/cm2}
-                - htc: Heat transfer coefficient (W/m²·K)
-                - t_ambient: Ambient temperature (°C)
-            temperature_field: (N,) array of temperatures in K from simulator
-            coords: Optional (N, 3) coordinate array. If None, generated from geometry.
-
-        Returns:
-            Path to saved .npz file
-        """
+        """Export a single simulation scenario to .npz format."""
         # Generate coordinate array if not provided
         if coords is None:
             coords, layer_indices = generate_coords_and_indices(geometry, uniform_z=False)
@@ -216,21 +183,7 @@ class NPZExporter:
         return output_file
 
     def load_scenario(self, npz_file: Path) -> Dict[str, Any]:
-        """
-        Load a scenario from .npz file.
-
-        Args:
-            npz_file: Path to .npz file
-
-        Returns:
-            Dictionary with keys:
-                - coords: (N, 3) array
-                - temp: (N,) array
-                - power: (N,) array
-                - layer: (N,) array
-                - tsv_frac: (N,) array (zeros for files exported before this field existed)
-                - metadata: Dict with scenario information
-        """
+        """Load a scenario from .npz file."""
         if not npz_file.exists():
             raise FileNotFoundError(f"File not found: {npz_file}")
 
@@ -254,15 +207,7 @@ class NPZExporter:
         return result
 
     def get_file_info(self, npz_file: Path) -> Dict[str, Any]:
-        """
-        Get summary information about a .npz file without loading all data.
-
-        Args:
-            npz_file: Path to .npz file
-
-        Returns:
-            Dictionary with file info
-        """
+        """Get summary information about a .npz file without loading all data."""
         data = np.load(npz_file, allow_pickle=True)
 
         info = {
@@ -285,18 +230,7 @@ class NPZExporter:
                     geometries: Dict[str, Geometry],
                     simulator_results: Dict[str, Tuple[np.ndarray, np.ndarray]],
                     verbose: bool = True) -> list:
-        """
-        Export multiple scenarios efficiently.
-
-        Args:
-            scenarios: List of ScenarioParameters objects
-            geometries: Dict mapping geometry names to Geometry objects
-            simulator_results: Dict mapping scenario names to (coords, temps) tuples
-            verbose: Print progress messages
-
-        Returns:
-            List of output file paths
-        """
+        """Export multiple scenarios efficiently."""
         output_files = []
 
         for i, scenario in enumerate(scenarios):
@@ -342,15 +276,7 @@ class NPZExporter:
 
     @staticmethod
     def create_dataset_summary(output_dir: Path) -> Dict[str, Any]:
-        """
-        Create summary of all .npz files in a directory.
-
-        Args:
-            output_dir: Directory containing .npz files
-
-        Returns:
-            Dictionary with dataset statistics
-        """
+        """Create summary of all .npz files in a directory."""
         output_dir = Path(output_dir)
         npz_files = sorted(output_dir.glob("*.npz"))
 

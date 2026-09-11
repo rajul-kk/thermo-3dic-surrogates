@@ -1,26 +1,4 @@
-"""
-Multi-geometry dataset for PI-DeepONet training.
-
-Unlike FNODataset (one model per grid shape), this dataset supports ALL 7
-geometries in a single pass.  Each item carries both the branch input (power
-sensors + BCs + geometry descriptor) and flat coordinate arrays (for trunk
-evaluation and PDE loss).
-
-Memory layout
--------------
-Each item stores ALL data-grid points as flat arrays:
-    coords_norm:  (N, 4) float32  — (x, y, z, layer_id)  all in [0,1]
-    T_norm:       (N,)   float32  — normalised target temperature
-    power_norm:   (N,)   float32  — normalised volumetric power density
-    branch_input: (BRANCH_DIM,)   — branch network input (pre-built at load)
-
-For geometry1 N = 60,000; geometry5 N = 44,800 — all fit comfortably in RAM
-with 140 scenarios × ~60k × 4 × 4 bytes ≈ 130 MB.
-
-Data stays on CPU; the trainer samples random subsets of N for each training
-step (collocation sampling for PDE loss, and random subsets for data loss to
-fit in GPU memory per step).
-"""
+"""Multi-geometry dataset for PI-DeepONet training."""
 
 from __future__ import annotations
 
@@ -39,17 +17,7 @@ _log = logging.getLogger(__name__)
 
 
 class MultiGeomDataset(Dataset):
-    """
-    Dataset covering multiple geometries for cross-geometry DeepONet training.
-
-    Each item is a dict with:
-        branch_input:  (BRANCH_DIM,) float32
-        coords_norm:   (N, 4) float32  — trunk query coords + layer id
-        T_norm:        (N,) float32    — normalised target temperature
-        power_norm:    (N,) float32    — normalised power (for PDE RHS)
-        geom_name:     str
-        scenario_name: str
-    """
+    """Dataset covering multiple geometries for cross-geometry DeepONet training."""
 
     def __init__(
         self,
@@ -192,14 +160,7 @@ def _build_q_grid_3d(
     geometry,
     norm_stats: 'NormStats',
 ) -> np.ndarray:
-    """
-    Reconstruct a (nx, ny, nz) normalised Q grid from flat NPZ arrays.
-
-    Handles both formats:
-      - Full mesh (mock simulator): N = nx*ny*nz — direct reshape.
-      - Per-layer-slice (real 3D-ICE): N = n_layers*nx*ny — broadcast each
-        layer's 2D Q map to the z-bins closest to that layer's z-midpoint.
-    """
+    """Reconstruct a (nx, ny, nz) normalised Q grid from flat NPZ arrays."""
     nx, ny, nz = geometry.mesh_resolution
     n_layers = len(geometry.layers)
     N = len(Q_flat)

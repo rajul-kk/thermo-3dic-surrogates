@@ -1,40 +1,4 @@
-"""
-Build out-of-distribution (OOD) evaluation splits from scenario metadata.
-
-Why this exists
----------------
-The shipped `*_test_*.npz` files are interpolation points inside the same
-parameter sweep as training: same power patterns, HTC and ambient values drawn
-from the middle of the training ranges. They measure interpolation, not
-generalisation, and every model looks good on them.
-
-These splits hold out a whole *axis* instead, and write a manifest rather than
-copying NPZ files (the data is large; the split is just a list of names).
-
-Axes
-----
-pattern    Train on the smooth patterns (uniform, checkerboard, gradient);
-           test on the peaked ones (hotspot, dual_hotspot, extreme_hotspot).
-           Tests whether a model extrapolates to unseen spatial structure.
-
-power      Train on the low-power half, test on the high-power half. This is
-           the axis that can actually break a linear model: steady-state
-           conduction is linear in power only while k(T) is constant, so
-           nonlinearity appears exactly where self-heating is largest.
-
-htc        Train on mid-range cooling, test on the extremes. Temperature depends
-           on 1/h, so this probes extrapolation in a reciprocal coordinate.
-
-ambient    Train on low ambient, test on high ambient. Expected to be easy --
-           ambient enters as a near-exact additive offset -- and included as a
-           control: a split that everything passes.
-
-Usage
------
-    python scripts/make_ood_split.py --geometry geometry1 --axis power
-    python scripts/baselines.py --geometry geometry1 \\
-        --split-manifest results/ood_geometry1_power.json
-"""
+"""Build out-of-distribution (OOD) evaluation splits from scenario metadata."""
 
 from __future__ import annotations
 

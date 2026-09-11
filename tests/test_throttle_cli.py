@@ -1,10 +1,5 @@
 """
---throttle CLI wiring: ScenarioGenerator.attach_throttling itself is already
-covered by tests/test_throttling.py's convergence-math tests; this checks the
-flag actually reaches scenario_params and survives export, using --simulator
-mock so it runs fast without a real 3D-ICE install. Mock mode never calls
-apply_throttling (that only runs on the real-simulator path), so this proves
-CLI plumbing, not the derate loop itself.
+--throttle CLI wiring: ScenarioGenerator.attach_throttling itself is already covered by tests/test_throttling.py's convergence-math tests; this checks the
 """
 from __future__ import annotations
 

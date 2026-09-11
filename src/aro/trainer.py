@@ -1,34 +1,4 @@
-"""
-ARO Trainer — multi-fidelity RNO-style training loop.
-
-Training stages
----------------
-1. Pre-train on LF + HF combined (or LF only if lf_only_pretrain=True).
-   Each epoch mixes two objectives:
-     (a) Standard teacher-forced full-stack pass — tf_ratio decays 1.0 -> 0
-         over pretrain_epochs, as before.
-     (b) RNO windowed self-rollout pass (Yang et al., "Recurrent Neural
-         Operators: Stable Long-Term PDE Prediction", 2025) — the model
-         predicts a window of `rno_window` consecutive layers using ONLY its
-         own prior predictions (no ground truth injected inside the window),
-         with gradients flowing through the whole window. This exposes the
-         model to compounding self-error DURING training, which is the
-         documented root cause of exposure bias in autoregressive rollout
-         (train/inference mismatch: teacher-forced training vs self-fed
-         inference). Window length grows via `rno_window_schedule` as
-         training progresses (curriculum: short windows early, full-stack
-         windows late).
-
-2. Fine-tune on HF only with teacher forcing disabled (tf_ratio=0) and
-   windowed rollout at full window length (== n_layers, i.e. matches
-   inference exactly). Learning rate is reduced by lr_finetune_factor.
-
-Usage::
-
-    from src.aro.trainer import AROTrainer
-    trainer = AROTrainer(model, train_ds, val_ds, output_dir='checkpoints/aro')
-    trainer.train(pretrain_epochs=200, finetune_epochs=100)
-"""
+"""ARO Trainer — multi-fidelity RNO-style training loop."""
 
 from __future__ import annotations
 
@@ -63,22 +33,7 @@ def _collate_filter(batch: list, hf_only: bool) -> Optional[dict]:
 
 
 class AROTrainer:
-    """
-    Trainer for the Autoregressive Operator.
-
-    Args:
-        model:            ARO instance
-        train_dataset:    ARODataset (HF + optional LF)
-        val_dataset:      ARODataset (HF validation scenarios)
-        output_dir:       where to save checkpoints
-        batch_size:       training batch size
-        lr:               Adam peak learning rate
-        lr_finetune_factor: factor to reduce LR for the fine-tune stage
-        val_interval:     validate every N epochs
-        log_interval:     print training loss every N epochs
-        grad_clip:        max gradient norm
-        amp:              use automatic mixed precision (recommended on T4)
-    """
+    """Trainer for the Autoregressive Operator."""
 
     def __init__(
         self,
@@ -175,18 +130,7 @@ class AROTrainer:
         tf_decay:        float,
         stage:           str,
     ) -> None:
-        """
-        Each step optimises a combined loss:
-            L = L_teacher_forced + rno_weight * L_windowed_rollout
-
-        L_teacher_forced: standard full-stack pass (as before), tf_ratio decaying.
-        L_windowed_rollout: RNO-style pass — the model predicts `window`
-            consecutive layers using only its OWN prior outputs (see
-            ARO.forward_windowed_rollout). Window length grows linearly from
-            rno_window_min to rno_window_max over the stage (curriculum: short
-            windows are easy/stable early, full-length windows match inference
-            exactly by the end of fine-tuning).
-        """
+        """Each step optimises a combined loss:"""
         opt = Adam(self.model.parameters(), lr=self.lr)
         sched = CosineAnnealingLR(opt, T_max=n_epochs, eta_min=self.lr * 0.01)
 

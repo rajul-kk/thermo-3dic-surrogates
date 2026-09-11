@@ -1,14 +1,4 @@
-"""
-One-time patch: zero out power at TSV-region blocks in geometry2/geometry5 NPZ files.
-
-Bug: generate_power_density_field() did not check block.is_tsv_region, so TSV-region
-blocks (is_tsv_region=True) were assigned nonzero power in NPZ files even though
-3D-ICE assigns them zero heat (they're passive conductors, excluded from floorplans).
-This inconsistency corrupted the PINN PDE loss at those points.
-
-Fix applied in mesh.py (generate_power_density_field) and generator.py (block_names).
-This script patches existing NPZ files by recomputing the power field with the fix.
-"""
+"""One-time patch: zero out power at TSV-region blocks in geometry2/geometry5 NPZ files."""
 import sys
 import numpy as np
 from pathlib import Path

@@ -1,32 +1,5 @@
 """
-Track C found that peak temperature is highly sensitive to TIM/interface k --
-up to 75.98K on geometry4. But *sensitive* isn't the same question this
-benchmark's central claim is about: is that sensitivity LINEAR?
-
-Naively fitting peak-T against k directly is the wrong functional form: a TIM
-layer of thickness t and conductivity k contributes a series thermal
-resistance R = t/k to the stack, and for a fixed heat flux Q crossing it,
-T = T_upstream + Q*R = T_upstream + Q*t/k. That is linear in 1/k, not in k.
-If the paper's "ridge already solves this" argument extends to the interface-
-property axis too, peak-T vs 1/k should fit a line far better than peak-T vs
-k does -- i.e. the same physics (steady-state conduction is linear in the
-inputs that actually enter linearly) should hold here as well, once expressed
-in the right variable.
-
-This also directly speaks to whether a ridge baseline that has never been fed
-TIM k as an input (scripts/baselines.py's feature_vector has no k feature for
-ANY geometry, including g5/g6 where the training set already varies TIM k
-internally per assumptions.md 2.2) could, in principle, absorb it as trivially
-as it absorbs 1/htc -- since the resistance form T = T_amb + sum_b A_b*Q_b
-already includes a 1/h term for exactly this reason (see baselines.py docstring
-on `feature_vector`).
-
-Uses ONLY existing sweep data already on disk (data/3d-ice-interface-multi,
-data/3d-ice-interface-pilot-hi, data/3d-ice-interface-pilot-median) -- no new
-3D-ICE solves.
-
-Usage:
-    python scripts/analyze_interface_linearity.py
+Track C found that peak temperature is highly sensitive to TIM/interface k -- up to 75.98K on geometry4. But *sensitive* isn't the same question this
 """
 import glob
 import re

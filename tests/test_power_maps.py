@@ -1,16 +1,4 @@
-"""
-Per-cell power maps.
-
-Block-scalar power spans exactly ~4 dimensions no matter how many scenarios are
-generated, which is why closed-form ridge regression solved the old dataset
-(docs/report.md 9.3). A power map makes the source a function instead, so the
-solution operator becomes a genuine Green's function rather than a
-low-dimensional linear map.
-
-These tests pin the two properties that make the change worth its cost: the maps
-really are high-dimensional, and swapping them in does not break the physical
-constraints (TDP budget, silicon density ceiling, cooling adequacy).
-"""
+"""Per-cell power maps."""
 
 from __future__ import annotations
 
@@ -58,9 +46,7 @@ def test_maps_are_reproducible_and_seed_dependent(kind):
 
 def test_map_collection_is_high_dimensional():
     """
-    The whole point. A collection of N maps must span close to N dimensions --
-    every scenario carrying new information -- rather than collapsing onto the
-    handful of degrees of freedom that block scalars provide.
+    The whole point. A collection of N maps must span close to N dimensions -- every scenario carrying new information -- rather than collapsing onto the
     """
     N = 40
     M = np.stack([generate_power_map(48, 48, kind='mixed', seed=s).ravel()
@@ -126,11 +112,7 @@ def test_attaching_maps_respects_density_ceiling_and_cooling():
 
 
 def test_power_field_uses_the_map_not_the_blocks():
-    """
-    The exported power field must come from the map the simulator actually used.
-    Rebuilding it from block means would store a coarse approximation of the
-    source that produced the temperatures -- a silent train/target mismatch.
-    """
+    """The exported power field must come from the map the simulator actually used."""
     geom = build_geometry1()
     gen = ScenarioGenerator()
     scen = gen.generate_all_scenarios(geom)

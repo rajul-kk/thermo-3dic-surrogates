@@ -1,22 +1,4 @@
-"""
-Ridge-vs-leakage-feedback test: the key question this pilot exists to answer.
-
-Reuses scripts/baselines.py's fit_predict/metrics machinery directly rather than
-duplicating it, but with one necessary filter the generic CLI doesn't have:
-runaway scenarios are excluded before fitting or scoring anything.
-
-Runaway is not "hard data," it's a numerical divergence -- some pilot scenarios
-hit peak temperatures of several hundred thousand degrees, which is not a
-temperature field a surrogate should be scored against (or a physically
-meaningful state; silicon melts at 1414 C). Testing ridge against that would be
-answering "does ridge cope with garbage," a different and uninteresting question.
-The question this pilot asks is whether ridge still solves the CONVERGED portion
-of a positive-feedback electrothermal problem -- i.e. whether the mechanism
-degrades the baseline even where a physically sensible steady state exists.
-
-Usage:
-    python scripts/baselines_leakage.py --data data/3d-ice-leakage-pilot --geometry geometry1
-"""
+"""Ridge-vs-leakage-feedback test: the key question this pilot exists to answer."""
 import argparse
 import logging
 import sys

@@ -1,53 +1,4 @@
-"""
-PI-DeepONet: Physics-Informed Deep Operator Network.
-
-Architecture
-------------
-T(x) = Σ_i  branch_i(u)  ×  trunk_i(x)   +  bias
-
-  Branch network  — encodes the input *function* (power distribution + BCs
-                    + geometry descriptor) into N_basis coefficients.
-
-  Trunk network   — evaluates N_basis spatial basis functions at any query
-                    point (x_norm, y_norm, z_norm, layer_id_norm).
-
-  Bias            — learnable scalar added after the dot product.
-
-The trunk takes CONTINUOUS coordinates, so a single trained model can
-evaluate temperatures at arbitrary (x,y,z) across all 5 uniform-stack
-geometries (geometry1/2a/2b/2c/3) without retraining.  This is the key
-architectural advantage over FNO (which requires separate models per grid).
-geometry4/5 (2.5D chiplet assemblies) are excluded: their per-layer thermal
-conductivity varies laterally by chiplet region — a signal absent from the
-trunk's (x,y,z,layer_id) coordinate space. FNO per-geometry covers those.
-
-Branch input layout (BRANCH_DIM = 534)
---------------------------------------
-  [0:512]    Power sensor values: 2 active layers × 16×16 bilinear
-             downsampling of the Q_norm grid, zero-padded to 512 if only
-             1 active layer (geometry1/3/4).
-  [512:515]  Scenario scalars: htc_norm, t_amb_norm, tsv_frac
-  [515:534]  Geometry descriptor (19 features):
-               - 8 × layer_thickness_norm  (µm / max_thickness)
-               - 8 × layer_k_norm          (W/m·K / 400)
-               - underfill_k_norm           (k / 400; 0 for non-2p5d)
-               - die_width_norm             (µm / 30000)
-               - die_length_norm            (µm / 30000)
-
-Trunk input (4 features, Fourier-encoded)
------------------------------------------
-  (x_norm, y_norm, z_norm, layer_id_norm)  ∈ [0, 1]
-  Fourier encoding: 2 × N_freq × 4 = 128 features (N_freq=16, sigma=10)
-
-Physics loss
-------------
-  ∂T/∂x, ∂T/∂y, ∂T/∂z are computed via autograd through the TRUNK only
-  (branch coefficients are fixed per scenario).  With N_basis=128 and a
-  2-layer trunk MLP, differentiating the trunk is O(N_col × trunk_cost)
-  — far cheaper than differentiating through a full PINN.
-
-  PDE:  ∇·(k ∇T) + Q = 0   →  L_pde = mean[(∇·(k∇T) + Q)²]
-"""
+"""PI-DeepONet: Physics-Informed Deep Operator Network."""
 
 from __future__ import annotations
 
@@ -82,12 +33,7 @@ FOURIER_DIM       = 2 * N_FREQ * TRUNK_COORD_DIM   # 128
 # ---------------------------------------------------------------------------
 
 def geometry_descriptor(geometry) -> torch.Tensor:
-    """
-    Build a fixed-size (GEOM_DESC_DIM,) float32 tensor from a Geometry object.
-
-    Padding to GEOM_LAYERS_MAX layers with zeros for shorter stacks.
-    Normalisation keeps all features in ~[0, 1].
-    """
+    """Build a fixed-size (GEOM_DESC_DIM,) float32 tensor from a Geometry object."""
     max_thick = max(l.thickness for l in geometry.layers)  # µm
 
     thick_norm = []
@@ -164,11 +110,7 @@ def extract_sensors(
 
 class BranchNet(nn.Module):
     """
-    MLP that encodes (power sensors + scenario BCs + geometry descriptor)
-    into N_basis coefficient scalars.
-
-    input_dim:  BRANCH_DIM = 534
-    output_dim: N_basis
+    MLP that encodes (power sensors + scenario BCs + geometry descriptor) into N_basis coefficient scalars.
     """
 
     def __init__(self, n_basis: int = 128, hidden_dim: int = 256, n_layers: int = 4):
@@ -196,12 +138,7 @@ class BranchNet(nn.Module):
 # ---------------------------------------------------------------------------
 
 class FourierEncoding4D(nn.Module):
-    """
-    Random Fourier feature encoding for 4D trunk input (x, y, z, layer_id).
-
-    B matrix: (4, N_freq) sampled from N(0, σ²) once and fixed.
-    Output dim: 2 * N_freq * 4 = 128 for N_freq=16.
-    """
+    """Random Fourier feature encoding for 4D trunk input (x, y, z, layer_id)."""
 
     def __init__(self, n_freq: int = 16, sigma: float = 10.0):
         super().__init__()
@@ -223,16 +160,7 @@ class FourierEncoding4D(nn.Module):
 
 
 class TrunkNet(nn.Module):
-    """
-    MLP that maps (x_norm, y_norm, z_norm, layer_id_norm) to N_basis spatial
-    basis functions.
-
-    Fourier encoding of the 4 coordinates gives the trunk good spectral
-    properties for representing smooth thermal fields.
-
-    Inputs flow through the trunk with requires_grad=True so autograd can
-    compute ∂trunk/∂x for the PDE physics loss.
-    """
+    """MLP that maps (x_norm, y_norm, z_norm, layer_id_norm) to N_basis spatial basis functions."""
 
     def __init__(self, n_basis: int = 128, hidden_dim: int = 256, n_layers: int = 4,
                  n_freq: int = 16, sigma: float = 10.0):
@@ -261,19 +189,7 @@ class TrunkNet(nn.Module):
 # ---------------------------------------------------------------------------
 
 class PIDeepONet(nn.Module):
-    """
-    Physics-Informed Deep Operator Network.
-
-    T(x) = branch(u) · trunk(x)  +  bias
-
-    Args:
-        n_basis:       Number of basis functions (depth of dot product)
-        branch_hidden: Width of branch MLP
-        trunk_hidden:  Width of trunk MLP
-        branch_layers: Depth of branch MLP
-        trunk_layers:  Depth of trunk MLP
-        fourier_sigma: Bandwidth for trunk Fourier encoding
-    """
+    """Physics-Informed Deep Operator Network."""
 
     def __init__(
         self,
@@ -296,12 +212,7 @@ class PIDeepONet(nn.Module):
         branch_input: torch.Tensor,   # (B, BRANCH_DIM)
         trunk_coords: torch.Tensor,   # (N, 4)  — query points for ONE scenario
     ) -> torch.Tensor:
-        """
-        Evaluate T at N query points for a BATCH of B scenarios.
-
-        Returns (B, N) — temperature at all query points for all scenarios.
-        Each scenario gets the same query locations but different branch coefficients.
-        """
+        """Evaluate T at N query points for a BATCH of B scenarios."""
         b = self.branch(branch_input)      # (B, n_basis)
         t = self.trunk(trunk_coords)       # (N, n_basis)
         # Outer product: (B, N) = (B, n_basis) @ (n_basis, N)
@@ -322,11 +233,7 @@ class PIDeepONet(nn.Module):
         item: dict,
         device: torch.device,
     ) -> torch.Tensor:
-        """
-        Unified branch encoding interface used by DeepONetTrainer.
-        Returns (1, n_basis) branch coefficients for a single dataset item.
-        Trainer calls this on any DeepONet variant — subclasses override.
-        """
+        """Unified branch encoding interface used by DeepONetTrainer."""
         return self.branch(item['branch_input'].to(device).unsqueeze(0))
 
     @property

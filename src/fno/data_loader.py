@@ -1,41 +1,4 @@
-"""
-FNO data loader: reshapes flat .npz arrays into 3D grid tensors.
-
-The .npz files store coords/temp/power as flat (N,) or (N,3) arrays produced
-by the mesh generator with indexing='ij' and ravel() in C order. Reshaping to
-(nx, ny, nz) is therefore safe as long as the mesh resolution matches what's
-stored in the file metadata — which it always does if the file was produced by
-the standard export pipeline.
-
-Each dataset item is a dict so the trainer can access fields by name without
-positional index bugs. No custom collation required; torch's default collate
-handles dicts of same-shape tensors correctly.
-
-Multi-geometry training
------------------------
-The eight benchmark geometries produce five incompatible grid shapes:
-
-    (100, 100,  6)  geometry1, geometry3
-    ( 80,  80, 10)  geometry2a/b/c
-    (100,  56,  6)  geometry4
-    (100,  56, 11)  geometry5
-    ( 56, 168, 11)  geometry6
-
-FNO's spectral convolution takes an FFT over the spatial dims, so a single model
-cannot span these natively. Two options: (a) one dataset and training loop per
-grid shape, or (b) resample everything onto a common grid. BOTH are supported.
-
-Pass `target_grid` to enable (b). Every file is then built at its own native
-resolution and trilinearly resampled onto the shared grid, so one FNO can train
-across all eight geometries.
-
-Resampling alone would be lossy in a way that matters: an 8x8 mm die and a
-42x14 mm die resampled to the same array are indistinguishable, and the operator
-would be asked to learn contradictory mappings. Each item therefore also carries
-`geom_extent_norm` — the physical (width, length, height) of the package — so the
-model conditions on real spatial scale rather than array indices. That is what
-keeps each geometry's specific physics learnable after resampling.
-"""
+"""FNO data loader: reshapes flat .npz arrays into 3D grid tensors."""
 
 import logging
 from pathlib import Path
@@ -52,33 +15,14 @@ _log = logging.getLogger(__name__)
 
 def _resample(grid: torch.Tensor, target: Tuple[int, int, int],
               mode: str) -> torch.Tensor:
-    """
-    Resample a (nx, ny, nz) grid onto `target`.
-
-    `mode` is 'trilinear' for continuous fields (power, temperature) or 'nearest'
-    for categorical ones (layer identity).
-    """
+    """Resample a (nx, ny, nz) grid onto `target`."""
     x = grid[None, None]                                   # (1,1,nx,ny,nz)
     kw = {'align_corners': False} if mode != 'nearest' else {}
     return torch.nn.functional.interpolate(x, size=tuple(target), mode=mode, **kw)[0, 0]
 
 
 class FNODataset(Dataset):
-    """
-    Dataset of 3D field tensors for FNO training.
-
-    Each item:
-        Q_norm:         (nx, ny, nz) float32 — normalised power density
-        layer_id_norm:  (nx, ny, nz) float32 — layer_index / (n_layers-1)
-        T_norm:         (nx, ny, nz) float32 — normalised temperature (target)
-        htc_norm:       scalar float
-        t_amb_norm:     scalar float
-        tsv_frac:       scalar float
-        name:           str scenario identifier
-
-    Data is kept on CPU; move to device in training loop to avoid pinning issues
-    on Windows where pin_memory has known reliability problems with large tensors.
-    """
+    """Dataset of 3D field tensors for FNO training."""
 
     # Normalisation constants for the physical-extent conditioning channel. Fixed
     # rather than data-derived so a model trained on one subset stays comparable to
@@ -94,20 +38,7 @@ class FNODataset(Dataset):
         target_grid: Tuple[int, int, int] = None,
         geometries: Optional[dict] = None,
     ):
-        """
-        Args:
-            expected_grid: Native grid used when `target_grid` is None. All files
-                must match it, and non-matching files are skipped.
-            target_grid: If given, each file is built at its OWN native resolution
-                (read from its metadata) and resampled onto this shared grid,
-                enabling one FNO across geometries with different mesh shapes.
-            geometries: Optional {geometry_name: Geometry}. When given, each item
-                also carries `dist_to_block_norm` -- per-cell distance to the
-                nearest power block, normalised by die diagonal (Track B
-                geometry-aware conditioning, see src/core/mesh.py). Purely
-                geometric (no simulation data needed), zero-filled if omitted,
-                for backward compatibility with callers that don't pass it.
-        """
+        """Args:"""
         self.norm_stats = norm_stats
         self.expected_grid = expected_grid
         self.target_grid = target_grid
@@ -344,11 +275,7 @@ def predict_to_flat(
     device: torch.device,
     norm_stats: NormStats,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Run inference on a single item, return flat (N,) arrays in Kelvin.
-
-    Useful for evaluation code that works with flat coordinate arrays.
-    """
+    """Run inference on a single item, return flat (N,) arrays in Kelvin."""
     model.eval()
     dist_kwargs = {}
     if getattr(model, 'use_geometry_field', False):

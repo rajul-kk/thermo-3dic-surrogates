@@ -1,16 +1,5 @@
 """
-Test 3D-ICE connectivity: verify the executable is reachable and generate a
-minimal config to confirm the simulator runs without error.
-
-Usage:
-    # With 3D-ICE-Emulator in PATH
-    python scripts/test_ice_connection.py
-
-    # With WSL-wrapped binary
-    python scripts/test_ice_connection.py --executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator"
-
-    # Full smoke test (generates config + runs simulation)
-    python scripts/test_ice_connection.py --executable "wsl ..." --run
+Test 3D-ICE connectivity: verify the executable is reachable and generate a minimal config to confirm the simulator runs without error.
 """
 
 import sys

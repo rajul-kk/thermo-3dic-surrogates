@@ -1,23 +1,4 @@
-"""
-Interface-uncertainty-style sweep for geometry7's two invented material constants:
-organic_substrate (the bare CoWoS-L field, k=0.5 nominal, literature range 0.3-0.8
-W/m*K per material.py) and lsi_bridge_via (the bridge/via composite under each
-compute die, k=60 nominal, "matching hybrid_bonding's existing precedent, not
-independently derived" per material.py -- the most genuinely uncertain constant in
-this geometry).
-
-Same methodology as scripts/gen_interface_uncertainty_pilot.py (Track C): hold
-power pattern, HTC and ambient FIXED at one real operating point and vary exactly
-one material constant at a time, so the resulting spread isolates that constant's
-effect rather than conflating it with anything else.
-
-Fixed operating point: the actual hottest scenario from the (post-fix) 40-scenario
-geometry7 pilot (geometry7_train_040: uniform pattern, htc=5000, t_amb=45C, peak
-181.2C) -- a real, already-validated operating point, not an invented one.
-
-Usage:
-    python scripts/gen_geometry7_material_sweep.py --output data/3d-ice-geometry7-material-sweep
-"""
+"""Interface-uncertainty-style sweep for geometry7's two invented material constants:"""
 import argparse
 import logging
 import shutil

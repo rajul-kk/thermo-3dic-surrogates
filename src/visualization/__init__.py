@@ -1,11 +1,4 @@
-"""
-Visualization utilities for thermal simulations.
-
-Provides functions to create plots of:
-- Temperature fields (2D cross-sections, profiles)
-- Power distribution maps
-- Scenario comparisons
-"""
+"""Visualization utilities for thermal simulations."""
 
 from .visualization import (
     plot_temperature_field_2d,

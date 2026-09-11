@@ -1,31 +1,4 @@
-"""
-CLI entry point for FNO training.
-
-Model variants (--model):
-    fno       Baseline FNO3d. Fast, data-only, no physics or BC conditioning.
-    cond-fno  FiLM-conditioned FNO. HTC/T_amb/TSV_frac modulate spectral
-              filters via a hypernetwork. Better BC extrapolation than fno.
-    cno-fno   CNO-FNO hybrid (default). CNN encoder/decoder around a
-              FiLM-FNO in latent space. Best accuracy: sharp interfaces
-              (CNO) + global spreading (FNO) + BC conditioning (FiLM).
-              Physics loss enabled by default.
-
-Usage:
-    # Recommended (CNO-FNO + physics, default model):
-    python scripts/train_fno.py --geometry geometry1 --data data/3d-ice
-
-    # Higher capacity (publication runs):
-    python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --channels 64
-
-    # Baseline FNO for ablation:
-    python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --model fno
-
-    # All geometries:
-    python scripts/train_fno.py --all-geometries --data data/3d-ice
-
-    # CPU-only (reduced defaults):
-    python scripts/train_fno.py --geometry geometry1 --data data/3d-ice --cpu-fast
-"""
+"""CLI entry point for FNO training."""
 
 import argparse
 import logging

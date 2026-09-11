@@ -1,10 +1,4 @@
-"""
-Spatially varying TSV density and anisotropic effective conductivity.
-
-TSV density was one scalar with four discrete values, so it could not support an
-interpolation claim. As a field it becomes a per-scenario spatial coefficient --
-the part of the solution operator that is genuinely nonlinear.
-"""
+"""Spatially varying TSV density and anisotropic effective conductivity."""
 from __future__ import annotations
 
 import sys
@@ -53,9 +47,7 @@ def test_zero_density_is_all_silicon():
 
 def test_vertical_conductivity_exceeds_lateral():
     """
-    A TSV is a copper cylinder: heat runs ALONG it (parallel, arithmetic mean) but
-    must CROSS phases laterally (series, harmonic mean). Vertical must therefore
-    dominate, and both must sit between the bulk values.
+    A TSV is a copper cylinder: heat runs ALONG it (parallel, arithmetic mean) but must CROSS phases laterally (series, harmonic mean). Vertical must therefore
     """
     for phi in (0.03, 0.05, 0.10, 0.20):
         kl, kv = tsv_effective_k(phi)
@@ -93,16 +85,7 @@ def test_rejects_out_of_range_mean():
 
 
 def test_every_tsv_geometry_declares_a_nonzero_scalar():
-    """
-    Regression test for a real bug found by auditing the regenerated dataset:
-    build_geometry5/6 built their tsv_zone material with create_tsv_material(0.03)
-    but never passed tsv_density= to the Geometry() constructor, so
-    geometry.tsv_density silently stayed at its dataclass default of 0.0.
-    ScenarioGenerator.attach_tsv_maps guards on `geometry.tsv_density <= 0` and
-    no-ops when it's zero, so the spatial TSV-density field was silently never
-    attached for geometry5/6 -- every scenario used one uniform TSV material
-    instead, with no field variation at all, for a full regeneration cycle.
-    """
+    """Regression test for a real bug found by auditing the regenerated dataset:"""
     from src.core.geometry_builders import (build_geometry2a, build_geometry5,
                                              build_geometry6)
 

@@ -1,21 +1,5 @@
 """
-Generate a leakage-feedback pilot batch: the sharpest available test of this
-benchmark's central linearity claim.
-
-Throttling (goal.md Track A) is *negative* feedback -- self-limiting, converges in
-~2 solves, and degraded the linear baseline only modestly (spatial R^2 0.970 ->
-0.890/0.919). Leakage is *positive* feedback: hotter -> more leakage -> hotter, with
-no steady state at all above a critical loop gain. If ridge still solves the dataset
-under positive electrothermal feedback, the linearity finding is robust rather than
-an artifact of a benign regime. If it does not, that is the first mechanism in this
-benchmark that genuinely requires a learned operator.
-
-Sweeps leakage aggressiveness across the batch so the dataset spans benign to
-near-runaway rather than sitting at one operating point -- the interesting behaviour
-is concentrated near the critical gain, and a single setting would miss it.
-
-Usage:
-    python scripts/gen_leakage_pilot.py --geometry geometry1 --n 20
+Generate a leakage-feedback pilot batch: the sharpest available test of this benchmark's central linearity claim.
 """
 import argparse
 import logging

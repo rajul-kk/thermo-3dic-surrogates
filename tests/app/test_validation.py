@@ -1,15 +1,4 @@
-"""
-Input validation for the app/ API.
-
-register_geometry previously constructed a Geometry() without ever calling
-.validate() -- every build_geometryN() function in geometry_builders.py calls
-it explicitly, but the API endpoint didn't, so a custom geometry with
-duplicate layer names, power blocks outside the die footprint, or a power
-block referencing a nonexistent layer would be silently accepted (201) and
-only fail confusingly later at job-submission/simulation time. submit_job
-similarly accepted any power_blocks dict, so a misspelled block name silently
-delivered zero power to the real blocks instead of being rejected.
-"""
+"""Input validation for the app/ API."""
 import pytest
 from fastapi.testclient import TestClient
 

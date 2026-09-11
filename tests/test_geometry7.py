@@ -1,19 +1,5 @@
 """
-geometry7 (CoWoS-L reticle-stitched pilot) structural checks, and the two
-`ice_simulator.py` fixes it depends on:
-
-1. Passive layers can carry DiePrint footprints and have them actually take
-   effect (before 2026-08-17, the .lyt file was written but never referenced
-   in stack.stk -- the layout silently had no effect).
-2. A footprint-carrying layer can declare its own gap_material, distinct from
-   the geometry's shared underfill_k-based material -- needed so the organic
-   substrate field (k=0.5) isn't conflated with die-attach epoxy underfill
-   (k=0.7), two different real materials that happen to be similar magnitude.
-
-geometry7 is deliberately excluded from build_all_geometries() (it is a pilot,
-not part of the standard 6-geometry benchmark dataset), so it needs its own
-tests rather than picking up the ALL_GEOMS parametrization in
-test_geometry_and_baselines.py.
+geometry7 (CoWoS-L reticle-stitched pilot) structural checks, and the two `ice_simulator.py` fixes it depends on:
 """
 from __future__ import annotations
 
@@ -146,10 +132,9 @@ def _render_stack(geom, power_w=10.0):
 
 
 def test_passive_layer_footprint_layout_is_referenced_in_the_stack_file():
-    """Regression test: before the 2026-08-17 fix, the .lyt file for a passive
-    layer's DiePrint footprints was written but never referenced in stack.stk,
-    so the layer stayed uniformly its own material -- the footprint silently
-    had no effect on the simulated field."""
+    """
+    Regression test: before the 2026-08-17 fix, the .lyt file for a passive layer's DiePrint footprints was written but never referenced in stack.stk,
+    """
     geom = _make_probe_geometry()
     stk, cfg = _render_stack(geom)
     assert (cfg / 'layout_footprint_passive_probe.lyt').exists()
@@ -208,14 +193,9 @@ def test_organic_substrate_material_registered():
 # ── ice_simulator: numofcores + footprint-material k-override mangling ─────
 
 def test_solver_block_emits_numofcores():
-    """The solver block explicitly states numofcores rather than relying on
-    the grammar's implicit default. Default is 1 (deterministic) -- an
-    earlier version of this project briefly defaulted to 8 for a wall-clock
-    speedup, but multi-threaded SuperLU_MT factorization was found to be
-    non-deterministic (repeat runs of the identical scenario differed by
-    >1 K; single-threaded repeats were bit-for-bit identical), so it was
-    reverted before being used for any real data. See ice_simulator.py's
-    solver-block comment for the full correction."""
+    """
+    The solver block explicitly states numofcores rather than relying on the grammar's implicit default. Default is 1 (deterministic) -- an
+    """
     geom = _make_probe_geometry()
     stk, _ = _render_stack(geom)
     assert 'numofcores 1 ;' in stk  # current default -- deterministic
@@ -236,13 +216,9 @@ def test_solver_block_num_cores_is_configurable():
 
 
 def test_footprint_material_k_override_is_reflected_in_the_layout_file():
-    """Regression test: overriding a FOOTPRINT-carrying layer's k (as opposed to
-    a full uniform layer's, e.g. tim_top) mangles the material name in the
-    stack file (_get_layer_material_name) but the .lyt layout file's rectangle
-    group header used the bare unmangled name unconditionally -- 3D-ICE then
-    rejected the file with 'Unknown material', a loud failure caught while
-    running geometry7's material-uncertainty sweep (2026-08-18), not a silent
-    one, but a real bug in the override path all the same."""
+    """
+    Regression test: overriding a FOOTPRINT-carrying layer's k (as opposed to a full uniform layer's, e.g. tim_top) mangles the material name in the
+    """
     # _make_probe_geometry's 'passive_probe' layer has material='silicon'
     # (the footprint fill) regardless of gap_material -- override its k and
     # confirm BOTH the .lyt rectangle-group header and the .stk material

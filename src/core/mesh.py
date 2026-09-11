@@ -1,11 +1,4 @@
-"""
-Mesh generation utilities for thermal simulations.
-
-Provides functions to generate structured meshes for thermal geometries:
-- 3D Cartesian grids
-- Coordinate arrays for exporting
-- Layer index mapping
-"""
+"""Mesh generation utilities for thermal simulations."""
 
 import logging
 import numpy as np
@@ -40,16 +33,7 @@ def generate_cartesian_mesh(
     geometry: Geometry,
     uniform_z: bool = False
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Generate a 3D Cartesian mesh for the geometry.
-
-    Args:
-        geometry: Geometry object
-        uniform_z: If True, use uniform z-spacing. If False, adapt to layer boundaries.
-
-    Returns:
-        Tuple of (X, Y, Z) meshgrid arrays with shape (nx, ny, nz)
-    """
+    """Generate a 3D Cartesian mesh for the geometry."""
     nx, ny, nz = geometry.mesh_resolution
 
     # Generate X and Y coordinates (uniform spacing)
@@ -70,19 +54,7 @@ def generate_cartesian_mesh(
 
 
 def generate_adaptive_z_coords(geometry: Geometry, nz: int) -> np.ndarray:
-    """
-    Generate z-coordinates that align with layer boundaries.
-
-    Distributes more points in thin layers (like TIM) and fewer in thick layers
-    (like heat sink) while ensuring layer interfaces are captured.
-
-    Args:
-        geometry: Geometry object
-        nz: Total number of z-points desired
-
-    Returns:
-        1D array of z-coordinates
-    """
+    """Generate z-coordinates that align with layer boundaries."""
     total_height = geometry.get_total_height()
 
     if not geometry.layers:
@@ -140,15 +112,7 @@ def meshgrid_to_coords(
     Y: np.ndarray,
     Z: np.ndarray
 ) -> np.ndarray:
-    """
-    Convert meshgrid arrays to coordinate array.
-
-    Args:
-        X, Y, Z: Meshgrid arrays of shape (nx, ny, nz)
-
-    Returns:
-        Coordinate array of shape (N, 3) where N = nx*ny*nz
-    """
+    """Convert meshgrid arrays to coordinate array."""
     coords = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
     return coords
 
@@ -157,18 +121,7 @@ def generate_coords_and_indices(
     geometry: Geometry,
     uniform_z: bool = False
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate coordinate array and corresponding layer indices.
-
-    Args:
-        geometry: Geometry object
-        uniform_z: Whether to use uniform z-spacing
-
-    Returns:
-        Tuple of:
-        - coords: (N, 3) array of (x, y, z) coordinates in μm
-        - layer_indices: (N,) array of layer indices (0-based)
-    """
+    """Generate coordinate array and corresponding layer indices."""
     X, Y, Z = generate_cartesian_mesh(geometry, uniform_z=uniform_z)
     coords = meshgrid_to_coords(X, Y, Z)
 
@@ -202,13 +155,7 @@ def _power_field_from_maps(
     geometry: Geometry,
     power_map_by_layer: dict,
 ) -> np.ndarray:
-    """
-    Sample per-cell power maps onto arbitrary coordinates.
-
-    Maps are indexed (along-length, along-width) to match the 3D-ICE floorplan
-    convention, while coords are (x=width, y=length) in the PINN convention --
-    hence the axis swap when looking up a cell.
-    """
+    """Sample per-cell power maps onto arbitrary coordinates."""
     power_field = np.zeros(coords.shape[0])
 
     for layer in geometry.layers:
@@ -240,21 +187,7 @@ def generate_distance_to_power_block_field(
     geometry: Geometry,
 ) -> np.ndarray:
     """
-    Per-point distance to the nearest power block's footprint, normalised by
-    the die diagonal, in [0, ~1].
-
-    Purely geometric -- constant for every scenario of a given geometry, no
-    simulation data required (unlike `generate_tsv_field`, which depends on a
-    per-scenario map). This is the right-sized geometry-aware conditioning
-    signal for a benchmark whose geometries are all structured Cartesian
-    grids: not a full SDF/graph encoder (GINO/PI-GANO-style), just per-cell
-    information about *where within the geometry-specific floorplan* a point
-    sits, which the current `geom_extent_norm` global scalar cannot express.
-    See goal.md Track B.
-
-    Points inside a block (or on its edge) get 0. TSV-region blocks are
-    excluded (they are passive conductors, not power sources -- see
-    `_power_field_from_maps`'s docstring for the same exclusion).
+    Per-point distance to the nearest power block's footprint, normalised by the die diagonal, in [0, ~1].
     """
     diag = float(np.hypot(geometry.die_width, geometry.die_length))
     dist = np.full(coords.shape[0], diag, dtype=np.float64)
@@ -278,16 +211,7 @@ def generate_tsv_field(
     geometry: Geometry,
     tsv_map_by_layer: dict,
 ) -> np.ndarray:
-    """
-    Sample per-cell TSV density maps onto arbitrary coordinates.
-
-    Mirrors `_power_field_from_maps`: same (length, width) map indexing and the
-    same x/y axis swap, but the field is dimensionless TSV area fraction phi in
-    [0, 1] rather than a power density. Points outside any TSV-bearing layer get
-    phi=0. This is what makes the spatial TSV mechanism (`src/scenario/tsv_maps.py`)
-    a real per-point model input instead of only affecting the 3D-ICE ground truth
-    with no corresponding conditioning signal (see assumptions.md).
-    """
+    """Sample per-cell TSV density maps onto arbitrary coordinates."""
     tsv_field = np.zeros(coords.shape[0])
     if not tsv_map_by_layer:
         return tsv_field
@@ -316,22 +240,7 @@ def generate_power_density_field(
     power_scenario: dict,
     power_map_by_layer: dict = None,
 ) -> np.ndarray:
-    """
-    Generate volumetric power density field for given coordinates.
-
-    Args:
-        coords: (N, 3) array of (x, y, z) coordinates in μm
-        geometry: Geometry object
-        power_scenario: Dictionary mapping block names to power densities (W/cm²)
-        power_map_by_layer: Optional {layer_name: (n_l, n_w) array of WATTS per
-            cell}. When given it REPLACES the block decomposition, because it is
-            what the simulator actually used. Falling back to blocks here would
-            train a model on a coarse approximation of the source that produced
-            its own targets.
-
-    Returns:
-        (N,) array of volumetric power densities (W/m³)
-    """
+    """Generate volumetric power density field for given coordinates."""
     if power_map_by_layer:
         return _power_field_from_maps(coords, geometry, power_map_by_layer)
 
@@ -374,15 +283,7 @@ def compute_cell_volumes(
     Y: np.ndarray,
     Z: np.ndarray
 ) -> np.ndarray:
-    """
-    Compute cell volumes for finite volume discretization.
-
-    Args:
-        X, Y, Z: Meshgrid arrays of shape (nx, ny, nz)
-
-    Returns:
-        Array of cell volumes in μm³ with shape (nx-1, ny-1, nz-1)
-    """
+    """Compute cell volumes for finite volume discretization."""
     # Compute cell dimensions
     dx = np.diff(X, axis=0)[:, :-1, :-1]
     dy = np.diff(Y, axis=1)[:-1, :, :-1]
@@ -401,17 +302,7 @@ def interpolate_field_to_coords(
     Z: np.ndarray,
     target_coords: np.ndarray
 ) -> np.ndarray:
-    """
-    Interpolate a field defined on meshgrid to arbitrary coordinates.
-
-    Args:
-        field: Field values on meshgrid, shape (nx, ny, nz)
-        X, Y, Z: Meshgrid coordinate arrays
-        target_coords: Target coordinates, shape (N, 3)
-
-    Returns:
-        Interpolated field values at target_coords, shape (N,)
-    """
+    """Interpolate a field defined on meshgrid to arbitrary coordinates."""
     from scipy.interpolate import RegularGridInterpolator
 
     # Get unique coordinate values for each dimension
@@ -434,15 +325,7 @@ def interpolate_field_to_coords(
 
 
 def create_uniform_grid_summary(geometry: Geometry) -> str:
-    """
-    Create a summary of the mesh for a geometry.
-
-    Args:
-        geometry: Geometry object
-
-    Returns:
-        Formatted string summary
-    """
+    """Create a summary of the mesh for a geometry."""
     nx, ny, nz = geometry.mesh_resolution
     total_points = nx * ny * nz
 

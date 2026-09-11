@@ -1,21 +1,4 @@
-"""
-FNO/WHNO spectral mode-importance XAI.
-
-Compares the learned spectral weight distributions of two trained
-checkpoints (typically FNO3d vs WHNO3d on the SAME geometry) to test
-whether the Walsh-Hadamard basis concentrates more importance in
-finer/high-sequency z-bands than Fourier does at low-frequency truncation
--- the mechanism-level evidence for the Gibbs-ringing argument, checked
-against real trained weights rather than the synthetic step-function demo.
-
-Usage
------
-python scripts/explain_fno.py \
-    --model-a checkpoints/fno/geometry1_best.pt --label-a FNO \
-    --model-b checkpoints/whno/geometry1_best.pt --label-b WHNO \
-    --geometry geometry1 --model-a-type fno --model-b-type whno \
-    --output results/fno_whno_mode_importance
-"""
+"""FNO/WHNO spectral mode-importance XAI."""
 
 import argparse
 import logging

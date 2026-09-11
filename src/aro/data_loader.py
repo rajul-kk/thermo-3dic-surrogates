@@ -1,20 +1,4 @@
-"""
-Dataset for Autoregressive Operator (ARO) training.
-
-Loads NPZ files (3D-ICE HF or LF analytical) and returns per-geometry
-stacks of shape (n_layers, H, W) for each of Q, T, k_norm.
-
-Supports mixed HF + LF datasets:
-    hf_files: List[Path]  — real 3D-ICE NPZ files
-    lf_files: List[Path]  — analytical LF NPZ files
-
-Each NPZ item carries:
-    Q_stack:   (n_layers, H, W) float32  — normalised power per layer
-    T_stack:   (n_layers, H, W) float32  — normalised temperature per layer
-    k_norms:   (n_layers,) float32       — normalised thermal conductivity
-    cond:      (4,) float32              — (htc_norm, t_amb_norm, tsv_frac, tim_k_norm)
-    is_lf:     bool                      — True if this item is low-fidelity
-"""
+"""Dataset for Autoregressive Operator (ARO) training."""
 
 from __future__ import annotations
 
@@ -39,19 +23,7 @@ def _k_norm(k_thermal: float) -> float:
 
 
 class ARODataset(Dataset):
-    """
-    Dataset of layered (Q, T, k) stacks for ARO training.
-
-    Each item is a dict with:
-        Q_stack:   (n_layers, H, W)  normalised volumetric power density
-        T_stack:   (n_layers, H, W)  normalised temperature
-        k_norms:   (n_layers,)       normalised thermal conductivity
-        cond:      (4,)              BCs: htc_norm, t_amb_norm, tsv_frac, tim_k_norm
-        is_lf:     bool              True if item comes from LF dataset
-        geom_name: str
-        scenario_name: str
-        n_layers:  int
-    """
+    """Dataset of layered (Q, T, k) stacks for ARO training."""
 
     def __init__(
         self,

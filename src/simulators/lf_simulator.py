@@ -1,30 +1,4 @@
-"""
-Low-fidelity analytical thermal simulator for multi-fidelity ARO training.
-
-Generates temperature fields using a 1D thermal resistance ladder (for the
-z-profile) combined with 2D Gaussian spreading (for lateral hotspot variation).
-No 3D-ICE installation required — runs in milliseconds per scenario.
-
-Physical model
---------------
-T(x, y, z) = T_base(z) + T_spread(x, y, z)
-
-T_base(z):  1D solution with layer-stacked thermal resistances.
-            Treats the die as a 1D stack: T_bottom = T_amb + Q_total * R_total
-            R_total = sum_i(dz_i / k_i / A_xy) + 1/(htc * A_xy)
-
-T_spread(x, y, z): Superposition of 2D Gaussian "influence functions", one per
-            power block.  Each block at (xc, yc) with power Q_block produces a
-            Gaussian bump whose sigma is proportional to sqrt(R_th * k_eff) — a
-            rough estimate of the lateral spreading length.
-
-Accuracy vs 3D-ICE
-------------------
-Expect ~20-40% RMSE vs real 3D-ICE on geometry1.  This is deliberate — the LF
-data provides structural correlation with the HF data without exact agreement,
-which is the right regime for multi-fidelity training (ARO pre-trains on LF,
-fine-tunes on HF).
-"""
+"""Low-fidelity analytical thermal simulator for multi-fidelity ARO training."""
 
 from __future__ import annotations
 
@@ -41,18 +15,7 @@ _DEFAULT_SIGMA_UM = 500.0
 
 
 class LowFidelitySimulator:
-    """
-    Analytical 1D + 2D-Gaussian thermal simulator.
-
-    Generates NPZ-compatible output dicts (coords, temp, power, layer, metadata)
-    using the same coordinate convention as 3D-ICE output.
-
-    Usage::
-
-        sim = LowFidelitySimulator()
-        result = sim.simulate(geometry, scenario_params)
-        np.savez_compressed('lf_out.npz', **result)
-    """
+    """Analytical 1D + 2D-Gaussian thermal simulator."""
 
     def __init__(self, seed: int = 0):
         self._rng = np.random.default_rng(seed)
@@ -69,24 +32,7 @@ class LowFidelitySimulator:
         power_blocks_wcm2: Dict[str, float],  # {block_name: W/cm²}
         scenario_name: str = 'lf_scenario',
     ) -> dict:
-        """
-        Run a low-fidelity simulation and return an NPZ-compatible dict.
-
-        Returns keys: coords, temp, power, layer, metadata (same as 3D-ICE path).
-
-        Physical model (correct dimensional analysis)
-        ----------------------------------------------
-        Per-unit-area 1D heat conduction + Gaussian-smoothed lateral variation:
-
-          T(x,y,z) = T_amb + Q_density(x,y) [W/m²] × R_above(z) [m²K/W]
-
-        where:
-          Q_density(x,y) = 2D power flux map (W/m²) with Gaussian smoothing
-          R_above(z)      = sum of h_i/k_i for layers above z  +  1/htc  [m²K/W]
-
-        For non-active layers, Q_density = 0 and the local T reflects
-        the conducted heat from all active layers above.
-        """
+        """Run a low-fidelity simulation and return an NPZ-compatible dict."""
         nx, ny, _ = geometry.mesh_resolution
         n_layers   = len(geometry.layers)
 
@@ -264,14 +210,7 @@ def generate_lf_dataset(
     output_dir: Path,
     simulator: Optional[LowFidelitySimulator] = None,
 ) -> list:
-    """
-    Batch-generate low-fidelity NPZ files for all scenarios.
-
-    Each entry in `scenarios` must have keys: geometry_name, htc, t_ambient_celsius,
-    power_blocks_wcm2, scenario_name.
-
-    Returns list of output file paths.
-    """
+    """Batch-generate low-fidelity NPZ files for all scenarios."""
     if simulator is None:
         simulator = LowFidelitySimulator()
 

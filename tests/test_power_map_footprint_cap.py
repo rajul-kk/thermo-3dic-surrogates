@@ -1,15 +1,5 @@
 """
-Regression guard for a real 3D-ICE 4.0 crash: a die's source layer emitted as
-an IDENTIFIER-referenced layout (the Si/underfill footprint mechanism in
-ice_simulator.py) combined with a full-mesh-resolution per-cell floorplan
-(~5600 elements on geometry5) heap-corrupts the binary ("corrupted size vs.
-prev_size", return code 6). resolution=64 was validated crash-free against
-the real executable; full mesh resolution was not, on geometry5.
-
-ScenarioGenerator.attach_power_maps must cap the map resolution to 64 whenever
-the geometry carries die_footprints and the caller left resolution at its
-"use full mesh" default (0). An explicit non-zero resolution request is left
-alone -- the cap only substitutes for an unset default.
+Regression guard for a real 3D-ICE 4.0 crash: a die's source layer emitted as an IDENTIFIER-referenced layout (the Si/underfill footprint mechanism in
 """
 from __future__ import annotations
 

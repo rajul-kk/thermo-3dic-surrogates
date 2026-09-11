@@ -1,26 +1,5 @@
 """
-Follow-up to analyze_interface_linearity.py's finding that peak-T is linear in 1/k_tim,
-not k. That result predicts a specific, testable claim: a ridge model given 1/k_tim as an
-explicit feature (mirroring the 1/htc feature scripts/baselines.py already uses, and for
-the same physical reason -- a series thermal resistance enters T linearly through its
-reciprocal conductivity) should recover the interface-uncertainty axis almost exactly,
-where a ridge model blind to k cannot represent it at all and is wrong by construction
-whenever k differs from whatever the (single, fixed) training value was.
-
-This was flagged as "untested here" in docs/report.md Sec 9.9 and is tested directly now,
-using ONLY existing sweep data (data/3d-ice-interface-multi + data/3d-ice-interface-pilot-
-median geometry4/tim_die, 10 scenarios: 5 k-values x {high-power, median-power}) -- no new
-3D-ICE solves. Leave-one-scenario-out CV (only 10 points -- a real train/test split would
-leave too little data at either end of the k range to be meaningful).
-
-Three feature sets compared:
-  blind    -- same features scripts/baselines.py's ridge already uses (block powers, htc,
-              1/htc, t_ambient, tsv_density). No k signal at all.
-  +k       -- blind, plus the raw k value.
-  +1/k     -- blind, plus 1/k -- the physically-motivated feature.
-
-Usage:
-    python scripts/test_ridge_tim_k_feature.py
+Follow-up to analyze_interface_linearity.py's finding that peak-T is linear in 1/k_tim, not k. That result predicts a specific, testable claim: a ridge model given 1/k_tim as an
 """
 import glob
 import re

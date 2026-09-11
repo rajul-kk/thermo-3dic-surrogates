@@ -1,13 +1,4 @@
-"""
-Regenerate NPZ files where 3D-ICE silently fell back to synthetic temperatures.
-
-Detection: files whose point count != the 3D-ICE Tmap grid count
-  (n_layers * nx * ny, i.e. 1 z-point per layer).
-
-Each bad file's scenario parameters are preserved from its metadata so the
-same scenario ID keeps the same power pattern, HTC, and ambient temperature.
-The bad file is deleted only after the new 3D-ICE run succeeds.
-"""
+"""Regenerate NPZ files where 3D-ICE silently fell back to synthetic temperatures."""
 import sys
 import logging
 import numpy as np

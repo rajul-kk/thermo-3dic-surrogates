@@ -1,18 +1,4 @@
-"""
-Nominal (pre-throttle) per-cell power export.
-
-Track A found that `block_power_*` npz metadata holds the DELIVERED power --
-already derated for throttled scenarios -- so ridge was being fed the closed
-loop's resolved answer, not the request (goal.md Track A2). That was fixed
-for the ridge/metadata path via `nominal_block_power_*`
-(scripts/baselines.py::collect_block_keys). FNO has the same problem one
-level down: its per-cell `power` array is also the delivered field, so a
-model trained on it solves an easier "resolved power -> temperature" task
-instead of ridge's "requested power -> temperature" task. This tests the
-fix: a `power_nominal` array recomputed from `throttle_nominal_power_blocks`
-when present (identical to `power` otherwise), consumed by FNODataset in
-place of `power`.
-"""
+"""Nominal (pre-throttle) per-cell power export."""
 from __future__ import annotations
 
 import sys
@@ -111,9 +97,7 @@ def test_load_scenario_falls_back_to_power_for_files_without_power_nominal():
 
 def test_fno_dataset_uses_nominal_power_when_throttled():
     """
-    End-to-end: FNODataset's Q_norm must be built from the nominal (higher)
-    power request, not the delivered (derated) field, for a throttled
-    scenario -- otherwise FNO is solving an easier problem than ridge.
+    End-to-end: FNODataset's Q_norm must be built from the nominal (higher) power request, not the delivered (derated) field, for a throttled
     """
     geometry = build_geometry1()
     coords, _ = generate_coords_and_indices(geometry, uniform_z=False)

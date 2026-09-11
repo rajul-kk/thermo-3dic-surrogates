@@ -1,19 +1,4 @@
-"""
-Die-footprint layout emission for geometry4/5/6 (chiplet-on-interposer).
-
-3D-ICE previously received a single uniform silicon material for the whole
-die_zone layer; the underfill gap between chiplets (k=0.7 vs Si's 148 W/m·K)
-was only modelled in the PINN's PDE loss, not in the 3D-ICE ground truth --
-a real train/target inconsistency (assumptions.md sect 6.1). This makes the
-3D-ICE stack file carry the same heterogeneous material via a 3D-ICE 4.0
-layout, closing that gap.
-
-A previous version of this code swapped the axis convention (see
-_generate_floorplan_files' documented X<->chip_length / Y<->chip_width swap)
-and 3D-ICE rejected the layout with "Layout element is outside of the IC" --
-caught only by running against the real executable. These tests pin the
-swapped-axis contract without needing 3D-ICE installed.
-"""
+"""Die-footprint layout emission for geometry4/5/6 (chiplet-on-interposer)."""
 from __future__ import annotations
 
 import sys

@@ -51,14 +51,7 @@ class _JobLogHandler(logging.Handler):
 class JobQueue:
     def __init__(self, output_base: Path, ice_executable: str,
                 simulator_factory=None):
-        """
-        Args:
-            simulator_factory: (config_dir, output_dir, executable) -> a
-                ThermalSimulator-like object with .simulate(). Defaults to
-                constructing a real ICESimulator. Overriding this is what
-                makes JobQueue unit-testable without a real 3D-ICE/WSL
-                install -- see tests/test_app.py's stub simulator.
-        """
+        """Args:"""
         self._jobs: Dict[str, Job] = {}
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._output_base = Path(output_base)

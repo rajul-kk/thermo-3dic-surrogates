@@ -1,40 +1,4 @@
-"""
-Non-neural baselines for the 3D-IC thermal benchmark.
-
-Every learned surrogate in this repo must beat these before its architecture can
-be credited for anything. They need no GPU and no training loop; the whole suite
-runs in seconds.
-
-Baselines
----------
-mean   Predict the training-set mean temperature field. The floor: any model
-       that does not beat this has learned nothing.
-
-nn     Copy the temperature field of the single nearest training scenario in
-       normalised parameter space. Zero-parameter memorisation.
-
-knn    Inverse-distance-weighted blend of the k nearest training scenarios.
-       This is "what you get for free" from the dataset without any model.
-
-ridge  Per-point ridge regression on the scenario parameter vector. This is the
-       baseline that matters most scientifically. Steady-state conduction with
-       fixed k is LINEAR in volumetric power and in ambient temperature:
-
-           T(x) = T_amb + sum_b A_b(x) * Q_b
-
-       where A_b is the (scenario-independent) thermal impedance from block b.
-       The only genuine nonlinearities are k(T) and the convective boundary term
-       (which enters through 1/h, supplied here as an explicit feature). A ridge
-       fit therefore recovers the exact physics of the linear regime, and any
-       neural surrogate must beat it to justify its cost. If ridge is already at
-       ~1 K MAE, the nonlinear capacity is not what is buying accuracy.
-
-Usage
------
-    python scripts/baselines.py --geometry geometry1 --data data/3d-ice
-    python scripts/baselines.py --geometry geometry1 --data data/3d-ice \\
-        --test-split ood --output results/baselines_geometry1_ood.json
-"""
+"""Non-neural baselines for the 3D-IC thermal benchmark."""
 
 from __future__ import annotations
 
@@ -69,16 +33,7 @@ def load_scenario(path: Path) -> dict:
 
 def power_pca_features(train: List[dict], test: List[dict], n_comp: int
                        ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Project each scenario's full power field onto its leading principal components.
-
-    Needed to keep ridge a FAIR baseline once power becomes a per-cell field. With
-    block-scalar power the whole source is 4-13 numbers and ridge can consume it
-    directly; with a per-cell map the source has ~10,000 degrees of freedom and
-    handing ridge only the block means would rig the comparison by hiding most of
-    the input. PCA gives the linear model the best n_comp-dimensional summary of
-    the source that exists, so if it still loses, it loses on the merits.
-    """
+    """Project each scenario's full power field onto its leading principal components."""
     P_tr = np.stack([sc['power'] for sc in train])
     mu = P_tr.mean(0)
     # Economy SVD of the centred training fields; components are rows of Vt.
@@ -90,20 +45,7 @@ def power_pca_features(train: List[dict], test: List[dict], n_comp: int
 
 def feature_vector(meta: dict, block_keys: List[str],
                    pos_keys: Optional[List[str]] = None) -> np.ndarray:
-    """
-    Build the scenario parameter vector.
-
-    Includes 1/htc alongside htc: convective thermal resistance is proportional
-    to 1/h, so 1/h is the term that enters the temperature field linearly. Giving
-    the linear models this feature is what makes `ridge` a fair — rather than
-    strawman — baseline.
-
-    `pos_keys` are per-block `block_x_*` / `block_y_*` positions, added 2026-09-11 for the
-    moving-source datasets (docs/report.md §9.14). Once chiplet placement varies per
-    scenario, a baseline that only sees per-block POWER cannot know where the heat went, and
-    beating it would prove nothing. They are constant for fixed-placement datasets, where
-    the zero-variance guard in `predict_all` neutralises them.
-    """
+    """Build the scenario parameter vector."""
     htc = float(meta.get('htc', 0.0))
     feats = [float(meta.get(k, 0.0)) for k in block_keys]
     for k in (pos_keys or []):
@@ -125,22 +67,7 @@ def collect_position_keys(scenarios: List[dict]) -> List[str]:
 
 
 def collect_block_keys(scenarios: List[dict]) -> List[str]:
-    """
-    Union of block-power metadata keys, sorted for determinism.
-
-    Prefers `nominal_block_power_*` (the requested power) over
-    `block_power_*` (the delivered power after any closed-loop feedback)
-    whenever any scenario carries throttle OR leakage metadata. Both
-    mechanisms make delivered power a function of the temperature being
-    solved for, so both must hand the baseline the request, not the outcome. Using the delivered power as ridge's
-    feature hands it the already-resolved answer for throttled scenarios --
-    it no longer has to represent the closed feedback loop at all, and scores
-    a misleadingly high R^2 that has nothing to do with whether the map is
-    actually linear. Found 2026-08-09: ridge scored *better* on throttled
-    data (spatial R^2 0.989) than on the same geometry without throttling
-    (0.970) until this was fixed -- using nominal power instead correctly
-    shows real degradation (0.890).
-    """
+    """Union of block-power metadata keys, sorted for determinism."""
     uses_nominal = any(sc['meta'].get('throttle_enabled')
                        or sc['meta'].get('leakage_enabled') for sc in scenarios)
     prefix = 'nominal_block_power_' if uses_nominal else 'block_power_'
@@ -162,21 +89,7 @@ def collect_block_keys(scenarios: List[dict]) -> List[str]:
 # ── Metrics ────────────────────────────────────────────────────────────────────
 
 def metrics(pred: np.ndarray, true: np.ndarray, coords: np.ndarray) -> Dict[str, float]:
-    """
-    Raw AND spatially-detrended error.
-
-    Detrending matters on this dataset. Each scenario's field is dominated by a
-    near-uniform offset set by ambient temperature and total power, while the
-    spatial gradient within a scenario is ~1 K. Raw MAE therefore mostly scores
-    how well a model copies the ambient input, and a model that predicts a
-    constant per scenario can post a respectable MAE having learned no spatial
-    structure whatsoever.
-
-    `mae_detrended_K` removes each field's own mean from both prediction and
-    truth, so it measures only the spatial structure -- the part a thermal
-    surrogate actually exists to predict. `spatial_r2` is R^2 on that same
-    detrended field. Report both; judge architectures on the detrended pair.
-    """
+    """Raw AND spatially-detrended error."""
     err = pred - true
     ss_res = float(np.sum(err ** 2))
     ss_tot = float(np.sum((true - true.mean()) ** 2))
@@ -216,19 +129,7 @@ def aggregate(per_scenario: List[Dict[str, float]]) -> Dict[str, float]:
 def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
                 k: int, ridge_lambda: float, power_pca: int = 0
                 ) -> List[Dict[str, np.ndarray]]:
-    """
-    Fit every baseline on `train` and return raw predicted fields for `test`.
-
-    Returns one dict per test scenario: {baseline_name: predicted (N,) field in K}.
-
-    Split out of `fit_predict` (2026-09-09) so callers that need different metrics
-    -- scripts/hotspot_eval.py scores hotspot-specific quantities rather than the
-    detrended field metrics below -- reuse these exact baseline implementations
-    instead of reimplementing ridge/kNN. Two copies of a baseline that silently
-    drift apart would invalidate every comparison in this project that relies on
-    them, and this repo has already been bitten once by a duplicated metric
-    definition living in a notebook.
-    """
+    """Fit every baseline on `train` and return raw predicted fields for `test`."""
     # Per-block positions enter the feature vector whenever the dataset carries them.
     # For fixed-placement data they are constant and the zero-variance guard below drops
     # them; for moving-source data (docs/report.md 9.14) they are what tells the baseline

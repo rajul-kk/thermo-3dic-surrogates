@@ -1,40 +1,4 @@
-"""
-Controlled interface-property (TBR-proxy) uncertainty sweep.
-
-Motivation (goal.md "Documentation audit and novelty action plan", 2026-08-16):
-the multiscale-3D-IC review [Barua, Udoy & Aziz, arXiv:2604.03290] identifies
-the absence of standardized, uncertainty-aware thermal-interface-property data
-as an open problem, noting that reported TBR values vary substantially between
-measurement groups. Independently, packaging practice reports that modest
-interface/packaging changes can shift hotspot location or move peak junction
-temperature by double-digit degrees.
-
-If that is true, it bears directly on this benchmark's central argument. Neural
-thermal surrogates compete over sub-Kelvin field-error improvements. If plausible
-uncertainty in the *interface properties fed to the simulator* moves the answer by
-more than the model-vs-model differences being optimized, then that accuracy race
-is being run inside the noise floor of its own inputs -- a stronger and more
-general version of "ridge already solves this."
-
-This script measures that directly. Crucially, and unlike the TIM k-sweep already
-present in the geometry5/6 training data (which varies power pattern, HTC and TIM k
-*simultaneously* and therefore cannot isolate anything), every scenario here holds
-power pattern, HTC and ambient FIXED and varies exactly one interface property at a
-time across its documented uncertainty range.
-
-Ranges are taken from `docs/assumptions.md`, not invented:
-  - tim_top (TIM1, indium solder): 5-80 W/m.K, the documented pump-out/degradation
-    lifecycle range already used by the generator's k-sweep.
-  - tim_sink (thermal grease): 1-8 W/m.K, the literature range for greases
-    (assumptions.md gives 4.0 as the nominal, 1-8 as the spread).
-  - hybrid_bonding: 60 -> 400 W/m.K. assumptions.md 2.3 states the repo's 60 W/m.K
-    value overestimates real Cu-Cu hybrid-bond resistance by ~28x, with real
-    bondlines at k ~ 300-400. This sweep spans "what we model" to "what hardware
-    actually does" -- i.e. a known modelling-uncertainty axis, not a guess.
-
-Usage:
-    python scripts/gen_interface_uncertainty_pilot.py --output data/3d-ice-interface-pilot
-"""
+"""Controlled interface-property (TBR-proxy) uncertainty sweep."""
 import argparse
 import logging
 import shutil

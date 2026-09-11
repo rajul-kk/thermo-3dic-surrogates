@@ -1,9 +1,5 @@
 """
-Distance-to-nearest-power-block field: the right-sized geometry-aware
-conditioning signal for this benchmark (all 6 geometries are structured
-Cartesian grids, not the point-cloud/graph targets GINO/PI-GANO-style full
-SDF encoders are built for). Unlike the TSV field, this is purely geometric
--- constant per geometry, no simulation data needed. See goal.md Track B.
+Distance-to-nearest-power-block field: the right-sized geometry-aware conditioning signal for this benchmark (all 6 geometries are structured
 """
 from __future__ import annotations
 

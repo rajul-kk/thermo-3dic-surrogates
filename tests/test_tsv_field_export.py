@@ -1,12 +1,5 @@
 """
-The spatial TSV-density field affected the 3D-ICE ground truth (since
-2026-08-05) but was never exported to .npz or exposed to any model as an
-input -- only a per-geometry constant scalar (`metadata['tsv_density']`)
-reached PINN/FNO/DeepONet/ARO. That made the field a hidden confounder: it
-added real variance to the temperature target with no input a model could
-condition on. This tests the fix: a real per-point `tsv_frac` array is now
-exported, and `src/fno/model.py` accepts it as a genuine per-cell channel
-(with a scalar-broadcast fallback for files/callers predating this field).
+The spatial TSV-density field affected the 3D-ICE ground truth (since 2026-08-05) but was never exported to .npz or exposed to any model as an
 """
 from __future__ import annotations
 

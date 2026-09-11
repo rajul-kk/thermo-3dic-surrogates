@@ -1,48 +1,4 @@
-"""
-PI-CNO-DeepONet: CNO-FNO spatial branch encoder + coordinate trunk.
-
-Replaces the fixed 16×16 sensor MLP branch of PI-DeepONet with a full
-spatial CNO-FNO encoder, eliminating information loss from point sampling.
-
-Architecture
-------------
-  Branch  —  CNOBranchEncoder
-    Lift (5→ch) → CNN encoder (stride-2 × 2) → AdaptiveAvgPool3d to
-    fixed (LF, LF, LF) latent → FiLM-FNO blocks → global pool → Linear
-    → n_basis coefficients.
-
-    FiLM is conditioned on (htc_norm, t_amb_norm, tsv_frac, geom_desc),
-    giving the branch full geometry + scenario awareness via two pathways:
-      (a) spatial Q_grid input (power field structure)
-      (b) FiLM scalar conditioning (geometry descriptor + BCs)
-
-    AdaptiveAvgPool3d normalises variable grid shapes (g1: 100×100×40,
-    g6: 56×168×50, etc.) to a fixed (8,8,8) latent before the spectral
-    blocks, making ONE branch work across all 8 geometries.
-
-  Trunk  —  TrunkNet (reused from model.py)
-    Fourier encoding of (x_norm, y_norm, z_norm, layer_id_norm) → n_basis.
-    Trunk-only autograd for PDE loss: ∂T/∂x_i = branch · ∂trunk/∂x_i.
-
-  Output
-    T(x) = branch(Q_grid) · trunk(x) + bias   shape: (B, N)
-
-Advantages over PI-DeepONet
-----------------------------
-  • No sensor information loss: full 3D power field, not 16×16 samples
-  • Cross-geometry: AdaptiveAvgPool3d handles any (nx, ny, nz) → one model
-  • geometry4/5/6 support: lateral k variation is implicitly encoded in the
-    Q_grid spatial structure + layer_id channel
-  • PDE cost identical: branch coefficients are fixed per scenario, so only
-    the trunk is differentiated during the physics loss
-  • ~3-5× better branch expressiveness vs MLP on the same n_basis
-
-Parameter count (ch=64, n_basis=128, n_fno_blocks=4)
-------------------------------------------------------
-  CNN encoder (~640k)  +  latent FNO (~1.4M)  +  FiLM (~0.2M)
-  + proj head (~16k)   +  trunk (~0.5M)
-  Total: ~2.8M  vs  ~0.5M for PIDeepONet (richer, justified by 275 train scenarios)
-"""
+"""PI-CNO-DeepONet: CNO-FNO spatial branch encoder + coordinate trunk."""
 
 from __future__ import annotations
 
@@ -63,18 +19,7 @@ _FILM_DIM = 3 + GEOM_DESC_DIM
 
 
 class CNOBranchEncoder(nn.Module):
-    """
-    Cross-geometry CNO-FNO encoder: (B,5,nx,ny,nz) → (B, n_basis).
-
-    The 5 input channels mirror CNOFNOHybrid (Q_norm, layer_id_norm,
-    htc, t_amb, tsv broadcast) so the branch has the same physics signals.
-
-    Args:
-        ch:           channel width (recommend 64 for cross-geometry training)
-        n_cno_layers: stride-2 downsampling stages (2 → 4× spatial reduction)
-        n_fno_blocks: FiLM-FNO blocks at the fixed (8,8,8) latent
-        n_basis:      branch output dimension (must match trunk)
-    """
+    """Cross-geometry CNO-FNO encoder: (B,5,nx,ny,nz) → (B, n_basis)."""
 
     def __init__(
         self,
@@ -159,24 +104,7 @@ class CNOBranchEncoder(nn.Module):
 
 
 class PICNODeepONet(nn.Module):
-    """
-    PI-CNO-DeepONet: full spatial CNO-FNO branch + coordinate trunk.
-
-    T(x) = CNOBranch(Q_grid) · Trunk(x) + bias
-
-    Drop-in replacement for PIDeepONet — same trainer, same PDE loss,
-    same trunk. Only the branch changes: from a 540D MLP to a spatial
-    encoder that sees the full 3D power field.
-
-    Args:
-        n_basis:       dot-product dimension (default 128)
-        ch:            branch channel width (default 64)
-        n_fno_blocks:  FiLM-FNO blocks in branch latent
-        n_cno_layers:  CNN encoder downsampling stages
-        trunk_hidden:  trunk MLP width
-        trunk_layers:  trunk MLP depth
-        fourier_sigma: trunk Fourier encoding bandwidth
-    """
+    """PI-CNO-DeepONet: full spatial CNO-FNO branch + coordinate trunk."""
 
     def __init__(
         self,

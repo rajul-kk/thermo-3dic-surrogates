@@ -1,36 +1,4 @@
-"""
-Autoregressive Operator (ARO) for 3D-IC thermal prediction.
-
-Architecture
-------------
-ARO processes the chip stack layer by layer in the z-direction (bottom → top).
-A single shared 2D FiLM-FNO block predicts the temperature slice T[i] from:
-  - Q[i]:   power map at layer i         (nx, ny)
-  - T[i-1]: temperature map from layer i-1  (nx, ny)  [zeros at i=0]
-  - k[i]:   per-layer normalised thermal conductivity  (scalar)
-  - bc:     scenario BCs: (htc_norm, t_amb_norm, tsv_frac, tim_k_norm)  (4,)
-
-Layer-to-layer autoregression captures vertical heat spreading that a single
-forward-pass 2D model would miss.  Because the block is shared (weight-tied)
-across all layers, parameter count is O(ch²) instead of O(n_layers × ch²).
-
-Why 2D FNO (not 3D)?
----------------------
-3D FNO requires the full volumetric grid in memory and scales O(nx·ny·nz) in
-activation storage.  ARO splits the 3D problem into nz sequential 2D steps,
-each O(nx·ny), with only two 2D slices (T[i-1], Q[i]) on the GPU at a time.
-This lets geometry6 (56×168 footprint, 11 layers) run on a 16 GB T4 with
-ch=32.
-
-Multi-fidelity usage
---------------------
-Pre-train on large LF dataset (generate_lf_dataset in lf_simulator.py),
-then fine-tune on the smaller 3D-ICE HF dataset.  Because the LF and HF
-data share the same NPZ format and spatial coordinates, no dataset
-adapter is needed — just different file lists.
-
-Parameter count (ch=32): ~0.85 M  (suitable for a single T4 in 1-2 h)
-"""
+"""Autoregressive Operator (ARO) for 3D-IC thermal prediction."""
 
 from __future__ import annotations
 
@@ -95,17 +63,7 @@ class FiLMLayer(nn.Module):
 
 
 class AROBlock(nn.Module):
-    """
-    Shared 2D FiLM-FNO block, weight-tied across all z-layers.
-
-    Input  channels (in_ch):
-        0   : Q[i]    (normalised power)
-        1   : T[i-1]  (temperature from layer below; 0 at bottom)
-        2   : k[i]    (layer thermal conductivity, broadcast from scalar)
-        (optional) 3: region_id map for chiplet geometries
-
-    Output channels (out_ch = 1): T̂[i] (normalised temperature prediction)
-    """
+    """Shared 2D FiLM-FNO block, weight-tied across all z-layers."""
 
     def __init__(
         self,
@@ -160,21 +118,7 @@ class AROBlock(nn.Module):
 # ---------------------------------------------------------------------------
 
 class ARO(nn.Module):
-    """
-    Autoregressive Operator: shared AROBlock applied sequentially per z-layer.
-
-    Forward inputs (batch of scenarios):
-        Q_stack:    (B, n_layers, H, W)  normalised power per layer
-        k_norms:    (B, n_layers)        normalised thermal conductivity per layer
-        cond:       (B, cond_dim)        BCs (htc_norm, t_amb_norm, tsv_frac, tim_k_norm)
-        region_map: (B, H, W) optional  integer region IDs; embedded if provided
-
-    Forward output:
-        T_stack:    (B, n_layers, H, W)  normalised temperature per layer
-
-    Teacher forcing (training):
-        Pass `T_gt_stack` to replace predicted T[i-1] with ground-truth.
-    """
+    """Autoregressive Operator: shared AROBlock applied sequentially per z-layer."""
 
     def __init__(
         self,
@@ -260,24 +204,7 @@ class ARO(nn.Module):
         window:     int,                             # number of consecutive self-fed layers
         region_map: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, int, int]:
-        """
-        RNO-style training pass (Recurrent Neural Operators, Yang et al. 2025):
-        recursively feed the model its OWN predictions (no ground truth) over a
-        window of `window` consecutive layers, keeping gradients attached through
-        the whole window (short BPTT). This exposes the model to its own
-        compounding error DURING training, closing the train/inference gap that
-        plain teacher forcing leaves open.
-
-        The window start is chosen randomly; T[start-1] (input to the window) is
-        taken from ground truth (or zeros at start=0) — only the interior of the
-        window is self-fed. Layers before `start` are not computed (cheaper than
-        a full n_layers rollout every step).
-
-        Returns:
-            T_window:  (B, window, H, W) predictions for layers [start, start+window)
-            start:     window start index (for indexing T_gt_stack when computing loss)
-            window:    actual window length (clamped to n_layers - start)
-        """
+        """RNO-style training pass (Recurrent Neural Operators, Yang et al. 2025):"""
         B, n_layers, H, W = Q_stack.shape
         device = Q_stack.device
         window = min(window, n_layers)

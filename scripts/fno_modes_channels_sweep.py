@@ -1,38 +1,4 @@
-"""
-Modes-vs-channels compute-optimal sweep for baseline FNO.
-
-Motivation (2026-09-08 research session): the neural-operator scaling literature
-(e.g. the "optimal Fourier cutoff" line of work summarized against this project's own
-config choices) reports that at a FIXED parameter budget, there is a real accuracy
-tradeoff between spending that budget on more spectral modes vs. more hidden channels,
-and the optimal split is not universal across PDE types. This project has used the same
-hardcoded `channels=32, modes=(16,16,12)` for every FNO run on every geometry
-(`scripts/train_fno.py`'s default) without ever checking whether that split is actually
-a good one relative to other splits at a similar total parameter count. This script is
-that check.
-
-Design: hold total parameter count roughly fixed within two tiers (~4.6-4.8M and
-~6.1-6.7M params -- close enough for a first-pass comparison, not exactly matched; the
-project's own default falls in the second tier), vary (channels, modes) within each
-tier, train every candidate for the SAME epoch budget on the SAME data with the SAME
-seed (isolates architecture shape as the only variable, same convention as
-kaggle_pinn_sampling_comparison.ipynb), and score with the same detrended metrics
-scripts/baselines.py uses so results are directly comparable to the ridge reference
-(docs/report.md Sec 9.1a, re-measured 2026-09-09: geometry1 ridge det.MAE=0.407,
-spatial R^2=0.970, hotspot localisation error 7399 um).
-
-This is a fast, CPU-scale first pass, not a publication run -- same caveat this
-project's other CPU-scale FNO smoke tests carry (docs/report.md Sec 9.7 etc.): a
-config that loses here might still win at GPU scale/full epoch budget. The question
-this script answers is narrower and cheaper: at matched capacity and a matched
-(short) training budget, does the project's existing default sit anywhere near the
-best point on the modes/channels tradeoff curve, or is it leaving accuracy on the
-table for free (same params, different split)?
-
-Usage:
-    python scripts/fno_modes_channels_sweep.py
-    python scripts/fno_modes_channels_sweep.py --epochs 80 --geometry geometry1
-"""
+"""Modes-vs-channels compute-optimal sweep for baseline FNO."""
 import argparse
 import json
 import logging

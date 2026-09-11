@@ -1,47 +1,4 @@
-"""
-Non-neural baselines on IC-ThermBench S2-S5.
-
-See docs/ic_thermbench_plan.md. IC-ThermBench's eight baselines are all deep networks;
-this supplies the missing closed-form row, scored with their own metric code
-(`third_party/ic_thermbench/metrics.py`, vendored verbatim) on their own splits
-(`scripts/ic_thermbench_data.py`, verified array-exact against their loader).
-
-Baselines
----------
-ridge-green   The physically-motivated linear model: a dense ridge operator from the
-              4,096-cell power map (plus the per-cell conductivity map where the scope
-              has one, plus per-sample scalars) to the 4,096-cell temperature field.
-              Steady-state conduction IS linear in the source, so for a fixed operator
-              this is the exact solution form, not an approximation:
-                  T(x) = T_amb + sum_x' G(x,x') Q(x')
-              The intercept absorbs any fixed offset. This is the number that matters.
-
-ridge-pca     The same idea with the spatial maps compressed to their leading principal
-              components. Far fewer parameters; guards against the objection that
-              ridge-green only wins because it is large.
-
-knn / nn      Inverse-distance-weighted / single nearest training field, in PCA feature
-              space (raw 4,096-d distances over 10,800 training samples are needlessly
-              slow and no more meaningful).
-
-mean          Training-set mean field. The floor.
-
-Design notes
-------------
-- Ridge lambda is selected on THEIR validation split, mirroring the validation-best
-  checkpoint selection their models use. Not tuned on test.
-- Features are standardised; the intercept is never penalised (same convention as
-  scripts/baselines.py).
-- `grid_x` / `grid_y` are per-cell geometry encodings that vary per sample (they carry
-  layout identity). They are included as PCA components rather than raw 4,096-dim blocks
-  by default: including them raw pushes the feature count past the training-set size,
-  which is a different and less interpretable regime. `--raw-grid` opts into it.
-
-Usage
------
-    python scripts/ic_thermbench_baselines.py --scope level2
-    python scripts/ic_thermbench_baselines.py --scope level2 level3 level4 --output results/ic_thermbench_baselines.json
-"""
+"""Non-neural baselines on IC-ThermBench S2-S5."""
 from __future__ import annotations
 
 import argparse
@@ -99,14 +56,7 @@ def build_scalar_block(x: np.ndarray, channels: List[str]) -> Tuple[np.ndarray, 
 
 def fit_pca(train_fields: np.ndarray, n_comp: int, seed: int = 0
             ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Leading principal components of centred training fields. Returns (mean, basis).
-
-    Randomised range-finder rather than a full SVD: we only ever want the leading
-    ~256 directions of a 10,800 x 4,096 matrix, and a full economy SVD costs
-    O(n*m*min(n,m)) ~ 1.8e11 flops against ~1.1e10 here. Uses one power iteration,
-    which is ample for the strongly-decaying spectra these thermal fields have.
-    """
+    """Leading principal components of centred training fields. Returns (mean, basis)."""
     mu = train_fields.mean(axis=0)
     centred = train_fields - mu
     n_comp = min(n_comp, min(centred.shape) - 1)
@@ -135,20 +85,7 @@ def pca_cache_get(cache: Dict[str, Tuple[np.ndarray, np.ndarray]], name: str,
 
 def ridge_gram(A: np.ndarray, Y: np.ndarray, chunk: int = 1500
                ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Precompute the lambda-independent normal-equation blocks, in chunks.
-
-    AtA and AtY are the expensive parts (O(n*p^2) and O(n*p*c)) and neither depends on
-    lambda, so they are computed once and reused across the whole lambda sweep. Only the
-    p x p solve repeats -- a 5x saving on the dominant cost for a 5-value sweep.
-
-    Accumulated over row chunks so the float64 copy of A never exists in full. At S4's
-    8,709 features a full float64 A is ~750 MB on top of everything else, and this
-    machine has ~4 GB free; chunking keeps the transient at ~100 MB while giving
-    bit-comparable results (the sum order changes, nothing else). A itself may be
-    float32 -- the accumulation is done in float64 regardless, which is what matters
-    for the conditioning of the normal equations.
-    """
+    """Precompute the lambda-independent normal-equation blocks, in chunks."""
     t = time.time()
     p = A.shape[1]
     AtA = np.zeros((p, p), dtype=np.float64)
@@ -182,14 +119,7 @@ def with_intercept(z: np.ndarray) -> np.ndarray:
 
 
 def geometry_keys(x: np.ndarray, spatial: Dict[str, int]) -> np.ndarray:
-    """
-    A stable id per sample for its substrate geometry, from the grid_x/grid_y channels.
-
-    These encode the (non-uniform) grid the case is discretised on, and measurement shows
-    they take only ~20 distinct values across thousands of samples while the power map
-    varies per sample. Hashing the pair therefore recovers the layout/case grouping that
-    the released files do not label directly.
-    """
+    """A stable id per sample for its substrate geometry, from the grid_x/grid_y channels."""
     keys = []
     names = [n for n in ('grid_x', 'grid_y') if n in spatial]
     for i in range(len(x)):
@@ -208,13 +138,7 @@ def score(pred: np.ndarray, true: np.ndarray, prefix: str) -> Dict[str, float]:
 
 
 class FittedRidge:
-    """
-    Everything needed to predict on new data with a fitted ridge-green model.
-
-    Kept so S5 can be scored zero-shot: their S5 protocol freezes an S4-trained model
-    and applies it to unseen cases with unchanged preprocessing statistics, so the PCA
-    bases and standardisation must come from S4 and must NOT be refitted on S5.
-    """
+    """Everything needed to predict on new data with a fitted ridge-green model."""
 
     def __init__(self, channels, spatial, raw_names, pca_names, pca_cache, mu, sd, W, lam):
         self.channels = channels
@@ -445,12 +369,7 @@ def run_scope(data_root: Path, scope: str, n_pca: int, raw_grid: bool,
 
 def run_transfer(data_root: Path, source: str, target: str, n_pca: int,
                  raw_grid: bool, knn_k: int) -> Dict[str, Dict[str, float]]:
-    """
-    Zero-shot transfer: fit on `source`, evaluate on `target` without refitting.
-
-    Mirrors their S5 protocol -- a frozen source-trained model, unchanged preprocessing
-    statistics, scored on all target samples.
-    """
+    """Zero-shot transfer: fit on `source`, evaluate on `target` without refitting."""
     log.info('=== transfer %s -> %s (zero-shot) ===', source, target)
     _, state, state_pca, mean_field = run_scope(data_root, source, n_pca, raw_grid,
                                                 knn_k, return_state=True)

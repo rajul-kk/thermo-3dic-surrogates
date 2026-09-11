@@ -1,51 +1,4 @@
-"""
-Hybrid FNO + PINN correction model.
-
-Motivation
-----------
-The FNO predicts T on the Cartesian grid (fast, global, data-driven).
-The CorrectionPINN predicts a residual δT at *arbitrary* query points so the
-combined prediction satisfies the heat equation:
-
-    T_total(x) = T_FNO(x) + δT(x)
-
-where T_FNO(x) is the FNO output trilinearly interpolated from the grid to
-point x, and δT is a small correction learned by a point-wise PINN.
-
-Why this is useful
-------------------
-- The FNO handles coarse global structure with O(N log N) cost; the PINN
-  handles fine-scale physics residuals and boundary layers.
-- The correction is typically small (< 5 K) so the PINN trains much faster
-  than a standalone PINN that must learn the full temperature field.
-- The PDE loss is applied to T_total, not δT alone, so the physics constraint
-  acts on the meaningful quantity.
-
-Training protocol
------------------
-1. Pre-train FNO on grid data (FNOTrainer) until convergence.
-2. Freeze FNO weights.
-3. Train CorrectionPINN with:
-     L = L_correction_data + λ_pde * L_pde(T_total) + λ_bc * L_bc(T_total)
-   using the same curriculum staging as the standalone PINN.
-
-The FNO is frozen during step 3 — its activations are not backpropagated
-through. This keeps the hybrid training memory budget close to PINN-only.
-
-Coordinate convention
----------------------
-FNO operates on the integer grid [0..nx-1] x [0..ny-1] x [0..nz-1] mapped to
-physical µm coordinates. The CorrectionPINN receives normalised coords [0,1]³,
-as does the standalone FourierPINN. Interpolation is bilinear in the normalised
-grid (grid_norm indices = coord_norm * (grid_size - 1)).
-
-Usage example
--------------
-    fno = CNOFNOHybrid(grid_shape=(100,100,40), ...)  # preferred base
-    # load pretrained weights
-    model = HybridModel(fno, n_layers=5, fourier_sigma=10.0)
-    loss = compute_hybrid_loss(model, batch, weights, norm_stats, ...)
-"""
+"""Hybrid FNO + PINN correction model."""
 
 import torch
 import torch.nn as nn
@@ -62,17 +15,7 @@ _EXTRA_CORRECTION_FEATURES = 1
 
 
 class CorrectionPINN(nn.Module):
-    """
-    Point-wise residual network that predicts δT = T_true - T_FNO.
-
-    Identical architecture to FourierPINN except:
-    - One extra scalar input: T_FNO_norm (the FNO prediction at this point)
-    - Output is unconstrained (correction can be positive or negative)
-    - Shallower by default (4 residual blocks instead of 6) because the
-      correction field is smoother than the full temperature field
-
-    Input dim = 32 (Fourier) + 8 (layer emb) + 4 (scenario scalars) + 1 (T_FNO) = 45
-    """
+    """Point-wise residual network that predicts δT = T_true - T_FNO."""
 
     def __init__(
         self,
@@ -141,23 +84,7 @@ class CorrectionPINN(nn.Module):
 
 
 class HybridModel(nn.Module):
-    """
-    CNOFNOHybrid (frozen, preferred) or FNO3d (frozen) + CorrectionPINN (trained).
-
-    The FNO provides the coarse grid prediction; the PINN refines it at
-    arbitrary query points. Freezing the FNO keeps memory low and avoids
-    destabilising a converged model. Using CNOFNOHybrid as the base gives a
-    better coarse solution so the correction residual is smaller (< 2 K vs
-    up to 10 K with FNO3d), making the PINN's job easier.
-
-    Args:
-        fno:            Pre-trained CNOFNOHybrid (recommended) or FNO3d.
-                        Weights are frozen at construction.
-        n_layers:       Number of geometry layers (for layer embedding size).
-        fourier_sigma:  Fourier feature scale for CorrectionPINN.
-        hidden_dim:     CorrectionPINN MLP width.
-        n_res_blocks:   CorrectionPINN depth.
-    """
+    """CNOFNOHybrid (frozen, preferred) or FNO3d (frozen) + CorrectionPINN (trained)."""
 
     def __init__(
         self,
@@ -197,12 +124,7 @@ class HybridModel(nn.Module):
         fno_grid: torch.Tensor,   # (1, nx, ny, nz) FNO output for one scenario
         coords_norm: torch.Tensor, # (N, 3) query points in normalised [0,1]³
     ) -> torch.Tensor:
-        """
-        Trilinear interpolation of the FNO grid at arbitrary normalised coords.
-
-        grid_sample expects input in [-1,1] with (D,H,W) = (z,y,x) convention.
-        We remap: normalised [0,1] -> grid_sample [-1,1].
-        """
+        """Trilinear interpolation of the FNO grid at arbitrary normalised coords."""
         nx, ny, nz = fno_grid.shape[-3:]
 
         # grid_sample input: (1, 1, N_d, N_h, N_w) or (1, C, D, H, W)
@@ -237,11 +159,7 @@ class HybridModel(nn.Module):
         tsv_frac: torch.Tensor,      # scalar
         fno_grid: torch.Tensor,      # (1, nx, ny, nz) pre-computed FNO grid output
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Return (T_total_norm, T_fno_interp_norm), both shape (N,).
-
-        T_total = T_FNO (interpolated) + δT (CorrectionPINN)
-        """
+        """Return (T_total_norm, T_fno_interp_norm), both shape (N,)."""
         t_fno_interp = self.interpolate_fno(fno_grid, coords_norm)   # (N,)
 
         N = coords_norm.shape[0]
@@ -301,20 +219,7 @@ def compute_hybrid_loss(
     w_pde: float = 0.0,
     w_bc: float = 0.0,
 ) -> Dict[str, torch.Tensor]:
-    """
-    Compute hybrid loss components.
-
-    Returns a dict with scalar tensors:
-        total, correction_data, pde (if w_pde>0), bc (if w_bc>0)
-
-    L_correction_data: MSE(T_total - T_true) at query points (primary signal)
-    L_pde:             PDE residual on T_total at collocation points
-    L_bc:              Convective BC residual on T_total at top-surface points
-
-    The grid-level FNO loss is NOT recomputed here — it was already minimised
-    during FNO pre-training. The correction loss drives the PINN to close the
-    remaining gap.
-    """
+    """Compute hybrid loss components."""
     T_total_norm, _ = model.forward_points(
         coords_norm=coords_norm,
         layer_ids=layer_ids,

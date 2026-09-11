@@ -1,50 +1,4 @@
-"""
-Adaptive collocation-sampling strategies for PINN training.
-
-Extends the plain residual-proportional RAR already in trainer._rar_update
-with three additional strategies drawn from the 2025 adaptive-sampling
-literature. All operate on the SAME interface — given a candidate point
-pool, return per-point importance weights (or directly resampled points) —
-so they are interchangeable via `Trainer(sampling_strategy=...)`.
-
-Strategies
-----------
-hessian_weighted
-    Sample proportional to |Laplacian(T_hat)| (trace of the output Hessian),
-    a curvature proxy. Distinct from RAR's PDE-residual weighting: residual
-    measures physics violation (∇·(k∇T)+Q != 0), while curvature measures
-    where the network's own output is changing sharply — the model can have
-    near-zero residual (physics satisfied) at a point with immense curvature
-    if it also fits Q correctly there. Curvature-based sampling targets
-    representation difficulty, not physics violation, so it is a genuinely
-    different signal.  Motivated by "Provably Accurate Adaptive Sampling for
-    Collocation Points in PINNs" (ECML PKDD 2025), which used a Hessian-based
-    quadrature bound; this is a practical (trace-only, not full Hessian)
-    approximation of that idea — full per-point Hessian is O(N) double-
-    backward calls and too slow for the >20k point pools used here.
-
-importance_adversarial
-    Residual-magnitude softmax resampling. This is a SIMPLIFIED PROXY for
-    "Adversarial Adaptive Sampling" (Tang et al. 2024), which trains a deep
-    generative model + optimal-transport (Wasserstein) map to *synthesize*
-    new sample locations. Implementing the full GAN+OT machinery is out of
-    scope here; this keeps the adversarial paper's core intuition — sample
-    from a distribution shaped by the residual field rather than a hard
-    top-k cutoff — via temperature-controlled softmax resampling, which is
-    a defensible but honestly-labelled simplification, not a re-implementation
-    of Tang et al.'s method.
-
-curriculum_enhanced
-    Blends uniform/stratified coverage (early epochs) with adaptive
-    (residual- or curvature-weighted) sampling (late epochs) via a linearly
-    growing blend factor. Directly follows "Curriculum-Enhanced Adaptive
-    Sampling for PINNs: A Robust Framework for Stiff PDEs" (MDPI, Dec 2025),
-    which argues plain RAR over-exploits high-residual regions too early,
-    before the network has learned enough of the bulk solution to produce
-    meaningful residual signal there. The stiffness they target (steep
-    gradients) maps directly onto this repo's material-interface jumps
-    (Si k=148 vs TIM k=4, a 37x ratio).
-"""
+"""Adaptive collocation-sampling strategies for PINN training."""
 
 from __future__ import annotations
 
@@ -74,14 +28,7 @@ def hessian_trace_weights(
     tim_k_norm: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
-    Return (N,) curvature weights = trace of the Hessian of T_hat w.r.t. coords,
-    i.e. the Laplacian |d2T/dx2 + d2T/dy2 + d2T/dz2| — a cheap proxy for full
-    per-point Hessian eigenvalue analysis (O(N) single Laplacian evaluation
-    instead of O(N*3) for the full 3x3 Hessian).
-
-    Uses double-backward (create_graph=True on first derivative). Caller
-    should call model.eval() beforehand for consistent dropout state, matching
-    the convention in trainer._rar_update.
+    Return (N,) curvature weights = trace of the Hessian of T_hat w.r.t. coords, i.e. the Laplacian |d2T/dx2 + d2T/dy2 + d2T/dz2| — a cheap proxy for full
     """
     coords = coords.clone().requires_grad_(True)
     T_hat = model(coords, layer_ids, power, htc_norm, t_amb_norm, tsv_frac,
@@ -114,16 +61,7 @@ def importance_resample(
     uniform_floor: float = 0.1,
 ) -> torch.Tensor:
     """
-    Sample n_new indices from [0, M) via temperature-controlled softmax
-    resampling, with a uniform floor to prevent collapse onto a single mode
-    (the failure mode plain RAR is documented to have — "always picking the
-    largest residual locations, reducing exploration of other regions").
-
-    temperature < 1 sharpens toward the highest-weight points (more like
-    hard top-k RAR); temperature > 1 flattens toward uniform (more
-    exploration). temperature=1 is the direct softmax of the raw signal.
-
-    Returns: (n_new,) LongTensor of indices into the weights array.
+    Sample n_new indices from [0, M) via temperature-controlled softmax resampling, with a uniform floor to prevent collapse onto a single mode
     """
     w = weights.float()
     w = w / (w.std() + 1e-12)             # scale-invariant before softmax
@@ -143,14 +81,7 @@ def curriculum_blend_factor(
     warmup_frac: float = 0.2,
 ) -> float:
     """
-    Blend factor in [0, 1]: 0 = pure uniform/stratified coverage,
-    1 = pure adaptive (residual/curvature) weighting.
-
-    Stays at 0 for the first `warmup_frac` of training (let the network learn
-    the bulk solution before trusting its residual/curvature signal — this is
-    the core argument in Curriculum-Enhanced Adaptive Sampling: early-training
-    residuals are dominated by random init noise, not real physics difficulty),
-    then ramps linearly to 1 by the end of training.
+    Blend factor in [0, 1]: 0 = pure uniform/stratified coverage, 1 = pure adaptive (residual/curvature) weighting.
     """
     warmup_epochs = warmup_frac * total_epochs
     if epoch <= warmup_epochs:
@@ -166,12 +97,7 @@ def curriculum_enhanced_resample(
     temperature: float = 1.0,
 ) -> torch.Tensor:
     """
-    Blend uniform sampling with adaptive-weighted sampling according to
-    `blend` (0=uniform, 1=fully adaptive), then draw n_new indices.
-
-    Implemented as a blended probability distribution (not a coin-flip
-    between two separate samplers) so that intermediate blend values produce
-    a smooth interpolation rather than a discontinuous switch.
+    Blend uniform sampling with adaptive-weighted sampling according to `blend` (0=uniform, 1=fully adaptive), then draw n_new indices.
     """
     M = len(adaptive_weights)
     w = adaptive_weights.float()
@@ -212,16 +138,7 @@ def compute_adaptive_weights(
     tim_k_norm: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
-    Compute the (M,) importance signal for a candidate pool according to
-    `strategy`. 'rar' (PDE residual magnitude) is the pre-existing default;
-    'hessian' and the raw signal for 'importance'/'curriculum' are new.
-
-    For 'importance' and 'curriculum', the underlying signal is still the PDE
-    residual (matching RAR) — 'importance' changes HOW points are drawn from
-    that signal (softmax temperature vs residual-proportional), 'curriculum'
-    changes WHEN the signal is trusted (blend factor). Pass strategy='hessian'
-    if you want curvature instead of residual as the underlying signal for
-    importance/curriculum too — see compute_adaptive_weights_for.
+    Compute the (M,) importance signal for a candidate pool according to `strategy`. 'rar' (PDE residual magnitude) is the pre-existing default;
     """
     if strategy == 'hessian':
         model.eval()

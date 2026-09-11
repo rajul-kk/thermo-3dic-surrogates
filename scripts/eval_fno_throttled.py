@@ -1,15 +1,5 @@
 """
-Evaluate the geometry1_throttled FNO checkpoint with the same detrended metrics
-scripts/baselines.py scores ridge with, so the two are directly comparable.
-
-Written 2026-08-16 to close a reproducibility gap found during a documentation
-audit: docs/report.md §9.7/§9.8 and goal.md quoted this checkpoint's det.MAE/
-spatial R^2/hotspot error, but the eval that produced those numbers had only
-been run inline and was never saved as a re-runnable artifact. Output is
-written to results/fno_throttled_eval.json.
-
-Usage:
-    python scripts/eval_fno_throttled.py
+Evaluate the geometry1_throttled FNO checkpoint with the same detrended metrics scripts/baselines.py scores ridge with, so the two are directly comparable.
 """
 import json
 import sys

@@ -1,18 +1,4 @@
-"""
-CLI entry point for PINN evaluation.
-
-Usage:
-    python scripts/eval_pinn.py \\
-        --checkpoint checkpoints/geometry1/geometry1_best.pt \\
-        --data data/3d-ice \\
-        --output results/geometry1/ \\
-        [--plots]
-
-Outputs:
-    metrics.json         per-scenario and aggregate metrics
-    comparison_*.png     z-slice comparison plots (if --plots)
-    z_profile_*.png      z-axis profile plots (if --plots)
-"""
+"""CLI entry point for PINN evaluation."""
 
 import argparse
 import json

@@ -1,8 +1,5 @@
 """
-End-to-end wiring of the Track B geometry-aware field (distance to nearest
-power block) through FNODataset -> FNO3d -> FNOTrainer, on real data. Both
-opt-in (use_geometry_field=False by default, so existing checkpoints and
-callers are unaffected) and functional (the field is nonzero and varies).
+End-to-end wiring of the Track B geometry-aware field (distance to nearest power block) through FNODataset -> FNO3d -> FNOTrainer, on real data. Both
 """
 from __future__ import annotations
 

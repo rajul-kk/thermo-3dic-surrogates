@@ -1,15 +1,4 @@
-"""
-FourierPINN architecture for 3D-IC thermal surrogate modelling.
-
-Architecture:
-  Input: normalised (x,y,z) + power density + layer_id + scenario params
-  -> FourierFeatureEmbedding (32 features, per-axis sigma) + LayerEmbedding (8 features)
-  -> Optional RegionEmbedding (0 or 4 features, for 2.5D chiplet geometries)
-  -> Optional TIM-k scalar (5th scenario input for k-sweep scenarios)
-  -> Hard adiabatic BC: cosine coordinate fold on (x,y) enforces dT/dn=0 at lateral walls
-  -> Residual MLP: 6 x ResBlock(256) with SiLU activations
-  -> Linear(1) output (normalised temperature)
-"""
+"""FourierPINN architecture for 3D-IC thermal surrogate modelling."""
 
 import torch
 import torch.nn as nn
@@ -18,16 +7,7 @@ from typing import Optional, Tuple, Union
 
 
 class FourierFeatureEmbedding(nn.Module):
-    """
-    Random Fourier feature encoding for spatial coordinates.
-
-    Maps (x,y,z) ∈ [0,1]³ → [sin(2π B x), cos(2π B x)] ∈ R^(2*n_freq)
-    where B ~ N(0, sigma²) is a fixed random matrix drawn at init.
-
-    sigma can be a float (isotropic) or a (sx, sy, sz) tuple for per-axis
-    bandwidth — use anisotropic sigma when the geometry has a large aspect ratio,
-    e.g. geometry6 (42mm × 14mm): sigma=(42,14,50) matches physical feature scales.
-    """
+    """Random Fourier feature encoding for spatial coordinates."""
 
     def __init__(self, n_freq: int = 16, sigma: Union[float, Tuple] = 10.0):
         super().__init__()
@@ -46,14 +26,7 @@ class FourierFeatureEmbedding(nn.Module):
 
 
 class ResBlock(nn.Module):
-    """
-    Residual block: LayerNorm -> Linear -> SiLU -> Dropout -> LayerNorm -> Linear + skip.
-
-    LayerNorm (not BatchNorm) because batch size can be as small as 1 scenario.
-    SiLU over tanh: non-saturating, smooth second derivative for PDE autograd.
-    Dropout(p=0.1) enables MC Dropout uncertainty estimation at inference:
-    call model.train() and run N forward passes to get predictive mean ± std.
-    """
+    """Residual block: LayerNorm -> Linear -> SiLU -> Dropout -> LayerNorm -> Linear + skip."""
 
     def __init__(self, dim: int, dropout_p: float = 0.1):
         super().__init__()
@@ -72,29 +45,7 @@ class ResBlock(nn.Module):
 
 
 class FourierPINN(nn.Module):
-    """
-    Physics-Informed Neural Network for 3D-IC thermal prediction.
-
-    Input per point (all normalised to [0,1] or standardised):
-        coords     (3,)  -- (x̂, ŷ, ẑ) ∈ [0,1]
-        power      (1,)  -- normalised volumetric power density
-        layer_id   (1,)  -- integer layer index (passed separately for embedding)
-        htc_norm   (1,)  -- normalised heat transfer coefficient
-        t_amb_norm (1,)  -- normalised ambient temperature
-        tsv_frac   (1,)  -- TSV area fraction (0, 0.03, 0.05, 0.10)
-
-    Optional:
-        region_ids  (1,)  -- chiplet region ID (0=underfill, 1=chipA, 2=chipB)
-        tim_k_norm  (1,)  -- normalised TIM conductivity for k-sweep scenarios
-
-    Hard adiabatic BC (hard_adiabatic=True, default):
-        (x,y) coords are folded through cosine transform before Fourier encoding.
-        This enforces dT/dx=dT/dy=0 at all four lateral walls by construction,
-        eliminating the bc_sides soft-loss term entirely.
-
-    Total input to MLP: 32 (Fourier) + 8 (layer emb) + [0|4] (region emb)
-                        + 4 (scalars) + [0|1] (tim_k) = 44-49 dims
-    """
+    """Physics-Informed Neural Network for 3D-IC thermal prediction."""
 
     def __init__(
         self,
@@ -134,14 +85,7 @@ class FourierPINN(nn.Module):
 
     @staticmethod
     def _hard_adiabatic_transform(coords: torch.Tensor) -> torch.Tensor:
-        """
-        Cosine coordinate fold enforcing dT/dx=dT/dy=0 at x={0,1} and y={0,1}.
-
-        Maps x → 0.5*(1 - cos(π x)), whose derivative is 0.5*π*sin(π x),
-        which vanishes at x=0 and x=1. Chain rule then sets dT/dx_phys=0
-        at both lateral walls — exact hard BC, no soft loss needed.
-        z coordinate is left unchanged (convective BC at top stays soft).
-        """
+        """Cosine coordinate fold enforcing dT/dx=dT/dy=0 at x={0,1} and y={0,1}."""
         xc = 0.5 * (1.0 - torch.cos(math.pi * coords[:, 0]))
         yc = 0.5 * (1.0 - torch.cos(math.pi * coords[:, 1]))
         return torch.stack([xc, yc, coords[:, 2]], dim=1)
@@ -200,12 +144,7 @@ class FourierPINN(nn.Module):
         region_ids: Optional[torch.Tensor] = None,   # (N,) shared across S; None → zeros
         tim_k_norms: Optional[torch.Tensor] = None,  # (S,) per-scenario; None → 0.05
     ) -> torch.Tensor:                 # (S, N)
-        """
-        Process S scenarios in a single forward pass.
-
-        Fourier features and layer embeddings are computed ONCE and expanded to (S,N).
-        Per-scenario scalars are broadcast without data duplication.
-        """
+        """Process S scenarios in a single forward pass."""
         if self.hard_adiabatic:
             coords = self._hard_adiabatic_transform(coords)
 
@@ -257,15 +196,7 @@ def build_model(
     hard_adiabatic: bool = True,
     device: Optional[torch.device] = None,
 ) -> FourierPINN:
-    """
-    Construct a FourierPINN.
-
-    n_layers: use 11 for geometry5/6; 6 for geometry1/3/4; 10 for geometry2a/2b/2c.
-    fourier_sigma: float for isotropic; (sx,sy,sz) for anisotropic (geometry6: (42,14,50)).
-    n_regions/region_emb_dim: set to (3, 4) for geometry4/5 chiplet geometries.
-    tim_k_input: True for geometry5/6 with TIM k-sweep training scenarios.
-    hard_adiabatic: True (default) removes bc_sides soft loss; False keeps old behaviour.
-    """
+    """Construct a FourierPINN."""
     model = FourierPINN(
         n_layers=n_layers,
         fourier_sigma=fourier_sigma,
