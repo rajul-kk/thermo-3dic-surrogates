@@ -13,8 +13,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.geometry_builders import get_geometry_by_name
-from src.core.placement import (lateral_chiplets, place_chiplets, placement_summary,
-                                random_block_placement, random_placement)
+from src.core.placement import (free_chiplet_placement, lateral_chiplets, place_chiplets,
+                                placement_summary, random_block_placement,
+                                random_placement, shelf_chiplet_placement)
 from src.scenario.generator import ScenarioGenerator
 from src.simulators.ice_simulator import ICESimulator
 from src.export.npz_exporter import NPZExporter
@@ -32,9 +33,17 @@ def main():
     ap.add_argument('--n', type=int, default=45, help='total scenarios (last 5 become test)')
     ap.add_argument('--max-shift-um', type=float, default=1500.0)
     ap.add_argument('--margin-um', type=float, default=250.0)
+    ap.add_argument('--layout-mode',
+                    choices=['translate', 'independent-blocks', 'free-chiplets', 'shelf'],
+                    default=None,
+                    help='translate: bounded rigid shift (docs/report.md 9.15 showed this is '
+                         'NOT enough to break a linear fit). independent-blocks: each power '
+                         'block placed freely (homogeneous geometries only). free-chiplets: '
+                         'each chiplet placed anywhere it fits. shelf: permute chiplets along '
+                         'x and redistribute slack -- the only mode that works for densely '
+                         'packed packages like geometry6.')
     ap.add_argument('--independent-blocks', action='store_true',
-                    help='place every power block independently (2 DOF per block) rather '
-                         'than translating chiplets rigidly -- see docs/report.md 9.15')
+                    help='deprecated alias for --layout-mode independent-blocks')
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--output', type=Path, default=None)
     ap.add_argument('--ice-executable',
@@ -70,8 +79,14 @@ def main():
         split = 'test' if i >= len(base) - n_test else 'train'
         name = f'{args.geometry}_{split}_{i + 1:03d}'
 
-        if args.independent_blocks:
+        mode = args.layout_mode or ('independent-blocks' if args.independent_blocks
+                                    else 'translate')
+        if mode == 'independent-blocks':
             offsets = random_block_placement(geom, rng, margin_um=args.margin_um)
+        elif mode == 'free-chiplets':
+            offsets = free_chiplet_placement(geom, rng, margin_um=args.margin_um)
+        elif mode == 'shelf':
+            offsets = shelf_chiplet_placement(geom, rng, margin_um=args.margin_um)
         else:
             offsets = random_placement(geom, rng, max_shift_um=args.max_shift_um,
                                        margin_um=args.margin_um)

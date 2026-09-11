@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import numpy as np
 from dataclasses import replace
 from typing import Dict, List, Optional, Tuple
 
@@ -118,6 +119,82 @@ def random_block_placement(geometry, rng, margin_um: float = 500.0,
     log.warning('random_block_placement: no valid layout for %s in %d tries; '
                 'falling back to nominal', geometry.name, max_tries)
     return {}
+
+
+def free_chiplet_placement(geometry, rng, margin_um: float = 250.0,
+                           max_tries: int = 4000) -> Dict[str, Offset]:
+    """Place each chiplet anywhere it fits, not within a bounded shift -- the 2.5D analogue of random_block_placement."""
+    # The 2.5D counterpart of random_block_placement. random_placement bounds each chiplet
+    # to +/- max_shift_um of its nominal spot, which keeps the arrangement recognisable and
+    # leaves the layout a low-dimensional family -- docs/report.md 9.15 showed that is not
+    # enough to stop a linear model. Here each chiplet is placed uniformly at random
+    # anywhere it fits, so the relative arrangement genuinely changes.
+    chiplets = lateral_chiplets(geometry)
+    if not chiplets:
+        return {}
+    W, H = geometry.die_width, geometry.die_length
+    from dataclasses import replace as _replace
+    proto = (getattr(geometry, 'die_footprints', None) or [None])[0]
+
+    for _ in range(max_tries):
+        placed, offsets, ok = [], {}, True
+        # Largest first: they have the least slack, so committing them early keeps
+        # rejection sampling from dead-ending on the last big die.
+        for (x, y, w, h), names in sorted(chiplets, key=lambda c: -c[0][2] * c[0][3]):
+            hi_x, hi_y = W - w, H - h
+            if hi_x < 0 or hi_y < 0:
+                return {}
+            nx = float(rng.uniform(0.0, hi_x))
+            ny = float(rng.uniform(0.0, hi_y))
+            cand = _replace(proto, name='probe', x=nx, y=ny, width=w, height=h)
+            if any(_overlaps(cand, p, margin_um) for p in placed):
+                ok = False
+                break
+            placed.append(cand)
+            for n in names:
+                offsets[n] = (nx - x, ny - y)
+        if ok and len(offsets) == len(getattr(geometry, 'die_footprints', []) or []):
+            return offsets
+    log.warning('free_chiplet_placement: no valid layout for %s in %d tries; '
+                'falling back to nominal', geometry.name, max_tries)
+    return {}
+
+
+def shelf_chiplet_placement(geometry, rng, margin_um: float = 250.0) -> Dict[str, Offset]:
+    """Permute chiplets along x and redistribute the slack -- layout variation for densely packed packages."""
+    # free_chiplet_placement cannot serve geometry6 (7 chiplets filling ~69% of the package)
+    # or geometry7: uniform random placement essentially always overlaps, so rejection
+    # sampling fails outright. Dense 2.5D packages are effectively a 1D packing problem, and
+    # what a floorplanner actually varies there is the ORDER of the dies and the gaps between
+    # them. That is still genuinely high-dimensional -- n! orderings plus n continuous gaps
+    # plus n vertical offsets -- and unlike a bounded translation it changes which die
+    # neighbours which, so the thermal coupling structure changes rather than shifting.
+    chiplets = lateral_chiplets(geometry)
+    if not chiplets:
+        return {}
+    W, H = geometry.die_width, geometry.die_length
+
+    order = list(rng.permutation(len(chiplets)))
+    widths = [chiplets[i][0][2] for i in order]
+    total_w = sum(widths)
+    slack = W - total_w - margin_um * (len(order) - 1)
+    if slack < 0:
+        return {}
+    # Dirichlet split of the leftover width across the n+1 gaps (before, between, after).
+    cuts = np.sort(rng.uniform(0.0, 1.0, size=len(order)))
+    frac = np.diff(np.concatenate([[0.0], cuts, [1.0]]))
+    gaps = frac * slack
+
+    offsets: Dict[str, Offset] = {}
+    cursor = gaps[0]
+    for gi, idx in enumerate(order):
+        (x, y, w, h), names = chiplets[idx]
+        hi_y = H - h
+        ny = float(rng.uniform(0.0, hi_y)) if hi_y > 0 else 0.0
+        for n in names:
+            offsets[n] = (cursor - x, ny - y)
+        cursor += w + margin_um + gaps[gi + 1]
+    return offsets
 
 
 def random_placement(geometry, rng, max_shift_um: float = 2000.0,
