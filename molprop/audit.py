@@ -83,9 +83,14 @@ def main():
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, 'w') as f:
+        # failed_trials/budget_unmatched are persisted, not just logged: a cell whose budget
+        # could not be filled is not comparable, and that must survive into the artifact
+        # rather than living only in a console line nobody re-reads.
         json.dump([{'dataset': r.dataset, 'split': r.split, 'model': r.model,
                     'task': r.task, 'scores': r.scores, 'mean': r.mean, 'std': r.std,
-                    'featuriser': r.featuriser, 'seconds': r.seconds} for r in results],
+                    'featuriser': r.featuriser, 'seconds': r.seconds,
+                    'failed_trials': r.failed_trials,
+                    'budget_unmatched': r.budget_unmatched} for r in results],
                   f, indent=2)
     print(f'\nSaved: {args.output}')
 
