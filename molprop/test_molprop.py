@@ -126,3 +126,44 @@ def test_featurisers_are_finite_and_float32():
         X = fn(smiles)
         assert X.dtype == np.float32, name
         assert np.isfinite(X).all(), f'{name} produced non-finite values'
+
+
+def test_budget_counts_successful_trials_not_attempts():
+    """An invalid config must be resampled, not silently skipped.
+
+    kNN with weights='distance' genuinely fails when duplicate fingerprints put all k
+    neighbours at distance zero. Skipping those trials hands kNN a smaller search than
+    its competitors, which is the confound the matched-budget control exists to remove.
+    """
+    import molprop.models as M
+    from molprop.protocol import run_cell
+    from molprop.data import Dataset
+
+    calls = {'n': 0}
+    real_build = M.build
+
+    def flaky_build(name, params, task):
+        calls['n'] += 1
+        # Every other config is "invalid" during the search; the final refit (which also
+        # calls build) must not be sabotaged, so stop being flaky once the budget is full.
+        if calls["n"] % 2 == 0 and calls["n"] < 16:
+            raise ValueError('synthetic invalid configuration')
+        return real_build(name, params, task)
+
+    rng = np.random.default_rng(0)
+    n = 120
+    ds = Dataset(name='synth', task='classification',
+                 smiles=['CCO', 'c1ccccc1', 'CCN', 'CCC', 'CCCl', 'CCBr'] * (n // 6),
+                 y=rng.integers(0, 2, n).astype(float))
+
+    M.build = flaky_build
+    try:
+        res = run_cell(ds, 'random', 'linear', seeds=[0], budget=8,
+                       featurisers=['maccs'])
+    finally:
+        M.build = real_build
+
+    # Half the attempts fail, so filling a budget of 8 needs ~16 attempts.
+    assert calls['n'] > 8, f'budget was not refilled after failures ({calls["n"]} attempts)'
+    assert not res.budget_unmatched, 'budget should have been fillable within the cap'
+    assert res.failed_trials > 0, 'failures should still be counted and reported'

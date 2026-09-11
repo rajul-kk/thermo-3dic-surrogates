@@ -53,6 +53,7 @@ class Result:
     featuriser: Optional[str] = None
     seconds: float = 0.0
     failed_trials: int = 0
+    budget_unmatched: bool = False
 
     @property
     def mean(self) -> float:
@@ -93,7 +94,18 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
         trials = 1 if model_name == 'trivial' else budget
         failures = 0
         first_failure = None
-        for _ in range(trials):
+        # The budget counts SUCCESSFUL trials, not attempts. Some hyperparameter/featuriser
+        # combinations are genuinely invalid on some data (kNN with weights='distance' when
+        # duplicate fingerprints put all k neighbours at distance zero), and simply skipping
+        # them hands the affected model a smaller effective search than its competitors --
+        # which is the exact confound this protocol exists to remove. So we resample until
+        # `trials` configurations have actually been evaluated, capped to keep a pathological
+        # model from looping forever.
+        done = 0
+        attempts = 0
+        max_attempts = trials * 8
+        while done < trials and attempts < max_attempts:
+            attempts += 1
             fname = featurisers[int(rng.integers(len(featurisers)))]
             X = feats[fname]
             params = sampler(rng)
@@ -102,23 +114,26 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
                 mdl.fit(X[tr], y_all[tr])
                 s = score(y_all[va], _predict(mdl, X[va], ds.task), ds.task)
             except Exception as exc:
-                # Count failures: a silently-skipped trial means this model got a smaller
-                # effective budget than its competitors, which would invalidate the
-                # comparison. One such bug (numpy coercing a mixed hyperparameter list to
-                # strings, so every RF trial sampling max_features=0.3 raised) was caught
-                # this way rather than quietly biasing the result.
                 failures += 1
                 if first_failure is None:
                     first_failure = f'{type(exc).__name__}: {exc}'
                 continue
+            done += 1
             if better(s, best[0], ds.task):
                 best = (s, (fname, params), mdl)
 
-        if failures:
-            log.warning('%s/%s/%s seed %d: %d/%d trials FAILED -- effective budget was '
-                        'smaller than other models, comparison may be unfair. First: %s',
-                        ds.name, split_kind, model_name, seed, failures, trials,
+        if done < trials:
+            # Budget could not be filled even with resampling: this model really did get a
+            # smaller search, so the comparison for this cell is not matched. Say so loudly
+            # rather than reporting the number as if it were.
+            log.warning('%s/%s/%s seed %d: only %d/%d trials succeeded in %d attempts -- '
+                        'BUDGET NOT MATCHED, do not compare this cell. First failure: %s',
+                        ds.name, split_kind, model_name, seed, done, trials, attempts,
                         first_failure)
+            res.budget_unmatched = True
+        elif failures:
+            log.info('%s/%s/%s seed %d: %d invalid configs resampled (budget filled to %d)',
+                     ds.name, split_kind, model_name, seed, failures, trials)
         res.failed_trials += failures
         if best[1] is None:
             res.scores.append(float('nan'))
