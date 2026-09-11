@@ -175,7 +175,7 @@ deliberately conservative test of §3.3.
 
 | dataset / split | best model | is the best separable from `linear`? |
 |---|---|---|
-| bbbp / scaffold | lightgbm 0.9259 | **no** |
+| bbbp / scaffold | lightgbm 0.9259 | **yes** — linear is separably worse |
 | bbbp / random | rf 0.9299 | **no** |
 | bace / scaffold | xgboost 0.8770 | **no** |
 | bace / random | **linear 0.9064** | **no** — the linear model *is* the best |
@@ -186,9 +186,12 @@ deliberately conservative test of §3.3.
 
 ### 7.1 The headline
 
-**On all four classification cells, a tuned logistic regression on fingerprints is
-statistically indistinguishable from tuned gradient-boosted trees** — and on BACE/random it
-is the single best model. Only ESOL separates method from noise, on both splits.
+**On three of the four classification cells, a tuned logistic regression on fingerprints is
+statistically indistinguishable from tuned gradient-boosted trees** — and on BACE/random it is
+the single best model. The exception is BBBP/scaffold, where LightGBM (0.9259) beats linear
+(0.8804) by 0.0455 against a combined spread of 0.0394, so linear is separably worse there.
+(An earlier draft of this section said all four; that was a misreading of the tie-list, which
+excludes `linear` on that cell.)
 
 This is the outcome §4 called most likely and most useful. Published differences of ~0.02 AUC
 on BBBP or BACE are not evidence about architecture: our entire six-model spread on BBBP/random
@@ -322,8 +325,9 @@ because the convention is not reported. That is the finding, not a defeat.
 
 ### 7.8 Summary of what this audit establishes
 
-1. On all four **classification** cells with a seeded split, a tuned logistic regression is
-   **not separable** from tuned gradient-boosted trees; on BACE/random it is the best model.
+1. On **three of four** classification cells with a seeded split, a tuned logistic regression
+   is **not separable** from tuned gradient-boosted trees; on BACE/random it is the best
+   model. The exception is BBBP/scaffold, where it is separably worse.
 2. On **regression** (ESOL both splits) trees **are** separable from linear and kNN, with a
    mechanism — only trees exploit the physicochemical descriptors they all selected.
    So the non-separability above is a property of those benchmarks, not a blunt test.
