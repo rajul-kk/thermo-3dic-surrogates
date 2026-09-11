@@ -158,12 +158,21 @@ This paper makes the following contributions:
    actually consume. Any claim that a benchmark is or is not linear-solvable is
    ill-posed without naming the representation — including claims made earlier in this
    paper.
-9. **A protocol for auditing surrogate benchmarks, and evidence it transfers.** The method —
-   fix the protocol, supply the missing non-neural baseline, report what survives — is
-   packaged as `scripts/baselines.py`, `scripts/layout_cv.py` and
-   `scripts/benchmark_linearity_audit.py`, and applied to a second field entirely
-   (molecular property prediction, `molprop/`) to test whether the result is about thermal
-   data or about how surrogate benchmarks are evaluated.
+9. **A protocol for auditing surrogate benchmarks, and evidence that it transfers.** The
+   method — fix the protocol, supply the missing non-neural baseline, report what survives —
+   is packaged as `scripts/baselines.py`, `scripts/layout_cv.py` and
+   `scripts/benchmark_linearity_audit.py`, and was **run end-to-end on a second field**
+   (molecular property prediction, `molprop/`, 12 dataset×split blocks on MoleculeNet). It
+   reproduces there: under matched tuning budget and reported dispersion, a tuned logistic
+   regression on fingerprints is **not separable** from tuned gradient-boosted trees on all
+   four classification cells, and is the best model on BACE/random; our tuned XGBoost beats
+   every published model on ESOL/random, including by a margin larger than the spread
+   separating four of six published architectures. The audit also found that MoleculeNet's
+   unreported Bemis-Murcko **tie-break convention** shifts results by up to 0.21 AUC in a
+   dataset-dependent direction — enough to make published "scaffold split" comparisons
+   unresolvable where the convention is not stated. So the thermal result is not a quirk of
+   thermal data; it is a property of how surrogate benchmarks in several fields are
+   evaluated. Full results and caveats in `molprop/README.md` §7.
 10. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
    autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
    toolkit, released as infrastructure rather than as accuracy claims.
