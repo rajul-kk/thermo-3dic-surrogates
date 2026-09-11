@@ -46,14 +46,20 @@ precisely because the field disagrees with itself.
 Six MoleculeNet tasks, chosen to be small (total ~4 MB), standard, and to span both task
 types:
 
-| dataset | task | n (approx) | metric |
-|---|---|---|---|
-| BBBP | binary classification | 2,039 | ROC-AUC |
-| BACE | binary classification | 1,513 | ROC-AUC |
-| ClinTox | binary classification (2 tasks) | 1,478 | ROC-AUC |
-| ESOL (delaney) | regression | 1,128 | RMSE |
-| FreeSolv (SAMPL) | regression | 642 | RMSE |
-| Lipophilicity | regression | 4,200 | RMSE |
+| dataset | task | n (verified) | metric | in the current run? |
+|---|---|---|---|---|
+| BBBP | binary classification | 2,039 | ROC-AUC | **yes** |
+| BACE | binary classification | 1,513 | ROC-AUC | **yes** |
+| ESOL (delaney) | regression | 1,128 | RMSE | **yes** |
+| FreeSolv (SAMPL) | regression | 642 | RMSE | **yes** |
+| ClinTox | binary classification (2 tasks) | 1,478 | ROC-AUC | not yet — supported, not run |
+| Lipophilicity | regression | 4,200 | RMSE | not yet — supported, not run |
+
+The first four are what the reported run covers; ClinTox and Lipophilicity are implemented and
+loadable but were left out to keep the matched-budget sweep inside a CPU-only time budget
+(6 models × 4 featurisers × 24 trials × 5 seeds × 2 splits, ~3 h as it stands). They are named
+here so the scope is explicit rather than implied — Lipophilicity in particular is the largest
+of the six and would roughly double the cost.
 
 Models, all non-neural:
 
