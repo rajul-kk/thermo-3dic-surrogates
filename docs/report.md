@@ -2070,10 +2070,43 @@ structural-OOD scope, the best neural model is only **1.9× better than predicti
 mean** (15.51 K vs 29.64 K), while the linear operator is unstable rather than merely
 inaccurate (§9.13c). Neither is visible in a results table containing no trivial baseline.
 
-We also record what this benchmark would need to become discriminative — higher power
-density, per-cell power maps, variable floorplans, extrapolation splits by default — and
-release the baseline, hotspot and OOD tooling (`scripts/baselines.py`,
-`scripts/hotspot_eval.py`) so those conditions can be checked rather than assumed.
+**We then fixed our own benchmark, and report the attempt that failed (§9.15, §9.15b).**
+Recording what a benchmark *would* need is cheap; doing it is the test of the diagnosis. We
+randomised chiplet placement per scenario so the thermal operator varies rather than only its
+inputs. The first attempt — translating each chiplet rigidly — **did not work**, even though
+it moved the sources more than IC-ThermBench does by support-overlap IoU (0.472 vs 0.449);
+ridge's relative error rose by 5–8% and on geometry4 its R² *improved*. The second attempt,
+placing chiplets independently, did. Cross-validated over 45 scenarios on each of three
+re-laid-out geometries, **ridge becomes the worst of the four baselines**, losing to a
+3-nearest-neighbour lookup; on the densest package (geometry6) its median spatial R² is
+**negative** and its detrended error **exceeds the signal** (norm err 1.035, 26/45 scenarios
+worse than the field's own mean). That is the first configuration in this project on which
+training a neural operator is a question worth asking.
+
+**And the diagnosis needed one more correction (§9.15c).** Asking whether a benchmark is
+"linearly solvable" is ill-posed without naming the input representation. The same 45
+geometry4 files admit a linear fit at R² 0.962 from the full per-cell power field and fail at
+R² −0.667 from the compact block-summary vector that surrogate models are conventionally
+given. Conduction *is* exactly linear in the per-cell source, so the field representation is
+the physically correct hypothesis class; it degrades only insofar as moving a chiplet also
+moves silicon and changes the operator. The compact vector discards precisely that. This
+corrects §9.14 and §9.15, both of which asserted linear-solvability as a property of a
+dataset, and it supplies a falsifiable prediction we have not yet tested: an FNO consumes the
+field, so it should win by the largest margin on geometry4-shelf — where ridge's
+representation is impoverished but the task is not hard — rather than on geometry6-shelf,
+where the task itself is hard.
+
+A methodological point applies to both results and cost us two retractions. **A 40/5 split is
+not a measurement.** Every single-split figure from the layout work (geometry1 R² 0.770,
+geometry4 0.245, geometry5 0.182) was overturned by 5-fold cross-validation over the same 45
+scenarios, and the distribution of per-scenario R² is heavy-tailed enough that mean and median
+must both be reported. `scripts/layout_cv.py` exists so this is a default rather than an
+afterthought.
+
+We release the baseline, hotspot, cross-validation and linearity-audit tooling
+(`scripts/baselines.py`, `scripts/hotspot_eval.py`, `scripts/layout_cv.py`,
+`scripts/benchmark_linearity_audit.py`) so these conditions can be checked rather than
+assumed, together with the 180 layout-randomised 3D-ICE solves the fix produced.
 
 ---
 
