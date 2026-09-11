@@ -97,6 +97,13 @@ Morgan r=2/2048), BBBP:
 literature reports, and roughly 14× the seed spread, so no amount of seed averaging within one
 convention reveals it.
 
+> **Narrowed by the full run (§7.6).** This 19-point figure is **BBBP-specific** and was
+> stated too broadly here at first. Across all four datasets the convention shifts results by
+> 0.003–0.21, **in a direction that varies by dataset**: much harder on BBBP, roughly neutral
+> on BACE, and *easier* on ESOL. The defensible claim is not "deterministic is harder" but
+> that the convention moves the number by an amount comparable to architecture differences,
+> with a sign a reader cannot predict from the split's name.
+
 **This is not merely our problem: it reproduces a spread that already exists in the published
 literature.** FP-GNN's Table 1 (arXiv:2205.03834) lists three BBBP results all labelled
 *scaffold*:
@@ -241,6 +248,94 @@ the same budget as the hyperparameters (§3.2) rather than fixed in advance.
 - The scaffold cells above use the **randomised** tie-break and are therefore *not*
   comparable to published scaffold numbers. See §2b — that is what the `scaffold_det` pass
   exists to supply.
+
+### 7.6 The same benchmarks under the deterministic scaffold convention
+
+Second pass, `--splits scaffold_det`, same budget/seeds/featurisers. Raw:
+`molprop/results/audit_scaffold_det.json`. 4/4 blocks clean, no budget failures.
+
+**`scaffold_det` is seedless.** Every seed sees the same split, so its std captures
+model-seed variance *only* — not split variance. Separability verdicts in this section are
+therefore **much weaker evidence** than those in §7, and the two must not be compared. The
+audit prints a `[!]` caution on every such block.
+
+| dataset | model | randomised scaffold | deterministic scaffold | Δ |
+|---|---|---|---|---|
+| bbbp (AUC ↑) | rf | 0.9122 | **0.7554** | −0.157 |
+| | xgboost | 0.9189 | 0.7319 | −0.187 |
+| | lightgbm | 0.9259 | 0.7189 | −0.207 |
+| | linear | 0.8804 | 0.7011 | −0.179 |
+| | knn | 0.8987 | 0.6905 | −0.208 |
+| bace (AUC ↑) | rf | 0.8698 | 0.8729 | **+0.003** |
+| | xgboost | 0.8770 | 0.8626 | −0.014 |
+| | lightgbm | 0.8576 | 0.8593 | +0.002 |
+| | knn | 0.8371 | 0.8469 | +0.010 |
+| | linear | 0.8647 | 0.8250 | −0.040 |
+| esol (RMSE ↓) | lightgbm | 0.8234 | **0.7577** | −0.066 (better) |
+| | rf | 0.8554 | 0.7642 | −0.091 (better) |
+| | xgboost | 0.8570 | 0.8077 | −0.049 (better) |
+| | linear | 1.2420 | 0.9292 | −0.313 (better) |
+| | knn | 1.4318 | 1.5386 | +0.107 (worse) |
+| freesolv (RMSE ↓) | lightgbm | 2.0450 | 2.0717 | +0.027 |
+| | xgboost | 2.0097 | 2.1962 | +0.187 |
+| | rf | 2.3703 | 2.1954 | −0.175 |
+| | knn | 2.9130 | 2.1862 | −0.727 (better) |
+| | linear | 2.7614 | 3.0290 | +0.268 |
+
+**The convention is not uniformly harder — it is unpredictable.** BBBP loses 0.16–0.21 AUC
+across every model; BACE barely moves (≤0.04); ESOL gets *easier* for four of five models;
+FreeSolv moves in both directions depending on model. A paper that writes "scaffold split"
+without naming the convention has not pinned down the difficulty of its own benchmark, and a
+reader cannot infer even the sign of the bias.
+
+**The mechanism, measured.** The deterministic convention induces a label-distribution shift
+that the randomised one does not:
+
+| dataset | overall pos-rate | deterministic test | randomised test |
+|---|---|---|---|
+| BBBP | 0.765 | **0.522** (shift −0.243) | 0.767 (+0.002) |
+| BACE | 0.457 | 0.605 (shift +0.149) | 0.387 (−0.070) |
+
+BBBP's deterministic "hard scaffold split" is hard substantially because its test set is
+near-balanced while the data is 77% positive — a label shift, not purely a structural-novelty
+test. This predicts what we observe: BACE, already near-balanced, shifts and moves less. It
+also means BBBP scaffold results are measuring something other than what the split is usually
+described as measuring.
+
+### 7.7 Like-for-like against published numbers
+
+`scaffold_det` is the convention published MoleculeNet-derived numbers appear to use (§2b), so
+these are the closest available comparisons. Both caveats above still apply.
+
+| cell | our best non-neural | published neural |
+|---|---|---|
+| bace / scaffold (AUC ↑) | **rf 0.8729**, xgboost 0.8626, lightgbm 0.8593 | FP-GNN 0.860, Chemprop 0.857, MoleculeNet/Weave 0.806 |
+| bbbp / scaffold (AUC ↑) | rf 0.7554, xgboost 0.7319 | FP-GNN 0.916, Chemprop 0.886, MoleculeNet/GraphConv 0.690 |
+
+**On BACE our tuned random forest beats all three published architectures.** On BBBP it does
+not — our best baseline (0.755) sits above MoleculeNet's GraphConv (0.690) but well below
+Chemprop (0.886) and FP-GNN (0.916). We do **not** read that as "GNNs win on BBBP": those two
+higher numbers are consistent with the randomised convention (our randomised baselines reach
+0.88–0.93, squarely in their range), and §2b shows the convention alone spans that gap. The
+honest conclusion is that **the BBBP comparison is unresolvable from published information**,
+because the convention is not reported. That is the finding, not a defeat.
+
+### 7.8 Summary of what this audit establishes
+
+1. On all four **classification** cells with a seeded split, a tuned logistic regression is
+   **not separable** from tuned gradient-boosted trees; on BACE/random it is the best model.
+2. On **regression** (ESOL both splits) trees **are** separable from linear and kNN, with a
+   mechanism — only trees exploit the physicochemical descriptors they all selected.
+   So the non-separability above is a property of those benchmarks, not a blunt test.
+3. Tuning moves a baseline by more than published architecture gaps: our XGBoost on ESOL
+   random (0.536) beats Wu et al.'s XGBoost (0.582) by more than the spread separating four
+   of the six published models — and beats every published model on that cell.
+4. The unreported **scaffold tie-break convention** shifts results by up to 0.21 AUC in a
+   dataset-dependent direction, which is enough to make published "scaffold split"
+   comparisons unresolvable where the convention is not stated.
+
+None of this requires training a GNN, which is the point: these are the controls the
+comparison needed, and they cost CPU-hours.
 
 ## 5. Compute
 
