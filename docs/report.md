@@ -128,12 +128,14 @@ This paper makes the following contributions:
 3. **Spatially-detrended error as an evaluation metric.** Raw MAE on 3D-IC thermal data is
    dominated by a per-scenario scalar offset — 88% of variance here is explained by the
    ambient input alone — so detrending is required to measure spatial fidelity at all.
-4. **Identification of hotspot localisation as a discriminating metric.** Replacing
-   block-scalar power with a per-cell field — same budget, cooling and geometry — leaves
-   field R² largely intact (0.78–0.98) while collapsing hotspot localisation from 8–1442 µm
-   to 4547–6044 µm on a 10 mm die. Under 5-fold CV, however, ridge still beat both FNO
-   configurations we trained on every hotspot metric (§9.12d), so this is a metric that
-   separates *tasks*, not a metric on which neural operators have been shown to win.
+4. **Identification of hotspot localisation as a discriminating metric.** Field R² and
+   hotspot localisation come apart: a model can hold field R² at 0.78–0.98 while locating
+   the peak no better than chance, so field R² alone cannot certify a thermal surrogate.
+   Two caveats are stated rather than buried. (a) The specific per-cell contrast in §9.4 was
+   measured on the superseded dataset and overstates the effect; it is flagged there and
+   needs re-measurement. (b) Under 5-fold CV ridge still beat both FNO configurations we
+   trained on *every* hotspot metric (§9.12d). This is therefore a metric that separates
+   tasks, not one on which neural operators have been shown to win.
 5. **Evidence that the fixed-placement result is structural, not a parameter-range
    artefact.** Regeneration on a physically grounded operating point raises the median
    spatial gradient from 1.10 K to 10.77 K and still leaves ridge above R² 0.94 on every
@@ -515,6 +517,23 @@ of a handful of block scalars, variable floorplans, or transient operation (§10
 changing the range over which the existing handful varies.
 
 ### 9.4 Per-cell power: the input dimensionality, not the parameter range
+
+> **Numbers in this section are inconsistent with §9.1a and need re-measurement
+> (flagged 2026-09-11).** The block-scalar column below reports ridge locating the hotspot
+> to **8–1442 µm** on geometry1. §9.1a, measured on the corrected dataset, puts geometry1
+> block-scalar ridge at **7399 µm**. A gap of that size cannot be explained by the
+> in-distribution/OOD split difference; it means this table was produced on the degenerate
+> pre-2026-08-06 dataset, in which the peak sat at one of a handful of fixed positions and
+> locating it was, as the text below itself says, "memorising a short list".
+>
+> **Consequence for the claim.** The *direction* of §9.4's argument survives — per-cell
+> power is a genuinely harder input than block scalars, and §9.3's diagnosis that input
+> dimensionality rather than parameter range is what matters is independently supported by
+> §9.15b. But the specific contrast "8–1442 µm → 4547–6044 µm" overstates the collapse,
+> because on the corrected dataset the block-scalar starting point is already ~7400 µm.
+> The per-cell dataset used here is no longer on disk, so this could not be re-measured;
+> regenerating it with `--power-map mixed` and re-running `scripts/hotspot_eval.py` under
+> k-fold CV is the outstanding task. Until then, do not quote these figures.
 
 §9.3 concluded that no choice of parameter *ranges* makes this benchmark
 non-linear, because the source was described by ~8 scalars. That diagnosis was
