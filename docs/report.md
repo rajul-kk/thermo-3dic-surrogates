@@ -1507,6 +1507,12 @@ superposition methods already solve, a learned linear operator also solves it.*
 
 ### 9.15 Implementing the fix: moving the sources is not enough — layout degrees of freedom are what matter (2026-09-11)
 
+> **Numbers superseded by §9.15b (2026-09-11).** Every figure in this section comes from a
+> single 40/5 split, and 5 held-out fields turned out to be too few to measure with — one
+> scenario was setting the headline R². §9.15b re-scores all of it with 5-fold CV over 45
+> scenarios. The *reasoning* below stands (layout dimensionality, not support overlap, is what
+> breaks a linear fit); the specific R² values do not. Cite §9.15b's table instead.
+
 §9.14b named "move the sources" as the primary fix. It was implemented
 (`src/core/placement.py`, `scripts/gen_moving_source_pilot.py`), three new pilots were
 generated as real 3D-ICE solves, and **the first attempt did not work.** The second did. The
@@ -1763,6 +1769,77 @@ predictive std measured during explainability validation was 8.6–13 K on field
 spatial std is ~0.3 K, i.e. roughly 30× the signal.
 
 ---
+
+### 9.15b Under cross-validation the layout fix is stronger than §9.15 said, and §9.15's numbers were not reliable (2026-09-11)
+
+§9.15's table is a **single 45-scenario dataset split 40/5**. Five held-out fields is too few:
+inspecting per-scenario spatial correlation showed ridge scoring r ≈ +0.9 on four test
+scenarios and r ≈ −0.25 on one, so a single scenario was setting the headline R². Every
+layout dataset was therefore re-scored with 5-fold CV over all 45 scenarios
+(`scripts/layout_cv.py`, n = 45 held-out fields per model, identical folds for every model).
+
+**`norm err` is det.MAE / that dataset's own σ. `R² < 0` counts held-out scenarios where the
+model is worse than that field's own spatial mean — i.e. outright failures:**
+
+| dataset (5-fold CV, n=45) | σ (K) | model | det.MAE | norm err | R² mean | R² median | R² < 0 |
+|---|---|---|---|---|---|---|---|
+| geometry1, independent blocks | 7.21 | mean | 3.852 | 0.534 | −0.306 | 0.447 | 16/45 |
+| | | nn | 3.118 | 0.432 | 0.283 | 0.503 | 8/45 |
+| | | **knn** | 2.925 | 0.406 | **0.465** | **0.654** | 5/45 |
+| | | ridge | **2.281** | **0.316** | 0.203 | 0.468 | 5/45 |
+| geometry4, shelf | 4.83 | mean | 2.925 | 0.606 | −0.389 | 0.345 | 12/45 |
+| | | nn | 1.923 | 0.399 | 0.337 | 0.607 | 8/45 |
+| | | **knn** | 1.999 | 0.414 | **0.401** | **0.637** | 7/45 |
+| | | ridge | 3.014 | 0.625 | **−0.667** | 0.423 | 12/45 |
+| geometry5, shelf | 3.09 | mean | 2.033 | 0.658 | 0.164 | 0.403 | 10/45 |
+| | | **nn** | 1.545 | 0.500 | **0.496** | 0.628 | 3/45 |
+| | | knn | **1.482** | **0.479** | 0.337 | **0.748** | 3/45 |
+| | | ridge | 2.254 | 0.729 | **−2.305** | 0.302 | 17/45 |
+
+**Three findings, one of which is a correction.**
+
+**(1) On the shelf-layout geometries ridge is now the worst model, not the best.** On geometry4
+and geometry5 ridge is last by spatial R² on *both* mean and median, and it is the only model
+whose mean R² is strongly negative. It fails outright — worse than the field's own mean — on
+12/45 and **17/45** held-out scenarios, against 3/45 for the distance-based baselines. This is
+the first configuration in this project where the closed-form linear fit is not merely
+adequate-but-uninteresting; it is beaten by a 3-nearest-neighbour lookup.
+
+**(2) Ridge's failure mode is confident misplacement, not shrinkage.** The obvious explanation
+for a low R² with a competitive det.MAE is that ridge regresses toward a flat field, which R²
+punishes and MAE forgives. That was measured and it is **wrong**: ridge's predicted spatial
+amplitude is the *highest* of all four baselines (amplitude ratio 0.80–0.93 of true σ, versus
+0.50–0.66 for the mean and kNN predictors). Ridge commits to full-amplitude structure in the
+wrong place. Its mean spatial correlation is the lowest of the four (+0.585 on geometry5 vs
++0.866 for kNN), and its hotspot-location error is the largest (10.3 mm vs 6.1 mm for kNN on
+the single-split run). Under-committing models earn modest positive R² by predicting little;
+ridge earns a negative one by predicting a lot, incorrectly. For a hotspot-localisation task
+this is the worse failure of the two, and it is invisible in a raw-MAE table.
+
+**(3) The correction: §9.15's geometry1 number was optimistic.** §9.15 reported
+independent-block geometry1 at spatial R² 0.770 from the single 40/5 split. Under CV the same
+dataset and model gives **R² mean 0.203, median 0.468** — the fix is *more* damaging to ridge
+than §9.15 claimed, not less. But the direction of the error is not the point; the point is
+that a 5-scenario split was not a measurement. §9.15's table should be read as superseded by
+this one wherever the two disagree. The same applies to the single-split shelf figures quoted
+while this work was in progress (geometry4 R² 0.245, geometry5 R² 0.182): both sit between the
+CV mean and CV median, which is what one expects of a single draw from a heavy-tailed
+distribution, and neither should be cited.
+
+**What survives, and what it costs.** Ridge remains the best model on geometry1 by det.MAE
+(norm err 0.316) even though kNN beats it on R², so "layout randomisation breaks ridge" is
+true of the shelf geometries and only partly true of independent-block geometry1. The honest
+summary is that **layout randomisation moves this benchmark from one where no model can beat a
+closed-form solve to one where a trivial nonparametric baseline already does** — which is
+exactly the precondition for a neural operator experiment to be meaningful, and which the
+original six-geometry dataset never satisfied. Whether an FNO beats kNN here is now an open
+and worthwhile question; it was not one before.
+
+**Caveat that still stands.** All three datasets are 45 real 3D-ICE solves over an 8–14
+dimensional layout space, which is sparse. CV uses every scenario as held-out exactly once,
+which removes the single-split lottery but not the sparsity. The heavy negative R² tail (mean
+far below median for every model) is itself a symptom of that sparsity, and it is why both
+statistics are reported rather than one.
 
 ## 11. Conclusion
 
