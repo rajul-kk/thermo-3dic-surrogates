@@ -1795,15 +1795,23 @@ model is worse than that field's own spatial mean — i.e. outright failures:**
 | | | **nn** | 1.545 | 0.500 | **0.496** | 0.628 | 3/45 |
 | | | knn | **1.482** | **0.479** | 0.337 | **0.748** | 3/45 |
 | | | ridge | 2.254 | 0.729 | **−2.305** | 0.302 | 17/45 |
+| geometry6, shelf | 3.62 | mean | 2.213 | 0.612 | 0.338 | 0.350 | 8/45 |
+| | | nn | 2.118 | 0.586 | 0.364 | **0.552** | 8/45 |
+| | | **knn** | **2.006** | **0.555** | **0.449** | 0.524 | 5/45 |
+| | | ridge | 3.742 | **1.035** | **−2.866** | **−0.303** | **26/45** |
 
 **Three findings, one of which is a correction.**
 
-**(1) On the shelf-layout geometries ridge is now the worst model, not the best.** On geometry4
-and geometry5 ridge is last by spatial R² on *both* mean and median, and it is the only model
-whose mean R² is strongly negative. It fails outright — worse than the field's own mean — on
-12/45 and **17/45** held-out scenarios, against 3/45 for the distance-based baselines. This is
-the first configuration in this project where the closed-form linear fit is not merely
-adequate-but-uninteresting; it is beaten by a 3-nearest-neighbour lookup.
+**(1) On all three shelf-layout geometries ridge is now the worst model, not the best.** On
+geometry4, geometry5 and geometry6 ridge is last by spatial R² on *both* mean and median, and
+it is the only model whose mean R² is strongly negative. It fails outright — worse than the
+field's own mean — on 12/45, 17/45 and **26/45** held-out scenarios, against 3–7/45 for the
+distance-based baselines. **geometry6 is the decisive case:** ridge's *median* R² is negative
+(−0.303), i.e. on more than half of held-out scenarios it is beaten by that scenario's own
+spatial mean, and its normalised detrended error is **1.035 — the error exceeds the signal it
+is trying to predict.** This is the first configuration in this project where the closed-form
+linear fit is not merely adequate-but-uninteresting; it is beaten outright by a
+3-nearest-neighbour lookup.
 
 **(2) Ridge's failure mode is confident misplacement, not shrinkage.** The obvious explanation
 for a low R² with a competitive det.MAE is that ridge regresses toward a flat field, which R²
@@ -1840,6 +1848,73 @@ dimensional layout space, which is sparse. CV uses every scenario as held-out ex
 which removes the single-split lottery but not the sparsity. The heavy negative R² tail (mean
 far below median for every model) is itself a symptom of that sparsity, and it is why both
 statistics are reported rather than one.
+
+### 9.15c "Linear-solvable" is a property of the representation, not of the dataset (2026-09-11)
+
+Adding the shelf datasets to the cross-benchmark linearity audit
+(`scripts/benchmark_linearity_audit.py`) produced a direct contradiction with §9.15b, and
+resolving it is more informative than either result alone.
+
+| dataset | audit: eff. DOF | audit: linear spatial R² | audit verdict | §9.15b ridge R² (CV) |
+|---|---|---|---|---|
+| geometry4, shelf | 7.6 | **0.962** | LINEAR-SOLVABLE | **−0.667** |
+| geometry5, shelf | 3.2 | 0.418 | discriminative | −2.305 |
+| geometry6, shelf | 2.5 | 0.536 | discriminative | −2.866 |
+
+On geometry4 the two disagree completely: the audit says a linear fit reaches R² 0.962, and
+the baselines say ridge scores −0.667 on the same 45 files.
+
+**The two are measuring different input representations, and both are correct.**
+
+- The **audit** feeds the *full per-cell power field* (56,000 cells for geometry4) and fits a
+  linear map from that field to the temperature field.
+- **`scripts/baselines.py`** feeds the compact vector every surrogate paper actually uses:
+  per-block mean powers, per-block positions, HTC, ambient, TSV density — 8 block features
+  plus boundary scalars for geometry4.
+
+Steady-state conduction is exactly linear in the per-cell source distribution, so a linear map
+from the *field* is the physically correct hypothesis class and should do well — which is what
+the audit measures. It stops doing well only insofar as moving a chiplet also moves *silicon*,
+changing the operator itself. That is why the audit's three shelf rows order as they do:
+geometry4 moves two chiplets on one tier and the material map barely changes (R² 0.962), while
+geometry5 and geometry6 move many chiplets including stacked HBM, changing the material map
+substantially (R² 0.42–0.54).
+
+The compact representation is a different matter. Block-mean power plus a block centroid
+throws away *where within the block* the heat is and how the moved silicon reshapes the
+conduction path, and no linear function of those ~10 scalars recovers the field once the
+layout varies. That is what §9.15b measures, and it is the representation that matters for
+the benchmark's stated purpose, because it is the one surrogate models are given.
+
+**Three consequences.**
+
+1. **§9.14's framing needs one more correction.** The question "is this benchmark
+   linear-solvable?" has no answer without naming the input representation. The original
+   six-geometry dataset was linear-solvable in *both* representations, which is why it was
+   uninformative. The shelf datasets are linear-solvable in the field representation (mostly)
+   and firmly not in the compact one.
+2. **This is a testable prediction for a neural operator.** An FNO consumes the full power
+   *field*, not the compact vector — the same representation in which the audit says
+   geometry4 is still 96% linearly explained. So the prediction is that an FNO should do well
+   on geometry4-shelf and struggle on geometry5/6-shelf, and that its margin over
+   `baselines.py` ridge will be largest on geometry4 (where ridge's representation is
+   impoverished but the task is not hard) rather than on geometry6 (where the task itself is
+   hard). We have not run this. It is the sharpest experiment this benchmark now supports.
+3. **The DOF diagnostic did not survive contact with these datasets.** §9.15 proposed layout
+   dimensionality as the thing that predicts linear-solvability. The audit's effective-DOF
+   estimate is *lowest* for geometry5/6 (2.5–3.2) — the two datasets that are hardest — and
+   highest for geometry4 (7.6), the easiest. Effective DOF is computed from the input PCA
+   spectrum, so it measures variability of the *power field*, which is not what layout
+   randomisation primarily changes. It should not be read as a difficulty score.
+
+**Caveat on the audit numbers, which applies to §9.13's table too.** The audit scores on a
+single held-out 20% split. For the IC-ThermBench scopes that is 400+ fields and is fine; for
+our 45-scenario datasets it is ~9 fields, which is precisely the sample size §9.15b showed to
+be unreliable. The audit's rows for our own datasets are therefore screening indicators, not
+measurements, and where they conflict with a cross-validated number the cross-validated number
+wins. The geometry4 contradiction above is real and representational, not a sampling artefact
+— the gap is far too large for that — but the specific value 0.962 should not be quoted to
+three figures.
 
 ## 11. Conclusion
 

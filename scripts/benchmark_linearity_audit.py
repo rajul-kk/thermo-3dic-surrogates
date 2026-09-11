@@ -237,6 +237,11 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     'ours/geometry1-translate': lambda: _ours('data/3d-ice-moving-geometry1', 'geometry1'),
     'ours/geometry4-translate': lambda: _ours('data/3d-ice-moving-geometry4', 'geometry4'),
     'ours/geometry1-layout':    lambda: _ours('data/3d-ice-layout-geometry1', 'geometry1'),
+    # Shelf layouts (§9.15b): chiplets permuted along x with the slack redistributed, which
+    # is the only randomisation that fits the densely packed packages.
+    'ours/geometry4-shelf':     lambda: _ours('data/3d-ice-layout-geometry4', 'geometry4'),
+    'ours/geometry5-shelf':     lambda: _ours('data/3d-ice-layout-geometry5', 'geometry5'),
+    'ours/geometry6-shelf':     lambda: _ours('data/3d-ice-layout-geometry6', 'geometry6'),
     # IC-ThermBench (§9.13).
     'icthermbench/S2': lambda: _icthermbench('level2'),
     'icthermbench/S3': lambda: _icthermbench('level3'),
