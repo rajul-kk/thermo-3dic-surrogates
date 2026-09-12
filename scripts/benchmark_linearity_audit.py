@@ -150,9 +150,18 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
                 f'{tag}_lambda': lam,
                 f'{tag}_params': int(W.size)}
 
+    # Spatial structure relative to field magnitude. This is why rel_l2 must NOT be compared
+    # across benchmarks: thermal fields are ~325 K carrying ~3 K of structure (ratio ~0.01),
+    # so a mean-only predictor already scores rel_l2 ~ 0.01, while the same predictor on Darcy
+    # (ratio ~0.56) scores ~0.56. Detrended spatial R2 is the comparable quantity, and it is
+    # what `linear_solvable` is thresholded on.
+    _Yall = np.concatenate([Ytr, Yte]) if len(Yte) else Ytr
+    _struct = float((_Yall - _Yall.mean(axis=1, keepdims=True)).std(axis=1).mean())
+    _mag = float(abs(_Yall.mean())) or 1.0
     out: Dict[str, float] = {'n_samples': n_tr + len(Xte), 'n_train': n_tr,
                              'in_cells': Xtr.shape[1], 'out_cells': Ytr.shape[1],
-                             'effective_dof': dof}
+                             'effective_dof': dof,
+                             'structure_to_mean': _struct / _mag}
 
     # Dense operator: the exact solution form for a linear PDE with a fixed operator.
     #
@@ -263,7 +272,8 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     # (i.e. the operator) per sample, which is exactly what our fixed-placement data lacked.
     'pdebench/darcy-beta1.0':  lambda: _pde('darcy', n=1000, beta='1.0'),
     'pdebench/darcy-beta0.01': lambda: _pde('darcy', n=1000, beta='0.01'),
-    'pdebench/burgers-nu0.01': lambda: _pde('burgers', n=400, nu='0.01'),
+    'pdebench/burgers-nu0.01': lambda: _pde('burgers', n=400, nu='0.01', t_out=20),
+    'pdebench/burgers-final':  lambda: _pde('burgers', n=400, nu='0.01', t_out=200),
     'pdebench/navier-stokes':  lambda: _pde('navier_stokes', n_pairs=300, stride=2, every=4),
     # IC-ThermBench (§9.13).
     'icthermbench/S2': lambda: _icthermbench('level2'),
@@ -334,6 +344,10 @@ def main():
               f'{min(r.get("dense_rel_l2", np.inf), r["pca_rel_l2"]):>9.3f}'
               f'{r["mean_spatial_r2"]:>13.3f}{verdict:>16}')
     print('=' * 104)
+    print('verdict thresholds detrended spatial R2 > 0.95. `rel L2` is shown for reference but')
+    print('is NOT comparable across benchmarks: it normalises by the field including its mean,')
+    print('and structure/mean ranges from ~0.01 (thermal, 325 K fields with 3 K of structure)')
+    print('to ~0.56 (Darcy). A mean-only predictor scores rel L2 ~= structure/mean.')
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Merge with whatever is already on disk rather than overwriting. Running a subset with

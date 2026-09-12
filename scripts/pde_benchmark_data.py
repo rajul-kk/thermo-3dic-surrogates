@@ -65,22 +65,35 @@ def darcy(n: int = 1000, beta: str = '1.0') -> Tuple[np.ndarray, np.ndarray]:
     return _cached(f'{key}_n{n}', build)
 
 
-def burgers(n: int = 400, nu: str = '0.01') -> Tuple[np.ndarray, np.ndarray]:
-    """1D Burgers: initial condition u(x, 0) -> solution u(x, T), 1024 grid points.
+def burgers(n: int = 400, nu: str = '0.01', t_out: int = 20) -> Tuple[np.ndarray, np.ndarray]:
+    """1D Burgers: initial condition u(x, 0) -> solution u(x, t_out), 1024 grid points.
 
-    Genuinely nonlinear (the u du/dx term), so a linear probe should fail here. That makes it
-    a negative control for the diagnostic rather than a benchmark we expect to break.
+    Genuinely nonlinear (the u du/dx term), so a linear probe should fail here -- a negative
+    control for the diagnostic rather than a benchmark we expect to break.
+
+    `t_out` is NOT the final step, deliberately. Viscous dissipation flattens the solution, and
+    at the last step (200 of 201) the target is close to uniform: measured spatial std falls
+    from 0.42 to 0.055, with 13% of fields under 1e-3 and 41/400 in a larger sample. Detrended
+    R^2 divides by that vanishing spatial variance, which produced a meaningless -747 on the
+    first run -- and a mean-field predictor scoring -210, the tell that the metric had broken
+    rather than the model. At t=20 structure is still 60% of initial and no field is
+    degenerate. The same failure mode is flagged in third_party/ic_thermbench/README.md.
     """
     key = f'burgers_nu{nu}'
 
     def build():
         with _open(key) as h:
-            t = h['tensor']
-            # Read the leading n samples in one contiguous span, then take first/last times.
-            block = np.asarray(t[:n], dtype=np.float64)            # (n, 201, 1024)
-        return block[:, 0, :], block[:, -1, :]
+            # One contiguous read of the leading n samples, then slice the two times.
+            block = np.asarray(h['tensor'][:n], dtype=np.float64)  # (n, 201, 1024)
+        y = block[:, t_out, :]
+        std = (y - y.mean(1, keepdims=True)).std(1)
+        degenerate = int((std < 1e-3).sum())
+        if degenerate:
+            log.warning('burgers t_out=%d: %d/%d target fields have spatial std < 1e-3; '
+                        'detrended R2 is unreliable on those', t_out, degenerate, len(y))
+        return block[:, 0, :], y
 
-    return _cached(f'{key}_n{n}', build)
+    return _cached(f'{key}_t{t_out}_n{n}', build)
 
 
 def navier_stokes(n_pairs: int = 300, stride: int = 2, every: int = 4
