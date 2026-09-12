@@ -158,10 +158,19 @@ This paper makes the following contributions:
    actually consume. Any claim that a benchmark is or is not linear-solvable is
    ill-posed without naming the representation — including claims made earlier in this
    paper.
-9. **A protocol for auditing surrogate benchmarks, and evidence that it transfers.** The
-   method — fix the protocol, supply the missing non-neural baseline, report what survives —
-   is packaged as `scripts/baselines.py`, `scripts/layout_cv.py` and
-   `scripts/benchmark_linearity_audit.py`, and was **run end-to-end on a second field**
+9. **A protocol for auditing surrogate benchmarks, calibrated across PDE families and
+   transferred to a second discipline.** The method — fix the protocol, supply the missing
+   non-neural baseline, report what survives — is packaged as `scripts/baselines.py`,
+   `scripts/layout_cv.py` and `scripts/benchmark_linearity_audit.py`. The linearity
+   diagnostic is calibrated against the canonical operator-learning benchmarks (PDEBench
+   Darcy, Burgers, Navier–Stokes, §9.16): it correctly places nonlinear Burgers at the
+   discriminative extreme, shows our *fixed* benchmark was the most linearly-solvable dataset
+   measured, and shows the layout fix made ours harder than Darcy at matched sample size and
+   capacity. It also found that **time-evolution PDE benchmarks omit the persistence
+   baseline** — on PDEBench Navier–Stokes a linear fit scores 0.958 while assuming nothing
+   moved scores 0.9997, a gap the conventional mean-field baseline misses entirely (§9.16b).
+   That is a fourth instance of this paper's structural finding, in the most-used benchmark
+   family in the field. The method was separately **run end-to-end on a second discipline**
    (molecular property prediction, `molprop/`, 12 dataset×split blocks on MoleculeNet). It
    reproduces there: under matched tuning budget and reported dispersion, a tuned logistic
    regression on fingerprints is **not separable** from tuned gradient-boosted trees on three
@@ -1998,6 +2007,124 @@ measurements, and where they conflict with a cross-validated number the cross-va
 wins. The geometry4 contradiction above is real and representational, not a sampling artefact
 — the gap is far too large for that — but the specific value 0.962 should not be quoted to
 three figures.
+
+### 9.16 Calibrating the diagnostic against canonical PDE benchmarks (2026-09-12)
+
+Until now the linearity audit had been run on thirteen datasets, **all of them thermal** — ten
+of ours plus IC-ThermBench. That supports "a diagnostic for 3D-IC thermal benchmarks" and not
+the broader claim contribution 9 makes. This section adds the canonical operator-learning
+benchmarks from the physics literature as external calibration.
+
+**Data.** PDEBench [Takamoto et al., NeurIPS 2022 D&B; DaRUS doi:10.18419/darus-2986]. Its
+files are 1.3 GB (Darcy) to 10 GB (Navier–Stokes) each, far beyond what this probe needs, so
+`scripts/pde_benchmark_data.py` reads only the leading N samples over HTTP range requests and
+caches them (Darcy 1,000 samples = 66 MB, ~50 s). No full download is required to reproduce.
+
+#### 9.16a The ladder
+
+Detrended spatial R² of the best linear fit. **This is the only cross-benchmark-comparable
+column** — see §9.16c.
+
+| benchmark | equation | n | pca k | linear spatial R² | verdict |
+|---|---|---|---|---|---|
+| pdebench/burgers (t=20) | Burgers, nonlinear | 400 | 16 | **−0.077** | discriminative |
+| ours/geometry5-shelf | heat, layout varied | 45 | 4 | 0.418 | discriminative |
+| ours/geometry6-shelf | heat, layout varied | 45 | 4 | 0.536 | discriminative |
+| pdebench/darcy-beta1.0 | Darcy, coefficient varied | 45 | 4 | **0.816** | discriminative |
+| pdebench/darcy-beta1.0 | " | 1000 | 32 | 0.852 | discriminative |
+| ours/geometry1-layout | heat, layout varied | 45 | 8 | 0.863 | discriminative |
+| ours/geometry4-shelf | heat, layout varied | 45 | 8 | 0.962 | LINEAR-SOLVABLE |
+| ours/geometry1-fixed | heat, fixed layout | 45 | 8 | **0.988** | LINEAR-SOLVABLE |
+
+**Three things this establishes.**
+
+1. **The diagnostic is validated on external ground truth.** It places Burgers — nonlinear
+   through the $u\,\partial_x u$ term — at the maximally discriminative end (R² −0.077, i.e. a
+   linear probe explains *none* of the spatial structure), with nothing tuned to make that
+   happen.
+2. **Our original fixed-placement benchmark sat at the solved extreme** (0.988), further from
+   Burgers than any external benchmark measured.
+3. **The layout fix moved our benchmark past Darcy in difficulty.** geometry5/6-shelf
+   (0.42–0.54) are *less* linearly explained than PDEBench Darcy (0.816). This holds **at
+   matched sample size and matched model capacity**: Darcy re-run at n=45 with pca_k=4, the
+   exact regime our shelf datasets run in, still scores 0.816. It is therefore not an artifact
+   of our datasets being small. (Darcy being comparatively easy for linear methods is
+   consistent with existing criticism of it as an operator-learning benchmark.)
+
+#### 9.16b Navier–Stokes: the missing baseline is persistence, not the mean
+
+The first Navier–Stokes run returned **R² 0.9577, verdict LINEAR-SOLVABLE** — an absurd result
+for the canonical nonlinear PDE, and it was ours, not the benchmark's. Predicting
+$v(t+\Delta)$ from $v(t)$ with a 2-step gap out of 1000 is nearly the identity map: input and
+output correlate at **0.994**.
+
+| baseline on `pdebench/navier-stokes` (stride 2) | detrended R² |
+|---|---|
+| mean field | **−0.357** |
+| **persistence — "the field is unchanged"** | **0.9997** |
+| linear probe | 0.9577 |
+
+**The linear fit is worse than not modelling at all**, by 0.042. And critically, **the
+mean-field baseline does not catch this** — it scores −0.357, making the task look hard. A
+benchmark can pass a trivial-baseline check and still be trivial, if the trivial baseline
+checked is the wrong one.
+
+Sweeping the time gap shows persistence dominates throughout:
+
+| time stride | linear R² | persistence R² | linear − persistence |
+|---|---|---|---|
+| 2 | 0.958 | **0.9997** | −0.042 |
+| 50 | 0.670 | **0.937** | −0.267 |
+| 200 | −0.276 | **0.246** | −0.521 |
+
+A linear operator never beats persistence on this data at any gap — the correct outcome for a
+nonlinear chaotic system, and the opposite of what the original verdict said.
+
+**This is the same structural finding as the rest of the paper, in a fourth place.** Static
+field prediction omits the mean/ridge baseline (§9.1); IC-ThermBench omits any non-neural
+baseline (§9.13); **time-evolution PDE benchmarks omit persistence.** Neural-operator papers
+routinely report next-step error on Navier–Stokes without one, and a reader cannot tell from
+the paper whether a reported score beats assuming nothing moved.
+
+The audit now computes persistence automatically whenever input and output share a shape,
+**requires a linear fit to beat it** before returning LINEAR-SOLVABLE, and reports
+`TRIVIAL(persist)` for tasks persistence alone solves.
+
+**Caveat on our Navier–Stokes setup, stated plainly.** These samples are not i.i.d.: they are
+time pairs from only 4 trajectories, consecutive pairs overlap (the target of one is the input
+of the next), and fields are spatially subsampled 4×. The split is contiguous, so the test set
+falls almost entirely in one held-out trajectory, but the effective sample size is far below
+300. The persistence result is robust to this — it involves no fitting — but the linear-probe
+R² should be read as optimistic.
+
+#### 9.16c Two metric traps found by running these benchmarks
+
+**(a) `rel L2` is not comparable across benchmarks, and the audit previously invited that
+comparison.** It normalises by the field *including its mean*. Measured spatial-structure to
+field-magnitude ratios: thermal **0.010** (≈325 K fields carrying ≈3 K of structure) versus
+Darcy **0.560**. A mean-only predictor therefore scores rel L2 ≈ 0.01 on thermal and ≈ 0.56 on
+Darcy. By rel L2 Darcy looks 5× *harder* than our shelf data; by detrended R² it is *easier*.
+Detrended spatial R² is the comparable quantity and is what the verdict thresholds on, so no
+published verdict was affected — but this is §9.1's offset-domination problem reappearing
+inside our own tooling, and the table now carries an explicit warning.
+
+**(b) A near-uniform target makes detrended R² meaningless, and we hit it.** Mapping Burgers
+to its *final* timestep gave R² **−747.7**. The tell was that the mean-field predictor scored
+**−209.9** — a mean predictor cannot be that bad, so the metric had broken, not the model.
+Cause: viscous dissipation flattens the solution, leaving 41/400 targets with spatial std
+< 1e-3, and detrended R² then divides by ≈0. Measured structure decay and moved the output to
+t=20, where 60% of initial structure remains and no field is degenerate. The degenerate task
+is kept registered as `pdebench/burgers-final` with a loud warning, since
+`third_party/ic_thermbench/README.md` independently warns of the same failure mode.
+
+#### 9.16d What this does and does not license
+
+It licenses: *the diagnostic has been calibrated across three PDE families (Darcy, Burgers,
+Navier–Stokes) plus two thermal benchmark suites, and correctly orders them.* It does **not**
+license any claim that these benchmarks are defective — Darcy and Burgers behave exactly as
+their physics predicts. The defect found is in *reporting practice* on time-evolution tasks,
+where persistence is absent, and that is stated as a practice recommendation rather than a
+criticism of PDEBench, which is a data release and does not itself claim baselines.
 
 ## 11. Conclusion
 
