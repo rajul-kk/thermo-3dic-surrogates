@@ -174,7 +174,10 @@ This paper makes the following contributions:
    (molecular property prediction, `molprop/`, 12 dataset×split blocks on MoleculeNet). It
    reproduces there: under matched tuning budget and reported dispersion, a tuned logistic
    regression on fingerprints is **not separable** from tuned gradient-boosted trees on three
-   of the four classification cells, and is the best model on BACE/random; our tuned XGBoost beats
+   of the four classification cells originally run (extended to eight cells across three
+   datasets in `molprop/README.md` §7.6, where the sharper statement is that linear is never
+   separably worse on a *random* split, 0 of 4, and is separably worse on 2 of 4 scaffold
+   splits), and is the best model on BACE/random; our tuned XGBoost beats
    every published model on ESOL/random, including by a margin larger than the spread
    separating four of six published architectures. The audit also found that MoleculeNet's
    unreported Bemis-Murcko **tie-break convention** shifts results by up to 0.21 AUC in a
