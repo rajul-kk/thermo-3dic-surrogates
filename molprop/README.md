@@ -1,6 +1,6 @@
 # molprop — a baseline audit for molecular property prediction
 
-**Status:** first full run complete, 2026-09-11. Results in §7 below; the deterministic-scaffold pass is still running at time of writing.
+**Status:** runs complete, 2026-09-12. **Read §8 first: a prior-art check found both headline claims were published in 2024.** Results in §7 below; the deterministic-scaffold pass is still running at time of writing.
 
 Self-contained: this directory does not import from the 3D-IC thermal code and does not
 depend on it. It reuses the *method* that produced `docs/report.md` §9.13, not the code.
@@ -103,6 +103,10 @@ convention reveals it.
 > on BACE, and *easier* on ESOL. The defensible claim is not "deterministic is harder" but
 > that the convention moves the number by an amount comparable to architecture differences,
 > with a sign a reader cannot predict from the split's name.
+
+> **Scooped — see §8.1.** MOLTOP (arXiv:2407.12136) App. G reported this in 2024, on the same
+> dataset and at the same magnitude ("as much as 20% on BBBP"). What follows is an independent
+> reproduction, not a discovery, and must not be cited as one.
 
 **This is not merely our problem: it reproduces a spread that already exists in the published
 literature.** FP-GNN's Table 1 (arXiv:2205.03834) lists three BBBP results all labelled
@@ -421,3 +425,64 @@ Run:
 ```bash
 python -m molprop.audit --datasets bbbp bace esol --splits scaffold random
 ```
+
+---
+
+## 8. Prior-art check: both headline claims were already published (2026-09-12)
+
+Run deliberately, after the results were in and before any of this was presented as novel.
+It went badly for this audit, and the outcome is recorded here rather than quietly dropped.
+
+### 8.1 The scaffold tie-break finding is fully scooped
+
+§2b reports that the Bemis-Murcko tie-break convention moves BBBP by ~18 AUC points and that
+published "scaffold split" numbers are therefore not mutually comparable.
+
+**MOLTOP** (arXiv:2407.12136, ECAI 2024), Appendix G, already reports this: the deterministic
+vs balanced distinction "makes a very significant difference in scores... often by 5% or as
+much as 20% **on BBBP dataset**" — the same dataset and the same effect size we measured. It
+further identifies GROVER and D-MPNN as having used non-deterministic splits, making their
+numbers incomparable to deterministic protocols.
+
+The distinction is also documented in **scikit-fingerprints**, which quantifies it on BACE
+(78.25% deterministic vs 85.33% randomised) and states that "performance estimation is much
+more optimistic in this variant".
+
+So §2b is a **reproduction**, not a discovery. It is kept because independent reproduction of a
+protocol artefact has some value, and because the mechanism below may add something — but it
+must not be cited as new.
+
+### 8.2 The "non-neural baselines are competitive" finding is scooped
+
+**MOLTOP** is a Random Forest over topological descriptors, evaluated on 8 MoleculeNet
+datasets using OGB's deterministic scaffold splits with 10 seeds and reported standard
+deviations, where "only GEM outperforms MOLTOP significantly" (Wilcoxon signed-rank,
+p = 0.016). That is the same claim §7 makes, under a comparable protocol, published first.
+
+### 8.3 What may still be unreported
+
+Stated conservatively, and none of it is a headline:
+
+1. **The mechanism behind BBBP's sensitivity.** MOLTOP quantifies the effect; we measured
+   *why* — the deterministic convention gives BBBP a test set at 52.2% positive against 76.5%
+   overall, a 24-point label shift (§7.6). We have not found that explanation published.
+2. **A trivial-baseline row.** MOLTOP reports no majority-class baseline; its weakest entry is
+   a fingerprint model at 62.6% AUROC. We report `trivial` on every cell, which is what makes
+   the PRC-AUC floor visible (0.069–0.092 versus ROC-AUC's structural 0.5000).
+3. **Matched tuning budget across model families.** MOLTOP is deliberately
+   hyperparameter-free, so it does not address the "the proposed model was tuned and the
+   baseline was not" confound. §3.2 does.
+4. **The PRC-AUC ranking flip** on ClinTox task 1 (XGBoost 2nd → 4th, below linear). Metric
+   sensitivity on imbalanced data is textbook; this specific demonstration on a MoleculeNet
+   cell under matched budget we have not seen.
+
+### 8.4 What this means for the project
+
+This directory was built because §1 found the published literature self-contradictory about
+whether baselines or GNNs win. A prior-art check should have come first: MOLTOP had already
+adjudicated much of it in 2024. The lesson is the same one the thermal work keeps producing —
+**check what exists before measuring** — and it applies to us here rather than to someone else.
+
+The work retains value as an independent reproduction with a trivial baseline, a matched
+budget, and a metric-axis test, and `docs/report.md` §9.16f states this in the paper itself so
+no reader mistakes it for a novel result.

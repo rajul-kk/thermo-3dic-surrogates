@@ -800,3 +800,42 @@ TSMC (2023).
 TSMC Technology Symposium 2023.
 (3D-on-2.5D integration: vertical die bonding on horizontal chiplet tiles — the
 reference architecture for geometry5's CoWoS + TSV stack combination)
+
+
+## Prior art found by the 2026-09-12 scooping check (docs/report.md §9.16f)
+
+Added after checking §9.16's claims against the literature. Each of these **removes or narrows
+a claim this project had drafted**; they are listed here so the narrowing is traceable.
+
+- **Takamoto, M. et al.** *PDEBench: An Extensive Benchmark for Scientific Machine Learning.*
+  NeurIPS 2022 Datasets & Benchmarks. arXiv:2210.07182. Appendix D.7, eq. 21 documents the 2D
+  shallow-water initial condition as a circular bump **"in the center of the domain"** with
+  **"radius r randomly sampled from U(0.3, 0.7)"** — i.e. the one-parameter family of §9.16e is
+  the benchmark's own stated design, not a finding of ours. Data: DaRUS doi:10.18419/darus-2986.
+
+- **Rasp, S. et al.** *WeatherBench: A benchmark dataset for data-driven weather forecasting.*
+  JAMES, 2020. arXiv:2002.00469. Uses persistence and climatology as core baselines and states
+  that "to be useful, a forecast system needs to beat the weekly climatology and the
+  persistence forecast." **The persistence baseline of §9.16b is standard practice in
+  data-driven weather forecasting**; our contribution is narrowed to importing it into PDE
+  operator-learning evaluation.
+
+- **Batlle, P., Darcy, M., Hosseini, B. & Owhadi, H.** *Kernel Methods are Competitive for
+  Operator Learning.* Journal of Computational Physics, 2023. arXiv:2304.13202. Vanilla kernels
+  match or beat FNO and DeepONet on a majority of six PDE benchmarks. Note their **linear**
+  kernel underperforms on Darcy (6.74% relative error vs FNO 2.41%), so "a linear model
+  suffices for operator learning" is *not* their claim, and §9.16e does not duplicate it.
+
+- **Adamczyk, J. & Ludynia, P.** *Molecular Topological Profile (MOLTOP) — Simple and Strong
+  Baseline for Molecular Graph Classification.* ECAI 2024. arXiv:2407.12136. **Scoops both of
+  `molprop/`'s headline claims.** (a) A Random Forest over topological descriptors is
+  competitive with modern GNNs across 8 MoleculeNet datasets under OGB deterministic scaffold
+  splits with 10-seed dispersion ("only GEM outperforms MOLTOP significantly"). (b) Appendix G
+  reports that the scaffold-split convention "makes a very significant difference in
+  scores... often by 5% or as much as 20% on BBBP dataset", and names GROVER and D-MPNN as
+  having used non-deterministic splits. See `molprop/README.md` §8.
+
+- **scikit-fingerprints documentation**, *Dataset splits*. Documents deterministic vs
+  randomised ("balanced") scaffold splitting and quantifies it on BACE: 78.25% AUROC
+  deterministic vs 85.33% randomised, noting performance is "much more optimistic in this
+  variant". Independent corroboration that the §2b effect is known.

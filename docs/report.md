@@ -2135,7 +2135,7 @@ falls almost entirely in one held-out trajectory, but the effective sample size 
 300. The persistence result is robust to this — it involves no fitting — but the linear-probe
 R² should be read as optimistic.
 
-#### 9.16c Two metric traps found by running these benchmarks
+#### 9.16c Four metric traps found by running these benchmarks
 
 **(a) `rel L2` is not comparable across benchmarks, and the audit previously invited that
 comparison.** It normalises by the field *including its mean*. Measured spatial-structure to
@@ -2187,14 +2187,25 @@ beta=1.0 is the representative Darcy row and the one used in §9.16a.
 
 This is the third distinct way detrended R² can mislead, all three found by running external
 benchmarks rather than by inspection: near-zero-variance targets (b), cross-benchmark offset
-domination (a), and magnitude spread (d). Each needs its own guard, and each produces a number
+domination (a), and magnitude spread (d); (c) is a sampling rather than a metric fault. Each needs its own guard, and each produces a number
 that reads like a finding if unchecked.
 
-#### 9.16e PDEBench 2D shallow water is a one-parameter family, and a linear fit solves it
+#### 9.16d What this does and does not license
 
-Added 2026-09-12 after extending the audit to two further PDE families. This is the strongest
-external result in this paper, and it is the defect §9.14 diagnoses in *our* benchmark, found
-in a published one.
+It licenses: *the diagnostic has been calibrated across three PDE families (Darcy, Burgers,
+Navier–Stokes) plus two thermal benchmark suites, and correctly orders them.* It does **not**
+license any claim that these benchmarks are defective — Darcy and Burgers behave exactly as
+their physics predicts. The defect found is in *reporting practice* on time-evolution tasks,
+where persistence is absent, and that is stated as a practice recommendation rather than a
+criticism of PDEBench, which is a data release and does not itself claim baselines.
+
+#### 9.16e PDEBench 2D shallow water: a documented one-parameter family, and the measured consequence
+
+Added 2026-09-12; **substantially narrowed the same day after a prior-art check** (§9.16f).
+The first version of this section presented the one-parameter structure as a discovery. It is
+not: **PDEBench documents it explicitly.** What was not previously reported, as far as we can
+establish, is the consequence — that a three-component linear fit reproduces the solutions at
+R² 0.991.
 
 | benchmark | eff. DOF | linear spatial R² | persistence R² | verdict |
 |---|---|---|---|---|
@@ -2205,18 +2216,29 @@ The two new families bracket every other row in the audit: shallow water is **mo
 linearly-solvable than our own fixed-placement geometry1** (0.9875), which this paper already
 condemns as degenerate; diffusion-reaction is the hardest dataset measured.
 
-**Why shallow water is solvable — measured, across all 1000 trajectories.** Its initial
-conditions are not a rich family:
+**Why shallow water is solvable — this is PDEBench's own documented design, not a finding of
+ours.** Appendix D.7 of the PDEBench paper (arXiv:2210.07182) specifies the initial condition
+as (their eq. 21):
+
+> "On a square domain Ω = [−2.5, 2.5]² we initialize the water height as a circular bump **in
+> the center of the domain** ... with the **radius r randomly sampled from U(0.3, 0.7)**."
+
+So a fixed centre, fixed heights (2.0 inside, 1.0 outside) and a single randomised scalar are
+*stated by the benchmark's authors*. Our measurements confirm their specification exactly
+rather than uncovering anything — which is worth reporting only as evidence the loader reads
+the file correctly:
 
 - every initial field takes exactly **two values**, 1.0 and 2.0 (a binary dam);
 - the dam centre is **exactly (63.5, 63.5) in all 1000 samples** — measured min = max, standard
   deviation **0.000000**;
 - **only the radius varies**, over 7.74–18.02 (81 distinct areas).
 
-So the entire benchmark is a **one-parameter family**: a radially symmetric dam break at a
-fixed centre with a fixed height ratio, differing only in radius. A linear function of that
-single radius explains **78.5%** of the target field's variance on its own. The target needs
-**3 principal components for 95%** of variance and 5 for 99%.
+The measured radius range (7.74–18.02 px) is exactly U(0.3, 0.7) mapped onto a 128-cell grid
+over [−2.5, 2.5], confirming the documented specification. **The contribution here is not the
+one-parameter structure but its consequence**, which we have not found reported: a linear
+function of that single radius explains **78.5%** of the target field's variance on its own,
+the target needs **3 principal components for 95%** of variance, and a closed-form linear fit
+reaches R² 0.991.
 
 **Verified independently, not just by the audit.** Written from scratch (PCA-ridge, no shared
 code), at n=1000, with a **random** split rather than the audit's contiguous one, to rule out
@@ -2233,12 +2255,13 @@ Two principal components already reach 0.982, and results are stable across λ s
 orders of magnitude — this is a low-dimensional solution manifold, not an overfit. The n=300
 and n=1000 results agree to three decimal places.
 
-**Why this matters more than our own negative result.** §9.2–§9.3 argue that a scenario space
-parameterised by a handful of scalars produces a near-linear solution manifold, and that this
-makes a benchmark unable to distinguish architectures. Our fixed-placement benchmark had ~8
-such scalars. **PDEBench 2D shallow water has one.** It is used as an operator-learning
-benchmark, and a closed-form linear fit with three components reproduces its solutions at
-R² 0.991 with no training and no GPU.
+**What this supports.** §9.2–§9.3 argue that a scenario space parameterised by a handful of
+scalars produces a near-linear solution manifold, and that this makes a benchmark unable to
+distinguish architectures. Our fixed-placement benchmark had ~8 such scalars; this PDEBench
+file has one. A closed-form linear fit with three components reproduces its solutions at
+R² 0.991 with no training and no GPU. The argument of §9.2–§9.3 therefore transfers to a
+published PDE benchmark — which is the claim, and it is weaker than "we found a defect nobody
+knew about," because the design was documented all along.
 
 **Scope, stated carefully.** (a) This is the fixed-horizon task $h(t{=}0) 	o h(t{=}20)$, the
 standard FNO-style operator-learning setup; PDEBench also supports autoregressive rollout over
@@ -2256,14 +2279,50 @@ effective DOF 238 versus 4.5, and a linear fit explains **0.02%** of the structu
 diagnostic separates the two by three orders of magnitude in DOF, which is what a calibrated
 instrument should do.
 
-#### 9.16d What this does and does not license
+#### 9.16f Prior-art check on §9.16, and what it removes (2026-09-12)
 
-It licenses: *the diagnostic has been calibrated across three PDE families (Darcy, Burgers,
-Navier–Stokes) plus two thermal benchmark suites, and correctly orders them.* It does **not**
-license any claim that these benchmarks are defective — Darcy and Burgers behave exactly as
-their physics predicts. The defect found is in *reporting practice* on time-evolution tasks,
-where persistence is absent, and that is stated as a practice recommendation rather than a
-criticism of PDEBench, which is a data release and does not itself claim baselines.
+A deliberate scooping check was run against every claim in §9.16 before any of it was
+presented as novel. **It removed or narrowed most of them.** Recorded in full because a
+paper about weak baselines should not itself overclaim novelty.
+
+| claim as first written | status after the check |
+|---|---|
+| PDEBench shallow water is a one-parameter family | **Prior art, from the benchmark's own authors.** arXiv:2210.07182 App. D.7 eq. 21 specifies a bump "in the center of the domain" with "radius r randomly sampled from U(0.3, 0.7)". Not a discovery. |
+| A linear fit solves it (R² 0.991, 3 components) | **Not found in the literature.** Retained as the contribution of §9.16e. |
+| Time-evolution benchmarks omit the persistence baseline | **The baseline is standard prior art in an adjacent field.** WeatherBench (Rasp et al., 2020) uses persistence and climatology as core baselines and states outright: "To be useful, a forecast system needs to beat the weekly climatology and the persistence forecast." Our contribution is narrowed to *importing* it into PDE operator-learning evaluation and measuring that PDEBench Navier–Stokes at a 2-step gap fails it. |
+| Simple methods can match neural operators | **Prior art.** Batlle et al., *Kernel Methods are Competitive for Operator Learning*, J. Comp. Phys. 2023 (arXiv:2304.13202), matches or beats FNO/DeepONet with vanilla kernels on a majority of six benchmarks. Note their **linear** kernel *underperforms* on Darcy (6.74% vs FNO 2.41%), so "a linear model suffices" is not their claim and our shallow-water result does not duplicate it. |
+| Weak baselines are endemic in ML-for-PDEs | Prior art, already cited: McGreivy & Hakim, *Nature Machine Intelligence* 2024. |
+
+**The molecular audit fares worse, and this is the most important outcome of the check.**
+
+| claim | status |
+|---|---|
+| Scaffold tie-break convention inflates results, ~18 pts on BBBP | **Fully scooped, same dataset and magnitude.** MOLTOP (arXiv:2407.12136) App. G: the distinction "makes a very significant difference in scores... often by 5% or as much as 20% **on BBBP dataset**", and identifies GROVER/D-MPNN as using non-deterministic splits. Also documented in scikit-fingerprints, which quantifies BACE at 78.25% (deterministic) vs 85.33% (randomised). |
+| Non-neural baselines are competitive with GNNs on MoleculeNet under a fair protocol | **Scooped.** MOLTOP is a Random-Forest-on-topological-descriptors baseline evaluated on 8 MoleculeNet datasets with OGB deterministic scaffold splits and 10-seed dispersion, where "only GEM outperforms MOLTOP significantly". |
+
+So `molprop/`'s two headline claims were both published in 2024, one of them with the same
+dataset and effect size. We did not know this when the audit was designed, and the audit was
+designed *because* §1 of its README found the literature contradictory — which is exactly the
+situation a prior-art check exists to resolve. The honest position is in
+`molprop/README.md` §8.
+
+**What survives §9.16 as plausibly unreported**, stated conservatively:
+
+1. The **measured consequence** for PDEBench shallow water (3 components → R² 0.991) of a
+   design its authors documented.
+2. **Persistence applied to PDE operator-learning benchmarks**, and the specific finding that
+   a linear fit on PDEBench Navier–Stokes at stride 2 (0.9354) *loses* to persistence
+   (0.9999) while the conventional mean-field baseline misses this entirely (−0.357).
+3. The **three metric-reliability traps** as a documented set with guards (§9.16c): near-zero
+   variance targets, cross-benchmark offset domination, and per-sample magnitude spread.
+4. **§9.15c's representation-dependence** result — that linear-solvability is a property of
+   the input representation, not the dataset. We found no prior statement of this.
+5. The **layout-randomised thermal datasets** themselves (§9.15b), including the reported
+   failed first attempt.
+
+Items 1–3 are diagnostic and methodological rather than architectural. Item 4 is the closest
+thing in this paper to a conceptual contribution. None of them is "a new architecture beats
+the state of the art", and this section exists so that no reader mistakes them for that.
 
 ## 11. Conclusion
 
