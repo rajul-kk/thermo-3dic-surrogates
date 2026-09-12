@@ -849,3 +849,34 @@ a claim this project had drafted**; they are listed here so the narrowing is tra
   PDEBench's file, does not make a benchmark-design criticism, and does not discuss input
   representation or persistence — so §9.16e and §9.15c are not duplicated, but the broad
   framing of this paper is no longer new.
+
+## Reduced-order-model theory: anticipates this paper's core result (2026-09-13 check, §9.16g)
+
+Found by a second prior-art check, aimed at §9.15c. **This literature predicts the paper's
+central finding a priori and must be cited rather than rediscovered.**
+
+- **Kolmogorov n-width and linear reducibility.** The n-width of a solution manifold is the
+  classical measure of how well *linear* subspaces approximate it, and its decay rate decides
+  whether linear model reduction is efficient. Standard results: **exponential decay for
+  diffusion-dominated problems**, slow (≈ N^-1/2) decay for transport- and wave-dominated ones
+  — the "Kolmogorov barrier". Steady-state heat conduction is diffusion-dominated, so the
+  linear-solvability of this project's thermal benchmark (§9.1, §9.14) is what the theory
+  predicts. See e.g. Ohlberger & Rave on the barrier, Lee & Carlberg (*Model reduction of
+  dynamical systems on nonlinear manifolds*, arXiv:1812.08373) for the linear-subspace
+  limitation, and Greif & Urban, *Decay of the Kolmogorov N-width for wave problems*.
+
+- **Affine vs non-affine (geometric) parameter dependence.** Reduced-basis methods require
+  affine parameter dependence for their offline-online split. It is established that
+  **geometry-dependent operators generally depend on parameters non-affinely**, and the
+  Empirical Interpolation Method / DEIM / hyper-reduction literature exists specifically to
+  recover affine structure in that case (e.g. arXiv:2211.07348 on non-affine problems with
+  parameterised geometries; Rozza et al. on geometrical parametrisation for shape
+  optimisation). **This is §9.15c's representation-dependence stated in classical terms**:
+  fixed placement is affine in the compact parameters; moving the chiplets makes it non-affine;
+  the per-cell field representation retains the operator's linearity in the source.
+
+- **Fourier Neural Mappings / parameter-to-observable maps.** The distinction between
+  finite-dimensional parameter inputs and function-space inputs is explicit in the operator
+  learning literature — e.g. *An operator learning perspective on parameter-to-observable
+  maps* (arXiv:2402.06031). Our "compact vector vs per-cell field" contrast is an instance of
+  this known distinction, not a new one.

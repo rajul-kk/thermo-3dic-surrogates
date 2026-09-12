@@ -2285,6 +2285,68 @@ effective DOF 238 versus 4.5, and a linear fit explains **0.02%** of the structu
 diagnostic separates the two by three orders of magnitude in DOF, which is what a calibrated
 instrument should do.
 
+#### 9.16g Second prior-art check: classical reduced-order-model theory anticipates the core result (2026-09-13)
+
+§9.16f checked the *new* PDE claims. This section checks the claim §9.16f said was the closest
+thing to a conceptual contribution — §9.15c's representation-dependence — plus, unavoidably,
+the framing of the whole paper. **Both are substantially anticipated by reduced-basis and
+model-order-reduction theory, which predates this work by decades.**
+
+**(1) The linear-solvability ladder is what Kolmogorov n-width theory predicts a priori.** The
+n-width of a solution manifold measures how well it is approximated by *linear* subspaces, and
+its decay rate is the classical criterion for whether linear model reduction works. The
+established result is that it **decays exponentially for diffusion-dominated problems** and
+**slowly (≈ N^-1/2) for transport- and wave-dominated ones**, the latter being known as the
+"Kolmogorov barrier".
+
+Steady-state heat conduction is diffusion-dominated. So a reduced-basis practitioner would
+predict, without running anything, that our thermal benchmark is linearly solvable and that
+Burgers and Navier–Stokes are not. Our §9.16a ladder — thermal and Darcy (elliptic, diffusive)
+at the solvable end, Burgers and advective Navier–Stokes at the discriminative end — **is that
+prediction, measured.** It is a confirmation, not a discovery, and this paper should have said
+so from the start.
+
+**(2) §9.15c's representation-dependence is the affine/non-affine distinction.** Reduced-basis
+methods rest on *affine parameter dependence*: when the operator depends affinely on the
+parameters, an efficient offline-online decomposition exists. It is standard knowledge that
+**geometry-dependent operators generally depend on their parameters non-affinely**, and an
+entire sub-literature (Empirical Interpolation Method, DEIM, hyper-reduction) exists to
+*recover* affine dependence in exactly that case.
+
+Map that onto §9.15c:
+
+| §9.15c's finding | the classical statement |
+|---|---|
+| fixed placement: linear in the compact parameter vector (R² 0.99) | affine parameter dependence holds |
+| moving placement: linear fit in the compact vector fails (R² −0.667) | geometric parametrisation ⇒ non-affine dependence |
+| the same files remain linear in the per-cell field (R² 0.94 under CV) | the underlying operator is still linear in the source; it is the *parametrisation* that broke |
+
+So "linear-solvability is a property of the representation, not the dataset" is a
+benchmarking-flavoured restatement of a known fact about affine versus geometric
+parametrisation. The empirical demonstration on a 3D-IC thermal benchmark is a new data
+point; the phenomenon is not new.
+
+**(3) What that leaves.** Honestly, very little that is novel as *knowledge*:
+
+- The **framing** is arguably still useful: the ROM literature treats non-affine dependence as
+  a problem to be engineered around, whereas we treat it as a property that makes a
+  *benchmark* unable to discriminate architectures, and conclude that a difficulty claim is
+  ill-posed without naming the representation. That is a repositioning of known theory for a
+  benchmarking audience, not a new result, and must be described that way.
+- The **artifacts** remain real: 585 3D-ICE solves including 180 layout-randomised ones, and
+  released diagnostic tooling.
+- The **measurements** remain correct and reproducible; several of them (PDEBench shallow
+  water at 3 components, persistence on PDEBench Navier–Stokes) appear unreported even though
+  the underlying phenomena are understood.
+
+**(4) The most useful thing this check produces.** Our §9.14 explanation — "conduction is
+linear in the sources, the scenario space is low-dimensional, therefore a linear fit wins" —
+is correct but was derived from scratch when a mature theory (n-width decay, affine
+parametrisation) already supplied it. A reader from the model-reduction community would find
+the paper's central result unsurprising. **The paper must cite that literature and position
+itself inside it**, rather than presenting the mechanism as newly worked out. `docs/references.md`
+now carries the entries.
+
 #### 9.16f Prior-art check on §9.16, and what it removes (2026-09-12)
 
 A deliberate scooping check was run against every claim in §9.16 before any of it was
