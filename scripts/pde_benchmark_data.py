@@ -108,13 +108,22 @@ def navier_stokes(n_pairs: int = 300, stride: int = 2, every: int = 4
     def build():
         with _open('ns_incom_0') as h:
             v = h['velocity']                                       # (4, 1000, 512, 512, 2)
-            n_traj = v.shape[0]
+            n_traj, n_t = v.shape[0], v.shape[1]
             per = max(1, n_pairs // n_traj)
+            # Start times are spread across the usable window with OVERLAPPING pairs, so the
+            # sample count stays ~constant as `stride` grows. Stepping t0 by `stride` instead
+            # (the first version) gave 300/76/16 samples at strides 2/50/200, which confounded
+            # the effect of the time gap with a collapsing training set -- at stride 200 only
+            # ~12 samples remained, far too few to fit.
+            usable = n_t - stride
+            if usable <= 0:
+                raise ValueError(f'stride {stride} exceeds trajectory length {n_t}')
+            step = max(1, usable // per)
             Xs, Ys = [], []
             for tr in range(n_traj):
                 for i in range(per):
-                    t0 = i * stride
-                    if t0 + stride >= v.shape[1]:
+                    t0 = i * step
+                    if t0 + stride >= n_t:
                         break
                     Xs.append(np.asarray(v[tr, t0, ::every, ::every], dtype=np.float64).ravel())
                     Ys.append(np.asarray(v[tr, t0 + stride, ::every, ::every],

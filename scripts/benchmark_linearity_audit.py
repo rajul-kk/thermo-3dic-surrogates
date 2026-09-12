@@ -159,10 +159,19 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
     _Yall = np.concatenate([Ytr, Yte]) if len(Yte) else Ytr
     _struct = float((_Yall - _Yall.mean(axis=1, keepdims=True)).std(axis=1).mean())
     _mag = float(abs(_Yall.mean())) or 1.0
+    # Per-sample magnitude spread. Spatial R2 here is POOLED over test samples, so a large
+    # spread lets a few high-magnitude fields dominate both the residual and the total sum of
+    # squares, and the score stops describing typical behaviour. PDEBench Darcy at beta=0.01
+    # spans 545x (vs 14x at beta=1.0) and returns -85 for the linear fit AND -68 for the mean
+    # field -- both "catastrophic" purely because of that imbalance, not because the map is
+    # hard. Reported so such rows can be recognised rather than quoted.
+    _permag = np.abs(_Yall).mean(axis=1)
+    _spread = float(_permag.max() / _permag.min()) if _permag.min() > 0 else float('inf')
     out: Dict[str, float] = {'n_samples': n_tr + len(Xte), 'n_train': n_tr,
                              'in_cells': Xtr.shape[1], 'out_cells': Ytr.shape[1],
                              'effective_dof': dof,
-                             'structure_to_mean': _struct / _mag}
+                             'structure_to_mean': _struct / _mag,
+                             'magnitude_spread': _spread}
 
     # Dense operator: the exact solution form for a linear PDE with a fixed operator.
     #
@@ -237,6 +246,11 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
              min(out.get('dense_rel_l2', np.inf), out['pca_rel_l2']),
              'LINEAR-SOLVABLE' if out['linear_solvable'] else '',
              '' if persist is None else f'  [persistence R2={persist:.4f}]')
+    if _spread > 50:
+        log.warning('%s: per-sample magnitude spread is %.0fx -- pooled spatial R2 is '
+                    'dominated by the largest-magnitude fields and should not be read as '
+                    'typical behaviour (the mean-field baseline scores %.2f here)',
+                    name, _spread, out['mean_spatial_r2'])
     if persist is not None and best_r2 - persist < 0.05:
         margin = best_r2 - persist
         verb = (f'loses to persistence by {-margin:.4f}' if margin < 0
@@ -406,7 +420,7 @@ def main():
         print(f'{name:<30}{r["n_samples"]:>6}{r.get("pca_k",0):>7}{r["effective_dof"]:>10.1f}'
               f'{r["best_linear_spatial_r2"]:>12.4f}'
               f'{min(r.get("dense_rel_l2", np.inf), r["pca_rel_l2"]):>9.3f}'
-              f'{r["mean_spatial_r2"]:>13.3f}{verdict:>16}')
+              f'{r["mean_spatial_r2"]:>13.3f}  {verdict:>16}')
     print('=' * 104)
     print('verdict thresholds detrended spatial R2 > 0.95. `rel L2` is shown for reference but')
     print('is NOT comparable across benchmarks: it normalises by the field including its mean,')

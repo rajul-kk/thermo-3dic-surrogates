@@ -2069,16 +2069,28 @@ mean-field baseline does not catch this** — it scores −0.357, making the tas
 benchmark can pass a trivial-baseline check and still be trivial, if the trivial baseline
 checked is the wrong one.
 
-Sweeping the time gap shows persistence dominates throughout:
+Sweeping the time gap shows persistence dominates throughout. **All rows below use a constant
+300 samples**; an earlier version of this table did not, and is corrected here — see the note.
 
 | time stride | linear R² | persistence R² | linear − persistence |
 |---|---|---|---|
-| 2 | 0.958 | **0.9997** | −0.042 |
-| 50 | 0.670 | **0.937** | −0.267 |
-| 200 | −0.276 | **0.246** | −0.521 |
+| 2 | 0.9354 | **0.9999** | −0.065 |
+| 50 | 0.6459 | **0.9370** | −0.291 |
+| 200 | −0.0504 | **0.2139** | −0.264 |
 
 A linear operator never beats persistence on this data at any gap — the correct outcome for a
 nonlinear chaotic system, and the opposite of what the original verdict said.
+
+> **Correction (2026-09-12).** The first version of this sweep stepped the pair start time
+> *by* the stride, so longer gaps yielded fewer windows: 300 / 76 / **16** samples at strides
+> 2 / 50 / 200. The stride-200 row therefore had ~12 training samples, and its linear score
+> was depressed by sample starvation rather than by the time gap — it read −0.276 then and
+> reads **−0.0504** at matched n. Two consequences. (a) The numbers above replace the earlier
+> ones. (b) The claim that the gap to persistence *widens* with stride was wrong: at matched n
+> it is −0.065, −0.291, −0.264, widening to stride 50 and then flat. What survives unchanged
+> is the finding itself — persistence beats the linear fit at every gap — because persistence
+> involves no fitting and so was never affected by the sample count. The loader now uses
+> overlapping windows to hold n constant.
 
 **Burgers behaves oppositely, which is the control that makes the Navier–Stokes reading
 sound.** On `pdebench/burgers-nu0.01` persistence scores **−3.686**, far *worse* than the
@@ -2159,6 +2171,19 @@ benchmark's own official splits, and the only audit table in this report (§9.15
 45-scenario datasets that were never truncated. It is fixed because the audit is released as a
 reusable artifact under contribution 9, and a `--max-samples` flag that quietly redraws the
 test set is a trap for anyone who picks it up.
+
+**(d) Pooled R² is dominated by high-magnitude samples when their scale varies.** PDEBench
+Darcy at beta=0.01 returns linear R² **−85.2** — and the *mean-field* baseline returns
+**−67.6**. Neither is degeneracy (no near-zero-variance fields) nor a bug: per-sample solution
+magnitude spans **545×** there against 14× at beta=1.0, and spatial R² is pooled over test
+samples, so a handful of large fields dominate both sums of squares and the score stops
+describing typical behaviour. The audit now reports `magnitude_spread` and warns above 50×.
+beta=1.0 is the representative Darcy row and the one used in §9.16a.
+
+This is the third distinct way detrended R² can mislead, all three found by running external
+benchmarks rather than by inspection: near-zero-variance targets (b), cross-benchmark offset
+domination (a), and magnitude spread (d). Each needs its own guard, and each produces a number
+that reads like a finding if unchecked.
 
 #### 9.16d What this does and does not license
 
