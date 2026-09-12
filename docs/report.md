@@ -2118,9 +2118,15 @@ declared as time-evolution (`TIME_EVOLUTION` in the audit), not inferred from sh
 verdict was affected, because −46.2 fails both the `> 0.95` triviality test and the
 `best_r2 > persistence` requirement, but the reported figure was nonsense.
 
-**This is the same structural finding as the rest of the paper, in a fourth place.** Static
-field prediction omits the mean/ridge baseline (§9.1); IC-ThermBench omits any non-neural
-baseline (§9.13); **time-evolution PDE benchmarks omit persistence.** Neural-operator papers
+**This is the same structural finding as the rest of the paper, in a fourth place — but it
+applies only at short horizons, and our own stride sweep is what bounds it.** Persistence
+scores 0.9999 at a 2-step gap, 0.937 at 50 and **0.214 at 200**: it is a devastating baseline
+for single-step or short-horizon evaluation and a weak one for long rollouts. PDEBench's own
+baseline tables report autoregressive FNO and U-Net on incompressible Navier–Stokes, so
+short-horizon numbers of this kind are reported in practice; but any paper evaluating long
+rollouts is not vulnerable to this criticism, and we do not imply otherwise. Static field
+prediction omits the mean/ridge baseline (§9.1); IC-ThermBench omits any non-neural baseline
+(§9.13); **short-horizon time-evolution evaluation omits persistence.** Neural-operator papers
 routinely report next-step error on Navier–Stokes without one, and a reader cannot tell from
 the paper whether a reported score beats assuming nothing moved.
 

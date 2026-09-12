@@ -839,3 +839,13 @@ a claim this project had drafted**; they are listed here so the narrowing is tra
   randomised ("balanced") scaffold splitting and quantifies it on BACE: 78.25% AUROC
   deterministic vs 85.33% randomised, noting performance is "much more optimistic in this
   variant". Independent corroboration that the §2b effect is known.
+
+- **Anonymous / arXiv:2508.05831.** *Optimal Linear Baseline Models for Scientific Machine
+  Learning*, Aug 2025. Derives closed-form rank-constrained optimal linear encoder-decoder
+  baselines and evaluates on MedMNIST, financial factors and **the shallow water equations**,
+  concluding that "nonlinearity in the system does not guarantee that nonlinear neural network
+  models outperform linear ones." **Occupies the general "report a linear baseline in SciML"
+  position, on shallow water specifically.** It uses its own SWE simulations rather than
+  PDEBench's file, does not make a benchmark-design criticism, and does not discuss input
+  representation or persistence — so §9.16e and §9.15c are not duplicated, but the broad
+  framing of this paper is no longer new.
