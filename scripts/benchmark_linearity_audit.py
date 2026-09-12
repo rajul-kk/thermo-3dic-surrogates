@@ -318,6 +318,8 @@ TRANSFERS: Dict[str, Tuple[str, str]] = {
 # "assume nothing changed" is a meaningful baseline. Declared explicitly rather than inferred
 # from matching shapes -- see the persistence gate in audit().
 TIME_EVOLUTION = {
+    'pdebench/shallow-water',
+    'pdebench/diffusion-reaction',
     'pdebench/navier-stokes',
     'pdebench/navier-stokes-s50',
     'pdebench/navier-stokes-s200',
@@ -348,6 +350,8 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     'pdebench/darcy-beta0.01': lambda: _pde('darcy', n=1000, beta='0.01'),
     'pdebench/burgers-nu0.01': lambda: _pde('burgers', n=400, nu='0.01', t_out=20),
     'pdebench/burgers-final':  lambda: _pde('burgers', n=400, nu='0.01', t_out=200),
+    'pdebench/shallow-water':      lambda: _pde('shallow_water', n=300, t_out=20),
+    'pdebench/diffusion-reaction': lambda: _pde('diffusion_reaction', n=300, t_out=20),
     'pdebench/navier-stokes':      lambda: _pde('navier_stokes', n_pairs=300, stride=2, every=4),
     'pdebench/navier-stokes-s50':  lambda: _pde('navier_stokes', n_pairs=300, stride=50, every=4),
     'pdebench/navier-stokes-s200': lambda: _pde('navier_stokes', n_pairs=300, stride=200, every=4),

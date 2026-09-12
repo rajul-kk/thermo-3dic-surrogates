@@ -32,6 +32,11 @@ def main():
                     help='hyperparameter trials per model -- IDENTICAL for every model, which '
                          'is the control that makes the comparison about method not effort')
     ap.add_argument('--seeds', type=int, default=5)
+    ap.add_argument('--metric', default='auto', choices=['auto', 'roc_auc', 'prc_auc'],
+                    help="classification metric; 'prc_auc' tests the metric axis README "
+                         "section 1 names as a suspect but the first run never varied")
+    ap.add_argument('--task-index', type=int, default=0,
+                    help='which label column for multi-task sets such as clintox')
     ap.add_argument('--output', type=Path, default=Path('molprop/results/audit.json'))
     args = ap.parse_args()
 
@@ -45,6 +50,7 @@ def main():
             cells = {}
             for m in args.models:
                 cells[m] = run_cell(ds, split, m, seeds=seeds, budget=args.budget,
+                                    metric=args.metric, task_index=args.task_index,
                                     featurisers=args.featurisers)
                 results.append(cells[m])
 

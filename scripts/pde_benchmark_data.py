@@ -21,15 +21,65 @@ FILES = {
     'burgers_nu0.01': '281363',   # 1D/Burgers/Train/1D_Burgers_Sols_Nu0.01.hdf5   8.2 GB
     'burgers_nu0.001': '268190',  # 1D/Burgers/Train/1D_Burgers_Sols_Nu0.001.hdf5  8.2 GB
     'ns_incom_0':     '133280',   # 2D/NS_incom/ns_incom_inhom_2d_512-0.h5         9.9 GB
+    'shallow_water':  '133021',   # 2D/shallow-water/2D_rdb_NA_NA.h5              6.6 GB
+    'diff_react':     '133017',   # 2D/diffusion-reaction/2D_diff-react_NA_NA.h5 13.2 GB
 }
 
 URL = 'https://darus.uni-stuttgart.de/api/access/datafile/{}'
 
 
-def _open(key: str):
+def _open(key: str, block_mb: int = 8):
     import fsspec, h5py
     fs = fsspec.filesystem('http')
-    return h5py.File(fs.open(URL.format(FILES[key]), block_size=8 * 1024 * 1024), 'r')
+    return h5py.File(fs.open(URL.format(FILES[key]), block_size=block_mb * 1024 * 1024), 'r')
+
+
+def _grouped_pair(key: str, n: int, t_out: int, name: str):
+    """Read N independent trajectories from a group-per-sample file: u(t=0) -> u(t=t_out).
+
+    These files store one HDF5 group per trajectory ('0000'..'0999'), each holding
+    data of shape (101, 128, 128, C). Unlike ns_incom (4 trajectories, overlapping time
+    pairs) these 1000 trajectories are independent initial conditions, so samples are i.i.d.
+    A small HTTP block size is used because only two of 101 timesteps are wanted per group.
+    """
+    with _open(key, block_mb=1) as h:
+        groups = sorted(h)[:n]
+        X, Y = [], []
+        for g in groups:
+            d = h[g]['data']
+            X.append(np.asarray(d[0], dtype=np.float64).ravel())
+            Y.append(np.asarray(d[t_out], dtype=np.float64).ravel())
+    X, Y = np.asarray(X), np.asarray(Y)
+    std = (Y - Y.mean(1, keepdims=True)).std(1)
+    if int((std < 1e-3).sum()):
+        log.warning('%s t_out=%d: %d/%d targets have spatial std < 1e-3; detrended R2 is '
+                    'unreliable on those', name, t_out, int((std < 1e-3).sum()), len(Y))
+    return X, Y
+
+
+def shallow_water(n: int = 300, t_out: int = 20):
+    """2D shallow water (radial dam break): h(t=0) -> h(t=t_out), 128x128.
+
+    The second time-evolution benchmark, added to test whether the persistence finding of
+    docs/report.md 9.16b generalises beyond incompressible Navier-Stokes or is specific to
+    it. Structure decays gently here (spatial std 0.173 -> 0.121 by t=20) and input and
+    output are on the same scale, so persistence is a genuinely plausible baseline rather
+    than a straw man.
+    """
+    return _cached(f'shallow_water_t{t_out}_n{n}',
+                   lambda: _grouped_pair('shallow_water', n, t_out, 'shallow_water'))
+
+
+def diffusion_reaction(n: int = 300, t_out: int = 20):
+    """2D diffusion-reaction (activator/inhibitor, 2 channels): u(t=0) -> u(t=t_out).
+
+    Both channels are flattened together. Note the input is a random initial condition whose
+    spatial std (0.998) is ~24x the target's (0.042) -- the field settles into pattern
+    formation within two steps -- so persistence is expected to fail badly here, unlike
+    shallow water. That contrast is the point of including both.
+    """
+    return _cached(f'diff_react_t{t_out}_n{n}',
+                   lambda: _grouped_pair('diff_react', n, t_out, 'diff_react'))
 
 
 def _cached(name: str, build) -> Tuple[np.ndarray, np.ndarray]:

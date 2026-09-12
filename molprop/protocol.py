@@ -15,12 +15,21 @@ from molprop.features import FEATURISERS
 log = logging.getLogger(__name__)
 
 
-def score(y_true: np.ndarray, pred: np.ndarray, task: str) -> float:
-    """ROC-AUC for classification (higher better), RMSE for regression (lower better)."""
+def score(y_true: np.ndarray, pred: np.ndarray, task: str, metric: str = 'auto') -> float:
+    """ROC-AUC or PRC-AUC for classification (higher better), RMSE for regression (lower).
+
+    `metric` exists because README section 1 lists metric choice as a suspect for the published
+    disagreement -- ROC-AUC and PRC-AUC rank models differently on the heavily imbalanced
+    MoleculeNet classification sets -- and the first run tested only ROC-AUC. On ClinTox
+    (~7% positive) this is the axis most likely to change a ranking.
+    """
     if task == 'classification':
-        from sklearn.metrics import roc_auc_score
         if len(np.unique(y_true)) < 2:
             return float('nan')
+        if metric == 'prc_auc':
+            from sklearn.metrics import average_precision_score
+            return float(average_precision_score(y_true, pred))
+        from sklearn.metrics import roc_auc_score
         return float(roc_auc_score(y_true, pred))
     return float(np.sqrt(np.mean((y_true - pred) ** 2)))
 
@@ -49,6 +58,7 @@ class Result:
     split: str
     model: str
     task: str
+    metric: str = 'auto'
     scores: List[float] = field(default_factory=list)
     featuriser: Optional[str] = None
     seconds: float = 0.0
@@ -65,7 +75,8 @@ class Result:
 
 
 def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
-             budget: int, featurisers: List[str], task_index: int = 0) -> Result:
+             budget: int, featurisers: List[str], task_index: int = 0,
+             metric: str = 'auto') -> Result:
     """
     Evaluate one model on one dataset/split under the shared budget.
 
@@ -75,7 +86,7 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
     """
     t0 = time.time()
     y_all = ds.y if ds.y.ndim == 1 else ds.y[:, task_index]
-    res = Result(ds.name, split_kind, model_name, ds.task)
+    res = Result(ds.name, split_kind, model_name, ds.task, metric)
 
     # Featurise once per featuriser, reused across seeds and trials.
     feats = {f: FEATURISERS[f](ds.smiles) for f in featurisers}
@@ -120,7 +131,7 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
             try:
                 mdl = M.build(model_name, params, ds.task)
                 mdl.fit(X[tr], y_all[tr])
-                s = score(y_all[va], _predict(mdl, X[va], ds.task), ds.task)
+                s = score(y_all[va], _predict(mdl, X[va], ds.task), ds.task, metric)
             except Exception as exc:
                 failures += 1
                 if first_failure is None:
@@ -152,13 +163,14 @@ def run_cell(ds: Dataset, split_kind: str, model_name: str, *, seeds: List[int],
         trva = np.concatenate([tr, va])
         mdl = M.build(model_name, params, ds.task)
         mdl.fit(X[trva], y_all[trva])
-        res.scores.append(score(y_all[te], _predict(mdl, X[te], ds.task), ds.task))
+        res.scores.append(score(y_all[te], _predict(mdl, X[te], ds.task), ds.task, metric))
         res.featuriser = fname
 
     res.seconds = time.time() - t0
     log.info('%-9s %-8s %-9s %s = %.4f +/- %.4f  (feat=%s, %.0fs)',
              ds.name, split_kind, model_name,
-             'AUC' if ds.task == 'classification' else 'RMSE',
+             ('PRC-AUC' if metric == 'prc_auc' else 'AUC')
+             if ds.task == 'classification' else 'RMSE',
              res.mean, res.std, res.featuriser, res.seconds)
     return res
 

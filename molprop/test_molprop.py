@@ -214,3 +214,22 @@ def test_deterministic_split_test_set_has_both_classes():
         assert len(np.unique(y[te])) == 2, (
             f'{name}: deterministic test split is single-class '
             f'(pos_rate {y[te].mean():.3f}) -- ROC-AUC would be undefined')
+
+
+def test_roc_and_prc_auc_can_disagree_on_imbalanced_data():
+    """The metric axis README section 1 names as a suspect but the first run never varied.
+
+    On an imbalanced set a ranking that puts one positive near the top scores well by
+    ROC-AUC while PRC-AUC stays low, which is why ClinTox (~7% positive) is the dataset
+    where metric choice is most likely to flip a model ordering.
+    """
+    from molprop.protocol import score
+    y = np.array([1.0] + [0.0] * 49)
+    # ranks the single positive 5th out of 50: good ROC-AUC, mediocre precision
+    pred = np.zeros(50)
+    pred[0] = 0.90
+    pred[1:5] = 0.95
+    roc = score(y, pred, 'classification', 'roc_auc')
+    prc = score(y, pred, 'classification', 'prc_auc')
+    assert roc > 0.85, roc
+    assert prc < roc - 0.2, f'expected PRC-AUC ({prc:.3f}) well below ROC-AUC ({roc:.3f})'
