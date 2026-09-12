@@ -100,7 +100,11 @@ def main():
         # failed_trials/budget_unmatched are persisted, not just logged: a cell whose budget
         # could not be filled is not comparable, and that must survive into the artifact
         # rather than living only in a console line nobody re-reads.
+        # metric/task_index are recorded so a results file is self-describing: without them a
+        # PRC-AUC run is distinguishable from a ROC-AUC one only by noticing that the trivial
+        # baseline is the positive rate rather than 0.5.
         json.dump([{'dataset': r.dataset, 'split': r.split, 'model': r.model,
+                    'metric': r.metric, 'task_index': args.task_index,
                     'task': r.task, 'scores': r.scores, 'mean': r.mean, 'std': r.std,
                     'featuriser': r.featuriser, 'seconds': r.seconds,
                     'failed_trials': r.failed_trials,

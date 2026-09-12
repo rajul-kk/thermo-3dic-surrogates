@@ -52,8 +52,8 @@ types:
 | BACE | binary classification | 1,513 | ROC-AUC | **yes** |
 | ESOL (delaney) | regression | 1,128 | RMSE | **yes** |
 | FreeSolv (SAMPL) | regression | 642 | RMSE | **yes** |
-| ClinTox | binary classification (2 tasks) | 1,480 | ROC-AUC | not yet — supported, not run |
-| Lipophilicity (`lipo`) | regression | 4,200 | RMSE | not yet — supported, not run |
+| ClinTox | binary classification (2 tasks) | 1,480 | ROC-AUC + PRC-AUC | **yes** (§7.6) |
+| Lipophilicity (`lipo`) | regression | 4,200 | RMSE | **yes** (§7.6) |
 
 The first four are what the reported run covers; ClinTox and Lipophilicity are implemented and
 loadable but were left out to keep the matched-budget sweep inside a CPU-only time budget
@@ -242,6 +242,63 @@ fell back to `maccs`. Physicochemical descriptors carry real signal for solubili
 hydration free energy, and only the tree models exploit it. That is a mechanism for the ESOL
 gap, not merely a number — and it is visible only because the featuriser was searched under
 the same budget as the hyperparameters (§3.2) rather than fixed in advance.
+
+### 7.6 Extension: ClinTox, Lipophilicity, and the metric axis (2026-09-12)
+
+The first run covered 2 classification and 2 regression datasets. Claims of the form
+"classification benchmarks do not separate models" rested on **n=2 datasets**, which is thin,
+and §1's *metric* suspect had never been tested at all. Both are now addressed.
+
+**ClinTox** (1,480 molecules, two tasks with opposite imbalance: task 0 FDA_APPROVED 93.6%
+positive, task 1 CT_TOX 7.6% positive) and **Lipophilicity** (4,200, the largest set here).
+Zero `BUDGET NOT MATCHED` warnings across all runs.
+
+| cell | best | linear | linear separably worse? |
+|---|---|---|---|
+| clintox-t0 / scaffold | lightgbm 0.9181 | 0.8391 | **yes** |
+| clintox-t0 / random | rf 0.9196 | 0.8737 | no |
+| clintox-t1 / scaffold | lightgbm 0.9163 | 0.8827 | no |
+| clintox-t1 / random | rf 0.9244 | 0.8606 | no |
+| lipo / scaffold (RMSE) | xgboost 0.7347 | 0.9260 | **yes** |
+| lipo / random (RMSE) | lightgbm 0.6262 | 0.8023 | **yes** |
+
+**(1) The classification claim is now sharper, and split type is the axis that matters.**
+Across all eight seeded classification cells, linear is **never separably worse on a random
+split** (0 of 4 — and on BACE/random it is the *best* model), but is separably worse on 2 of 4
+scaffold splits. The original framing ("classification does not separate") was too coarse: the
+harder structural-novelty split is where tuned trees earn their advantage, and the easier
+random split is where logistic regression on fingerprints is indistinguishable from gradient
+boosting. That is a more useful statement and it needed the third dataset to see.
+
+**(2) Regression separates on 4 of 6 cells, and FreeSolv is the lone exception.** ESOL (both
+splits) and Lipophilicity (both splits) separate cleanly; FreeSolv does not, and it is by far
+the smallest set (642) with a linear-model seed spread of ±1.22. So "regression separates" is
+supported, with dataset size the plausible moderator rather than task type alone.
+
+**(3) The metric axis changes the ranking — tested directly.** ClinTox task 1 (7.6% positive),
+identical data, splits, seeds and budget; only the metric differs:
+
+| split | ROC-AUC order | PRC-AUC order |
+|---|---|---|
+| scaffold | **lightgbm** > rf > xgboost > linear | **rf** > xgboost > lightgbm > linear |
+| random | rf > **xgboost** > lightgbm > linear | rf > lightgbm > **linear** > xgboost |
+
+On the random split **XGBoost falls from 2nd to 4th, below the linear model**, purely from the
+metric change. Two further effects: PRC-AUC has an **informative floor** (the trivial baseline
+scores the positive rate, 0.069–0.092, where ROC-AUC scores exactly 0.5000 ± 0.0000 by
+construction and tells you nothing), and PRC-AUC is **far noisier** here (relative spreads
+24–33% against ~4%). Under both metrics linear remains not separable from the best, so that
+conclusion is metric-robust; what is not robust is the ordering among the non-linear models.
+A paper reporting one metric on one seed could name three different winners on this cell.
+
+**(4) Where our baselines do NOT reach the published range — stated because it bounds the
+claim.** On Lipophilicity/random our best tuned baseline is **0.6262**, against published
+Attentive FP 0.553, Chemprop 0.563, **XGBoost 0.574**, HRGCN+ 0.603 and FP-GNN 0.625. We sit
+at the *bottom* of that range and are beaten by the published XGBoost row — the opposite of
+ESOL/random, where our XGBoost (0.536) beat every published model. The likely cause is that a
+24-trial budget is not enough for the largest dataset here, which is a limitation of this
+audit rather than evidence about the models. It is reported because an audit that only
+published its favourable comparisons would be committing the error it exists to expose.
 
 ### 7.5 What this does not show
 
