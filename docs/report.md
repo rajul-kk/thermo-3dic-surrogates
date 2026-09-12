@@ -2027,6 +2027,7 @@ column** — see §9.16c.
 
 | benchmark | equation | n | pca k | linear spatial R² | verdict |
 |---|---|---|---|---|---|
+| pdebench/diffusion-reaction | diffusion-reaction, 2-species | 300 | 2 | **0.0002** | discriminative |
 | pdebench/burgers (t=20) | Burgers, nonlinear | 400 | 16 | **−0.077** | discriminative |
 | ours/geometry5-shelf | heat, layout varied | 45 | 4 | 0.418 | discriminative |
 | ours/geometry6-shelf | heat, layout varied | 45 | 4 | 0.536 | discriminative |
@@ -2034,7 +2035,8 @@ column** — see §9.16c.
 | pdebench/darcy-beta1.0 | " | 1000 | 32 | 0.852 | discriminative |
 | ours/geometry1-layout | heat, layout varied | 45 | 8 | 0.863 | discriminative |
 | ours/geometry4-shelf | heat, layout varied | 45 | 8 | 0.962 | LINEAR-SOLVABLE |
-| ours/geometry1-fixed | heat, fixed layout | 45 | 8 | **0.988** | LINEAR-SOLVABLE |
+| ours/geometry1-fixed | heat, fixed layout | 45 | 8 | 0.988 | LINEAR-SOLVABLE |
+| **pdebench/shallow-water** | shallow water, 1-parameter | 300 | 64 | **0.9999** | **LINEAR-SOLVABLE** |
 
 **Three things this establishes.**
 
@@ -2184,6 +2186,72 @@ This is the third distinct way detrended R² can mislead, all three found by run
 benchmarks rather than by inspection: near-zero-variance targets (b), cross-benchmark offset
 domination (a), and magnitude spread (d). Each needs its own guard, and each produces a number
 that reads like a finding if unchecked.
+
+#### 9.16e PDEBench 2D shallow water is a one-parameter family, and a linear fit solves it
+
+Added 2026-09-12 after extending the audit to two further PDE families. This is the strongest
+external result in this paper, and it is the defect §9.14 diagnoses in *our* benchmark, found
+in a published one.
+
+| benchmark | eff. DOF | linear spatial R² | persistence R² | verdict |
+|---|---|---|---|---|
+| **pdebench/shallow-water** | 4.5 | **0.9999** | −0.227 | **LINEAR-SOLVABLE** |
+| pdebench/diffusion-reaction | 238.1 | **0.0002** | −538.1 | discriminative |
+
+The two new families bracket every other row in the audit: shallow water is **more
+linearly-solvable than our own fixed-placement geometry1** (0.9875), which this paper already
+condemns as degenerate; diffusion-reaction is the hardest dataset measured.
+
+**Why shallow water is solvable — measured, across all 1000 trajectories.** Its initial
+conditions are not a rich family:
+
+- every initial field takes exactly **two values**, 1.0 and 2.0 (a binary dam);
+- the dam centre is **exactly (63.5, 63.5) in all 1000 samples** — measured min = max, standard
+  deviation **0.000000**;
+- **only the radius varies**, over 7.74–18.02 (81 distinct areas).
+
+So the entire benchmark is a **one-parameter family**: a radially symmetric dam break at a
+fixed centre with a fixed height ratio, differing only in radius. A linear function of that
+single radius explains **78.5%** of the target field's variance on its own. The target needs
+**3 principal components for 95%** of variance and 5 for 99%.
+
+**Verified independently, not just by the audit.** Written from scratch (PCA-ridge, no shared
+code), at n=1000, with a **random** split rather than the audit's contiguous one, to rule out
+trajectory ordering:
+
+| pca_k | detrended R² (n=1000, random split) |
+|---|---|
+| 2 | 0.9823 |
+| 3 | 0.9913 |
+| 8 | 0.9988 |
+| 64 | **0.99996** |
+
+Two principal components already reach 0.982, and results are stable across λ spanning six
+orders of magnitude — this is a low-dimensional solution manifold, not an overfit. The n=300
+and n=1000 results agree to three decimal places.
+
+**Why this matters more than our own negative result.** §9.2–§9.3 argue that a scenario space
+parameterised by a handful of scalars produces a near-linear solution manifold, and that this
+makes a benchmark unable to distinguish architectures. Our fixed-placement benchmark had ~8
+such scalars. **PDEBench 2D shallow water has one.** It is used as an operator-learning
+benchmark, and a closed-form linear fit with three components reproduces its solutions at
+R² 0.991 with no training and no GPU.
+
+**Scope, stated carefully.** (a) This is the fixed-horizon task $h(t{=}0) 	o h(t{=}20)$, the
+standard FNO-style operator-learning setup; PDEBench also supports autoregressive rollout over
+all 101 steps, which is a different and harder task we have not audited. (b) The finding is
+about *this data file* (`2D_rdb_NA_NA.h5`, the only shallow-water file in the release), not
+about the shallow-water equations, which are perfectly capable of rich behaviour under a
+broader initial-condition family. (c) It is not a criticism of PDEBench as a data release,
+which documents its generation process; it is a criticism of using this file to claim an
+architecture has learned an operator. (d) Persistence scores −0.227 here, so this is a
+different defect from the Navier–Stokes one in §9.16b — the task genuinely evolves, the
+*scenario family* is what is impoverished.
+
+**Diffusion-reaction is the control.** Same file format, same loader, same task construction,
+effective DOF 238 versus 4.5, and a linear fit explains **0.02%** of the structure. The
+diagnostic separates the two by three orders of magnitude in DOF, which is what a calibrated
+instrument should do.
 
 #### 9.16d What this does and does not license
 
