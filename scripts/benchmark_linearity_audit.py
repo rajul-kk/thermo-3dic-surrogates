@@ -155,11 +155,21 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
                              'effective_dof': dof}
 
     # Dense operator: the exact solution form for a linear PDE with a fixed operator.
-    if Xtr.shape[1] <= 20000:
+    #
+    # Gated on three things, not just cell count. The Gram is in_cells^2 float64, so 16k cells
+    # is 2.1 GB per fold per lambda -- PDEBench Darcy (16,384 cells) sat just under the old
+    # 20,000-cell limit and exhausted 16 GB of RAM. It is also pointless when in_cells greatly
+    # exceeds n_train: the system is rank-deficient and the ridge penalty, not the data, picks
+    # the solution. The PCA path below is the honest estimator in that regime.
+    gram_gb = (Xtr.shape[1] ** 2) * 8 / 1e9
+    dense_ok = (Xtr.shape[1] <= 20000 and gram_gb <= 1.0
+                and Xtr.shape[1] <= 4 * max(n_tr, 1))
+    if dense_ok:
         _, lam_d = cv_select(lambda a, b: (Xtr[a], Xtr[b]))
         out.update(fit_eval(Xtr, Xte, lam_d, 'dense'))
     else:
-        log.info('%s: %d input cells, skipping dense fit', name, Xtr.shape[1])
+        log.info('%s: %d input cells vs %d train samples (Gram %.1f GB), skipping dense fit',
+                 name, Xtr.shape[1], n_tr, gram_gb)
 
     # PCA-restricted, with the WIDTH selected on validation. Sweeping k is what makes this
     # comparable across benchmarks whose sample counts differ by three orders of magnitude.
@@ -209,6 +219,11 @@ def _ours(root: str, geom: str) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(X, np.float64), np.asarray(Y, np.float64)
 
 
+def _pde(fn: str, **kw) -> Tuple[np.ndarray, np.ndarray]:
+    from scripts import pde_benchmark_data as P
+    return getattr(P, fn)(**kw)
+
+
 def _icthermbench(scope: str) -> Tuple[np.ndarray, np.ndarray]:
     from scripts.ic_thermbench_data import load_scope, spatial_channel_indices
     s = load_scope(Path('data/ic-thermbench/datasets'), scope,
@@ -242,6 +257,14 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     'ours/geometry4-shelf':     lambda: _ours('data/3d-ice-layout-geometry4', 'geometry4'),
     'ours/geometry5-shelf':     lambda: _ours('data/3d-ice-layout-geometry5', 'geometry5'),
     'ours/geometry6-shelf':     lambda: _ours('data/3d-ice-layout-geometry6', 'geometry6'),
+    # Canonical operator-learning PDE benchmarks (PDEBench, arXiv:2210.07182). These are the
+    # calibration points: what does the diagnostic say about benchmarks the field agrees are
+    # discriminative? Darcy is the closest analogue to ours -- it varies the coefficient field
+    # (i.e. the operator) per sample, which is exactly what our fixed-placement data lacked.
+    'pdebench/darcy-beta1.0':  lambda: _pde('darcy', n=1000, beta='1.0'),
+    'pdebench/darcy-beta0.01': lambda: _pde('darcy', n=1000, beta='0.01'),
+    'pdebench/burgers-nu0.01': lambda: _pde('burgers', n=400, nu='0.01'),
+    'pdebench/navier-stokes':  lambda: _pde('navier_stokes', n_pairs=300, stride=2, every=4),
     # IC-ThermBench (§9.13).
     'icthermbench/S2': lambda: _icthermbench('level2'),
     'icthermbench/S3': lambda: _icthermbench('level3'),
@@ -313,9 +336,23 @@ def main():
     print('=' * 104)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # Merge with whatever is already on disk rather than overwriting. Running a subset with
+    # --datasets used to clobber the full table: a three-dataset shelf run destroyed an
+    # eleven-row artifact, which was only noticed later because the console log still had it.
+    merged = {}
+    if args.output.exists():
+        try:
+            prev = json.loads(args.output.read_text(encoding='utf-8'))
+            if isinstance(prev, dict):
+                merged.update(prev)
+        except Exception as exc:
+            log.warning('could not read existing %s (%s); it will be replaced',
+                        args.output, exc)
+    merged.update(results if isinstance(results, dict) else {})
     with open(args.output, 'w') as f:
-        json.dump(results, f, indent=2)
-    print(f'Saved: {args.output}')
+        json.dump(merged, f, indent=2)
+    print(f'Saved: {args.output}  ({len(merged)} datasets on file, '
+          f'{len(results)} from this run)')
 
 
 if __name__ == '__main__':
