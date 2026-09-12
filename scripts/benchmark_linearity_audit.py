@@ -261,6 +261,22 @@ def _ours(root: str, geom: str) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(X, np.float64), np.asarray(Y, np.float64)
 
 
+def _subsample(X, Y, cap, seed=0):
+    """Cap sample count by a fixed-seed permutation, not by taking the head.
+
+    Taking X[:cap] interacts badly with the contiguous train/test split: on an ordered dataset
+    it makes both the training set and the test slice depend on `cap`. IC-ThermBench ships an
+    index-based unshuffled split, and S2 moved 0.7034 -> 0.7812 purely between cap=2000 and
+    cap=3000, while S4 moved the other way (0.5757 -> 0.5683) -- idiosyncratic slice effects,
+    not a sample-size trend. Permuting first makes the cap mean what its name says.
+    """
+    if len(X) <= cap:
+        return X, Y
+    idx = np.random.default_rng(seed).permutation(len(X))[:cap]
+    idx.sort()                      # keep original relative order within the drawn subset
+    return X[idx], Y[idx]
+
+
 def _pde(fn: str, **kw) -> Tuple[np.ndarray, np.ndarray]:
     from scripts import pde_benchmark_data as P
     return getattr(P, fn)(**kw)
@@ -337,6 +353,8 @@ def main():
     ap.add_argument('--list', action='store_true')
     ap.add_argument('--max-samples', type=int, default=3000,
                     help='cap per dataset, for the large benchmarks')
+    ap.add_argument('--seed', type=int, default=0,
+                    help='seed for the subsampling permutation used when --max-samples bites')
     ap.add_argument('--output', type=Path, default=Path('results/linearity_audit.json'))
     args = ap.parse_args()
 
@@ -354,8 +372,7 @@ def main():
         except Exception as exc:
             log.warning('%s: unavailable (%s)', name, exc)
             continue
-        if len(X) > args.max_samples:
-            X, Y = X[:args.max_samples], Y[:args.max_samples]
+        X, Y = _subsample(X, Y, args.max_samples, args.seed)
         try:
             results[name] = audit(X, Y, name,
                                   time_evolution=name in TIME_EVOLUTION)
@@ -371,10 +388,8 @@ def main():
         except Exception as exc:
             log.warning('%s: unavailable (%s)', name, exc)
             continue
-        if len(Xs) > args.max_samples:
-            Xs, Ys = Xs[:args.max_samples], Ys[:args.max_samples]
-        if len(Xt) > args.max_samples:
-            Xt, Yt = Xt[:args.max_samples], Yt[:args.max_samples]
+        Xs, Ys = _subsample(Xs, Ys, args.max_samples, args.seed)
+        Xt, Yt = _subsample(Xt, Yt, args.max_samples, args.seed)
         try:
             results[name] = audit(Xs, Ys, name, X_test=Xt, Y_test=Yt)
         except Exception as exc:

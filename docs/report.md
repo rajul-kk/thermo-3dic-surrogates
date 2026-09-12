@@ -2138,6 +2138,28 @@ t=20, where 60% of initial structure remains and no field is degenerate. The deg
 is kept registered as `pdebench/burgers-final` with a loud warning, since
 `third_party/ic_thermbench/README.md` independently warns of the same failure mode.
 
+**(c) `--max-samples` silently changed the test set, not just the sample count.** The cap took
+the leading N samples (`X[:N]`) while `audit()` splits contiguously, so on an *ordered* dataset
+both the training set and the test slice moved with N. IC-ThermBench ships an index-based
+unshuffled split, and S2 read 0.7034 at N=2000 against 0.7812 at N=3000 — while S4 moved the
+other way (0.5757 → 0.5683), which is the signature of slice idiosyncrasy rather than a
+sample-size trend. Replacing head-truncation with a fixed-seed permutation cut the S2 spread
+from **0.078 to 0.024**:
+
+| cap | head-truncation | seeded permutation |
+|---|---|---|
+| N=2000 | 0.7034 | 0.6881 |
+| N=3000 | 0.7812 | 0.7120 |
+| spread | **0.078** | **0.024** |
+
+The residual 0.024 is a genuine training-size effect and is expected; the removed 0.054 was an
+artifact of which slice happened to land in test. **No published number changes**: §9.13's
+"3.4–4.4× worse than Therm-FM" comes from `scripts/ic_thermbench_baselines.py` on the
+benchmark's own official splits, and the only audit table in this report (§9.15c) covers
+45-scenario datasets that were never truncated. It is fixed because the audit is released as a
+reusable artifact under contribution 9, and a `--max-samples` flag that quietly redraws the
+test set is a trap for anyone who picks it up.
+
 #### 9.16d What this does and does not license
 
 It licenses: *the diagnostic has been calibrated across three PDE families (Darcy, Burgers,
