@@ -2080,6 +2080,27 @@ Sweeping the time gap shows persistence dominates throughout:
 A linear operator never beats persistence on this data at any gap — the correct outcome for a
 nonlinear chaotic system, and the opposite of what the original verdict said.
 
+**Burgers behaves oppositely, which is the control that makes the Navier–Stokes reading
+sound.** On `pdebench/burgers-nu0.01` persistence scores **−3.686**, far *worse* than the
+linear probe's −0.077. The two nonlinear benchmarks fail a linear fit for different reasons,
+and separating them requires both baselines:
+
+| benchmark | linear R² | persistence R² | reading |
+|---|---|---|---|
+| burgers (t=20) | −0.077 | **−3.686** | field changes a lot; nothing cheap works — genuinely hard |
+| navier–stokes (stride 2) | 0.958 | **0.9997** | field barely changes; the task does not test dynamics |
+
+A benchmark is only informative when *both* trivial baselines fail. Reporting one without the
+other is what lets a near-identity task look like a solved operator-learning problem.
+
+**A false positive this gate caught in our own tool.** The persistence baseline was initially
+computed whenever input and output shapes matched, which fired on IC-ThermBench — a
+power → temperature map on a shared 64×64 grid — and reported a meaningless persistence R² of
+−46.2, comparing watts to kelvin. Persistence is now computed only for benchmarks explicitly
+declared as time-evolution (`TIME_EVOLUTION` in the audit), not inferred from shape. No
+verdict was affected, because −46.2 fails both the `> 0.95` triviality test and the
+`best_r2 > persistence` requirement, but the reported figure was nonsense.
+
 **This is the same structural finding as the rest of the paper, in a fourth place.** Static
 field prediction omits the mean/ridge baseline (§9.1); IC-ThermBench omits any non-neural
 baseline (§9.13); **time-evolution PDE benchmarks omit persistence.** Neural-operator papers

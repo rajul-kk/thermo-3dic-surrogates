@@ -98,7 +98,8 @@ def _kfold(n: int, k: int, seed: int = 0):
 
 def audit(X: np.ndarray, Y: np.ndarray, name: str,
           test_frac: float = 0.2, n_folds: int = 5,
-          X_test: np.ndarray = None, Y_test: np.ndarray = None) -> Dict[str, float]:
+          X_test: np.ndarray = None, Y_test: np.ndarray = None,
+          time_evolution: bool = False) -> Dict[str, float]:
     """
     Run the audit on paired input/output fields. X: (N, P), Y: (N, Q), both flattened.
     Splits are contiguous (no shuffling) so a caller controls ordering.
@@ -208,7 +209,11 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
     # almost entirely the identity map rather than learned dynamics. Any benchmark whose
     # persistence score is close to its model score is measuring the timestep, not the
     # operator -- the same omission as reporting a surrogate without a linear baseline.
-    if Xte.shape[1] == Yte.shape[1]:
+    # Only for genuine time-evolution tasks, declared by the caller. Matching shapes are NOT
+    # sufficient: IC-ThermBench maps power -> temperature on a shared 64x64 grid, where
+    # "predict the output equals the input" compares watts to kelvin and returned a meaningless
+    # persistence R2 of -46.2 before this gate existed.
+    if time_evolution and Xte.shape[1] == Yte.shape[1]:
         out['persistence_spatial_r2'] = _spatial_r2(Xte, Yte)
         out['input_output_corr'] = float(np.mean([
             np.corrcoef(Xte[i] - Xte[i].mean(), Yte[i] - Yte[i].mean())[0, 1]
@@ -279,6 +284,17 @@ TRANSFERS: Dict[str, Tuple[str, str]] = {
     'icthermbench/S4->S5': ('level4', 'level5'),
 }
 
+# Benchmarks whose input and output are the SAME field at different times, so that
+# "assume nothing changed" is a meaningful baseline. Declared explicitly rather than inferred
+# from matching shapes -- see the persistence gate in audit().
+TIME_EVOLUTION = {
+    'pdebench/navier-stokes',
+    'pdebench/navier-stokes-s50',
+    'pdebench/navier-stokes-s200',
+    'pdebench/burgers-nu0.01',
+    'pdebench/burgers-final',
+}
+
 REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     # This project, fixed placement (the regime §9.14 diagnoses).
     'ours/geometry1-fixed':   lambda: _ours('data/3d-ice', 'geometry1'),
@@ -341,7 +357,8 @@ def main():
         if len(X) > args.max_samples:
             X, Y = X[:args.max_samples], Y[:args.max_samples]
         try:
-            results[name] = audit(X, Y, name)
+            results[name] = audit(X, Y, name,
+                                  time_evolution=name in TIME_EVOLUTION)
         except Exception as exc:
             log.error('%s: audit failed (%s)', name, exc)
 
