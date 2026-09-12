@@ -200,17 +200,45 @@ def audit(X: np.ndarray, Y: np.ndarray, name: str,
 
     mean_field = Ytr.mean(0)
     out['mean_spatial_r2'] = _spatial_r2(np.repeat(mean_field[None], len(Yte), 0), Yte)
+
+    # Persistence baseline, for time-evolution tasks where input and output are the same field
+    # at different times. The mean-field baseline is the wrong trivial predictor there: on
+    # PDEBench Navier-Stokes with a 2-step gap, predicting "nothing changes" scores detrended
+    # R2 0.930 while the mean field scores -0.357, and the linear probe's 0.958 is therefore
+    # almost entirely the identity map rather than learned dynamics. Any benchmark whose
+    # persistence score is close to its model score is measuring the timestep, not the
+    # operator -- the same omission as reporting a surrogate without a linear baseline.
+    if Xte.shape[1] == Yte.shape[1]:
+        out['persistence_spatial_r2'] = _spatial_r2(Xte, Yte)
+        out['input_output_corr'] = float(np.mean([
+            np.corrcoef(Xte[i] - Xte[i].mean(), Yte[i] - Yte[i].mean())[0, 1]
+            for i in range(len(Yte))]))
     out['mean_r2'] = _pooled_r2(np.repeat(mean_field[None], len(Yte), 0), Yte)
     out['mean_rel_l2'] = _rel_l2(np.repeat(mean_field[None], len(Yte), 0), Yte)
     out['seconds'] = time.time() - t0
 
     best_r2 = max(out.get('dense_spatial_r2', -np.inf), out['pca_spatial_r2'])
     out['best_linear_spatial_r2'] = best_r2
-    out['linear_solvable'] = bool(best_r2 > 0.95)
-    log.info('%-34s DOF=%7.1f  pca_k=%4s  linear spatialR2=%7.4f  relL2=%6.3f  %s',
+    # A benchmark counts as linear-solvable only if a LINEAR FIT solves it. On time-evolution
+    # tasks that requires beating persistence: PDEBench Navier-Stokes at a 2-step gap scores
+    # 0.958, which looks solved until persistence scores 0.9997 on the same split -- the fit is
+    # worse than not modelling at all. Verdicts there are 'TRIVIAL(persist)', not solvable.
+    _p = out.get('persistence_spatial_r2')
+    out['trivial_persistence'] = bool(_p is not None and _p > 0.95)
+    out['linear_solvable'] = bool(best_r2 > 0.95 and (_p is None or best_r2 > _p))
+    persist = out.get('persistence_spatial_r2')
+    log.info('%-34s DOF=%7.1f  pca_k=%4s  linear spatialR2=%7.4f  relL2=%6.3f  %s%s',
              name, dof, out.get('pca_k'), best_r2,
              min(out.get('dense_rel_l2', np.inf), out['pca_rel_l2']),
-             'LINEAR-SOLVABLE' if out['linear_solvable'] else '')
+             'LINEAR-SOLVABLE' if out['linear_solvable'] else '',
+             '' if persist is None else f'  [persistence R2={persist:.4f}]')
+    if persist is not None and best_r2 - persist < 0.05:
+        margin = best_r2 - persist
+        verb = (f'loses to persistence by {-margin:.4f}' if margin < 0
+                else f'beats persistence by only {margin:.4f}')
+        log.warning('%s: the linear probe %s -- fitting adds little or nothing over assuming '
+                    'the field is unchanged, so this task measures the timestep rather than '
+                    'the operator', name, verb)
     return out
 
 
@@ -274,7 +302,9 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     'pdebench/darcy-beta0.01': lambda: _pde('darcy', n=1000, beta='0.01'),
     'pdebench/burgers-nu0.01': lambda: _pde('burgers', n=400, nu='0.01', t_out=20),
     'pdebench/burgers-final':  lambda: _pde('burgers', n=400, nu='0.01', t_out=200),
-    'pdebench/navier-stokes':  lambda: _pde('navier_stokes', n_pairs=300, stride=2, every=4),
+    'pdebench/navier-stokes':      lambda: _pde('navier_stokes', n_pairs=300, stride=2, every=4),
+    'pdebench/navier-stokes-s50':  lambda: _pde('navier_stokes', n_pairs=300, stride=50, every=4),
+    'pdebench/navier-stokes-s200': lambda: _pde('navier_stokes', n_pairs=300, stride=200, every=4),
     # IC-ThermBench (§9.13).
     'icthermbench/S2': lambda: _icthermbench('level2'),
     'icthermbench/S3': lambda: _icthermbench('level3'),
@@ -338,7 +368,9 @@ def main():
           f'{"lin spatR2":>12}{"rel L2":>9}{"mean spatR2":>13}{"verdict":>16}')
     print('-' * 104)
     for name, r in sorted(results.items(), key=lambda kv: kv[1]['effective_dof']):
-        verdict = 'LINEAR-SOLVABLE' if r['linear_solvable'] else 'discriminative'
+        verdict = ('LINEAR-SOLVABLE' if r['linear_solvable']
+                   else 'TRIVIAL(persist)' if r.get('trivial_persistence')
+                   else 'discriminative')
         print(f'{name:<30}{r["n_samples"]:>6}{r.get("pca_k",0):>7}{r["effective_dof"]:>10.1f}'
               f'{r["best_linear_spatial_r2"]:>12.4f}'
               f'{min(r.get("dense_rel_l2", np.inf), r["pca_rel_l2"]):>9.3f}'
