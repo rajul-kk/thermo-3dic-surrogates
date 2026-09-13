@@ -1,5 +1,10 @@
 # Kaggle Setup Guide
 
+> **`kaggle_geometry4_vs_geometry6_fno.ipynb` does not need the src dataset at all.** The
+> repo is public and tracks `src/`, so that notebook clones it (set **Settings -> Internet ->
+> On**) and falls back to an attached dataset if internet is off. The `.npz` data still has to
+> be uploaded, because `data/` is gitignored and is therefore not in the repo.
+>
 > **Slugs do not need to match for `kaggle_geometry4_vs_geometry6_fno.ipynb`.** That notebook
 > locates `src/` and the `.npz` files by searching the attached datasets for their *contents*,
 > because Kaggle silently rewrites slugs (case, hyphens, an appended suffix). If it cannot find
