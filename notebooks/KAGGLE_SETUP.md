@@ -1,5 +1,11 @@
 # Kaggle Setup Guide
 
+> **Slugs do not need to match for `kaggle_geometry4_vs_geometry6_fno.ipynb`.** That notebook
+> locates `src/` and the `.npz` files by searching the attached datasets for their *contents*,
+> because Kaggle silently rewrites slugs (case, hyphens, an appended suffix). If it cannot find
+> them it prints every attached dataset and what each contains. The older notebooks still use
+> hard-coded slugs.
+
 ## Step 1: Upload source code as a Kaggle dataset
 
 1. Zip the `src/` directory from this project
