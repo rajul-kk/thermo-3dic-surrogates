@@ -57,6 +57,7 @@ class FNOTrainer:
         flux_weight: float = 0.0,
         geometry=None,
         patience: int = 0,
+        use_amp: Optional[bool] = None,
     ):
         self.model = model
         self.norm_stats = norm_stats
@@ -113,7 +114,13 @@ class FNOTrainer:
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=epochs, eta_min=lr * 1e-3
         )
-        self.use_amp = self.device.type == 'cuda'
+        # cuFFT's half-precision path only supports power-of-two FFT sizes; the spectral
+        # conv's rfftn crashes under autocast on any grid that isn't (e.g. geometry4's
+        # 100x56x10, geometry6's 56x168x15 -- most of this project's geometries). Pass
+        # use_amp=False explicitly for those rather than relying on the CUDA-available
+        # default, since the failure only appears at runtime inside the FFT, not at
+        # construction time.
+        self.use_amp = (self.device.type == 'cuda') if use_amp is None else use_amp
         self.scaler = torch.cuda.amp.GradScaler() if self.use_amp else None
 
         self.best_val_mae = float('inf')
