@@ -2323,6 +2323,51 @@ effective DOF 238 versus 4.5, and a linear fit explains **0.02%** of the structu
 diagnostic separates the two by three orders of magnitude in DOF, which is what a calibrated
 instrument should do.
 
+#### 9.16f Prior-art check on §9.16, and what it removes (2026-09-12)
+
+A deliberate scooping check was run against every claim in §9.16 before any of it was
+presented as novel. **It removed or narrowed most of them.** Recorded in full because a
+paper about weak baselines should not itself overclaim novelty.
+
+| claim as first written | status after the check |
+|---|---|
+| PDEBench shallow water is a one-parameter family | **Prior art, from the benchmark's own authors.** arXiv:2210.07182 App. D.7 eq. 21 specifies a bump "in the center of the domain" with "radius r randomly sampled from U(0.3, 0.7)". Not a discovery. |
+| A linear fit solves it (R² 0.991, 3 components) | **Not found in the literature.** Retained as the contribution of §9.16e. |
+| Time-evolution benchmarks omit the persistence baseline | **The baseline is standard prior art in an adjacent field.** WeatherBench (Rasp et al., 2020) uses persistence and climatology as core baselines and states outright: "To be useful, a forecast system needs to beat the weekly climatology and the persistence forecast." Our contribution is narrowed to *importing* it into PDE operator-learning evaluation and measuring that PDEBench Navier–Stokes at a 2-step gap fails it. |
+| Simple methods can match neural operators | **Prior art.** Batlle et al., *Kernel Methods are Competitive for Operator Learning*, J. Comp. Phys. 2023 (arXiv:2304.13202), matches or beats FNO/DeepONet with vanilla kernels on a majority of six benchmarks. Note their **linear** kernel *underperforms* on Darcy (6.74% vs FNO 2.41%), so "a linear model suffices" is not their claim and our shallow-water result does not duplicate it. |
+| Weak baselines are endemic in ML-for-PDEs | Prior art, already cited: McGreivy & Hakim, *Nature Machine Intelligence* 2024. |
+
+**The molecular audit fares worse, and this is the most important outcome of the check.**
+
+| claim | status |
+|---|---|
+| Scaffold tie-break convention inflates results, ~18 pts on BBBP | **Fully scooped, same dataset and magnitude.** MOLTOP (arXiv:2407.12136) App. G: the distinction "makes a very significant difference in scores... often by 5% or as much as 20% **on BBBP dataset**", and identifies GROVER/D-MPNN as using non-deterministic splits. Also documented in scikit-fingerprints, which quantifies BACE at 78.25% (deterministic) vs 85.33% (randomised). |
+| Non-neural baselines are competitive with GNNs on MoleculeNet under a fair protocol | **Scooped.** MOLTOP is a Random-Forest-on-topological-descriptors baseline evaluated on 8 MoleculeNet datasets with OGB deterministic scaffold splits and 10-seed dispersion, where "only GEM outperforms MOLTOP significantly". |
+
+So `molprop/`'s two headline claims were both published in 2024, one of them with the same
+dataset and effect size. We did not know this when the audit was designed, and the audit was
+designed *because* §1 of its README found the literature contradictory — which is exactly the
+situation a prior-art check exists to resolve. The honest position is in
+`molprop/README.md` §8.
+
+**What survives §9.16 as plausibly unreported**, stated conservatively:
+
+1. The **measured consequence** for PDEBench shallow water (3 components → R² 0.991) of a
+   design its authors documented.
+2. **Persistence applied to PDE operator-learning benchmarks**, and the specific finding that
+   a linear fit on PDEBench Navier–Stokes at stride 2 (0.9354) *loses* to persistence
+   (0.9999) while the conventional mean-field baseline misses this entirely (−0.357).
+3. The **three metric-reliability traps** as a documented set with guards (§9.16c): near-zero
+   variance targets, cross-benchmark offset domination, and per-sample magnitude spread.
+4. **§9.15c's representation-dependence** result — that linear-solvability is a property of
+   the input representation, not the dataset. We found no prior statement of this.
+5. The **layout-randomised thermal datasets** themselves (§9.15b), including the reported
+   failed first attempt.
+
+Items 1–3 are diagnostic and methodological rather than architectural. Item 4 is the closest
+thing in this paper to a conceptual contribution. None of them is "a new architecture beats
+the state of the art", and this section exists so that no reader mistakes them for that.
+
 #### 9.16g Second prior-art check: classical reduced-order-model theory anticipates the core result (2026-09-13)
 
 §9.16f checked the *new* PDE claims. This section checks the claim §9.16f said was the closest
@@ -2384,51 +2429,6 @@ parametrisation) already supplied it. A reader from the model-reduction communit
 the paper's central result unsurprising. **The paper must cite that literature and position
 itself inside it**, rather than presenting the mechanism as newly worked out. `docs/references.md`
 now carries the entries.
-
-#### 9.16f Prior-art check on §9.16, and what it removes (2026-09-12)
-
-A deliberate scooping check was run against every claim in §9.16 before any of it was
-presented as novel. **It removed or narrowed most of them.** Recorded in full because a
-paper about weak baselines should not itself overclaim novelty.
-
-| claim as first written | status after the check |
-|---|---|
-| PDEBench shallow water is a one-parameter family | **Prior art, from the benchmark's own authors.** arXiv:2210.07182 App. D.7 eq. 21 specifies a bump "in the center of the domain" with "radius r randomly sampled from U(0.3, 0.7)". Not a discovery. |
-| A linear fit solves it (R² 0.991, 3 components) | **Not found in the literature.** Retained as the contribution of §9.16e. |
-| Time-evolution benchmarks omit the persistence baseline | **The baseline is standard prior art in an adjacent field.** WeatherBench (Rasp et al., 2020) uses persistence and climatology as core baselines and states outright: "To be useful, a forecast system needs to beat the weekly climatology and the persistence forecast." Our contribution is narrowed to *importing* it into PDE operator-learning evaluation and measuring that PDEBench Navier–Stokes at a 2-step gap fails it. |
-| Simple methods can match neural operators | **Prior art.** Batlle et al., *Kernel Methods are Competitive for Operator Learning*, J. Comp. Phys. 2023 (arXiv:2304.13202), matches or beats FNO/DeepONet with vanilla kernels on a majority of six benchmarks. Note their **linear** kernel *underperforms* on Darcy (6.74% vs FNO 2.41%), so "a linear model suffices" is not their claim and our shallow-water result does not duplicate it. |
-| Weak baselines are endemic in ML-for-PDEs | Prior art, already cited: McGreivy & Hakim, *Nature Machine Intelligence* 2024. |
-
-**The molecular audit fares worse, and this is the most important outcome of the check.**
-
-| claim | status |
-|---|---|
-| Scaffold tie-break convention inflates results, ~18 pts on BBBP | **Fully scooped, same dataset and magnitude.** MOLTOP (arXiv:2407.12136) App. G: the distinction "makes a very significant difference in scores... often by 5% or as much as 20% **on BBBP dataset**", and identifies GROVER/D-MPNN as using non-deterministic splits. Also documented in scikit-fingerprints, which quantifies BACE at 78.25% (deterministic) vs 85.33% (randomised). |
-| Non-neural baselines are competitive with GNNs on MoleculeNet under a fair protocol | **Scooped.** MOLTOP is a Random-Forest-on-topological-descriptors baseline evaluated on 8 MoleculeNet datasets with OGB deterministic scaffold splits and 10-seed dispersion, where "only GEM outperforms MOLTOP significantly". |
-
-So `molprop/`'s two headline claims were both published in 2024, one of them with the same
-dataset and effect size. We did not know this when the audit was designed, and the audit was
-designed *because* §1 of its README found the literature contradictory — which is exactly the
-situation a prior-art check exists to resolve. The honest position is in
-`molprop/README.md` §8.
-
-**What survives §9.16 as plausibly unreported**, stated conservatively:
-
-1. The **measured consequence** for PDEBench shallow water (3 components → R² 0.991) of a
-   design its authors documented.
-2. **Persistence applied to PDE operator-learning benchmarks**, and the specific finding that
-   a linear fit on PDEBench Navier–Stokes at stride 2 (0.9354) *loses* to persistence
-   (0.9999) while the conventional mean-field baseline misses this entirely (−0.357).
-3. The **three metric-reliability traps** as a documented set with guards (§9.16c): near-zero
-   variance targets, cross-benchmark offset domination, and per-sample magnitude spread.
-4. **§9.15c's representation-dependence** result — that linear-solvability is a property of
-   the input representation, not the dataset. We found no prior statement of this.
-5. The **layout-randomised thermal datasets** themselves (§9.15b), including the reported
-   failed first attempt.
-
-Items 1–3 are diagnostic and methodological rather than architectural. Item 4 is the closest
-thing in this paper to a conceptual contribution. None of them is "a new architecture beats
-the state of the art", and this section exists so that no reader mistakes them for that.
 
 #### 9.16h §9.16b's persistence dominance does not survive testing on independent simulation runs (2026-09-17)
 
