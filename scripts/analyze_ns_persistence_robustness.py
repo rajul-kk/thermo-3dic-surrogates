@@ -21,7 +21,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
                     datefmt='%H:%M:%S')
 log = logging.getLogger('ns_robust')
 
-FILE_KEYS = ['ns_incom_0', 'ns_incom_10', 'ns_incom_11', 'ns_incom_13', 'ns_incom_14']
+FILE_KEYS_5 = ['ns_incom_0', 'ns_incom_10', 'ns_incom_11', 'ns_incom_13', 'ns_incom_14']
+FILE_KEYS_25 = FILE_KEYS_5 + ['ns_incom_12'] + [f'ns_incom_1{n:02d}' for n in range(0, 20)]
+FILE_KEYS = FILE_KEYS_25
 
 
 def mean_baseline_r2(Ytr, Yte):

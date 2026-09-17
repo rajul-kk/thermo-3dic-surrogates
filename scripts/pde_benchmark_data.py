@@ -1,6 +1,7 @@
 """PDEBench loaders for the linearity audit: canonical operator-learning benchmarks as (X, Y) pairs."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Tuple
@@ -30,8 +31,19 @@ FILES = {
     # trajectories only.
     'ns_incom_10':    '133309',   # ns_incom_inhom_2d_512-10.h5
     'ns_incom_11':    '133336',   # ns_incom_inhom_2d_512-11.h5
+    'ns_incom_12':    '133574',   # ns_incom_inhom_2d_512-12.h5
     'ns_incom_13':    '133304',   # ns_incom_inhom_2d_512-13.h5
     'ns_incom_14':    '133281',   # ns_incom_inhom_2d_512-14.h5
+    # Extended to 25 files total for the 20-30 file scale-up (2026-09-17): a wider slice of
+    # the same DaRUS file listing, chosen only for availability, not for any property of the
+    # runs.
+    'ns_incom_100':   '133267', 'ns_incom_101': '133289', 'ns_incom_102': '133291',
+    'ns_incom_103':   '133294', 'ns_incom_104': '133298', 'ns_incom_105': '133290',
+    'ns_incom_106':   '133374', 'ns_incom_107': '133375', 'ns_incom_108': '133376',
+    'ns_incom_109':   '133305', 'ns_incom_110': '133313', 'ns_incom_111': '133318',
+    'ns_incom_112':   '133324', 'ns_incom_113': '133377', 'ns_incom_114': '133378',
+    'ns_incom_115':   '133379', 'ns_incom_116': '133380', 'ns_incom_117': '133381',
+    'ns_incom_118':   '133383', 'ns_incom_119': '133385',
 }
 
 URL = 'https://darus.uni-stuttgart.de/api/access/datafile/{}'
@@ -224,14 +236,32 @@ def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, ever
                         Gs.append(gi)
         return np.asarray(Xs), np.asarray(Ys), np.asarray(Gs)
 
-    key = f'ns_multi_{"_".join(file_keys)}_pt{per_traj}_s{stride}_e{every}'
+    # Cache key: spelling out every file key overran Windows' 260-char MAX_PATH at 26 files
+    # (408 chars) and surfaced as FileNotFoundError at SAVE time, discarding a completed
+    # ~30-minute download. Long lists collapse to a stable hash; short ones keep the original
+    # spelled-out name so caches built before this change are still found.
+    spelled = f'ns_multi_{"_".join(file_keys)}_pt{per_traj}_s{stride}_e{every}'
+    if len(str((CACHE / f'{spelled}.npz').resolve())) <= 200:
+        key = spelled
+    else:
+        digest = hashlib.sha1('_'.join(file_keys).encode()).hexdigest()[:10]
+        key = f'ns_multi_n{len(file_keys)}_{digest}_pt{per_traj}_s{stride}_e{every}'
     p = CACHE / f'{key}.npz'
     if p.exists():
         d = np.load(p)
         log.info('%s: cached %s -> %s', key, d['X'].shape, d['Y'].shape)
         return d['X'], d['Y'], d['G']
-    X, Y, G = build()
+
+    # Pre-flight: prove the cache path is writable BEFORE fetching anything, so an
+    # unwritable target can never again throw away hours of completed downloads.
     CACHE.mkdir(parents=True, exist_ok=True)
+    try:
+        p.touch()
+        p.unlink()
+    except OSError as exc:
+        raise OSError(f'cache path not writable before download: {p} ({exc})') from exc
+
+    X, Y, G = build()
     np.savez_compressed(p, X=X, Y=Y, G=G)
     log.info('%s: built %s -> %s (%d groups)', key, X.shape, Y.shape, len(set(G.tolist())))
     return X, Y, G
