@@ -82,6 +82,10 @@ def main():
     ap.add_argument('--k', type=int, default=3, help='kNN neighbour count')
     ap.add_argument('--ridge-lambda', type=float, default=1.0)
     ap.add_argument('--power-pca', type=int, default=0)
+    ap.add_argument('--field-linear', action='store_true',
+                    help='Add a linear fit on the full per-cell power field. Needed on '
+                         'layout-varying data, where the compact block vector is p>n and '
+                         'ridge is confounded (docs/report.md 9.15c/9.15d).')
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--output', type=Path, default=None)
     args = ap.parse_args()
@@ -108,7 +112,8 @@ def main():
             test_set = [scenarios[i] for i in fold_idx]
             train_set = [scenarios[i] for i in range(len(scenarios)) if i not in set(fold_idx.tolist())]
             preds = predict_all(train_set, test_set, block_keys,
-                                args.k, args.ridge_lambda, args.power_pca)
+                                args.k, args.ridge_lambda, args.power_pca,
+                                include_field_linear=args.field_linear)
             for sc, pred in zip(test_set, preds):
                 for name, field in pred.items():
                     per_baseline.setdefault(name, []).append(

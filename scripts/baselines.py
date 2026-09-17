@@ -126,10 +126,25 @@ def aggregate(per_scenario: List[Dict[str, float]]) -> Dict[str, float]:
 
 # ── Baselines ──────────────────────────────────────────────────────────────────
 
+# Linear-on-field baseline settings, copied from the Sec 9.15d notebook
+# (kaggle_geometry4_vs_geometry6_fno.ipynb::linear_field_cv) so the numbers are directly
+# comparable to the 0.941 / 0.513 it reported. Note lam penalises the intercept here,
+# unlike the ridge baseline below which deliberately does not -- kept for fidelity.
+FIELD_PCA_K = 8
+FIELD_LAMBDA = 1e-2
+
+
 def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
-                k: int, ridge_lambda: float, power_pca: int = 0
+                k: int, ridge_lambda: float, power_pca: int = 0,
+                include_field_linear: bool = False
                 ) -> List[Dict[str, np.ndarray]]:
-    """Fit every baseline on `train` and return raw predicted fields for `test`."""
+    """Fit every baseline on `train` and return raw predicted fields for `test`.
+
+    `include_field_linear` adds a 'linear_field' prediction: a linear fit on the FULL
+    per-cell power field rather than the compact block vector. Off by default because
+    callers that feed fit_predict (Sec 9.1a) and hotspot_eval_fno_cv (Sec 9.12d) key off
+    the returned dict, and adding a baseline unconditionally would change their tables.
+    """
     # Per-block positions enter the feature vector whenever the dataset carries them.
     # For fixed-placement data they are constant and the zero-variance guard below drops
     # them; for moving-source data (docs/report.md 9.14) they are what tells the baseline
@@ -173,6 +188,24 @@ def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
     W = np.linalg.solve(A.T @ A + reg, A.T @ Y_tr)           # (n_feat, n_points)
 
     mean_field = Y_tr.mean(0)
+
+    field_pred = None
+    if include_field_linear:
+        # Economy SVD of the (n_train x n_cells) standardised power matrix, then solve in
+        # the low-rank space. Never forms a cell-space Gram: that is (n_cells x n_cells),
+        # 24-152 GB on these grids, and is what OOMed the linearity audit on Darcy.
+        P_tr = np.stack([sc['power'] for sc in train])
+        P_te = np.stack([sc['power'] for sc in test])
+        f_mu = P_tr.mean(0)
+        f_sd = P_tr.std(0) + 1e-12
+        Pc = (P_tr - f_mu) / f_sd
+        _, _, Vt_f = np.linalg.svd(Pc, full_matrices=False)
+        B = Vt_f[:min(FIELD_PCA_K, Vt_f.shape[0])].T
+        A_f = np.hstack([Pc @ B, np.ones((len(train), 1))])
+        W_f = np.linalg.solve(A_f.T @ A_f + FIELD_LAMBDA * np.eye(A_f.shape[1]), A_f.T @ Y_tr)
+        field_pred = np.hstack([((P_te - f_mu) / f_sd) @ B,
+                                np.ones((len(test), 1))]) @ W_f
+
     preds: List[Dict[str, np.ndarray]] = []
 
     for ti in range(len(test)):
@@ -183,12 +216,15 @@ def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
         w = 1.0 / np.maximum(d[idx], 1e-9)
         w /= w.sum()
 
-        preds.append({
+        row = {
             'mean':  mean_field,
             'nn':    Y_tr[int(np.argmin(d))],
             'knn':   w @ Y_tr[idx],
             'ridge': np.append(x, 1.0) @ W,
-        })
+        }
+        if field_pred is not None:
+            row['linear_field'] = field_pred[ti]
+        preds.append(row)
 
     return preds
 
