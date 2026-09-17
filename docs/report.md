@@ -2475,12 +2475,31 @@ a single simulation's worth of evaluation data — the failure mode this section
 under-sampling simulation seeds, distinct from the under-sampling of scenarios (§9.1a) and
 of splits (§9.12c) already reported.
 
-**Caveats.** Only 5 files (20 trajectories), all drawn from the same DaRUS release and
+**Scale-up: the reversal holds at 26 files (2026-09-17).** Five independent simulations is few
+enough that the reversal could have been an artifact of the sample, so the sweep was repeated
+with 26 NS_incom files — 104 trajectories, n=624 per stride, 26 leave-one-file-out folds:
+
+| stride | linear R² (5 files) | linear R² (26 files) | persistence (5) | persistence (26) | gap (5) | gap (26) |
+|---|---|---|---|---|---|---|
+| 2 | 0.893 ± 0.016 | 0.875 ± 0.024 | 0.594 | 0.558 | +0.299 | **+0.317** |
+| 25 | 0.789 ± 0.032 | 0.809 ± 0.032 | 0.234 | 0.174 | +0.555 | **+0.636** |
+| 100 | 0.280 ± 0.114 | 0.466 ± 0.071 | −1.616 | −1.403 | +1.895 | **+1.868** |
+| 400 | −0.240 ± 0.079 | −0.042 ± 0.060 | −17.908 | −14.839 | +17.668 | **+14.798** |
+
+Linear beats persistence at every stride at both scales, and the gaps are stable under a 5.2×
+increase in independent simulations rather than drifting back toward §9.16b's single-file
+ordering. Two secondary details support the reading. Fold-to-fold dispersion *shrinks* as groups
+are added (stride 100: 0.114 → 0.071; stride 400: 0.079 → 0.060), which is what should happen if
+the 5-file estimate was noisy but unbiased. And cross-file persistence at stride 2 is 0.558 —
+nowhere near the 0.9999 measured *inside* a single file, which is the whole point of the section.
+
+**Caveats.** 26 files (104 trajectories), all drawn from the same DaRUS release and
 generation script, so this bounds file-to-file variance within one dataset's forcing
 distribution — it does not test transfer to a differently generated NS dataset. `per_traj=6`
-start times per trajectory keeps n at 120 per stride, still modest for a 32,768-dimensional
+start times per trajectory keeps n at 624 per stride, still modest for a 32,768-dimensional
 target; the PCA-ridge search is cross-validated within the training files only, so it cannot
-leak the held-out file.
+leak the held-out file. It remains far short of the ~1200 trajectories published setups pool,
+though the stability from 5 → 26 files is evidence that gap matters less than it first appeared.
 
 **Narrower framing after a prior-art check (2026-09-17).** PDEBench's own NS_incom data is
 normally used pooled across ~1200 trajectories from many files (1000 train / 200 test in
