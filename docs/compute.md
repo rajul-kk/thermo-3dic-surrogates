@@ -402,6 +402,19 @@ about the same as a smaller geometry with more. All figures here carry the same 
 uncertainty as the rest of this file, plus the additional uncertainty of extrapolating
 across a wider size gap than the geometry3/5 estimates did.
 
+**No shelf (layout-randomized) data exists for geometry7, and `shelf_chiplet_placement`
+cannot currently produce any.** Attempted 2026-09-15: `scripts/gen_moving_source_pilot.py
+--geometry geometry7 --layout-mode shelf` ran 45/45 solves successfully but moved 0/45 --
+every scenario placed chiplets at their nominal positions. Cause: `shelf_chiplet_placement`
+(`src/core/placement.py`) treats dense packages as a 1D row-packing problem (built for
+geometry6), but geometry7's 20 lateral chiplets sum to 64,000 µm of width against a
+62,000 µm die -- they don't fit in a single row even at zero margin, so the function's
+slack check correctly refuses rather than emit an overlapping placement. geometry7 needs a
+genuinely 2D (multi-row) packing variant to support this experiment; not built as of this
+writing. The 45 nominal-placement solves from the attempt are on disk at
+`data/3d-ice-layout-geometry7/geometry7/` but are placement-identical duplicates of the
+existing pilot, not shelf data -- do not zip or use them as such.
+
 ---
 
 ## Inference Cost (per scenario, single T4, batch=1)
