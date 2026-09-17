@@ -2480,11 +2480,22 @@ generation script, so this bounds file-to-file variance within one dataset's for
 distribution — it does not test transfer to a differently generated NS dataset. `per_traj=6`
 start times per trajectory keeps n at 120 per stride, still modest for a 32,768-dimensional
 target; the PCA-ridge search is cross-validated within the training files only, so it cannot
-leak the held-out file. This is, as far as we can find, not previously reported, and is the
-strongest single candidate in this project for a short standalone note: it is a concrete,
-reproducible correction to a specific published-benchmark practice (evaluating short-horizon
-persistence within one simulation), not a restatement of known ROM theory the way §9.15c/9.16g
-are.
+leak the held-out file.
+
+**Narrower framing after a prior-art check (2026-09-17).** PDEBench's own NS_incom data is
+normally used pooled across ~1200 trajectories from many files (1000 train / 200 test in
+published setups), not the 4 trajectories from one file §9.16b used. That single-file sample
+was an artifact of this project's own probing method — reading only the leading N samples
+over an HTTP range request to avoid downloading a 9.9 GB file — not how the benchmark is
+evaluated in practice. So this section is not primarily a finding about PDEBench or about
+persistence baselines in general; it is a finding about **this project's own lightweight
+benchmark-auditing methodology**: probing a large benchmark's leading slice for a quick
+linearity read can give a baseline measurement that does not match what the full, properly
+pooled dataset would show, and the gap can be large enough to invert a verdict. That is a
+real and reproducible result, and, as far as we can find, not previously reported for this
+specific comparison (in-file vs. cross-file persistence generalisation) — but it is a caution
+about cheap benchmark-auditing tools specifically, not a general claim about how the field
+evaluates PDE surrogates on Navier–Stokes.
 
 ## 11. Conclusion
 
