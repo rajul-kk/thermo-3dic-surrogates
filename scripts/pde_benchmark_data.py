@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from pathlib import Path
 from typing import Tuple
 
@@ -49,9 +50,14 @@ FILES = {
 URL = 'https://darus.uni-stuttgart.de/api/access/datafile/{}'
 
 
-def _open(key: str, block_mb: int = 8):
-    import fsspec, h5py
-    fs = fsspec.filesystem('http')
+def _open(key: str, block_mb: int = 8, timeout_s: int = 900):
+    # Default aiohttp timeout is too short for DaRUS under a long sequential sweep: a range
+    # read timed out mid-run (FSTimeoutError) and lost the whole batch. Raise it explicitly.
+    import fsspec, h5py, aiohttp
+    fs = fsspec.filesystem(
+        'http',
+        client_kwargs={'timeout': aiohttp.ClientTimeout(total=timeout_s, sock_read=timeout_s)},
+    )
     return h5py.File(fs.open(URL.format(FILES[key]), block_size=block_mb * 1024 * 1024), 'r')
 
 
@@ -204,21 +210,28 @@ def navier_stokes(n_pairs: int = 300, stride: int = 2, every: int = 4
     return _cached(f'ns_incom_p{n_pairs}_s{stride}_e{every}', build)
 
 
-def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, every: int = 4
-                             ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Same task as navier_stokes(), but pooled across several independent NS_incom files.
+def _ns_one_file(key: str, per_traj: int, stride: int, every: int, attempts: int = 4
+                 ) -> Tuple[np.ndarray, np.ndarray]:
+    """Time-pair slices from ONE NS_incom file, cached per file so a network failure
+    costs one file rather than the whole sweep.
 
-    Each file is a separate 3D-ICE-unrelated PDEBench simulation run (different initial/
-    forcing conditions), so this -- unlike navier_stokes() -- gives genuinely independent
-    samples across files, letting a leave-one-file-out split test the §9.16b persistence
-    finding without the single-file time-correlation caveat. Returns (X, Y, group) where
-    `group` is an integer file index per sample, for use as CV groups.
+    A 26-file sweep died on a single FSTimeoutError and discarded everything; caching at
+    file granularity makes the sweep resumable, and each retry re-opens the remote handle
+    since a timed-out fsspec file object is not reusable.
     """
-    def build():
-        Xs, Ys, Gs = [], [], []
-        for gi, key in enumerate(file_keys):
+    name = f'ns_one_{key}_pt{per_traj}_s{stride}_e{every}'
+    p = CACHE / f'{name}.npz'
+    if p.exists():
+        d = np.load(p)
+        return d['X'], d['Y']
+
+    CACHE.mkdir(parents=True, exist_ok=True)
+    last = None
+    for attempt in range(1, attempts + 1):
+        try:
+            Xs, Ys = [], []
             with _open(key) as h:
-                v = h['velocity']                                   # (4, 1000, 512, 512, 2)
+                v = h['velocity']                               # (4, 1000, 512, 512, 2)
                 n_traj, n_t = v.shape[0], v.shape[1]
                 usable = n_t - stride
                 if usable <= 0:
@@ -233,8 +246,39 @@ def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, ever
                                              dtype=np.float64).ravel())
                         Ys.append(np.asarray(v[tr, t0 + stride, ::every, ::every],
                                              dtype=np.float64).ravel())
-                        Gs.append(gi)
-        return np.asarray(Xs), np.asarray(Ys), np.asarray(Gs)
+            X, Y = np.asarray(Xs), np.asarray(Ys)
+            np.savez_compressed(p, X=X, Y=Y)
+            log.info('%s: built %s (attempt %d)', name, X.shape, attempt)
+            return X, Y
+        except Exception as exc:                                 # noqa: BLE001 - retry any I/O fault
+            last = exc
+            if attempt == attempts:
+                break
+            backoff = 10 * 2 ** (attempt - 1)
+            log.warning('%s: attempt %d/%d failed (%s); retrying in %ds',
+                        name, attempt, attempts, type(exc).__name__, backoff)
+            time.sleep(backoff)
+    raise RuntimeError(f'{name}: all {attempts} attempts failed; last error {last!r}')
+
+
+def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, every: int = 4
+                             ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Same task as navier_stokes(), but pooled across several independent NS_incom files.
+
+    Each file is a separate 3D-ICE-unrelated PDEBench simulation run (different initial/
+    forcing conditions), so this -- unlike navier_stokes() -- gives genuinely independent
+    samples across files, letting a leave-one-file-out split test the §9.16b persistence
+    finding without the single-file time-correlation caveat. Returns (X, Y, group) where
+    `group` is an integer file index per sample, for use as CV groups.
+    """
+    def build():
+        Xs, Ys, Gs = [], [], []
+        for gi, key in enumerate(file_keys):
+            xi, yi = _ns_one_file(key, per_traj, stride, every)
+            Xs.append(xi)
+            Ys.append(yi)
+            Gs.append(np.full(len(xi), gi, dtype=np.int64))
+        return np.concatenate(Xs), np.concatenate(Ys), np.concatenate(Gs)
 
     # Cache key: spelling out every file key overran Windows' 260-char MAX_PATH at 26 files
     # (408 chars) and surfaced as FileNotFoundError at SAVE time, discarding a completed
