@@ -415,6 +415,22 @@ writing. The 45 nominal-placement solves from the attempt are on disk at
 `data/3d-ice-layout-geometry7/geometry7/` but are placement-identical duplicates of the
 existing pilot, not shelf data -- do not zip or use them as such.
 
+**geometry2a has the same class of failure in `random_block_placement`, for a different
+reason.** Attempted 2026-09-18 to extend §9.17's hotspot-localisation measurement to a
+second SHARP geometry (geometry2a's fixed-placement peak spread is 297 µm, sharper than
+geometry1's 324 µm). `random_block_placement` places each of geometry2a's 6 power blocks
+independently via rejection sampling, in listed order, with no size-ordering heuristic --
+unlike `random_placement`'s chiplet path, which places largest-first specifically because
+naive ordering failed on geometry6 (see that function's docstring). geometry2a packs 6
+blocks at **51.6% die occupancy** (vs geometry1's 36.0%), and a check before committing any
+solver time found rejection sampling succeeds on only **0-1 of 45** placement draws even at
+zero margin -- caught by a 45-draw dry run with no solves, before the generation script
+(which had already begun, at default margin 250 µm) burned more than 2 scenarios on
+useless nominal-fallback data. geometry3 (20.5% occupancy, 8 blocks) has no such problem:
+45/45 draws succeed at the default margin, and its shelf generation proceeded. Fixing
+geometry2a needs the same largest-first ordering `random_placement` already uses, ported
+into `random_block_placement`; not built as of this writing.
+
 ---
 
 ## Inference Cost (per scenario, single T4, batch=1)
