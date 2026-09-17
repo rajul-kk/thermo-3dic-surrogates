@@ -2165,8 +2165,10 @@ The audit now computes persistence automatically whenever input and output share
 time pairs from only 4 trajectories, consecutive pairs overlap (the target of one is the input
 of the next), and fields are spatially subsampled 4×. The split is contiguous, so the test set
 falls almost entirely in one held-out trajectory, but the effective sample size is far below
-300. The persistence result is robust to this — it involves no fitting — but the linear-probe
-R² should be read as optimistic.
+300. The persistence result is robust to *this specific* concern — it involves no fitting —
+but the linear-probe R² should be read as optimistic. **It is not robust to a different
+concern: tested across independent simulation runs rather than within this one, persistence's
+own dominance reverses — see §9.16h.**
 
 #### 9.16c Four metric traps found by running these benchmarks
 
@@ -2418,6 +2420,71 @@ situation a prior-art check exists to resolve. The honest position is in
 Items 1–3 are diagnostic and methodological rather than architectural. Item 4 is the closest
 thing in this paper to a conceptual contribution. None of them is "a new architecture beats
 the state of the art", and this section exists so that no reader mistakes them for that.
+
+#### 9.16h §9.16b's persistence dominance does not survive testing on independent simulation runs (2026-09-17)
+
+§9.16b measured persistence beating a linear fit on PDEBench Navier–Stokes at every stride
+tested, and flagged its own weakness explicitly: the 300 samples come from only 4 trajectories
+in one 9.9 GB file, are not i.i.d., and "the linear-probe R² should be read as optimistic."
+That caveat undersold the problem. It is not just the linear probe that needs re-checking —
+**persistence's dominance itself was a property of that one file, not of the benchmark.**
+
+**Setup.** PDEBench's NS_incom directory holds hundreds of sibling files
+(`ns_incom_inhom_2d_512-N.h5` for N up to at least 149, found via the DaRUS dataset's file
+listing), each an independently generated simulation run with its own initial/forcing
+conditions, same 4-trajectories × 1000-steps × 512×512×2 layout. We pulled 4 more
+(`ns_incom_{10,11,13,14}`, alongside the original `ns_incom_0`) and ran **leave-one-file-out**
+cross-validation: fit the PCA-ridge linear probe (same search the audit uses) on 4 files,
+test on the 5th, held out entirely — genuinely independent samples, not held-out time within
+one correlated trajectory set. `scripts/analyze_ns_persistence_robustness.py`.
+
+| stride | linear R² (leave-1-file-out, mean±std over 5 folds) | persistence R² | mean-field R² |
+|---|---|---|---|
+| 2 | **0.893 ± 0.016** | 0.594 | −0.059 |
+| 10 | **0.882 ± 0.019** | 0.467 | −0.054 |
+| 25 | **0.789 ± 0.032** | 0.234 | −0.050 |
+| 50 | **0.655 ± 0.052** | −0.236 | −0.049 |
+| 100 | **0.280 ± 0.114** | −1.616 | −0.050 |
+| 200 | −0.027 ± 0.063 | −5.943 | −0.059 |
+| 400 | −0.240 ± 0.079 | −17.908 | −0.084 |
+
+**The result reverses.** Linear beats persistence at every stride tested, from 2 to 400 — the
+opposite ordering from §9.16b's single-file measurement, where persistence scored 0.9999 at
+stride 2 and still beat linear at stride 200. Cross-file persistence at stride 2 is 0.594, not
+0.9999: assuming "nothing changed" is a far weaker predictor once tested against an
+independent simulation run rather than a held-out time window inside the same one. The
+linear probe, by contrast, generalises across files reasonably well through stride 50 and
+degrades gracefully rather than collapsing.
+
+**What this means, stated carefully.** §9.16b's number is not wrong — it is a correct
+measurement of a narrower thing than it was framed as. "Persistence beats linear on PDEBench
+Navier–Stokes" is true *within one simulation's trajectories* and false *across independent
+simulation runs of the same generative process*. The two are different generalisation claims,
+and a reader evaluating a forecast system against persistence needs to know which one is
+being tested — the field's implicit assumption, following WeatherBench, is usually the
+single-realisation case (persistence forecasting for one storm system, not across storms),
+so §9.16b's original framing is defensible for that use, but the file-level fragility was not
+previously measured or disclosed.
+
+**The more interesting reversal for this paper's own argument.** Every other finding in this
+report is "a trivial baseline exposes an inflated neural-model claim." This one runs the other
+way: the *trivial, unfit* baseline (persistence) is the one that fails to generalise, while
+the *fitted linear* model degrades gracefully across independently generated test conditions.
+Neither a mean-field, persistence, nor linear baseline should be assumed representative from
+a single simulation's worth of evaluation data — the failure mode this section adds is
+under-sampling simulation seeds, distinct from the under-sampling of scenarios (§9.1a) and
+of splits (§9.12c) already reported.
+
+**Caveats.** Only 5 files (20 trajectories), all drawn from the same DaRUS release and
+generation script, so this bounds file-to-file variance within one dataset's forcing
+distribution — it does not test transfer to a differently generated NS dataset. `per_traj=6`
+start times per trajectory keeps n at 120 per stride, still modest for a 32,768-dimensional
+target; the PCA-ridge search is cross-validated within the training files only, so it cannot
+leak the held-out file. This is, as far as we can find, not previously reported, and is the
+strongest single candidate in this project for a short standalone note: it is a concrete,
+reproducible correction to a specific published-benchmark practice (evaluating short-horizon
+persistence within one simulation), not a restatement of known ROM theory the way §9.15c/9.16g
+are.
 
 ## 11. Conclusion
 

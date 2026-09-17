@@ -23,6 +23,15 @@ FILES = {
     'ns_incom_0':     '133280',   # 2D/NS_incom/ns_incom_inhom_2d_512-0.h5         9.9 GB
     'shallow_water':  '133021',   # 2D/shallow-water/2D_rdb_NA_NA.h5              6.6 GB
     'diff_react':     '133017',   # 2D/diffusion-reaction/2D_diff-react_NA_NA.h5 13.2 GB
+    # Sibling NS_incom files (same 4-trajectories-x-1000-steps-x-512x512x2 layout), looked up
+    # via the DaRUS dataset file listing 2026-09-16 -- used only to get INDEPENDENT simulation
+    # runs (different initial/forcing conditions) for a leave-one-file-out robustness check on
+    # the §9.16b persistence finding, which was previously measured on a single file's 4
+    # trajectories only.
+    'ns_incom_10':    '133309',   # ns_incom_inhom_2d_512-10.h5
+    'ns_incom_11':    '133336',   # ns_incom_inhom_2d_512-11.h5
+    'ns_incom_13':    '133304',   # ns_incom_inhom_2d_512-13.h5
+    'ns_incom_14':    '133281',   # ns_incom_inhom_2d_512-14.h5
 }
 
 URL = 'https://darus.uni-stuttgart.de/api/access/datafile/{}'
@@ -181,3 +190,48 @@ def navier_stokes(n_pairs: int = 300, stride: int = 2, every: int = 4
         return np.asarray(Xs), np.asarray(Ys)
 
     return _cached(f'ns_incom_p{n_pairs}_s{stride}_e{every}', build)
+
+
+def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, every: int = 4
+                             ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Same task as navier_stokes(), but pooled across several independent NS_incom files.
+
+    Each file is a separate 3D-ICE-unrelated PDEBench simulation run (different initial/
+    forcing conditions), so this -- unlike navier_stokes() -- gives genuinely independent
+    samples across files, letting a leave-one-file-out split test the §9.16b persistence
+    finding without the single-file time-correlation caveat. Returns (X, Y, group) where
+    `group` is an integer file index per sample, for use as CV groups.
+    """
+    def build():
+        Xs, Ys, Gs = [], [], []
+        for gi, key in enumerate(file_keys):
+            with _open(key) as h:
+                v = h['velocity']                                   # (4, 1000, 512, 512, 2)
+                n_traj, n_t = v.shape[0], v.shape[1]
+                usable = n_t - stride
+                if usable <= 0:
+                    raise ValueError(f'stride {stride} exceeds trajectory length {n_t}')
+                step = max(1, usable // per_traj)
+                for tr in range(n_traj):
+                    for i in range(per_traj):
+                        t0 = i * step
+                        if t0 + stride >= n_t:
+                            break
+                        Xs.append(np.asarray(v[tr, t0, ::every, ::every],
+                                             dtype=np.float64).ravel())
+                        Ys.append(np.asarray(v[tr, t0 + stride, ::every, ::every],
+                                             dtype=np.float64).ravel())
+                        Gs.append(gi)
+        return np.asarray(Xs), np.asarray(Ys), np.asarray(Gs)
+
+    key = f'ns_multi_{"_".join(file_keys)}_pt{per_traj}_s{stride}_e{every}'
+    p = CACHE / f'{key}.npz'
+    if p.exists():
+        d = np.load(p)
+        log.info('%s: cached %s -> %s', key, d['X'].shape, d['Y'].shape)
+        return d['X'], d['Y'], d['G']
+    X, Y, G = build()
+    CACHE.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(p, X=X, Y=Y, G=G)
+    log.info('%s: built %s -> %s (%d groups)', key, X.shape, Y.shape, len(set(G.tolist())))
+    return X, Y, G
