@@ -1994,7 +1994,7 @@ the benchmark's stated purpose, because it is the one surrogate models are given
    on geometry4-shelf and struggle on geometry5/6-shelf, and that its margin over
    `baselines.py` ridge will be largest on geometry4 (where ridge's representation is
    impoverished but the task is not hard) rather than on geometry6 (where the task itself is
-   hard). We have not run this. It is the sharpest experiment this benchmark now supports.
+   hard). Run in §9.15d: the prediction held, weakly.
 3. **The DOF diagnostic did not survive contact with these datasets.** §9.15 proposed layout
    dimensionality as the thing that predicts linear-solvability. The audit's effective-DOF
    estimate is *lowest* for geometry5/6 (2.5–3.2) — the two datasets that are hardest — and
@@ -2010,6 +2010,33 @@ measurements, and where they conflict with a cross-validated number the cross-va
 wins. The geometry4 contradiction above is real and representational, not a sampling artefact
 — the gap is far too large for that — but the specific value 0.962 should not be quoted to
 three figures.
+
+### 9.15d Running §9.15c's FNO prediction (2026-09-15)
+
+§9.15c predicted an FNO (which consumes the field, not the compact vector) should inherit the
+field representation's geometry4/geometry6 gap (+0.427), not the compact representation's
+(+2.192). Tested on `notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`, 5-fold CV, T4 GPU,
+early stopping with best-checkpoint reload, on both a plain FNO and `cno-fno-attn` (the
+strongest architecture this repo implements):
+
+| geometry | ridge (compact) | linear (field) | fno (field) | cno-fno-attn (field) |
+|---|---|---|---|---|
+| geometry4 | −0.674 | 0.941 | −0.713 | 0.541 |
+| geometry6 | −2.866 | 0.513 | −0.838 | 0.363 |
+| gap (g4−g6) | +2.192 | +0.427 | +0.125 | +0.178 |
+
+**The prediction technically held but weakly, and architecture — not epoch budget — was the
+lever that mattered.** Both FNO variants' gaps sit closer to the field prediction (0.427) than
+the compact one (2.192), but both are well below 0.427 too — the gap compresses toward zero
+under a nonlinear fit rather than cleanly inheriting either baseline's ordering. Plain `fno`
+was no better than an earlier, less careful run despite the fix; `cno-fno-attn` was a
+categorical improvement over plain `fno` (R² 0.54/0.36 vs −0.71/−0.84).
+
+**The more robust finding survives the fix: even the strongest architecture here does not beat
+a closed-form linear fit on its own input.** `cno-fno-attn` loses to `linear (field)` on both
+geometries (−0.40 and −0.15 R²), at 5–10× the GPU cost of plain `fno`. Extra nonlinear
+capacity and physics-informed loss narrow the gap to linear substantially but do not close it
+on this data.
 
 ### 9.16 Calibrating the diagnostic against canonical PDE benchmarks (2026-09-12)
 
