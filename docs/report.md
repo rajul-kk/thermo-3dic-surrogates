@@ -2516,6 +2516,93 @@ specific comparison (in-file vs. cross-file persistence generalisation) — but 
 about cheap benchmark-auditing tools specifically, not a general claim about how the field
 evaluates PDE surrogates on Navier–Stokes.
 
+### 9.17 Hotspot localisation on layout-varying data: the representation decides where the peak is (2026-09-18)
+
+Every hotspot measurement in this report until now used **fixed-placement** data
+(§9.12c/§9.12d, geometry1 and geometry6) and compared only **compact-vector** baselines.
+`scripts/layout_cv.py`, which produced §9.15b's shelf table, reports detrended MAE/R²/corr and
+no hotspot metric at all. So hotspot localisation had never been measured on layout-varying
+data — not here, and, as far as a prior-art check found, not elsewhere either:
+
+| work | layout varies? | hotspot localisation? | non-neural baseline? |
+|---|---|---|---|
+| ChipTherm (50 package families) | yes | **no — full-map MAE/RMSE only** | yes (source superposition) |
+| arXiv:2503.04049 (HBM chiplets) | **no — fixed geometry** | partial — scalar *layer index* | **no** |
+| HSLD, arXiv:2103.11177 (2021) | yes | **no — tracks max temperature, not its location** | **no — all ten are DNNs** |
+
+**The admissibility gate comes first.** Whether argmax distance means anything depends on peak
+sharpness (§9.12c). Recomputing that diagnostic on the shelf datasets reproduces §9.12c's
+published values exactly on the fixed reference (324 µm, 7188 µm) and decides the scope before
+any model is fitted:
+
+| dataset | peak spread, median (µm) | verdict |
+|---|---|---|
+| geometry1-shelf | **300** | SHARP — argmax admissible |
+| geometry4-shelf | 3106 | DIFFUSE |
+| geometry5-shelf | 4340 | DIFFUSE |
+| geometry6-shelf | 9562 | DIFFUSE |
+
+Only geometry1-shelf supports a distance metric. The others admit peak-temperature error and
+top-1% recall (a set-overlap score that survives multi-modal fields) but not argmax distance,
+and are reported that way rather than quietly scored on it. Note both geometries with fixed
+counterparts get *sharper* under randomisation (300 vs 324 µm; 3106 vs 7188 µm).
+
+**Result, geometry1-shelf, 5-fold CV, `pca_k` chosen inside the training folds only:**
+
+| baseline | \|peak err\| K | signed K | loc err median (µm) | top-1% recall | ≤1 mm | ≤2 mm |
+|---|---|---|---|---|---|---|
+| mean | 25.03 | −12.90 | 5400 | 0.088 | 0.02 | 0.13 |
+| nearest-neighbour | 21.28 | −9.77 | 5376 | 0.088 | 0.04 | 0.16 |
+| kNN (k=3) | 19.03 | −10.94 | 4884 | 0.093 | 0.09 | 0.24 |
+| **ridge (compact)** | **11.88** | −1.10 | 4809 | 0.098 | 0.09 | 0.29 |
+| **linear (field)** | 18.85 | −1.15 | **500** | **0.633** | **0.71** | **0.76** |
+
+A linear fit on the per-cell power field localises the hotspot **~9.6× better than ridge on the
+compact block vector** on the same folds, with 6.5× the top-1% recall — and ridge is not
+degenerate here (16 features, 36 training samples), so this is not a p>n artefact.
+
+**It is seed-stable, which is the check this project has twice had to enforce on itself.**
+Ratios of ridge to linear-field (>1 = field better), four seeds:
+
+| dataset | loc advantage, mean (range) | recall advantage | shelf ÷ fixed |
+|---|---|---|---|
+| geometry1-shelf | **8.75×** (7.62–9.62, sd 0.81) | 5.83× | **4.91×** |
+| geometry1-fixed | 1.78× (1.40–1.95) | 3.85× | |
+| geometry4-shelf | **2.21×** (1.72–2.68, sd 0.35) | 3.97× | **1.56×** |
+| geometry4-fixed | 1.42× (1.09–1.66) | 1.40× | |
+| geometry5-shelf | 1.10× (0.92–1.33) | **0.78×** | — |
+| geometry6-shelf | 1.31× (1.00–1.51) | 2.02× (0.94–2.72) | — |
+
+Both geometries with fixed counterparts show the advantage **larger under layout
+randomisation**, and the geometry4 ranges barely overlap (fixed max 1.66 < shelf min 1.72). The
+effect decays with layout complexity — 8.75× → 2.21× → 1.31× → 1.10× against feature dimensions
+16 → 28 → 85 → 48 — and on geometry5 the field representation is *worse* on recall (0.78×).
+
+**The counterweight belongs in the claim, not a footnote.** At the selected `pca_k`, the field
+model's peak-*temperature* error is **18.85 K against ridge's 11.88 K**. Choosing the
+representation that finds *where* the peak is costs accuracy in *how hot* it is. This is
+§9.12c's metric split — "the linear model knows how hot it gets but not where" — reappearing
+**between two linear models on different representations**, so it cannot be attributed to
+network capacity at all. It is a property of the input representation. Note also that the
+18.85 K absolute error sits against a signed error of −1.15 K: high variance, not systematic
+bias, and it should not be described as overshoot.
+
+**Four corrections, recorded because each came from a check contradicting a claim already
+made.** (1) `FIELD_PCA_K=8`, inherited from §9.15d's notebook, understated the geometry1 effect
+~2.4×; the honest fix was nested selection inside the training folds, never on the reported
+metrics. (2) "The advantage is shelf-specific" was false — it exists on fixed placement too
+(1.78×, 1.42×). (3) "It is a one-geometry result" was false, and was a single-seed artefact:
+seed 0 gave geometry4-shelf its weakest draw *and* geometry4-fixed its strongest, collapsing a
+real 1.56× contrast to an apparent 1.04×. (4) "Every compact baseline undershoots the peak" was
+false — ridge overshoots on geometry6-shelf (+1.16 K).
+
+**Scope.** Four datasets, 45 scenarios each, one simulator, one seed family of four. The
+distance metric is admissible on exactly one of them, which is also where the effect is
+strongest — that coincidence is stated rather than resolved, since a sharp peak is both what
+makes localisation measurable and what makes it findable. Artifact:
+`results/hotspot_layout_summary.json`; reproduce with `scripts/hotspot_eval.py --field-linear
+--seed 0`.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
