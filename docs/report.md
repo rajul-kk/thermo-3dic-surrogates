@@ -2656,6 +2656,44 @@ makes localisation measurable and what makes it findable. Artifact:
 `results/hotspot_layout_summary.json`; reproduce with `scripts/hotspot_eval.py --field-linear
 --seed 0`.
 
+**Extended to a second, independently generated SHARP geometry (2026-09-18), and it does not
+replicate cleanly.** geometry1 was the only fixed geometry other than geometry6 already in
+the project; a search for a second SHARP candidate found geometry2a (297 µm) and geometry3
+(775 µm) both qualify, but geometry2a's shelf data cannot currently be generated —
+`random_block_placement` has no size-ordering heuristic and gets 0-1/45 valid placements at
+geometry2a's 51.6% block occupancy even at zero margin, caught by a zero-cost dry run before
+any solver time was spent (`docs/compute.md`). geometry3 (20.5% occupancy) had no such
+problem: 45/45 solves succeeded with genuine movement, and its shelf peak stays sharp (734 µm,
+vs 775 µm fixed).
+
+| dataset | \|peak\| K (ridge / field) | loc median µm (ridge / field) | loc ratio, seed-mean | recall ratio, seed-mean |
+|---|---|---|---|---|
+| geometry3-shelf | 12.76 / 14.54 | 12093 / **10090** | **1.33×** (1.20–1.46, sd 0.12) | **5.73×** |
+| geometry3-fixed | **1.94** / 9.07 | 16547 / **6562** | **2.50×** (2.18–2.79, sd 0.22) | 2.53× |
+
+The **core ordering replicates**: the field representation beats ridge on both localisation
+metrics, on both shelf and fixed data, seed-stable in both cases. But the **secondary claim
+from geometry1/geometry4 — that the advantage is larger under layout randomisation — reverses
+on localisation distance**: geometry3-fixed's 2.50× exceeds geometry3-shelf's 1.33×, the
+opposite of geometry1 (4.91× shelf vs 1.78× fixed) and geometry4 (1.56× shelf vs fixed). The
+recall metric goes the other way, consistent with geometry1/4 (5.73× shelf vs 2.53× fixed).
+The two metrics disagree with each other on this geometry, which they did not on geometry1 or
+geometry4.
+
+One number in this table stands on its own regardless of the shelf/fixed question: on
+geometry3-fixed, **ridge's own localisation (16547 µm) is worse than the trivial mean
+predictor (14230 µm)**, while ridge is simultaneously the best model at peak temperature
+(1.94 K, next best 4.16 K). The "best" compact baseline by conventional metrics can be
+pathologically bad at localisation specifically — a sharper instance of §9.12c's metric split
+than any single-geometry result in this section shows on its own.
+
+**Honest reading.** The claim that survives across two independently generated SHARP
+geometries is narrower than either alone suggested: *a linear fit on the field representation
+localises hotspots better than ridge on the compact vector, consistently and seed-stably, on
+sharp-peaked geometries regardless of whether layout varies.* The claim that layout
+randomisation specifically *amplifies* this advantage is geometry- and metric-dependent, not
+general, and should not be stated as a rule.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
