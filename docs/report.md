@@ -111,6 +111,11 @@ This paper makes the following contributions:
 > was a stale pre-regime-fix number (§9.1a re-measures all six geometries at 0.89–0.99),
 > and §9.15b now has three datasets where ridge is the *worst* model tested. Contributions
 > 2 and 4 are narrowed accordingly; 7–9 are new.
+>
+> **Correction, 2026-09-18.** "7... are new" did not hold up. A prior-art check (§9.16i)
+> found layout-randomised thermal benchmarks predate this project by years (HSLD 2021,
+> ChipTherm). Contribution 7 is narrowed below to what actually survives: the measured
+> effect on this benchmark and the failed-attempt report, not the idea of the fix itself.
 
 1. An open **benchmark of 275 3D-ICE simulations across six package geometries** covering
    single-die mobile and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet
@@ -146,12 +151,16 @@ This paper makes the following contributions:
    3.4–4.4× worse than Therm-FM, so that benchmark is *not* linear-solvable; we decompose
    how much of the gap is attributable to layout conditioning versus material variation
    (§9.13, §9.14). This is the control the benchmark's own paper omits.
-7. **A benchmark fix that works, with the failed attempt reported.** Randomising chiplet
-   placement moves the dataset out of the linear regime: on three shelf-layout geometries
-   ridge becomes the *worst* model tested, and on geometry6 its median spatial R² is
-   negative and its detrended error exceeds the signal (§9.15b). Rigid translation — the
-   obvious first attempt, and one that achieves better source movement than IC-ThermBench
-   by support-overlap IoU — does *not* work, and we report why (§9.15).
+7. **Applying a known benchmark fix here, measuring its effect, and reporting a failed first
+   attempt in detail neither prior work supplies.** Layout randomisation as a fix for
+   fixed-floorplan thermal benchmarks is not new — HSLD (arXiv:2103.11177, 2021) and
+   ChipTherm (50 placement-varying package families) both predate this project (§9.16i). What
+   is supplied here: the measured effect on *this* benchmark — randomising chiplet placement
+   moves three shelf-layout geometries out of the linear regime, with ridge becoming the
+   *worst* model tested and, on geometry6, negative median spatial R² and detrended error
+   exceeding the signal (§9.15b) — and the failed first attempt. Rigid translation achieves
+   better source movement than IC-ThermBench by support-overlap IoU and still does *not*
+   work; we report why (§9.15), which neither prior work does.
 8. **The finding that "linear-solvable" is a property of the input representation, not of
    the dataset** (§9.15c). The same 45 files score linear R² 0.962 from the full per-cell
    power field and −0.667 from the compact block-summary vector that surrogate papers
@@ -2515,6 +2524,50 @@ real and reproducible result, and, as far as we can find, not previously reporte
 specific comparison (in-file vs. cross-file persistence generalisation) — but it is a caution
 about cheap benchmark-auditing tools specifically, not a general claim about how the field
 evaluates PDE surrogates on Navier–Stokes.
+
+#### 9.16i Prior-art check on contribution 7: layout randomisation as a benchmark fix is not a new idea (2026-09-18)
+
+Contribution 7 (§1) reads: "A benchmark fix that works, with the failed attempt reported.
+Randomising chiplet placement moves the dataset out of the linear regime." A check run while
+scoping §9.17's literature table found this framing overclaims, in the same direction as
+§9.16f/§9.16g's earlier checks.
+
+**Layout-randomised thermal benchmarks predate this project by years.**
+
+- **HSLD** (Chen et al., arXiv:2103.11177, 2021) constructs a heat-source layout dataset with
+  components "of various sizes, shapes and intensities" placed via "two random layout sampling
+  methods," specifically to prevent the fixed-layout degeneracy this project's §9.14 diagnosed
+  independently four years later.
+- **ChipTherm** (`github.com/jihodavidjun/ChipTherm`) ships a public dataset of 10,000 HotSpot
+  maps across **50 structurally distinct package families** that vary "chiplet count, geometry,
+  composition, occupancy, and placement" — the general case, of which this project's four
+  independent-blocks/shelf datasets (§9.15b) are a narrower instance.
+
+So "randomising placement is what breaks the linear regime, and this is how you fix a
+degenerate benchmark" is not a discovery this project made; it is standard practice in the two
+most relevant prior benchmarks, one predating this project's fix by four years.
+
+**What survives, stated at the same conservative standard §9.16f/§9.16g used.** The *idea* of
+layout randomisation is prior art. Three things are not:
+
+1. **The specific measurement on this benchmark** — that randomisation moves ridge from best
+   model to worst on three of four geometries, with negative median R² and detrended error
+   exceeding the signal on geometry6 (§9.15b). Neither HSLD nor ChipTherm reports a linear
+   baseline degrading in this way; HSLD reports no non-neural baseline at all, and ChipTherm's
+   published superposition-baseline numbers do not include layout-randomised-vs-fixed baseline
+   comparisons of this kind.
+2. **The failed-attempt report** (§9.15): rigid translation achieves better source movement
+   than IC-ThermBench by support-overlap IoU and still does not break the linear regime,
+   because degrees of freedom, not movement per se, is what matters. Neither prior work reports
+   an attempted fix that failed and why.
+3. **§9.15c's representation-dependence finding**, run on these specific datasets — already
+   narrowed by §9.16g to "a benchmarking-flavoured restatement of the affine/non-affine
+   distinction," but the empirical demonstration on layout-randomised 3D-IC data is still a new
+   data point, now against two additional confirmed priors rather than none.
+
+**Contribution 7 is narrowed accordingly.** The framing "we built a fix" should read "we
+applied a fix already standard elsewhere, and report the measured effect and the failed first
+attempt in detail neither prior work supplies." Edited in §1 below.
 
 ### 9.17 Hotspot localisation on layout-varying data: the representation decides where the peak is (2026-09-18)
 
