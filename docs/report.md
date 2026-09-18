@@ -1906,16 +1906,21 @@ model is worse than that field's own spatial mean — i.e. outright failures:**
 
 **Three findings, one of which is a correction.**
 
-**(1) On all three shelf-layout geometries ridge is now the worst model, not the best.** On
-geometry4, geometry5 and geometry6 ridge is last by spatial R² on *both* mean and median, and
-it is the only model whose mean R² is strongly negative. It fails outright — worse than the
-field's own mean — on 12/45, 17/45 and **26/45** held-out scenarios, against 3–7/45 for the
-distance-based baselines. **geometry6 is the decisive case:** ridge's *median* R² is negative
-(−0.303), i.e. on more than half of held-out scenarios it is beaten by that scenario's own
-spatial mean, and its normalised detrended error is **1.035 — the error exceeds the signal it
-is trying to predict.** This is the first configuration in this project where the closed-form
-linear fit is not merely adequate-but-uninteresting; it is beaten outright by a
-3-nearest-neighbour lookup.
+**(1) On all three shelf-layout geometries ridge is now the worst model by mean R², not the
+best.** It is the only model whose mean R² is strongly negative on all three, and it fails
+outright — worse than the field's own mean — on 12/45, 17/45 and **26/45** held-out scenarios,
+against 3–7/45 for the distance-based baselines. **By median R², this holds on geometry5 and
+geometry6 but not geometry4** — a check run 2026-09-18 while drafting `docs/summary.md`
+found that on geometry4 the trivial *mean-field* baseline has the lower median (0.345 vs
+ridge's 0.423), so ridge is not last by median there; the original text overclaimed "on both
+mean and median" for all three, and is corrected here rather than silently edited. The
+heavy-tailed distribution this table's own note warns about is the direct cause: geometry4's
+mean baseline has a worse *typical* scenario than ridge but a less catastrophic *average* one.
+**geometry6 is the decisive case regardless:** ridge's *median* R² is negative (−0.303), i.e.
+on more than half of held-out scenarios it is beaten by that scenario's own spatial mean, and
+its normalised detrended error is **1.035 — the error exceeds the signal it is trying to
+predict.** This is the first configuration in this project where the closed-form linear fit is
+not merely adequate-but-uninteresting; it is beaten outright by a 3-nearest-neighbour lookup.
 
 **(2) Ridge's failure mode is confident misplacement, not shrinkage.** The obvious explanation
 for a low R² with a competitive det.MAE is that ridge regresses toward a flat field, which R²
