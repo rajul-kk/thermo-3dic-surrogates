@@ -2740,6 +2740,39 @@ sharp-peaked geometries regardless of whether layout varies.* The claim that lay
 randomisation specifically *amplifies* this advantage is geometry- and metric-dependent, not
 general, and should not be stated as a rule.
 
+**Extended to a third SHARP geometry (2026-09-22): geometry2a's shelf data, previously judged
+impossible to generate, was fixed.** `random_block_placement`'s failure was diagnosed as a
+size-ordering problem and a fix along those lines was predicted above and in `docs/compute.md`
+— that prediction was tested and found wrong (still 0/45 valid placements after adding
+largest-first ordering). The actual fault was structural: pure rejection sampling has no
+memory across attempts, so any single block failing discards every other placed block and
+restarts all six from scratch, which largest-first ordering does nothing to fix. Replaced with
+randomised first-fit search (a shuffled grid of candidate positions per block, not one random
+draw); this reaches 45/45 valid placements, and the resulting shelf peak stays sharp (294 µm,
+vs 297 µm fixed) — a third genuine SHARP-geometry data point, not a reinterpretation of
+existing data.
+
+| dataset | \|peak\| K (ridge / field) | loc median µm (ridge / field) | loc ratio, seed-mean | recall ratio, seed-mean |
+|---|---|---|---|---|
+| geometry2a-shelf | 4.60 / 16.67 | 3275 / **570** | **6.28×** (5.74–6.74, sd 0.41) | **10.51×** |
+| geometry2a-fixed | **3.31** / 10.53 | 4764 / **3673** | 1.08× (0.85–1.30, sd 0.16) | 2.35× |
+
+Two results, both worth stating plainly. **The core ordering replicates a third time**: field
+beats ridge on both localisation metrics, on both shelf and fixed data, at the largest margin
+yet on shelf (6.28×, second only to geometry1's 8.75×). **The shelf-amplifies-it pattern also
+replicates here** (shelf÷fixed = 5.81×, close to geometry1's 4.91×) — so of three geometries
+tested for this secondary claim, two (geometry1, geometry2a) show strong amplification under
+layout randomisation and one (geometry3) shows a mild reversal on distance specifically. That
+is still not evidence for a general rule, but it now reads as "usually amplifies, with a
+documented exception" rather than "the pattern doesn't hold" — the honest reading below is
+adjusted to reflect three data points, not two.
+
+**Revised honest reading, after three geometries.** The claim that survives is the same core
+ordering, now on firmer ground (seed-stable on all three: sd 0.81/0.12/0.41). The
+shelf-amplification claim is *directionally* supported (2 of 3) but with a real, unexplained
+exception (geometry3) rather than a clean rule — it should be stated as "commonly but not
+universally amplified," not omitted and not asserted as general.
+
 ### 9.18 The auditing protocol applied to a 4th domain (materials science): a positive counterexample, not another finding (2026-09-22)
 
 Contribution 9's protocol (non-neural baselines, k-fold CV, comparison against a published
