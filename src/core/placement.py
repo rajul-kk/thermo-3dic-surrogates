@@ -96,9 +96,20 @@ def lateral_chiplets(geometry) -> List[Tuple[Tuple[float, float, float, float], 
 
 
 def random_block_placement(geometry, rng, margin_um: float = 500.0,
-                           max_tries: int = 2000) -> Dict[str, Offset]:
-    """Place every power block INDEPENDENTLY anywhere in the footprint, not as a rigid group."""
-    blocks = geometry.power_blocks
+                           max_tries: int = 2000, grid_um: float = 100.0
+                           ) -> Dict[str, Offset]:
+    """Place every power block INDEPENDENTLY anywhere in the footprint, not as a rigid group.
+
+    Largest-first ordering alone (the fix that saved random_placement's chiplet packing on
+    geometry6) does NOT transfer here -- tested and found to still fail 0/45 at geometry2a's
+    51.6% block occupancy (docs/compute.md, 2026-09-22). The reason is structural, not just
+    ordering: pure i.i.d. rejection sampling has no memory across attempts, so ANY single
+    block failing discards all others placed so far and restarts from zero. Fixed with a
+    randomised first-fit search instead: each block gets a shuffled grid of candidate anchor
+    points (not one random draw) and takes the first non-overlapping one, so a hard block
+    gets thousands of tries within a single overall attempt rather than one.
+    """
+    blocks = sorted(geometry.power_blocks, key=lambda b: -b.width * b.height)
     W, H = geometry.die_width, geometry.die_length
     for _ in range(max_tries):
         placed, offsets, ok = [], {}, True
@@ -106,14 +117,21 @@ def random_block_placement(geometry, rng, margin_um: float = 500.0,
             hi_x, hi_y = W - b.width, H - b.height
             if hi_x < 0 or hi_y < 0:
                 return {}
-            nx = float(rng.uniform(0.0, hi_x))
-            ny = float(rng.uniform(0.0, hi_y))
-            cand = replace(b, x=nx, y=ny)
-            if any(_overlaps(cand, p, margin_um) for p in placed):
+            xs = np.arange(0.0, hi_x + grid_um, grid_um)
+            ys = np.arange(0.0, hi_y + grid_um, grid_um)
+            candidates = [(x, y) for x in xs for y in ys]
+            rng.shuffle(candidates)
+            found = None
+            for nx, ny in candidates:
+                cand = replace(b, x=float(nx), y=float(ny))
+                if not any(_overlaps(cand, p, margin_um) for p in placed):
+                    found = cand
+                    break
+            if found is None:
                 ok = False
                 break
-            placed.append(cand)
-            offsets[b.name] = (nx - b.x, ny - b.y)
+            placed.append(found)
+            offsets[b.name] = (found.x - b.x, found.y - b.y)
         if ok and len(offsets) == len(blocks):
             return offsets
     log.warning('random_block_placement: no valid layout for %s in %d tries; '

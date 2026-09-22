@@ -427,9 +427,20 @@ solver time found rejection sampling succeeds on only **0-1 of 45** placement dr
 zero margin -- caught by a 45-draw dry run with no solves, before the generation script
 (which had already begun, at default margin 250 µm) burned more than 2 scenarios on
 useless nominal-fallback data. geometry3 (20.5% occupancy, 8 blocks) has no such problem:
-45/45 draws succeed at the default margin, and its shelf generation proceeded. Fixing
-geometry2a needs the same largest-first ordering `random_placement` already uses, ported
-into `random_block_placement`; not built as of this writing.
+45/45 draws succeed at the default margin, and its shelf generation proceeded.
+
+**Correction, 2026-09-22: largest-first ordering alone does not fix this, and it was fixed
+differently.** Porting `random_placement`'s largest-first heuristic into
+`random_block_placement` (predicted here as the fix) was tried first and tested with the
+same zero-cost dry run: **still 0/45** at every margin tested (500/250/100 µm). The reason
+is structural, not an ordering artefact: pure i.i.d. rejection sampling has no memory across
+attempts, so any single block failing to place discards every other block already placed in
+that attempt and restarts all six from scratch -- ordering which block goes first doesn't
+change that a 6-block, 51.6%-occupancy configuration has to succeed on all six simultaneous
+independent draws. Fixed instead with randomised first-fit: each block searches a shuffled
+grid of candidate anchor points (100 µm spacing) rather than drawing one random position, so
+a hard-to-place block gets thousands of tries within a single attempt instead of one. This
+reaches **45/45** valid draws in ~3.5 s. `src/core/placement.py::random_block_placement`.
 
 ---
 
