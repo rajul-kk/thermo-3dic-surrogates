@@ -1,6 +1,6 @@
 # Plan: adding the missing non-neural baseline to IC-ThermBench
 
-**Status:** scoped 2026-09-10. Data downloaded and verified (4.6 GB, `data/ic-thermbench/`, gitignored). Channel semantics measured (§2). Loader and metric parity **done and verified exactly** (§6 steps 2-3). Next: run the three baselines (§5).
+**Status: done.** All three baselines were run; results are in `docs/report.md` §9.13–§9.13c. This plan is kept as the design record.
 **Owner question this answers:** what contribution is left after IC-ThermBench, and can this
 repo make it without GPU compute?
 
