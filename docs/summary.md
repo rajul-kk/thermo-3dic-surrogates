@@ -267,6 +267,10 @@ width reflects the point models' peak-temperature error.
 - **Sample sizes are small** (45 scenarios per layout-varying geometry) for the
   high-dimensional layout spaces involved; absolute numbers should be read as directional,
   not asymptotic.
+- **The packages are reduced-scale, not models of current products.** The largest (geometry7,
+  868 mm², 1 kW) is about a sixth of a Rubin-class package's area at roughly half its power,
+  with 2-die HBM stacks instead of 12–16-high HBM4. The linearity findings do not depend on
+  scale; absolute temperatures do (`docs/assumptions.md`).
 - **geometry7 has no layout-varying data**: its chiplets exceed the die width for 1D
   shelf-packing (`docs/compute.md`). The 45 files in `data/3d-ice-layout-geometry7/` are
   nominal-placement duplicates and are not used.

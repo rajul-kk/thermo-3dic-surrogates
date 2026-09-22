@@ -669,7 +669,7 @@ def build_geometry6() -> Geometry:
 
 
 def build_geometry7() -> Geometry:
-    """Geometry 7: CoWoS-L-class reticle-stitched package (Rubin/Rubin-Ultra-like)."""
+    """Geometry 7: CoWoS-L-style package (2 compute + 2 I/O dies + 8 HBM4), reduced scale -- not a Rubin model."""
     mat_cu    = MaterialLibrary.get('copper')
     mat_tim   = MaterialLibrary.get('tim')
     mat_si_lk = MaterialLibrary.get('silicon_low_k')

@@ -127,7 +127,7 @@ class MaterialLibrary:
             description='Cu-Cu hybrid bonding interface — 9µm pitch pillar array, k_eff=60 W/m·K'
         ),
 
-        # geometry7 (CoWoS-L-class, Rubin-like reticle-stitched package)
+        # geometry7 (CoWoS-L-style package, reduced scale)
         'organic_substrate': Material(
             name='organic_substrate',
             k_thermal=0.5,

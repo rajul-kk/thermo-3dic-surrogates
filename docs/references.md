@@ -593,11 +593,11 @@ is separately flagged unverified above.
 
 ### 4.5 Geometry 6 — CoWoS + 6× HBM Stacks (42 × 14 mm)
 
-Reference architecture: **AMD MI300X** (6× HBM3, compute chiplet on Si interposer).
+Loose reference: **AMD MI300X**. **Corrected 2026-09-23:** MI300X has **8** HBM3 stacks (8 × 24 GB = 192 GB), not 6, so geometry6 is a generic reduced-scale 6-HBM package, not an MI300X model.
 
 | Parameter | Our value | AMD MI300X (approx.) | Verdict |
 |---|---|---|---|
-| HBM stack count | 6 | 6 | ✓ Matches |
+| HBM stack count | 6 | **8** | ✗ Does not match |
 | HBM stack footprint | 4 × 12 mm each | ~8 × 11 mm each (HBM3 base die) | ⚠ Our stacks are narrower |
 | HBM stack pitch | 5 mm | ~6–8 mm | ⚠ Tighter than real |
 | Interposer footprint | 42 × 14 mm | ~150 × 130 mm (full package) | ⚠ Much smaller — simplified interposer |
@@ -611,7 +611,7 @@ simplified vertical stack models.
 
 AMD MI300X reference:
 AMD (2023). **AMD Instinct MI300X Architecture.** AMD White Paper.
-(Layout reference for 6× HBM3 on CoWoS interposer; confirms 6-stack configuration)
+(MI300X uses 8 HBM3 stacks; see AMD's MI300X data sheet and Hot Chips 2024 talk. The earlier note here claiming a 6-stack configuration was wrong.)
 
 ---
 

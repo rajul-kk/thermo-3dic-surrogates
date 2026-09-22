@@ -15,7 +15,7 @@ to generate the dataset in `data/3d-ice/`.
 | `geometry3` | Server die | 25 × 25 mm | 6 | — | 100 × 100 × 40 | 110,000 |
 | `geometry4` | 2.5D chiplet | 25 × 14 mm | 6 | — | 100 × 56 × 40 | 56,000 |
 | `geometry5` | 3D-on-2.5D (CoWoS, Tier 0+1) | 25 × 14 mm | 11 | 3 % (chiplet B) | 100 × 56 × 50 | 84,000 |
-| `geometry6` | CoWoS + 6× HBM (MI300X-class) | 42 × 14 mm | 11 | 3 % (each HBM) | 56 × 168 × 50 | 141,120 |
+| `geometry6` | CoWoS + 6× HBM (generic, reduced scale) | 42 × 14 mm | 11 | 3 % (each HBM) | 56 × 168 × 50 | 141,120 |
 
 **"Points/file" corrected 2026-08-16** (was stale/internally-inconsistent — audited against real files in
 `data/3d-ice/*/`, not derived from the declared mesh). 3D-ICE's z-discretization is adaptive
@@ -267,12 +267,13 @@ Three `.flp` files written per scenario.
 
 ---
 
-## Geometry 6 — CoWoS + 6 × HBM Stacks (MI300X-class, 42 × 14 mm)
+## Geometry 6 — CoWoS + 6 × HBM Stacks (generic, reduced scale, 42 × 14 mm)
 
 ### Physical Description
 
-Extends geometry5 to six HBM stacks side-by-side on the interposer, matching the
-layout of AMD MI300X (6 × HBM3). Each HBM stack is an independent two-die TSV stack
+Extends geometry5 to six HBM stacks side-by-side on the interposer. **Not a model of a
+specific product:** it was originally labelled "MI300X-class", but MI300X has *eight* HBM3
+stacks, 3D-stacked compute-on-I/O dies and a much larger interposer (corrected 2026-09-23). Each HBM stack is an independent two-die TSV stack
 (same `die_zone_1 / hybrid_bonding / tsv_zone / die_zone_2` structure as chiplet B
 in geometry5). Chiplet A (compute) is unchanged at 10 × 12 mm.
 

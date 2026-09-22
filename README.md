@@ -1,6 +1,6 @@
 # Thermo — 3D-IC Thermal Surrogate Benchmark
 
-A benchmark suite for neural thermal surrogates in 3D/2.5D IC packaging. Includes **6 realistic geometries** (single-die, TSV 3D stack, server die, chiplet-on-interposer, CoWoS+HBM, 6×HBM MI300X-like) with real [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) finite-element ground truth — not synthetic data — and implements/compares **five surrogate model families**: physics-informed neural networks (with pluggable adaptive collocation sampling), Fourier/Walsh-Hadamard/CNO neural operators, physics-informed DeepONet, an autoregressive z-layer operator, and few-shot fine-tuning across geometries. Includes zero-retraining explainability tooling for every model family.
+A benchmark suite for neural thermal surrogates in 3D/2.5D IC packaging. Includes **6 realistic geometries** (single-die, TSV 3D stack, server die, chiplet-on-interposer, CoWoS+HBM, 6×HBM CoWoS) with real [3D-ICE](https://www.epfl.ch/labs/esl/research/open-source-tools-datasets/3d-ice/) finite-element ground truth — not synthetic data — and implements/compares **five surrogate model families**: physics-informed neural networks (with pluggable adaptive collocation sampling), Fourier/Walsh-Hadamard/CNO neural operators, physics-informed DeepONet, an autoregressive z-layer operator, and few-shot fine-tuning across geometries. Includes zero-retraining explainability tooling for every model family.
 
 **Geometry count note (2026-08-06):** originally 8 geometries — `geometry2b`/`geometry2c`
 (5%/10% TSV-density variants of `geometry2a`) were removed. Their ridge-regression
@@ -60,12 +60,14 @@ Thermo/
 
 | Geometry | Type | Footprint | Layers | TSV density | Mesh | Points/file |
 |---|---|---|---|---|---|---|
-| `geometry1` | Single die | 10 × 10 mm | 6 | — | 100×100×40 | 60,000 |
-| `geometry2a` | 3D TSV stack | 8 × 8 mm | 10 | 3% (field) | 80×80×72 | 64,000 |
-| `geometry3` | Server die | 25 × 25 mm | 6 | — | 100×100×40 | 60,000 |
-| `geometry4` | 2.5D chiplet-on-interposer | 25 × 14 mm | 6 | — | 100×56×40 | 33,600 |
-| `geometry5` | CoWoS-style compute + HBM stack | 25 × 14 mm | 11 | 3% | 100×56×50 | 61,600 |
-| `geometry6` | CoWoS + 6× HBM (MI300X-like) | 42 × 14 mm | 11 | 3% | 56×168×50 | 103,488 |
+| `geometry1` | Single die | 10 × 10 mm | 6 | — | 100×100×40 | 100,000 |
+| `geometry2a` | 3D TSV stack | 8 × 8 mm | 10 | 3% (field) | 80×80×72 | 89,600 |
+| `geometry3` | Server die | 25 × 25 mm | 6 | — | 100×100×40 | 110,000 |
+| `geometry4` | 2.5D chiplet-on-interposer | 25 × 14 mm | 6 | — | 100×56×40 | 56,000 |
+| `geometry5` | CoWoS-style compute + HBM stack | 25 × 14 mm | 11 | 3% | 100×56×50 | 84,000 |
+| `geometry6` | CoWoS + 6× HBM (generic, reduced scale) | 42 × 14 mm | 11 | 3% | 56×168×50 | 141,120 |
+
+These are plausible but **reduced-scale** packages, not models of specific products: e.g. AMD MI300X has 8 HBM3 stacks and NVIDIA Rubin two near-reticle compute dies with 8 HBM4 stacks on a ~70 × 76 mm package at ~1.8–2.3 kW. Realism gaps are listed in [`docs/assumptions.md`](docs/assumptions.md).
 
 Convective (HTC) boundary cooling is applied at `z = 0` (the `heat_sink` layer), matching 3D-ICE's ground-truth `bottom heat sink` directive. Full layer stacks, material properties, and scenario details are in [`docs/geometry_reference.md`](docs/geometry_reference.md).
 

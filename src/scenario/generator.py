@@ -759,7 +759,7 @@ class ScenarioGenerator:
         # HBM dies the SAME power range as compute logic, producing scenarios
         # where HBM3 stacks exceed their ~95-105°C junction-temperature spec
         # (geometry6 recorded T up to 134°C) -- unrealistic for the "6x HBM3,
-        # MI300X-like" claim in that geometry's docstring. 2.0 W/cm² ceiling
+        # MI300X-like" claim geometry6's docstring then made (since corrected: MI300X has 8 stacks). 2.0 W/cm² ceiling
         # gives ~4-6x headroom above typical HBM load for legitimate worst-case
         # coverage without reaching logic-die-like power density.
         # Applies to: geometry6 hbm{n}_d1/d2, geometry5 chipB_d1_c*/chipB_d2_c*

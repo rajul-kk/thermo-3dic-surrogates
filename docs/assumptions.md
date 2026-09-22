@@ -246,8 +246,9 @@ is <3 K.
 **What we do:** Six identical HBM stacks at 5 mm pitch on a 42 × 14 mm interposer.
 Each stack is 4 × 12 mm.
 
-**Real hardware (AMD MI300X):** Six HBM3 stacks, each comprising 12 DRAM dies +
-1 base die = 13 layers, total height ~720 µm. Stacks have variable pitch (not uniform).
+**Real hardware:** AMD MI300X has **eight** HBM3 stacks (not six — corrected 2026-09-23), each
+12 DRAM dies + 1 base die, ~720 µm tall; NVIDIA Rubin has 8 HBM4 stacks whose base die is on a
+logic process and is itself a significant heat source. geometry6 is a generic reduced-scale package.
 
 **Impact:** The multi-layer HBM stack is collapsed to a two-die model (die_zone_1 +
 tsv_zone + die_zone_2 = 205 µm). This underestimates the vertical thermal resistance
@@ -278,6 +279,7 @@ resistance.
 | Uniform k in die_zone (g4/5/6) | Simplifying | 5–15 K in underfill gap | Low (data-dominant PINN) |
 | Two-die HBM model (vs. 12-die real HBM3) — geometry6 | Simplifying | ~3.5× underestimate of HBM vertical R | Low (interposer gradients unaffected) |
 | No die-height mismatch (g5/g6) | Simplifying | <3 K | Low |
+| Reduced package scale (g6: 588 mm², g7: 868 mm² vs ~5300 mm² Rubin package; 700–1000 W vs ~1.8–2.3 kW) | Simplifying | Lateral spreading distances and absolute temperatures not representative of current products | Low for the paper's claims (linearity is scale-independent); high for any realism claim |
 
 ---
 
@@ -287,7 +289,7 @@ resistance.
 
 **What was wrong:** The scenario generator's power patterns (`uniform`, `split_chiplet_b_hot`, etc.) assigned HBM/memory-stack dies (geometry5's `chipB_d1*`/`chipB_d2*`, geometry6's `hbm{n}_d1`/`hbm{n}_d2`) the **same power-density range as compute logic** — up to 20 W/cm² in extreme scenarios. Real HBM3 dies dissipate roughly 0.1–0.5 W/cm² under typical-to-heavy load; the uncapped scenarios pushed HBM dies well past their ~95–105°C junction-temperature reliability spec (geometry6 recorded a peak of **134°C** across the training set). This directly contradicted geometry6's own docstring claim of representing an "MI300X-like" (real-chip) configuration.
 
-**Fix:** `src/scenario/generator.py::_apply_pattern` now caps any block matching `hbm*`, `chipB_d1*`, or `chipB_d2*` to 2.0 W/cm² regardless of pattern, applied as a post-process step after every power-pattern branch. geometry5 and geometry6's full 55-scenario datasets were regenerated via 3D-ICE after the fix. **Result:** geometry6's max training-scenario temperature dropped from 134°C to 94.8°C, now inside the realistic HBM3 envelope.
+**Fix:** `src/scenario/generator.py::_apply_pattern` now caps any block matching `hbm*`, `chipB_d1*`, or `chipB_d2*` to 2.0 W/cm² (raised to 8.0 W/cm², `_HBM_POWER_CAP_WCM2`, with the 2026-07-31 power-regime change) regardless of pattern, applied as a post-process step after every power-pattern branch. geometry5 and geometry6's full 55-scenario datasets were regenerated via 3D-ICE after the fix. **Result:** geometry6's max training-scenario temperature dropped from 134°C to 94.8°C, now inside the realistic HBM3 envelope.
 
 **Original (pre-fix) data:** backed up to `data/3d-ice_backup_pre_hbm_cap/` if a before/after comparison is needed.
 
