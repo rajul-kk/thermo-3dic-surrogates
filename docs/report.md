@@ -2943,6 +2943,73 @@ rounding conventions, and count how many mutants land in different folds — but
 argument above already makes a large effect unlikely, so this is recorded as a closed,
 negative lead rather than queued as an open task.
 
+### 9.22 The quadratic-manifold correction test (problem statement 4): the result reverses under a control, and it was never written up until the control was run (2026-09-22/25)
+
+§9.16j's ROM-theory check named a concrete follow-up: if §9.15c's representation gap is a
+Kolmogorov-barrier / affine-structure-loss phenomenon (the reading ROM theory supports), a
+mild nonlinear correction on the *same* compact features — a literal quadratic-manifold
+term, all pairwise products of the standardised compact vector — should recover much of the
+gap to the field-representation ceiling. If instead the gap is plain information loss (the
+compact vector discards spatial detail no quadratic term in the *same* inputs can recover),
+adding quadratic terms should do little. This was run, produced a striking number, and **the
+striking number turned out not to mean what it appeared to.** Nothing about this test was
+published before the control below was run.
+
+**First pass, single seed, three shelf geometries — `scripts/quadratic_manifold_test.py`:**
+
+| geometry | features | quadratic features | ridge R² | quadratic R² | field R² (ref) | gap closed |
+|---|---|---|---|---|---|---|
+| geometry4 | 28 | 434 | −0.667 | −0.345 | 0.941 | 20.0% |
+| geometry5 | 48 | 1224 | −2.305 | −1.089 | 0.437 | 44.3% |
+| geometry6 | 85 | 3740 | −2.866 | 0.288 | 0.513 | **93.3%** |
+
+A pattern in this table should have been a warning sign immediately: gap-closed rises
+monotonically with feature count (20% → 44% → 93%) against training samples fixed at 36. That
+is the shape of an overfitting artefact, not of affine-structure recovery — recorded as a
+concern before any further check, not after.
+
+**Seed-stability check on geometry6 (the most dramatic number): confirmed stable, not a
+fold-split fluke.** Four seeds: 93.3%, 93.1%, 92.0%, 93.2% — range under 1.3 points. This
+*rules out* "lucky fold" as the explanation. It does **not** rule out the more basic concern,
+because a systematic artefact of ridge at extreme overparameterisation would be stable across
+seeds too — stability distinguishes "not noise" from "not real," and only tests the former.
+
+**The decisive control: does a same-sized RANDOM feature block recover the gap just as
+well?** If quadratic structure specifically matters, real pairwise products should
+outperform uninformative Gaussian noise of identical dimensionality. If the recovery is a
+generic high-dimensional-ridge artefact (benign overfitting at p≫n — 36 samples, 3740
+features), random features should do just as well or better.
+
+| seed | ridge R² | quadratic R² | random-feature R² | quadratic closed | random closed |
+|---|---|---|---|---|---|
+| 0 | −2.866 | 0.288 | 0.384 | 93.3% | **96.2%** |
+| 1 | −2.273 | 0.322 | 0.388 | 93.1% | **95.5%** |
+| 2 | −2.320 | 0.285 | 0.280 | 92.0% | 91.8% |
+
+**Random features tie or beat the real quadratic terms on all three seeds tested.** A fourth
+seed was attempted and hit a `MemoryError` (3.93 GiB allocation for a 3741×141120 array) —
+a transient resource failure, not rerun given the pattern was already unambiguous across
+three. **The ~93% "gap closed" on geometry6 is not evidence of affine-structure recovery. It
+is indistinguishable from what an uninformative feature expansion of the same size produces
+at this sample size**, and should be read as a ridge-regression artefact of severe
+overparameterisation, not a physically meaningful result.
+
+**This reverses the conclusion the experiment was designed to reach, and is reported that
+way rather than quietly dropped.** §9.16j's recommended follow-up does not, in fact,
+distinguish the affine-structure-loss reading from the information-loss reading — at this
+sample size (n=45, 36 training), any sufficiently large feature expansion inflates apparent
+held-out R² regardless of content, which makes the quadratic-manifold test uninformative here
+specifically, not supportive of either hypothesis. geometry4's and geometry5's smaller
+recoveries (20%, 44%) were not control-tested (the geometry6 case already establishes the
+method is untrustworthy at this scale, so the remaining effort was not spent confirming the
+same artefact twice); they should not be read as partial confirmations either.
+
+**What would actually distinguish the two hypotheses**, for a future attempt: matching
+training-sample count to feature count (infeasible here without materially more 3D-ICE
+solves), or a regularisation-path/information-criterion comparison between the quadratic and
+random-feature fits rather than a single-lambda held-out R² — neither attempted here given
+the control's result already answers the question this section set out to ask.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
