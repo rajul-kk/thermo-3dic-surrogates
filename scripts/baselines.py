@@ -139,12 +139,7 @@ def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
                 include_field_linear: bool = False
                 ) -> List[Dict[str, np.ndarray]]:
     """Fit every baseline on `train` and return raw predicted fields for `test`.
-
-    `include_field_linear` adds a 'linear_field' prediction: a linear fit on the FULL
-    per-cell power field rather than the compact block vector. Off by default because
-    callers that feed fit_predict (Sec 9.1a) and hotspot_eval_fno_cv (Sec 9.12d) key off
-    the returned dict, and adding a baseline unconditionally would change their tables.
-    """
+    `include_field_linear` adds a linear fit on the full power field; off by default so §9.1a/§9.12d tables are unchanged."""
     # Per-block positions enter the feature vector whenever the dataset carries them.
     # For fixed-placement data they are constant and the zero-variance guard below drops
     # them; for moving-source data (docs/report.md 9.14) they are what tells the baseline

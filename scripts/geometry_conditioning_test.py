@@ -1,16 +1,5 @@
-"""Does explicit geometry conditioning (PI-GANO-style: a per-cell signed-distance-to-block
-field, computed from the TRUE per-scenario placement) help a linear model on layout-varying
-data? Tests problem statement 7 (arXiv:2408.01600, PI-GANO) as a fast linear ablation rather
-than training a full neural operator: same linear_field_cv machinery as Sec 9.15d, with an
-extra input channel appended.
-
-Critical fix vs. the existing src/fno FNODataset.use_geometry_field option: that path looks
-up geom_obj = self.geometries.get(meta['geometry']) -- the NOMINAL geometry, identical for
-every scenario. On shelf data this is WRONG (it would condition on where blocks are NOT),
-so it is not reused here. Instead, per-scenario offsets are read from
-metadata['placement_dx_<footprint>']/['placement_dy_<footprint>'], applied via
-place_chiplets() to get the geometry actually simulated, and the SDF is computed from that.
-"""
+"""Linear ablation of geometry conditioning: append a per-scenario distance-to-block field (§9.19).
+The SDF is rebuilt from each file's placement metadata; FNODataset's use_geometry_field uses the nominal geometry."""
 import sys
 from pathlib import Path
 

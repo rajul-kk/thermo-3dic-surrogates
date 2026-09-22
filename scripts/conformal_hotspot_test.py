@@ -1,17 +1,4 @@
-"""Problem statement 8: calibrated UQ for hotspot/peak-temperature prediction. Nobody in this
-project's literature scoop found chip-thermal-specific conformal prediction or ensemble UQ for
-hotspot error -- MC Dropout was tried and found miscalibrated (docs/report.md, predictive std
-8.6-13 K on a signal whose true spatial std is ~0.3 K). This tests split conformal prediction
-instead: distribution-free, no distributional assumption, and its coverage guarantee is
-checkable directly against nominal target, unlike MC Dropout's.
-
-Nested inside the existing 5-fold CV: each outer training split is further divided into a
-proper-training set and a held-out CALIBRATION set never used to fit the point predictor.
-Nonconformity score = |true peak - predicted peak| on the calibration set; the (1-alpha)
-finite-sample-corrected quantile of that becomes a symmetric interval half-width, applied to
-the outer TEST fold. Reports EMPIRICAL coverage against the NOMINAL target -- the direct
-check MC Dropout's calibration claim (implicitly) never had.
-"""
+"""Split conformal intervals for peak temperature, nested inside 5-fold CV (§9.20)."""
 import sys
 from pathlib import Path
 

@@ -98,17 +98,8 @@ def lateral_chiplets(geometry) -> List[Tuple[Tuple[float, float, float, float], 
 def random_block_placement(geometry, rng, margin_um: float = 500.0,
                            max_tries: int = 2000, grid_um: float = 100.0
                            ) -> Dict[str, Offset]:
-    """Place every power block INDEPENDENTLY anywhere in the footprint, not as a rigid group.
-
-    Largest-first ordering alone (the fix that saved random_placement's chiplet packing on
-    geometry6) does NOT transfer here -- tested and found to still fail 0/45 at geometry2a's
-    51.6% block occupancy (docs/compute.md, 2026-09-22). The reason is structural, not just
-    ordering: pure i.i.d. rejection sampling has no memory across attempts, so ANY single
-    block failing discards all others placed so far and restarts from zero. Fixed with a
-    randomised first-fit search instead: each block gets a shuffled grid of candidate anchor
-    points (not one random draw) and takes the first non-overlapping one, so a hard block
-    gets thousands of tries within a single overall attempt rather than one.
-    """
+    """Place every power block independently anywhere in the footprint, via randomised first-fit.
+    Rejection sampling fails at geometry2a's 51.6% occupancy even largest-first (docs/compute.md)."""
     blocks = sorted(geometry.power_blocks, key=lambda b: -b.width * b.height)
     W, H = geometry.die_width, geometry.die_length
     for _ in range(max_tries):

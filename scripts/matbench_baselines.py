@@ -1,14 +1,5 @@
-"""Weak-baseline audit applied to a 4th domain: matbench_expt_gap (composition -> experimental
-band gap, eV). Same protocol as scripts/baselines.py/molprop: k-fold CV, mean/kNN/ridge on a
-deliberately simple representation, compared against the task's own published leaderboard.
-
-Data: data/matbench/matbench_expt_gap.json.gz, fetched directly from
-https://ml.materialsproject.org/projects/matbench_expt_gap.json.gz (official Matbench raw
-fold data host), 4604 samples, columns ['composition', 'gap expt']. Not re-using matminer's
-Magpie featurizer (not installed, and the point is to test a DELIBERATELY simpler
-representation than the leaderboard's own simple baseline) -- composition strings are parsed
-into raw elemental-fraction vectors only.
-"""
+"""Weak-baseline audit on matbench_expt_gap: mean/kNN/ridge on raw elemental fractions vs the leaderboard (§9.18).
+Data: data/matbench/matbench_expt_gap.json.gz from ml.materialsproject.org."""
 import gzip
 import json
 import re

@@ -1,11 +1,4 @@
-"""Stress-test §9.16b's PDEBench-NS persistence finding beyond one file's 4 trajectories.
-
-§9.16b measured "persistence beats a linear fit at short time gaps" on a single NS_incom
-file (4 correlated trajectories, contiguous split) -- flagged there as an optimistic setup
-for the linear-probe number. This script re-measures it with a leave-one-FILE-out split
-across several independent PDEBench simulation runs, and finds the stride at which linear
-catches persistence, to see whether the result is a candidate for a standalone note.
-"""
+"""Leave-one-file-out re-test of §9.16b's NS persistence finding across independent PDEBench files (§9.16h)."""
 import argparse
 import logging
 import sys

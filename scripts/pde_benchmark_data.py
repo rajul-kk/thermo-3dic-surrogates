@@ -212,13 +212,7 @@ def navier_stokes(n_pairs: int = 300, stride: int = 2, every: int = 4
 
 def _ns_one_file(key: str, per_traj: int, stride: int, every: int, attempts: int = 4
                  ) -> Tuple[np.ndarray, np.ndarray]:
-    """Time-pair slices from ONE NS_incom file, cached per file so a network failure
-    costs one file rather than the whole sweep.
-
-    A 26-file sweep died on a single FSTimeoutError and discarded everything; caching at
-    file granularity makes the sweep resumable, and each retry re-opens the remote handle
-    since a timed-out fsspec file object is not reusable.
-    """
+    """Time-pair slices from one NS_incom file, cached per file so a network failure costs one file."""
     name = f'ns_one_{key}_pt{per_traj}_s{stride}_e{every}'
     p = CACHE / f'{name}.npz'
     if p.exists():
@@ -263,14 +257,7 @@ def _ns_one_file(key: str, per_traj: int, stride: int, every: int, attempts: int
 
 def navier_stokes_multi_file(file_keys, per_traj: int = 5, stride: int = 2, every: int = 4
                              ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Same task as navier_stokes(), but pooled across several independent NS_incom files.
-
-    Each file is a separate 3D-ICE-unrelated PDEBench simulation run (different initial/
-    forcing conditions), so this -- unlike navier_stokes() -- gives genuinely independent
-    samples across files, letting a leave-one-file-out split test the §9.16b persistence
-    finding without the single-file time-correlation caveat. Returns (X, Y, group) where
-    `group` is an integer file index per sample, for use as CV groups.
-    """
+    """navier_stokes() pooled across independent NS_incom files; returns (X, Y, group) for leave-one-file-out CV."""
     def build():
         Xs, Ys, Gs = [], [], []
         for gi, key in enumerate(file_keys):

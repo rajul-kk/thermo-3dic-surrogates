@@ -1,18 +1,5 @@
-"""Does a mild nonlinear (quadratic) correction on the COMPACT representation recover the
-field-representation ceiling, or is the gap information loss the compact vector cannot fix
-at all? Directly tests the Kolmogorov-barrier/affine-structure-loss reading of Sec 9.15c
-against the alternative (the compact vector simply discards spatial detail no quadratic
-term in the SAME inputs can recover).
-
-Three models on the SAME compact per-block feature vector, 5-fold CV, seed 0 to match
-Sec 9.15b/9.15d:
-  1. ridge            -- linear, the existing Sec 9.15b/9.15c baseline
-  2. ridge + quadratic -- linear + all pairwise products of the compact features (a direct,
-                          literal instantiation of a quadratic-manifold correction), fit by
-                          the same regularised least squares
-  3. linear-on-field   -- the Sec 9.15c/9.15d ceiling, for reference only (not re-derived,
-                          quoted from the report)
-"""
+"""Does a quadratic correction on the compact vector close the gap to the field ceiling? (§9.22)
+Includes the same-sized random-feature control that showed it does not distinguish the hypotheses."""
 import sys
 from pathlib import Path
 
