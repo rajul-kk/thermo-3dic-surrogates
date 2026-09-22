@@ -2882,6 +2882,34 @@ accurate — conformal prediction guarantees *coverage*, not *narrowness*, and n
 is limited by the same peak-temperature difficulty this project has documented throughout
 (§9.12c, §9.17), not by the calibration method.
 
+### 9.21 Checked whether MoleculeNet's tie-break issue has a ProteinGym analogue: it does not (2026-09-22)
+
+Problem statement 10 asked whether MoleculeNet's undocumented Bemis-Murcko scaffold tie-break
+(§9.16f: shifts AUC up to 0.21, independently found by MOLTOP) has an analogue in ProteinGym's
+deep-mutational-scanning splits. Checked against ProteinGym's actual fold-assignment
+documentation (`OATML-Markslab/ProteinGym`) rather than assumed by analogy.
+
+**It does not, structurally.** MoleculeNet's scaffold split groups molecules by a
+many-to-one key (Bemis-Murcko scaffold) that many distinct molecules can share, so which
+group a tied molecule lands in is implementation-defined — that is the mechanism the tie-break
+exploits. ProteinGym's three schemes are different in kind: `fold_random_5` has no grouping
+key at all; `fold_modulo_5` assigns by `position mod 5`, a deterministic function of position
+with no many-way ties; `fold_contiguous_5` splits the sequence into five equal-length
+position segments, also deterministic. The only structurally comparable ambiguity is
+*boundary rounding* in `fold_contiguous_5` when a sequence length is not divisible by 5 —
+which could affect at most a handful of residues sitting exactly on a segment boundary, not
+a dataset-wide effect scaling with how many mutants share a value, the way scaffold-sharing
+does. This problem statement does not reproduce as hypothesised.
+
+**Scope of what was and was not checked.** This is a structural/documentation-level check,
+not an empirical one — the boundary-rounding case above was reasoned about, not measured
+against real per-mutant position data (would need ProteinGym's per-assay mutant CSVs, a
+separate, larger fetch). If pursued further, the concrete next step is exactly that: fetch
+one assay's mutant-level positions, compute `fold_contiguous_5` under two reasonable
+rounding conventions, and count how many mutants land in different folds — but the structural
+argument above already makes a large effect unlikely, so this is recorded as a closed,
+negative lead rather than queued as an open task.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
