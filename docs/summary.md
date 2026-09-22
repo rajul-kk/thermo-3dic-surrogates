@@ -44,6 +44,18 @@ a diagnostic method, and one (§7 below) is a genuinely new but narrow measureme
 here should be read as "neural surrogates don't work" — IC-ThermBench (§4) is a
 counter-example the paper itself supplies.
 
+**Venue fit, checked 2026-09-22.** NeurIPS renamed its Datasets & Benchmarks track to
+"Evaluations & Datasets" for 2026 and now explicitly solicits work that "analyzes strengths,
+limitations, or failure modes of existing benchmarks or evaluation practices," "studies
+benchmark saturation," and "provides rigorous reproduction, auditing, and stress-testing of
+prior evaluations" as first-class contributions — its call states submissions "need not beat
+a baseline." This paper's contributions map onto that call almost directly: contributions 2/7
+are corrective findings about existing evaluation practice, contribution 9 is exactly an
+auditing/stress-testing protocol, and contribution 6 is a reproduction check on an external
+benchmark. This is a positioning observation, not a claim of fit guaranteed to succeed — stated
+here so it is checked against the track's actual call for papers before any submission, not
+assumed.
+
 ---
 
 ## 2. Data

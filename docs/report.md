@@ -2574,6 +2574,47 @@ layout randomisation is prior art. Three things are not:
 applied a fix already standard elsewhere, and report the measured effect and the failed first
 attempt in detail neither prior work supplies." Edited in §1 below.
 
+#### 9.16j Naming what §9.15c/§9.16g actually is: representation choice as an unclaimed benchmark-difficulty confound (2026-09-22)
+
+§9.16g checked §9.15c's mechanism against ROM theory and found it correct but not new: the
+affine/non-affine parametrisation distinction is decades old, and a reduced-basis
+practitioner would have predicted the whole result. What that check did not do is check the
+*framing* — treating representation choice as a **confound in benchmark difficulty**, as
+opposed to an engineering problem to be fixed. A further literature pass, run specifically
+to check that framing rather than the mechanism, found no paper that states it this way.
+
+**The distinction, stated precisely.** The ROM/model-order-reduction literature (EIM, DEIM,
+hyper-reduction, quadratic manifolds, Nemytskii operators) treats non-affine dependence as
+something to *recover from* — the question asked is "how do we build a reduced model that
+works despite non-affine structure." No paper found asks the different, benchmarking-shaped
+question: "how much of this benchmark's reported difficulty is attributable to the
+input/output representation the benchmark authors chose, independent of the underlying
+operator or any architecture evaluated on it?" A closely related paper, "Kolmogorov n-Widths
+for Multitask Physics-Informed ML: Towards Robust Metrics" (arXiv:2402.11126), proposes
+n-width as a *task-difficulty metric*, which is adjacent — it measures how hard a given
+representation is — but does not test whether *re-representing the same underlying data*
+changes the metric, which is the specific ablation §9.15c already ran (R² 0.962 from the
+full per-cell field, −0.667 from the compact block vector, same 45 files, same physics).
+
+**Why this is worth stating as its own claim rather than folding it into §9.15c's mechanism.**
+A reader could take §9.15c/§9.16g's combined message as "nothing new here, this is textbook
+ROM theory." That undersells the part that *is* checked and not found elsewhere: neural-operator
+benchmark leaderboards routinely report one representation per benchmark and never ask whether
+the reported difficulty ordering would survive a different representation of the identical
+data. Framed this way, a plausible reading of many published "neural operator beats baseline
+X by Y%" results is that they are, in part, **measuring the n-width decay rate of an
+arbitrarily chosen representation**, not discovering an architectural capability — a claim no
+survey or benchmarking-methodology paper found in this project's searches states explicitly.
+
+**What this licenses, and what it does not.** It licenses recommending that any benchmark
+claiming a nonlinear/neural method is required should report the linear-solvability check
+under at least two representations before that claim is accepted — the natural next line in
+this project's existing recommendation to "report a linear baseline" (§11). It does **not**
+license claiming the *mechanism* is new (§9.16g already settled that), and it does not license
+claiming this framing is unique to this paper going forward — the literature moves fast enough
+that a 2026 preprint stating this explicitly could appear at any time; this section should be
+re-checked immediately before any submission that relies on it.
+
 ### 9.17 Hotspot localisation on layout-varying data: the representation decides where the peak is (2026-09-18)
 
 Every hotspot measurement in this report until now used **fixed-placement** data
@@ -2698,6 +2739,101 @@ localises hotspots better than ridge on the compact vector, consistently and see
 sharp-peaked geometries regardless of whether layout varies.* The claim that layout
 randomisation specifically *amplifies* this advantage is geometry- and metric-dependent, not
 general, and should not be stated as a rule.
+
+### 9.18 The auditing protocol applied to a 4th domain (materials science): a positive counterexample, not another finding (2026-09-22)
+
+Contribution 9's protocol (non-neural baselines, k-fold CV, comparison against a published
+leaderboard) was run against `matbench_expt_gap` (Dunn et al., composition → experimental
+band gap, 4604 samples), fetched directly from the official raw-fold host
+(`ml.materialsproject.org`, verified reachable and matching the published task). This was
+undertaken expecting a 4th confirmation of this project's pattern (an omitted or
+under-reported trivial baseline). **It did not find one, and the honest result is the
+opposite of what was expected.**
+
+| model | MAE (eV) | source |
+|---|---|---|
+| mean (ours) | 1.1432 | `scripts/matbench_baselines.py`, 5-fold CV, seed 0 |
+| Dummy (published) | 1.1435 | matbench.materialsproject.org leaderboard |
+| our elemental-fraction ridge | 0.8274 | same script |
+| our elemental-fraction kNN (k=5) | 0.7240 | same script |
+| **RF-SCM/Magpie (published, the leaderboard's own simple-features baseline)** | **0.4461** | leaderboard |
+| Darwin (published, best) | 0.2865 | leaderboard |
+
+Our mean baseline (1.1432) matches the published Dummy (1.1435) almost exactly — a direct
+cross-check that this replication is faithful even without the official fold indices. But our
+deliberately naive representation (raw elemental-fraction vector, no physically-informed
+descriptors) only closes 36.9% of the dummy-to-best gap; the published **RF-SCM/Magpie**
+baseline — composition turned into physically-informed elemental descriptors (Magpie),
+fit with a Random Forest — closes 81.4%, and **that baseline is already reported on the
+public leaderboard for every Matbench task**, not proposed here.
+
+**Why this is a genuine negative result, not a failed audit.** Matbench institutionalises
+exactly the practice this project has spent this whole section arguing for: every leaderboard
+entry ships alongside a Dummy baseline and a simple-features (Magpie+RF) baseline, for every
+task, by design. This is the same structural difference §9.16b already drew between
+WeatherBench (institutionalised persistence baseline) and PDEBench (missing one) — Matbench
+sits with WeatherBench, not with PDEBench or IC-ThermBench. There is no under-reported
+trivial-baseline finding to make here.
+
+**What the result does show, honestly stated.** Where this project's other three domains
+(3D-IC thermal, PDE operator learning, molecular property prediction) found that a *simple
+representation* closes most or all of the gap to neural methods, materials band-gap-from-
+composition does not: even the leaderboard's own classical (non-deep-learning) baseline
+leaves more than half the gap to the best model unclosed. The remaining gap here appears to
+be substantially about *featurisation quality* (Magpie's physically-informed descriptors vs.
+raw elemental fractions), not just model class (linear/simple vs. neural) — the opposite
+lesson from the one this paper's thermal and PDE results teach. Recorded as a genuine
+counter-example to this project's own pattern, not smoothed over: an audit protocol that only
+ever confirms its own prior finding is not being run honestly.
+
+### 9.19 Geometry conditioning as a linear-model ablation: it does not help, and the mechanism is explainable from §9.14 (2026-09-22)
+
+Problem statement 7 (a PI-GANO-style geometry-conditioned operator, arXiv:2408.01600, for the
+layout-randomised benchmark) was tested as a fast linear ablation before committing to a full
+neural-operator training run: does appending an explicit per-cell distance-to-power-block
+field — computed from the *true per-scenario placement*, not the nominal geometry — to the
+existing linear-on-field model change its cross-validated R²?
+
+**A correctness fix was required before this was even measurable.** `src/fno/model.py`'s
+existing `use_geometry_field` option looks up `self.geometries.get(meta['geometry'])` — the
+same nominal geometry object for every scenario of a given name. On shelf data this computes
+a scenario-invariant field pointing at the wrong (unmoved) block positions, which would
+silently condition on where the blocks are *not*. Not reused; instead, per-scenario offsets
+were read from each file's own metadata (`placement_dx_<footprint>`/`placement_dy_<footprint>`)
+and applied via `place_chiplets()` to reconstruct the geometry actually simulated, verified
+before use (offsets differ substantially file-to-file; inter-scenario SDF correlation ranges
+0.73 down to −0.06, confirming the field is genuinely per-scenario and not degenerate).
+
+| geometry | field-only R² | field+SDF R² (k=8) | field+SDF R² (k=32, capacity-matched) |
+|---|---|---|---|
+| geometry4 | 0.9405 | **−1.596** | 0.413 |
+| geometry5 | 0.4374 | 0.159 | — |
+| geometry6 | 0.5133 | **−0.032** | — |
+
+**Ruled out a confound before concluding anything.** The first pass (k=8, matching §9.15d)
+showed a catastrophic drop on geometry4. A `pca_k` sweep isolated that this was *partly* the
+same capacity confound §9.17 caught for geometry1 — doubling the channel count needs more
+components, and raising k to 32 recovers combo-R² from −1.60 to +0.41. But even at that
+capacity-matched point, combo (0.413) still badly underperforms field-only (0.950 at k=32) —
+ruling out "just needs more capacity" as the full explanation.
+
+**The decisive check: SDF alone, no power field at all, scores R² −1.36 to −1.84** on the same
+pipeline — actively anti-predictive on its own, not merely uninformative. This is mechanistically
+explainable from §9.14 rather than a bug: steady-state conduction is linear in the volumetric
+*source*, not in position, so a per-cell distance-to-block field carries no matching linear
+structure for a shared small-sample PCA to exploit. Concatenating it does not add a second
+useful signal alongside the power field; it adds a large-variance, physically-unrelated (in
+the linear sense) block that a k-component PCA must partly spend representing, at the power
+field's expense.
+
+**Scope of what this does and does not show.** It shows that *naive linear concatenation* of
+a geometry signal does not help, and gives a physical reason why not. It does **not** rule out
+that a genuinely nonlinear geometry encoder (an attention/graph mechanism, as PI-GANO and
+Neural Green's Functions arXiv:2511.01924 use, rather than a raw field bolted onto a linear
+fit) could extract useful structure from the same distance information — if anything, this
+result is a reason a *nonlinear* encoder might be necessary for geometry conditioning to pay
+off here, not evidence against trying one. A full neural-operator version of this test was not
+run (would require GPU training on shelf data, as in §9.15d) and remains open.
 
 ## 11. Conclusion
 
