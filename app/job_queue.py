@@ -4,6 +4,7 @@ import logging
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -43,8 +44,13 @@ class _JobLogHandler(logging.Handler):
     def __init__(self, job: Job):
         super().__init__()
         self._job = job
+        # Attached to the root logger, so without this it also captures uvicorn/access logs
+        # from every other thread while the job runs.
+        self._thread = threading.get_ident()
 
     def emit(self, record: logging.LogRecord) -> None:
+        if record.thread != self._thread:
+            return
         self._job.logs.append(self.format(record))
 
 

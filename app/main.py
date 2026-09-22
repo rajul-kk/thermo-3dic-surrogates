@@ -24,6 +24,8 @@ ICE_EXECUTABLE = os.environ.get(
     'wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator',
 )
 OUTPUT_BASE = Path('data/app')
+MAX_MESH_AXIS = 500
+MAX_MESH_XY = 250_000
 
 queue = JobQueue(output_base=OUTPUT_BASE, ice_executable=ICE_EXECUTABLE)
 
@@ -140,6 +142,12 @@ async def register_geometry(body: dict):
         if len(res) != 3 or any(int(r) <= 0 for r in res):
             raise ValueError(
                 f"mesh_resolution must be 3 positive integers [nx, ny, nz], got {res}")
+        # Cap solve size: one oversized request would otherwise tie up the single worker for
+        # hours. Limits sit ~18x above the largest built-in (56x248 in-plane, geometry7).
+        if any(int(r) > MAX_MESH_AXIS for r in res) or int(res[0]) * int(res[1]) > MAX_MESH_XY:
+            raise ValueError(
+                f"mesh_resolution {res} too large: each axis <= {MAX_MESH_AXIS}, "
+                f"nx*ny <= {MAX_MESH_XY}")
 
         geom = Geometry(
             name=name,
@@ -272,10 +280,10 @@ async def heatmap_png(job_id: str, layer: int = 0):
     job = queue.get(job_id)
     if not job or job.status != 'done' or not job.npz_path:
         raise HTTPException(404)
-    data = np.load(job.npz_path)
-    coords = data['coords']
-    temps = data['temp'] - 273.15    # K → °C
-    layers = data['layer']
+    with np.load(job.npz_path) as data:   # closes the handle; an open npz blocks deletion on Windows
+        coords = data['coords']
+        temps = data['temp'] - 273.15    # K → °C
+        layers = data['layer']
     mask = layers == layer
     if not np.any(mask):
         raise HTTPException(404, f'Layer {layer} not in this file')

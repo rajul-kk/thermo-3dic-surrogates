@@ -164,3 +164,26 @@ def test_submit_job_with_valid_and_unknown_power_block_mix_rejected(client):
         }
     })
     assert r.status_code == 422
+
+
+@pytest.mark.parametrize('name', ['../../escape', '..\\escape', 'a/b', '.hidden', '', 'x' * 129])
+def test_submit_job_with_path_like_scenario_name_rejected(client, name):
+    # scenario_name becomes a filename under data/app/<job_id>/; separators or a leading
+    # dot would let a request write outside that directory.
+    r = client.post('/jobs', json={
+        'geometry': 'geometry1',
+        'scenario_name': name,
+        'scenario_params': {
+            'power_blocks': {'block1': 3.0},
+            'htc': 5000, 't_ambient': 45.0, 'pattern': 'uniform',
+        }
+    })
+    assert r.status_code == 422
+
+
+def test_register_geometry_with_oversized_mesh_rejected(client):
+    yaml_text = VALID_YAML.replace('mesh_resolution: [50, 50, 20]', 'mesh_resolution: [5000, 5000, 20]')
+    yaml_text = yaml_text.replace('name: test_custom_geom', 'name: test_huge_geom')
+    r = client.post('/geometries', json={'yaml': yaml_text})
+    assert r.status_code == 422
+    assert 'too large' in r.json()['detail']

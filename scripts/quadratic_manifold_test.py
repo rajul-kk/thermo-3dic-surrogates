@@ -67,6 +67,11 @@ def main():
 
         ref = REFERENCE[geom]
         field_ref = ref['linear_field']
+        # 'gap closed' mixes this run's ridge R2 with the report's quoted field R2; only
+        # meaningful if this run also reproduces the report's ridge number.
+        if abs(r2_lin_mean - ref['ridge_compact']) > 0.01:
+            print(f'  WARNING {geom}: recomputed ridge R2 {r2_lin_mean:.3f} != report '
+                  f'{ref["ridge_compact"]:.3f}; gap-closed mixes inconsistent baselines')
         if field_ref is not None:
             closed = (r2_quad_mean - r2_lin_mean) / (field_ref - r2_lin_mean) * 100
             closed_s = f'{closed:.1f}%'

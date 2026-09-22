@@ -28,7 +28,9 @@ class _StubSimulator:
         return {'coords': coords, 'temperature': temps}
 
 
-def _wait_for_terminal(queue: JobQueue, job_id: str, timeout_s: float = 20.0):
+def _wait_for_terminal(queue: JobQueue, job_id: str, timeout_s: float = 120.0):
+    # Generous: the stub still runs the real pipeline, which took >20s when the full suite
+    # shared the CPU with a training run (both tests timed out; each passes in ~15s alone).
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         job = queue.get(job_id)

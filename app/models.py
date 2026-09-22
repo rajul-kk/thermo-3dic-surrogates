@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScenarioParams(BaseModel):
@@ -12,7 +12,9 @@ class ScenarioParams(BaseModel):
 
 class JobRequest(BaseModel):
     geometry: str
-    scenario_name: str
+    # Becomes a filename ({scenario_name}.npz, _stats.json) under data/app/<job_id>/, so no
+    # path separators or leading dot -- '../../x' would otherwise write outside that directory.
+    scenario_name: str = Field(pattern=r'^[A-Za-z0-9_-][A-Za-z0-9_.-]*$', max_length=128)
     scenario_params: ScenarioParams
 
 
