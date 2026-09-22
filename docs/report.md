@@ -2835,6 +2835,53 @@ result is a reason a *nonlinear* encoder might be necessary for geometry conditi
 off here, not evidence against trying one. A full neural-operator version of this test was not
 run (would require GPU training on shelf data, as in §9.15d) and remains open.
 
+### 9.20 Calibrated uncertainty for peak-temperature prediction: split conformal works where MC Dropout did not (2026-09-22)
+
+No chip-thermal work found in this project's literature scoop calibrates uncertainty
+specifically for hotspot/peak-temperature error — the one existing UQ result in this project
+(§7, `src/pinn/explain.py`) is MC Dropout, already measured miscalibrated (predictive std
+8.6–13 K on fields whose true spatial std is ~0.3 K, ~30× too large). Tested split conformal
+prediction instead: distribution-free, no distributional assumption about the residuals, and
+its guarantee is directly checkable — empirical coverage should meet or exceed the nominal
+target, not just look plausible.
+
+**Method.** Nested inside the existing 5-fold CV (`scripts/conformal_hotspot_test.py`): each
+outer training split is further divided into a proper-training set and a held-out calibration
+set (35%) never used to fit the point predictor. Nonconformity score is `|true peak −
+predicted peak|` on the calibration set; its finite-sample-corrected quantile becomes a
+symmetric interval half-width, applied to the outer test fold.
+
+| geometry | model | nominal | empirical coverage | mean half-width (K) |
+|---|---|---|---|---|
+| geometry1 (fixed) | ridge | 80% / 90% | 93.3% / 93.3% | 10.66 |
+| geometry6 (fixed) | ridge | 80% / 90% | 81.8% / 87.3% | 7.99 / 10.04 |
+| geometry1 (shelf) | ridge | 80% / 90% | 93.3% / 93.3% | 25.92 |
+| geometry1 (shelf) | linear_field | 80% / 90% | 93.3% / 93.3% | 39.50 |
+
+**A self-caught bug, corrected before trusting the first run.** The first version of this
+script inverted the standard split-conformal quantile formula — used `(1 − target)` where
+`target` already *was* the desired coverage fraction, not a standard miscoverage-rate `α`.
+That version showed empirical coverage of 20–36% against 80–90% targets, uniformly and
+severely *under*, across every row — the signature of an inversion, not a genuine finding.
+Fixed and rerun before writing any of this up.
+
+**Result: it works, unlike MC Dropout.** Empirical coverage meets or exceeds the nominal
+target in all four geometry/model combinations tested — the marginal-validity guarantee
+holds here, not just approximately. One honest caveat: 80% and 90% often land on the *same*
+half-width. This is a small-sample artefact, not a further bug — with only ~13 calibration
+points per fold, the finite-sample quantile has ~7.7%-wide resolution steps, so adjacent
+coverage targets frequently round to the same order statistic. Coverage numbers at this `n`
+should be read as directionally consistent with the guarantee, not a precise per-decile curve.
+
+**What this does and does not license.** It licenses recommending split conformal, not MC
+Dropout, as the calibration method for peak-temperature prediction on data this scarce — it
+needs no distributional assumption and its guarantee is checkable rather than asserted. It
+does **not** license a claim that peak-temperature prediction is now well-solved: the
+intervals are wide (8–40 K) precisely because the underlying point predictions are not very
+accurate — conformal prediction guarantees *coverage*, not *narrowness*, and narrowness here
+is limited by the same peak-temperature difficulty this project has documented throughout
+(§9.12c, §9.17), not by the calibration method.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
