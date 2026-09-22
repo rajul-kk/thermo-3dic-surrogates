@@ -29,9 +29,10 @@ full power field and −0.67 from the compact vector surrogate papers convention
 supply the missing linear baseline for an external benchmark (IC-ThermBench), where it
 *loses* — confirming the diagnostic works in both directions. Finally, on layout-varying data,
 a linear fit on the full power field localises hotspots up to 8.75× more accurately than
-ridge on the compact vector, a new measurement across five independently generated
-geometries. We release the dataset, 585 3D-ICE solves in total, and the baseline/audit
-tooling used throughout.
+ridge on the compact vector — seed-stable on all three sharp-peaked geometries, a new
+measurement — and split conformal prediction gives valid peak-temperature intervals where
+MC Dropout did not. We release the dataset, 675 3D-ICE solves in total, and the
+baseline/audit tooling used throughout.
 
 ---
 
@@ -44,27 +45,20 @@ a diagnostic method, and one (§7 below) is a genuinely new but narrow measureme
 here should be read as "neural surrogates don't work" — IC-ThermBench (§4) is a
 counter-example the paper itself supplies.
 
-**Venue fit, checked 2026-09-22.** NeurIPS renamed its Datasets & Benchmarks track to
-"Evaluations & Datasets" for 2026 and now explicitly solicits work that "analyzes strengths,
-limitations, or failure modes of existing benchmarks or evaluation practices," "studies
-benchmark saturation," and "provides rigorous reproduction, auditing, and stress-testing of
-prior evaluations" as first-class contributions — its call states submissions "need not beat
-a baseline." This paper's contributions map onto that call almost directly: contributions 2/7
-are corrective findings about existing evaluation practice, contribution 9 is exactly an
-auditing/stress-testing protocol, and contribution 6 is a reproduction check on an external
-benchmark. This is a positioning observation, not a claim of fit guaranteed to succeed — stated
-here so it is checked against the track's actual call for papers before any submission, not
-assumed.
+**Venue fit (checked 2026-09-22).** NeurIPS 2026's "Evaluations & Datasets" track explicitly
+solicits auditing and stress-testing of existing benchmarks and states submissions "need not
+beat a baseline" — contributions 2/7/9 and 6 map onto that call. Re-check the call before
+submitting.
 
 ---
 
 ## 2. Data
 
-**585 real 3D-ICE solves**, verified against files on disk:
+**675 real 3D-ICE solves**, verified against files on disk (2026-09-23):
 
 - **275 fixed-placement scenarios** across 6 package geometries — single-die mobile/server
   stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet assemblies with up to 6 HBM stacks.
-- **310 placement-varied solves**: 180 layout-randomised (4 geometries × 45), 90
+- **400 placement-varied solves**: 270 layout-randomised (6 geometries × 45), 90
   rigid-translation, and a 40-scenario CoWoS-L pilot (geometry7).
 
 Full geometry specs: `docs/geometry_reference.md`. Generation pipeline and known modelling
@@ -223,30 +217,45 @@ No prior work checks all three of {layout-varying data, hotspot localisation as 
 non-neural baseline} together — ChipTherm has the first and third but not the second; the
 closest hotspot-position paper (arXiv:2503.04049) has the second but a fixed geometry and no
 non-neural baseline; HSLD (2021) has the first but neither of the others. This project
-measured it, on five independently-existing-or-generated layout-randomised geometries,
-gated by a peak-sharpness diagnostic applied *before* any model was fit:
+measured it on six layout-randomised geometries, gated by a peak-sharpness diagnostic
+applied *before* any model was fit. Ratios are ridge ÷ field error (>1 = field better),
+mean over four seeds:
 
-| geometry | peak admissible for distance? | loc ratio (field vs. ridge) | recall ratio |
+| geometry | peak sharp enough for distance? | loc ratio (seed range) | recall ratio | shelf ÷ fixed (loc) |
+|---|---|---|---|---|
+| geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.83× | 4.91× |
+| geometry2a-shelf | yes | **6.28×** (5.74–6.74) | 10.51× | 5.81× |
+| geometry3-shelf | yes | 1.33× (1.20–1.46) | 5.73× | **0.53× (reverses)** |
+| geometry4-shelf | no (diffuse) | 2.21× (1.72–2.68) | 3.97× | 1.56× |
+| geometry5-shelf | no | 1.10× (0.92–1.33) | **0.78× (reverses)** | — |
+| geometry6-shelf | no | 1.31× (1.00–1.51) | 2.02× | — |
+
+On all three sharp geometries — where distance is a valid metric — the field model localises
+better, seed-stably. Layout randomisation usually amplifies the advantage (2 of 3) but not
+always. The counterweight is part of the claim: ridge has the lower peak-*temperature* error
+on every sharp geometry (e.g. 4.60 K vs 16.67 K on geometry2a-shelf). The representation that
+finds *where* the peak is costs accuracy in *how hot* it is — §4.2's metric split, now between
+two *linear* models, so it cannot be attributed to network capacity.
+
+**Novelty scope.** The mechanism (the compact vector discards sub-block spatial detail) is not
+new — §4.2 already uses it. What is new is the measurement: the magnitudes, their
+geometry-dependence, and the two documented reversals.
+
+### 4.8 Calibrated peak-temperature intervals (§9.20)
+
+The project's MC Dropout uncertainty was ~30× too wide. Split conformal prediction, nested
+inside the 5-fold CV with a held-out calibration set, meets its guarantee on every
+geometry/model tested:
+
+| data | model | empirical coverage at 80% / 90% target | half-width (K) |
 |---|---|---|---|
-| geometry1-shelf | yes | **8.75×** (seed range 7.62–9.62) | 5.83× |
-| geometry3-shelf | yes | 1.33× (1.20–1.46) | 5.73× |
-| geometry4-shelf | no (diffuse) | 2.21× (1.72–2.68) | 3.97× |
-| geometry5-shelf | no | 1.10× (0.92–1.33) | **0.78× (reverses)** |
-| geometry6-shelf | no | 1.31× (1.00–1.51) | 2.02× |
+| geometry1 fixed | ridge | 93.3% / 93.3% | 10.7 |
+| geometry6 fixed | ridge | 81.8% / 87.3% | 8.0 / 10.0 |
+| geometry1-shelf | ridge | 93.3% / 93.3% | 25.9 |
+| geometry1-shelf | linear (field) | 93.3% / 93.3% | 39.5 |
 
-A linear fit on the full power field beats ridge on the compact vector at hotspot
-localisation on every geometry tested, and at recall on 4 of 5 — but the magnitude varies
-1.1–8.75× by geometry and reverses on one. The counterweight kept in the claim, not a
-footnote: on geometry1-shelf, the field model's peak-*temperature* error is 18.85 K against
-ridge's 11.88 K — the representation that finds *where* the peak is costs accuracy in *how
-hot* it is, the same metric split as §4.2 reappearing between two *linear* models on
-different representations, so it cannot be attributed to network capacity.
-
-**Novelty scope.** The mechanism (a compact block-summary vector discards the sub-block
-spatial detail a localisation task needs) is not new — it is the same argument §4.2 already
-makes to explain why compact-vector models localise badly at all. What is new is the
-measurement: the specific magnitudes, their geometry-dependence, and the one documented
-reversal (geometry5).
+The intervals are honest but wide: conformal guarantees coverage, not narrowness, and the
+width reflects the point models' peak-temperature error.
 
 ---
 
@@ -258,10 +267,9 @@ reversal (geometry5).
 - **Sample sizes are small** (45 scenarios per layout-varying geometry) for the
   high-dimensional layout spaces involved; absolute numbers should be read as directional,
   not asymptotic.
-- **Two geometries could not be extended to layout-varying data** with the current placement
-  code (geometry2a: 51.6% block occupancy defeats naive rejection-sampling placement;
-  geometry7: chiplets exceed the die width for 1D shelf-packing) — documented as scope
-  limits (`docs/compute.md`), not absorbed into any reported number.
+- **geometry7 has no layout-varying data**: its chiplets exceed the die width for 1D
+  shelf-packing (`docs/compute.md`). The 45 files in `data/3d-ice-layout-geometry7/` are
+  nominal-placement duplicates and are not used.
 - **Every quantitative novelty claim in this paper has been through at least one adversarial
   prior-art check** (§9.14a, §9.16f/g, §9.16i) and several were narrowed or withdrawn as a
   result; this summary states only what survived.

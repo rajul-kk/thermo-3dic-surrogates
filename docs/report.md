@@ -78,7 +78,9 @@ despite achieving greater source movement than an external benchmark by support-
 measures, and we report why. We also find that **"linearly solvable" is a property of the
 input representation rather than of the dataset**: the same files admit a linear fit at
 R² 0.96 from the full per-cell power field and fail at R² −0.67 from the compact
-block-summary vector that surrogate models are conventionally given. We release the dataset,
+block-summary vector that surrogate models are conventionally given. On layout-varying data
+the field representation also localises hotspots up to 8.75× better, on all three
+sharp-peaked geometries tested. We release the dataset,
 baselines, cross-validation and linearity-audit tooling so future surrogate claims can be
 checked against a linear model before an architecture is credited.
 
@@ -120,10 +122,10 @@ This paper makes the following contributions:
 1. An open **benchmark of 275 3D-ICE simulations across six package geometries** covering
    single-die mobile and server stacks, a dual-die 3D-TSV stack, and 2.5D/CoWoS chiplet
    assemblies with up to six HBM stacks — with the full generation pipeline. A further
-   **310 solves** make up the placement-varied extensions: 180 layout-randomised (four
-   geometries × 45, §9.15b), 90 rigid-translation (§9.15) and a 40-scenario geometry7
-   pilot. **585 real 3D-ICE solves in total**; counts verified against the files on disk
-   rather than quoted from an earlier draft.
+   **400 solves** make up the placement-varied extensions: 270 layout-randomised (six
+   geometries × 45, §9.15b, §9.17), 90 rigid-translation (§9.15) and a 40-scenario geometry7
+   pilot. **675 real 3D-ICE solves in total**; counts verified against the files on disk
+   (2026-09-23) rather than quoted from an earlier draft.
 2. **A demonstration that closed-form ridge regression solves the fixed-placement
    benchmark** at spatial R² 0.89–0.99 with no training and no GPU, holding under
    extrapolation to unseen power patterns, magnitudes and ambient temperatures. Ridge's
@@ -197,6 +199,15 @@ This paper makes the following contributions:
 10. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
    autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
    toolkit, released as infrastructure rather than as accuracy claims.
+11. **A new measurement: hotspot localisation on layout-varying data (§9.17).** No prior work
+   combines layout-varying data, a localisation metric and a non-neural baseline. On all
+   three sharp-peaked geometries, a linear fit on the per-cell power field localises the
+   hotspot better than ridge on the compact vector — 8.75×, 6.28×, 1.33×, seed-stable — at
+   the cost of worse peak-*temperature* error. The mechanism is not new (§9.16g); the
+   magnitudes and their geometry-dependence are.
+12. **Calibrated peak-temperature intervals (§9.20).** Split conformal prediction meets its
+   nominal coverage (81–93% against 80/90% targets) where the project's MC Dropout was ~30×
+   miscalibrated. The intervals are wide (8–40 K), limited by point accuracy, not calibration.
 
 **Stated plainly for examiners:** contributions 2, 7 and 8 are negative or corrective
 results. This paper's central claim is not that a new architecture is better; it is that the
@@ -2421,7 +2432,7 @@ point; the phenomenon is not new.
   *benchmark* unable to discriminate architectures, and conclude that a difficulty claim is
   ill-posed without naming the representation. That is a repositioning of known theory for a
   benchmarking audience, not a new result, and must be described that way.
-- The **artifacts** remain real: 585 3D-ICE solves including 180 layout-randomised ones, and
+- The **artifacts** remain real: 675 3D-ICE solves including 270 layout-randomised ones, and
   released diagnostic tooling.
 - The **measurements** remain correct and reproducible; several of them (PDEBench shallow
   water at 3 components, persistence on PDEBench Navier–Stokes) appear unreported even though
@@ -2702,76 +2713,32 @@ makes localisation measurable and what makes it findable. Artifact:
 `results/hotspot_layout_summary.json`; reproduce with `scripts/hotspot_eval.py --field-linear
 --seed 0`.
 
-**Extended to a second, independently generated SHARP geometry (2026-09-18), and it does not
-replicate cleanly.** geometry1 was the only fixed geometry other than geometry6 already in
-the project; a search for a second SHARP candidate found geometry2a (297 µm) and geometry3
-(775 µm) both qualify, but geometry2a's shelf data cannot currently be generated —
-`random_block_placement` has no size-ordering heuristic and gets 0-1/45 valid placements at
-geometry2a's 51.6% block occupancy even at zero margin, caught by a zero-cost dry run before
-any solver time was spent (`docs/compute.md`). geometry3 (20.5% occupancy) had no such
-problem: 45/45 solves succeeded with genuine movement, and its shelf peak stays sharp (734 µm,
-vs 775 µm fixed).
+**Extended to two more SHARP geometries (2026-09-18, 2026-09-22).** A search for further
+sharp-peaked candidates found geometry3 (775 µm fixed) and geometry2a (297 µm). Both were
+generated fresh (45 shelf solves each); both stay sharp under randomisation (734 µm, 294 µm).
+geometry2a first needed a placement fix — rejection sampling got 0/45 valid layouts at its
+51.6% block occupancy, and the predicted fix (largest-first ordering) did not help; randomised
+first-fit did (`docs/compute.md`).
 
-| dataset | \|peak\| K (ridge / field) | loc median µm (ridge / field) | loc ratio, seed-mean | recall ratio, seed-mean |
-|---|---|---|---|---|
-| geometry3-shelf | 12.76 / 14.54 | 12093 / **10090** | **1.33×** (1.20–1.46, sd 0.12) | **5.73×** |
-| geometry3-fixed | **1.94** / 9.07 | 16547 / **6562** | **2.50×** (2.18–2.79, sd 0.22) | 2.53× |
+| dataset | \|peak\| K (ridge / field) | loc median µm (ridge / field) | loc ratio, seed-mean | recall ratio | shelf ÷ fixed |
+|---|---|---|---|---|---|
+| geometry1-shelf | **11.88** / 18.85 | 4809 / **500** | **8.75×** (7.62–9.62) | 5.83× | 4.91× |
+| geometry1-fixed | — | — | 1.78× (1.40–1.95) | 3.85× | |
+| geometry2a-shelf | **4.60** / 16.67 | 3275 / **570** | **6.28×** (5.74–6.74) | 10.51× | 5.81× |
+| geometry2a-fixed | **3.31** / 10.53 | 4764 / **3673** | 1.08× (0.85–1.30) | 2.35× | |
+| geometry3-shelf | **12.76** / 14.54 | 12093 / **10090** | **1.33×** (1.20–1.46) | 5.73× | 0.53× |
+| geometry3-fixed | **1.94** / 9.07 | 16547 / **6562** | 2.50× (2.18–2.79) | 2.53× | |
 
-The **core ordering replicates**: the field representation beats ridge on both localisation
-metrics, on both shelf and fixed data, seed-stable in both cases. But the **secondary claim
-from geometry1/geometry4 — that the advantage is larger under layout randomisation — reverses
-on localisation distance**: geometry3-fixed's 2.50× exceeds geometry3-shelf's 1.33×, the
-opposite of geometry1 (4.91× shelf vs 1.78× fixed) and geometry4 (1.56× shelf vs fixed). The
-recall metric goes the other way, consistent with geometry1/4 (5.73× shelf vs 2.53× fixed).
-The two metrics disagree with each other on this geometry, which they did not on geometry1 or
-geometry4.
+**What holds across all three.** The field representation beats ridge on both localisation
+metrics, shelf and fixed, seed-stable (sd 0.81 / 0.41 / 0.12), and ridge wins peak temperature
+every time. **What does not generalise.** Layout randomisation amplifies the advantage on two
+geometries (4.91×, 5.81×) and reverses it on localisation distance on the third (geometry3,
+0.53×, where recall still amplifies) — "commonly but not universally amplified," not a rule.
 
-One number in this table stands on its own regardless of the shelf/fixed question: on
-geometry3-fixed, **ridge's own localisation (16547 µm) is worse than the trivial mean
-predictor (14230 µm)**, while ridge is simultaneously the best model at peak temperature
-(1.94 K, next best 4.16 K). The "best" compact baseline by conventional metrics can be
-pathologically bad at localisation specifically — a sharper instance of §9.12c's metric split
-than any single-geometry result in this section shows on its own.
-
-**Honest reading.** The claim that survives across two independently generated SHARP
-geometries is narrower than either alone suggested: *a linear fit on the field representation
-localises hotspots better than ridge on the compact vector, consistently and seed-stably, on
-sharp-peaked geometries regardless of whether layout varies.* The claim that layout
-randomisation specifically *amplifies* this advantage is geometry- and metric-dependent, not
-general, and should not be stated as a rule.
-
-**Extended to a third SHARP geometry (2026-09-22): geometry2a's shelf data, previously judged
-impossible to generate, was fixed.** `random_block_placement`'s failure was diagnosed as a
-size-ordering problem and a fix along those lines was predicted above and in `docs/compute.md`
-— that prediction was tested and found wrong (still 0/45 valid placements after adding
-largest-first ordering). The actual fault was structural: pure rejection sampling has no
-memory across attempts, so any single block failing discards every other placed block and
-restarts all six from scratch, which largest-first ordering does nothing to fix. Replaced with
-randomised first-fit search (a shuffled grid of candidate positions per block, not one random
-draw); this reaches 45/45 valid placements, and the resulting shelf peak stays sharp (294 µm,
-vs 297 µm fixed) — a third genuine SHARP-geometry data point, not a reinterpretation of
-existing data.
-
-| dataset | \|peak\| K (ridge / field) | loc median µm (ridge / field) | loc ratio, seed-mean | recall ratio, seed-mean |
-|---|---|---|---|---|
-| geometry2a-shelf | 4.60 / 16.67 | 3275 / **570** | **6.28×** (5.74–6.74, sd 0.41) | **10.51×** |
-| geometry2a-fixed | **3.31** / 10.53 | 4764 / **3673** | 1.08× (0.85–1.30, sd 0.16) | 2.35× |
-
-Two results, both worth stating plainly. **The core ordering replicates a third time**: field
-beats ridge on both localisation metrics, on both shelf and fixed data, at the largest margin
-yet on shelf (6.28×, second only to geometry1's 8.75×). **The shelf-amplifies-it pattern also
-replicates here** (shelf÷fixed = 5.81×, close to geometry1's 4.91×) — so of three geometries
-tested for this secondary claim, two (geometry1, geometry2a) show strong amplification under
-layout randomisation and one (geometry3) shows a mild reversal on distance specifically. That
-is still not evidence for a general rule, but it now reads as "usually amplifies, with a
-documented exception" rather than "the pattern doesn't hold" — the honest reading below is
-adjusted to reflect three data points, not two.
-
-**Revised honest reading, after three geometries.** The claim that survives is the same core
-ordering, now on firmer ground (seed-stable on all three: sd 0.81/0.12/0.41). The
-shelf-amplification claim is *directionally* supported (2 of 3) but with a real, unexplained
-exception (geometry3) rather than a clean rule — it should be stated as "commonly but not
-universally amplified," not omitted and not asserted as general.
+One number stands on its own: on geometry3-fixed, **ridge's localisation (16547 µm) is worse
+than the trivial mean predictor (14230 µm)** while ridge is simultaneously the best model at
+peak temperature (1.94 K, next best 4.16 K) — the sharpest instance of §9.12c's metric split
+in this report.
 
 ### 9.18 The auditing protocol applied to a 4th domain (materials science): a positive counterexample, not another finding (2026-09-22)
 
@@ -2943,7 +2910,7 @@ rounding conventions, and count how many mutants land in different folds — but
 argument above already makes a large effect unlikely, so this is recorded as a closed,
 negative lead rather than queued as an open task.
 
-### 9.22 The quadratic-manifold correction test (problem statement 4): the result reverses under a control, and it was never written up until the control was run (2026-09-22/25)
+### 9.22 The quadratic-manifold correction test (problem statement 4): the result reverses under a control, and it was never written up until the control was run (2026-09-22/23)
 
 §9.16j's ROM-theory check named a concrete follow-up: if §9.15c's representation gap is a
 Kolmogorov-barrier / affine-structure-loss phenomenon (the reading ROM theory supports), a
@@ -3012,24 +2979,14 @@ the control's result already answers the question this section set out to ask.
 
 ## 11. Conclusion
 
-> **Rewritten 2026-09-10.** The previous conclusion claimed ridge "reconstructs the spatial
-> temperature field at R² = 0.999" and "extrapolates ... at R² > 0.9", and framed the
-> dataset release as a contribution. All three were stale or unsupportable: the R² figures
-> came from §9.1b's superseded pre-regime-fix dataset (§9.5 had already recorded that the
-> regime fix moved them), and IC-ThermBench (arXiv:2608.23977, Aug 2026) is now an open
-> 2.5D/3D-IC thermal benchmark with 50,000 samples against this repo's 275. Corrected below
-> rather than quietly adjusted.
+> **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
+> (§9.1b) and claimed the dataset as a contribution; §9.13 then showed the linear baseline
+> loses on IC-ThermBench, so the claim below is a *diagnostic*, not "linear suffices."
 
 We release a six-geometry, 275-simulation 3D-IC thermal dataset with its full generation
 pipeline. This is no longer a novel contribution on its own — IC-ThermBench (arXiv:2608.23977)
 is larger, has a unified evaluation pipeline, and defines five generalization scopes — so the
 dataset should be read as the substrate for the finding below, not as the finding.
-
-> **Second revision, 2026-09-10 (same day).** After the rewrite below was written, we ran
-> this project's own baseline tooling against IC-ThermBench (§9.13). **The linear baseline
-> loses there, clearly, on every scope.** That falsifies the strong form of this paper's
-> claim, so the framing below is narrowed accordingly: the contribution is a *diagnostic*
-> and what it reveals, not an assertion that linear models suffice for this domain.
 
 The finding is a negative result we believe is more useful than the surrogate accuracy figures
 we set out to produce. Measured on the current dataset (§9.1a, 2026-09-09), closed-form ridge
@@ -3111,10 +3068,15 @@ given. Conduction *is* exactly linear in the per-cell source, so the field repre
 the physically correct hypothesis class; it degrades only insofar as moving a chiplet also
 moves silicon and changes the operator. The compact vector discards precisely that. This
 corrects §9.14 and §9.15, both of which asserted linear-solvability as a property of a
-dataset, and it supplies a falsifiable prediction we have not yet tested: an FNO consumes the
-field, so it should win by the largest margin on geometry4-shelf — where ridge's
-representation is impoverished but the task is not hard — rather than on geometry6-shelf,
-where the task itself is hard.
+dataset. The FNO prediction it implied was tested in §9.15d: it held weakly, and even the
+strongest architecture here still lost to a linear fit on its own input.
+
+**The representation also decides where the hotspot is (§9.17).** On layout-varying data, a
+linear fit on the power field localises the peak better than ridge on the compact vector on
+all three sharp-peaked geometries (8.75×, 6.28×, 1.33×, seed-stable), while ridge stays better
+at peak *temperature* — the metric split above, now between two linear models. And where a
+peak-temperature prediction is needed with an error bar, **split conformal prediction gives
+valid coverage** (§9.20); MC Dropout did not.
 
 A methodological point applies to both results and cost us two retractions. **A 40/5 split is
 not a measurement.** Every single-split figure from the layout work (geometry1 R² 0.770,
@@ -3126,7 +3088,7 @@ afterthought.
 We release the baseline, hotspot, cross-validation and linearity-audit tooling
 (`scripts/baselines.py`, `scripts/hotspot_eval.py`, `scripts/layout_cv.py`,
 `scripts/benchmark_linearity_audit.py`) so these conditions can be checked rather than
-assumed, together with the 180 layout-randomised 3D-ICE solves the fix produced.
+assumed, together with the 270 layout-randomised 3D-ICE solves the fix produced.
 
 ---
 

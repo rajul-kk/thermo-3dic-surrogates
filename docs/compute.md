@@ -415,32 +415,14 @@ writing. The 45 nominal-placement solves from the attempt are on disk at
 `data/3d-ice-layout-geometry7/geometry7/` but are placement-identical duplicates of the
 existing pilot, not shelf data -- do not zip or use them as such.
 
-**geometry2a has the same class of failure in `random_block_placement`, for a different
-reason.** Attempted 2026-09-18 to extend §9.17's hotspot-localisation measurement to a
-second SHARP geometry (geometry2a's fixed-placement peak spread is 297 µm, sharper than
-geometry1's 324 µm). `random_block_placement` places each of geometry2a's 6 power blocks
-independently via rejection sampling, in listed order, with no size-ordering heuristic --
-unlike `random_placement`'s chiplet path, which places largest-first specifically because
-naive ordering failed on geometry6 (see that function's docstring). geometry2a packs 6
-blocks at **51.6% die occupancy** (vs geometry1's 36.0%), and a check before committing any
-solver time found rejection sampling succeeds on only **0-1 of 45** placement draws even at
-zero margin -- caught by a 45-draw dry run with no solves, before the generation script
-(which had already begun, at default margin 250 µm) burned more than 2 scenarios on
-useless nominal-fallback data. geometry3 (20.5% occupancy, 8 blocks) has no such problem:
-45/45 draws succeed at the default margin, and its shelf generation proceeded.
-
-**Correction, 2026-09-22: largest-first ordering alone does not fix this, and it was fixed
-differently.** Porting `random_placement`'s largest-first heuristic into
-`random_block_placement` (predicted here as the fix) was tried first and tested with the
-same zero-cost dry run: **still 0/45** at every margin tested (500/250/100 µm). The reason
-is structural, not an ordering artefact: pure i.i.d. rejection sampling has no memory across
-attempts, so any single block failing to place discards every other block already placed in
-that attempt and restarts all six from scratch -- ordering which block goes first doesn't
-change that a 6-block, 51.6%-occupancy configuration has to succeed on all six simultaneous
-independent draws. Fixed instead with randomised first-fit: each block searches a shuffled
-grid of candidate anchor points (100 µm spacing) rather than drawing one random position, so
-a hard-to-place block gets thousands of tries within a single attempt instead of one. This
-reaches **45/45** valid draws in ~3.5 s. `src/core/placement.py::random_block_placement`.
+**geometry2a needed a different placement algorithm (fixed 2026-09-22).** Its 6 power blocks
+fill 51.6% of the die (geometry1: 36.0%), and `random_block_placement`'s i.i.d. rejection
+sampling got 0-1/45 valid layouts even at zero margin — caught by a 45-draw dry run before
+more than 2 solves were wasted. Largest-first ordering (the fix that worked for chiplets on
+geometry6) was tried and still gave 0/45: rejection sampling restarts all six blocks whenever
+any one fails, so ordering doesn't help. Randomised first-fit (each block scans a shuffled
+100 µm grid of anchors) reaches 45/45 in ~3.5 s. geometry3 (20.5% occupancy) never had the
+problem. `src/core/placement.py::random_block_placement`.
 
 ---
 
