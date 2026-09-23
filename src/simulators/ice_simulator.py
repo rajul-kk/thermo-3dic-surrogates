@@ -78,6 +78,14 @@ class ICESimulator(ThermalSimulator):
     MAX_SUBLAYER_UM = 1200.0
     MAX_SUBLAYERS_PER_LAYER = 12  # bounds fill-in on very thick heat sinks
 
+    # A die holds exactly one `source` element (grammar: top layers, source, bottom
+    # layers), so an active layer cannot be split like a passive one. With a single node,
+    # geometry4's 150 um chiplet layer was 11-40% hot against a converged FV solve
+    # (docs/report.md 9.23). Active layers thicker than this are emitted as
+    # layer / source / layer thirds: three nodes, power in the middle third, and the
+    # Tmap (source) node still sits at the layer's centre, so exports are unchanged.
+    ACTIVE_SPLIT_UM = 100.0
+
     # Number of quantised conductivity levels per TSV layer. 3D-ICE needs a named
     # material per distinct conductivity, so a continuous field would mean one
     # material per cell. ~12 keeps the stack file small while preserving the
@@ -386,7 +394,7 @@ class ICESimulator(ThermalSimulator):
             lyt = (self.config_dir / f"layout_footprint_{self._sanitise(layer.name)}.lyt").resolve()
             lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
             lines.append(f"layer type_layer_{s_idx}_src :")
-            lines.append(f"   height {sub['thickness']:.1f} ;")
+            lines.append(f"   height {self._source_thickness(sub):.1f} ;")
             lines.append(f"   material {self._gap_material_name(geometry, layer, layer_k_overrides)} ;")
             lines.append(f'   layout "{lyt_path}" ;')
             lines.append("")
@@ -397,10 +405,17 @@ class ICESimulator(ThermalSimulator):
             layer = geometry.layers[sub['layer_idx']]
             mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
             lines.append(f"die type_die_{s_idx} :")
+            t_src = self._source_thickness(sub)
             if layer.name in footprints_by_layer:
-                lines.append(f"   source type_layer_{s_idx}_src ;")
+                content = f"type_layer_{s_idx}_src"          # same height and layout for all thirds
             else:
-                lines.append(f"   source {sub['thickness']:.1f} {mat_name} ;")
+                content = f"{t_src:.1f} {mat_name}"
+            split = t_src < sub['thickness']
+            if split:
+                lines.append(f"   layer  {content} ;")
+            lines.append(f"   source {content} ;")
+            if split:
+                lines.append(f"   layer  {content} ;")
             lines.append("")
 
         # ── Stack assembly: 3D-ICE lists TOP → BOTTOM; geometry is BOTTOM → TOP
@@ -463,6 +478,10 @@ class ICESimulator(ThermalSimulator):
 
         with open(stk_file, 'w') as f:
             f.write('\n'.join(lines))
+
+    def _source_thickness(self, sub) -> float:
+        t = sub['thickness']
+        return t / 3.0 if sub['is_active'] and t > self.ACTIVE_SPLIT_UM else t
 
     def _generate_floorplan_files(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
         """Generate one 3D-ICE floorplan file per active layer."""

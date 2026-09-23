@@ -12,6 +12,21 @@ import numpy as np
 import scipy.sparse as sp
 
 UM = 1e-6
+ACTIVE_SPLIT_UM = 100.0     # same rule as ICESimulator.ACTIVE_SPLIT_UM: power in the middle third
+
+
+def source_cells(geometry, g) -> np.ndarray:
+    """z-cells that carry an active layer's power (its middle third when the layer is split)."""
+    zc = 0.5 * (g.ze[:-1] + g.ze[1:])
+    out = np.zeros(len(zc), bool)
+    for i, layer in enumerate(geometry.layers):
+        if not layer.is_active:
+            continue
+        lo, hi = layer.z_bottom, layer.z_top
+        if layer.thickness > ACTIVE_SPLIT_UM:
+            lo, hi = lo + layer.thickness / 3, hi - layer.thickness / 3
+        out |= (g.z_layer == i) & (zc > lo) & (zc < hi)
+    return out
 
 
 @dataclass
@@ -32,7 +47,7 @@ def z_edges(geometry, max_sub_um: float = 1200.0, max_per_layer: int = 12,
     edges, owner = [geometry.layers[0].z_bottom], []
     for i, layer in enumerate(geometry.layers):
         if layer.is_active:
-            n = active_sub
+            n = active_sub * (3 if layer.thickness > ACTIVE_SPLIT_UM else 1)
         else:
             n = int(np.ceil(layer.thickness / max_sub_um))
             n = max(min_per_layer, min(n, max_per_layer))
@@ -117,6 +132,7 @@ def power(geometry, scenario: Dict[str, Any], g: FVGrid) -> np.ndarray:
     blocks = scenario.get('power_blocks', {})
     pmaps = scenario.get('power_map_by_layer') or {}
     dz = np.diff(g.ze)
+    src = source_cells(geometry, g)
     for li, layer in enumerate(geometry.layers):
         if not layer.is_active:
             continue
@@ -132,7 +148,7 @@ def power(geometry, scenario: Dict[str, Any], g: FVGrid) -> np.ndarray:
                 if blk.layer_name == layer.name and not blk.is_tsv_region:
                     lat += blk.power_watts(blocks.get(blk.name, 0.0)) * _overlap(
                         g, blk.x, blk.y, blk.width, blk.height)
-        sel = np.nonzero(g.z_layer == li)[0]
+        sel = np.nonzero((g.z_layer == li) & src)[0]
         frac = dz[sel] / dz[sel].sum()
         q[:, :, sel] += lat[:, :, None] * frac[None, None, :]
     return q
