@@ -57,7 +57,9 @@ def energy_balance(f: Path):
     return {'file': f.name, 'geometry': m['geometry'], 'dataset': f.parts[1],
             'P_field_W': p_field, 'P_out_W': p_out, 'P_meta_W': p_meta,
             'ratio': p_out / p_field, 'meta_over_field': p_meta / p_field,
-            'underfill_power_frac': float(w[gap].sum() / p_field) if geom.die_footprints else 0.0}
+            # nominal footprints only describe fixed-placement data
+            'underfill_power_frac': float(w[gap].sum() / p_field)
+            if geom.die_footprints and not m.get('placement_randomized') else 0.0}
 
 
 def check_a():
