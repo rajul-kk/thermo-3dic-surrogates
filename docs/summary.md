@@ -8,6 +8,18 @@ preserves in full — every claim below is traceable to a numbered section there
 disagree. Full bibliography: `docs/references.md`. Molecular-property replication detail:
 `molprop/README.md`.
 
+> **⚠ Validation, 2026-09-23 (report §9.23).** An independent FV solver confirms 3D-ICE solves
+> the specified problem, but found pipeline faults in *this project's* data:
+> - every saved temperature field is transposed (stretched as well on geometry4–6);
+> - saved power fields are layer-blind on multi-die layout data;
+> - the fixed dataset is per-cell-map data whose metadata understates the simulated power, and it
+>   places ~30% of power in underfill on chiplet packages;
+> - geometry4's discretisation is 11–40% from converged.
+>
+> Linear-baseline results are unaffected. So are hotspot results on geometry1/3. **Neural-model
+> comparisons, geometry4–6 distances and layout-geometry2a/5/6 field-model numbers are unreliable
+> until re-measured on repaired data.**
+
 ---
 
 ## Abstract

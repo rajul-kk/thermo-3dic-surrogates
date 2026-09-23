@@ -204,7 +204,8 @@ This paper makes the following contributions:
    three sharp-peaked geometries, a linear fit on the per-cell power field localises the
    hotspot better than ridge on the compact vector — 8.75×, 6.28×, 1.33×, seed-stable — at
    the cost of worse peak-*temperature* error. The mechanism is not new (§9.16g); the
-   magnitudes and their geometry-dependence are.
+   magnitudes and their geometry-dependence are. *(§9.23: the geometry2a figure used a
+   layer-blind power field and awaits re-measurement; geometry1/3 are unaffected.)*
 12. **Calibrated peak-temperature intervals (§9.20).** Split conformal prediction meets its
    nominal coverage (81–93% against 80/90% targets) where the project's MC Dropout was ~30×
    miscalibrated. The intervals are wide (8–40 K), limited by point accuracy, not calibration.
@@ -575,6 +576,9 @@ changing the range over which the existing handful varies.
 > The per-cell dataset used here is no longer on disk, so this could not be re-measured;
 > regenerating it with `--power-map mixed` and re-running `scripts/hotspot_eval.py` under
 > k-fold CV is the outstanding task. Until then, do not quote these figures.
+>
+> **Correction, 2026-09-23 (§9.23):** the per-cell dataset *is* on disk. `data/3d-ice` was
+> generated with `--power-map mixed`, and its block metadata holds block averages of those maps.
 
 §9.3 concluded that no choice of parameter *ranges* makes this benchmark
 non-linear, because the source was described by ~8 scalars. That diagnosis was
@@ -2977,6 +2981,97 @@ solves), or a regularisation-path/information-criterion comparison between the q
 random-feature fits rather than a single-lambda held-out R² — neither attempted here given
 the control's result already answers the question this section set out to ask.
 
+### 9.23 Validating the ground truth: 3D-ICE is right, but this project's pipeline around it is not (2026-09-23)
+
+Every result in this report is measured against 3D-ICE, and until now nothing checked it.
+`src/validation/fv_solver.py` is an independent steady-state finite-volume solver. It reads the
+same Geometry and scenario dict that `ice_simulator.py` turns into a `.stk` file, but shares no
+code with 3D-ICE. It reproduces the exact 1D layered solution to 1e-8 K and conserves energy to
+1e-8 (`tests/test_fv_solver.py`). `scripts/validate_3dice.py` runs three checks; results are in
+`results/validation_3dice.json`.
+
+**Check B: does 3D-ICE solve the problem we specified?** Fresh paired solves, same spec, same
+discretisation, 18 cases (6 geometries × {2 fixed, 1 layout}):
+
+| cases | max \|3D-ICE − FV\| as % of the temperature rise |
+|---|---|
+| geometry1, 2a, 3 (all), geometry4 (all), geometry5/6 layout | **0.03–1.1%** |
+| geometry5/6 fixed (per-cell power maps on 3 footprint-carrying active layers) | **6.7–8.9%** (1.3–2.2 K), unexplained |
+
+3D-ICE is doing what it is told in every configuration except one, and that one is the
+per-cell-map fixed dataset on the two HBM geometries.
+
+**Check C: is the dataset's discretisation converged?** FV refined up to 2× laterally and 4× in z
+(`2x4`, ≤2.3 M cells), compared with 3D-ICE's native output:
+
+| data | peak-rise error of the saved discretisation | field RMS error |
+|---|---|---|
+| geometry1, 2a, 3 (fixed and layout) | +0.1 to +0.6% | ≤0.16% |
+| geometry5/6 layout | +0.1% | ~1.1% |
+| geometry5/6 fixed | +10 to +14% | 2.4–6.0% |
+| **geometry4 layout** | **+11%** (hotspot moves 2.7 mm) | 1.7% |
+| **geometry4 fixed** | **+30 to +40%** | 8.6–10.9% |
+
+The error on geometry4 is vertical, not lateral: it disappears with z-refinement and barely
+moves with lateral refinement. The cause is the ICE wrapper's choice of **one z-node per active
+layer**. That is harmless in silicon, but geometry4's 150 µm die layer is mostly
+k = 0.7 underfill. On the fixed data it also carries 40% of the power, as below.
+
+**Check A: energy balance on all 545 saved solves** (heat leaving the sink vs power injected)
+found no fault in 3D-ICE: balance holds to <0.6% wherever the true input power is known. What it
+found instead were four faults in this project's pipeline, each confirmed directly:
+
+1. **Every saved temperature field is transposed relative to its own coordinates and power
+   field.** 3D-ICE's Tmap rows run along chip *width*; `parse_results` assumed chip *length*. On
+   square dies (geometry1/2a/3) this is an exact, silent x↔y transpose. The saved temperature
+   correlates with its own power field at 0.09–0.31 as stored and 0.66–0.83 transposed, and a
+   fresh asymmetric solve put the peak at (2450, 7550) µm for a block at x 6000–9000,
+   y 1000–4000. On non-square dies (geometry4/5/6/7) a `linspace` fallback also *stretched* the
+   field. **Fixed in the parser**, which now raises on a shape mismatch instead of resampling.
+2. **The saved `power` field is layer-blind.** `generate_power_density_field` finds the block at
+   (x, y) regardless of layer, so every active layer gets the first-listed block's power. On
+   layout geometry2a this doubles the field. On layout geometry5/6 every layer carries the 5 µm
+   RDL power, and the compute die's power (≈90% of the total) is missing from the field
+   entirely. 3D-ICE itself was given the correct floorplans; only the saved field is wrong.
+3. **The fixed dataset (`data/3d-ice`) is per-cell-map data, and its block metadata is not what
+   was simulated.** `regen_v4_final.ps1` generated it with `--power-map mixed`.
+   `attach_power_maps` then overwrote `power_blocks` with block-footprint *averages* of the map,
+   which hold a median 50% of the simulated power. So §9.4's statement that "the per-cell dataset
+   is no longer on disk" is wrong: it *is* the fixed dataset. Every "block-scalar" ridge on fixed
+   data consumed block averages of a per-cell map.
+4. **Those maps are unphysical on chiplet packages.** Power is spread over the whole active layer
+   and split equally across active layers, so on geometry4–6 a median **30% of the power sits in
+   k = 0.7 underfill** between chiplets. On geometry5/6 the 5 µm RDL layer and the HBM top dies
+   each dissipate as much as the compute die, which defeats both the HBM power cap and the RDL
+   Joule fraction.
+
+**What survives, and why.** Per-point models are invariant to a fixed relabelling of output
+points, so all of these stand: ridge, kNN and mean; field R² and detrended error; peak
+temperature; top-1% recall; the conformal intervals (§9.20); and "layout breaks ridge"
+(§9.15b). A transpose is an isometry on a square die, so argmax distances on geometry1/2a/3 are
+unchanged too. §9.17's geometry1 and geometry3 results have correct power fields, are converged
+to <1%, and stand.
+
+**What does not.**
+- **Every neural result** (§9.7, §9.12, §9.15d; PINN, FNO, CNO-FNO, DeepONet, ARO, Therm-FM) was
+  trained on temperature misaligned with its input. That includes the claim that the strongest
+  architecture "still loses to closed-form linear regression on its own input".
+- **Distances on geometry4–6** are stretched, including the peak-sharpness gate values and
+  §9.17's geometry4–6 localisation ratios.
+- **Field-model results on layout geometry2a/5/6** consumed the layer-blind field: §9.15c's
+  geometry5/6 field R², §9.17's geometry2a ratio (6.28×) and geometry5 reversal, §9.19, and
+  §9.22's field reference values.
+- **geometry4's absolute temperatures** are 11–40% high.
+
+None of these is retracted yet. Each is marked unreliable until re-measured on repaired data.
+
+**Repair path.**
+- **Transpose:** a deterministic relabelling of saved coordinates. No re-simulation is needed.
+- **Layout power fields:** rebuildable exactly from metadata and placement.
+- **Fixed dataset:** needs regenerating with power confined to blocks and to the correct layer
+  (≈1.5–2.5 h of 3D-ICE).
+- **geometry4:** needs sub-layer z-resolution in its active layer.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
@@ -3069,7 +3164,9 @@ the physically correct hypothesis class; it degrades only insofar as moving a ch
 moves silicon and changes the operator. The compact vector discards precisely that. This
 corrects §9.14 and §9.15, both of which asserted linear-solvability as a property of a
 dataset. The FNO prediction it implied was tested in §9.15d: it held weakly, and even the
-strongest architecture here still lost to a linear fit on its own input.
+strongest architecture here still lost to a linear fit on its own input. *(§9.23: those neural
+runs were trained on transposed/stretched targets, so this comparison is not reliable until
+re-run.)*
 
 **The representation also decides where the hotspot is (§9.17).** On layout-varying data, a
 linear fit on the power field localises the peak better than ridge on the compact vector on
