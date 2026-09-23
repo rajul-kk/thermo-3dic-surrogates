@@ -245,35 +245,25 @@ def generate_power_density_field(
         return _power_field_from_maps(coords, geometry, power_map_by_layer)
 
     power_field = np.zeros(coords.shape[0])
+    x, y, z = coords[:, 0], coords[:, 1], coords[:, 2]
+    layer_idx = np.array([geometry.get_layer_index_at_z(zz) for zz in z])
 
-    # Get die layers (layers with power dissipation)
-    die_layers = geometry.get_die_layers()
-
-    if not die_layers:
-        return power_field  # No active layers
-
-    for i, (x, y, z) in enumerate(coords):
-        # Check if point is in a die layer
-        layer = geometry.get_layer_at_z(z)
-        if layer is None or not layer.is_active:
+    for li, layer in enumerate(geometry.layers):
+        if not layer.is_active:
             continue
-
-        # Find which power block this point belongs to.
-        # Skip TSV-region blocks — they are passive conductors in 3D-ICE (zero
-        # heat source); their thermal effect enters via the layer's effective k.
-        block = geometry.get_power_block_at_xy(x, y)
-        if block is None or block.is_tsv_region:
-            continue
-
-        # Get power density from scenario (W/cm²)
-        power_density_wcm2 = power_scenario.get(block.name, 0.0)
-
-        # Convert to volumetric power density (W/m³)
-        # Power is dissipated throughout the layer thickness
-        thickness_m = layer.thickness / 1e6  # μm to m
-        power_density_wm3 = (power_density_wcm2 * 1e4) / thickness_m  # W/cm² to W/m³
-
-        power_field[i] = power_density_wm3
+        free = layer_idx == li
+        # Only this layer's blocks. Matching on (x, y) alone (the previous behaviour)
+        # gave every active layer of a multi-die stack the first-listed block's power:
+        # doubled on geometry2a, RDL-only on geometry5/6 (docs/report.md §9.23).
+        # TSV-region blocks are passive conductors in 3D-ICE (zero heat source).
+        for block in geometry.power_blocks:
+            if block.is_tsv_region or block.layer_name not in (None, layer.name):
+                continue
+            inside = free & (x >= block.x) & (x < block.x + block.width) \
+                & (y >= block.y) & (y < block.y + block.height)
+            # W/cm² dissipated through the layer thickness -> W/m³
+            power_field[inside] = power_scenario.get(block.name, 0.0) * 1e4 / (layer.thickness / 1e6)
+            free &= ~inside
 
     return power_field
 

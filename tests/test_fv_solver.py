@@ -46,3 +46,23 @@ def test_energy_balance_holds_with_lateral_structure():
     blocks = {b.name: 20.0 for b in geom.power_blocks}
     res = fv.solve(geom, {'power_blocks': blocks, 'htc': 8000.0, 't_ambient': 30.0})
     assert abs(res['P_out'] - res['P_in']) / res['P_in'] < 1e-8
+
+
+def test_power_field_keeps_each_block_on_its_own_layer():
+    from src.core.mesh import generate_power_density_field
+    geom = get_geometry_by_name('geometry5')
+    g = fv.make_grid(geom)
+    xc = 0.5 * (g.xe[:-1] + g.xe[1:]); yc = 0.5 * (g.ye[:-1] + g.ye[1:]); zc = 0.5 * (g.ze[:-1] + g.ze[1:])
+    X, Y, Z = np.meshgrid(xc, yc, zc, indexing='ij')
+    coords = np.stack([X.ravel(), Y.ravel(), Z.ravel()], 1)
+    blocks = {b.name: 10.0 + i for i, b in enumerate(geom.power_blocks)}
+    p = generate_power_density_field(coords, geom, blocks)
+    vol = ((geom.die_width / g.shape[0]) * (geom.die_length / g.shape[1]) * 1e-12
+           * np.diff(g.ze)[np.abs(coords[:, 2:3] - zc[None]).argmin(1)] * 1e-6)
+    for layer in geom.layers:
+        if not layer.is_active:
+            continue
+        sel = (coords[:, 2] >= layer.z_bottom) & (coords[:, 2] < layer.z_top)
+        want = sum(b.power_watts(blocks[b.name]) for b in geom.power_blocks
+                   if b.layer_name == layer.name and not b.is_tsv_region)
+        assert abs((p[sel] * vol[sel]).sum() - want) / want < 0.02, layer.name
