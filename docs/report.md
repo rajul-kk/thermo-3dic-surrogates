@@ -77,7 +77,7 @@ predicting. The obvious first attempt — translating each chiplet rigidly — d
 despite achieving greater source movement than an external benchmark by support-overlap
 measures, and we report why. We also find that **"linearly solvable" is a property of the
 input representation rather than of the dataset**: the same files admit a linear fit at
-R² 0.96 from the full per-cell power field and fail at R² −0.67 from the compact
+R² 0.95 from the full per-cell power field and fail at R² −0.67 from the compact
 block-summary vector that surrogate models are conventionally given. On layout-varying data
 the field representation also localises hotspots up to 8.75× better, on all three
 sharp-peaked geometries tested. We release the dataset,
@@ -164,7 +164,7 @@ This paper makes the following contributions:
    better source movement than IC-ThermBench by support-overlap IoU and still does *not*
    work; we report why (§9.15), which neither prior work does.
 8. **The finding that "linear-solvable" is a property of the input representation, not of
-   the dataset** (§9.15c). The same 45 files score linear R² 0.962 from the full per-cell
+   the dataset** (§9.15c). The same 45 files score linear R² 0.95 from the full per-cell
    power field and −0.667 from the compact block-summary vector that surrogate papers
    actually consume. Any claim that a benchmark is or is not linear-solvable is
    ill-posed without naming the representation — including claims made earlier in this
@@ -202,10 +202,10 @@ This paper makes the following contributions:
 11. **A new measurement: hotspot localisation on layout-varying data (§9.17).** No prior work
    combines layout-varying data, a localisation metric and a non-neural baseline. On all
    three sharp-peaked geometries, a linear fit on the per-cell power field localises the
-   hotspot better than ridge on the compact vector — 8.75×, 6.28×, 1.33×, seed-stable — at
-   the cost of worse peak-*temperature* error. The mechanism is not new (§9.16g); the
-   magnitudes and their geometry-dependence are. *(§9.23: the geometry2a figure used a
-   layer-blind power field and awaits re-measurement; geometry1/3 are unaffected.)*
+   hotspot better than ridge on the compact vector — 8.75×, 2.73×, 1.39×, seed-stable, and
+   better on all 10 datasets measured — at the cost of worse peak-*temperature* error. The
+   mechanism is not new (§9.16g); the magnitudes and their geometry-dependence are.
+   *(Re-measured on repaired data, §9.17/§9.23.)*
 12. **Calibrated peak-temperature intervals (§9.20).** Split conformal prediction meets its
    nominal coverage (81–93% against 80/90% targets) where the project's MC Dropout was ~30×
    miscalibrated. The intervals are wide (8–40 K), limited by point accuracy, not calibration.
@@ -1975,6 +1975,14 @@ statistics are reported rather than one.
 
 ### 9.15c "Linear-solvable" is a property of the representation, not of the dataset (2026-09-11)
 
+> **Re-measured on repaired data, 2026-09-24 (§9.23).** Field R² at `pca_k` = 8/16/32, 5-fold
+> CV, seed 0: geometry4 **0.936/0.951/0.954**, geometry5 **0.893/0.923/0.937**, geometry6
+> **0.673/0.841/0.885**. Pre-repair, the same protocol gave 0.44/0.23/−0.44 and 0.51/0.49/0.09 on
+> geometry5/6, because the saved field there was layer-blind. So the finding below is *stronger*
+> than first stated. The field representation is near-linear-solvable on all three layout
+> geometries, not just geometry4, while the compact vector fails on all three (−0.67, −2.31,
+> −2.87, unchanged). The 0.962 figures below are the pre-repair audit value; quote ≈0.95.
+
 Adding the shelf datasets to the cross-benchmark linearity audit
 (`scripts/benchmark_linearity_audit.py`) produced a direct contradiction with §9.15b, and
 resolving it is more informative than either result alone.
@@ -2044,7 +2052,9 @@ three figures.
 
 §9.15c predicted an FNO (which consumes the field, not the compact vector) should inherit the
 field representation's geometry4/geometry6 gap (+0.427), not the compact representation's
-(+2.192). Tested on `notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`, 5-fold CV, T4 GPU,
+(+2.192). *(§9.23: on repaired data the field gap is +0.263, and the FNO runs below were
+trained on transposed targets, so this section's neural numbers are unreliable.)* Tested on
+`notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`, 5-fold CV, T4 GPU,
 early stopping with best-checkpoint reload, on both a plain FNO and `cno-fno-attn` (the
 strongest architecture this repo implements):
 
@@ -2632,6 +2642,40 @@ re-checked immediately before any submission that relies on it.
 
 ### 9.17 Hotspot localisation on layout-varying data: the representation decides where the peak is (2026-09-18)
 
+> **Current numbers: re-measured on repaired data, 2026-09-24 (§9.23).** The tables further
+> down this section predate the §9.23 data repair and are kept as history. geometry1 and the
+> ridge rows reproduce exactly. geometry2a, geometry4–6 and every fixed-placement row changed,
+> because their saved power field or distance coordinates were wrong. Protocol unchanged:
+> 5-fold CV, 4 seeds, `pca_k` chosen by inner CV on detrended R² inside each training fold
+> (`scripts/hotspot_remeasure.py`, `results/hotspot_remeasured.json`). Ratios are ridge ÷ field
+> error (>1 = field better).
+>
+> | dataset | peak spread (µm) | loc ratio, seed-mean (range) | recall ratio | \|peak\| K ridge / field |
+> |---|---|---|---|---|
+> | geometry1-shelf | 300 | **8.75×** (7.62–9.62) | 5.87× | **11.88** / 18.85 |
+> | geometry2a-shelf | 294 | **2.73×** (2.27–3.77) | 5.98× | **4.60** / 13.53 |
+> | geometry3-shelf | 734 | **1.39×** (1.20–1.66) | 6.05× | **12.76** / 14.54 |
+> | geometry4-shelf | 2380 *(diffuse)* | 1.96× (1.53–2.18) | 3.60× | **7.52** / 24.52 |
+> | geometry5-shelf | 2520 *(diffuse)* | 1.84× (1.54–2.03) | 3.83× | **4.35** / 22.64 |
+> | geometry6-shelf | 5178 *(diffuse)* | 2.10× (1.66–2.43) | 7.01× | **5.93** / 17.60 |
+> | geometry1-fixed | 324 | 1.78× (1.40–1.95) | 3.85× | **3.59** / 9.92 |
+> | geometry2a-fixed | 297 | 1.02× (0.84–1.12) | 2.62× | **3.31** / 10.97 |
+> | geometry3-fixed | 775 | 2.50× (2.18–2.79) | 2.53× | **1.94** / 9.07 |
+> | geometry4-fixed | 6797 *(diffuse)* | 1.22× (1.06–1.31) | 1.41× | **7.66** / 14.05 |
+>
+> **Reading.**
+> - The field representation localises better than ridge on **all 10 datasets**. The one
+>   near-tie is geometry2a-fixed (1.02×, range spans 1). It has higher top-1% recall on all 10.
+> - Ridge has the lower peak-temperature error on all 10.
+> - The pre-repair geometry5 **reversal (recall 0.78×) was an artefact** of the layer-blind power
+>   field; it is now 3.83×.
+> - geometry2a's advantage is real but **smaller than first reported** (2.73×, not 6.28×).
+> - Layout randomisation amplifies the localisation advantage on 3 of 4 geometries with a fixed
+>   counterpart (shelf ÷ fixed: 4.92×, 2.68×, 1.61×). geometry3 is still the exception (0.56×).
+>   Recall is amplified on all 4 (1.5–2.6×).
+> - All geometry4–6 peaks remain diffuse on the corrected coordinates, so distance there is
+>   descriptive only.
+
 Every hotspot measurement in this report until now used **fixed-placement** data
 (§9.12c/§9.12d, geometry1 and geometry6) and compared only **compact-vector** baselines.
 `scripts/layout_cv.py`, which produced §9.15b's shelf table, reports detrended MAE/R²/corr and
@@ -2814,6 +2858,11 @@ before use (offsets differ substantially file-to-file; inter-scenario SDF correl
 | geometry5 | 0.4374 | 0.159 | — |
 | geometry6 | 0.5133 | **−0.032** | — |
 
+**Re-measured on repaired data (2026-09-24, §9.23), k=8:** field-only R² 0.936 / **0.893** /
+**0.673** and field+SDF −37.0 / −0.61 / 0.09 for geometry4/5/6. The pre-repair geometry5/6
+field-only values (0.437, 0.513) were depressed by the layer-blind power field. The conclusion
+holds and is stronger: the SDF channel hurts on all three.
+
 **Ruled out a confound before concluding anything.** The first pass (k=8, matching §9.15d)
 showed a catastrophic drop on geometry4. A `pca_k` sweep isolated that this was *partly* the
 same capacity confound §9.17 caught for geometry1 — doubling the channel count needs more
@@ -2933,6 +2982,11 @@ published before the control below was run.
 | geometry4 | 28 | 434 | −0.667 | −0.345 | 0.941 | 20.0% |
 | geometry5 | 48 | 1224 | −2.305 | −1.089 | 0.437 | 44.3% |
 | geometry6 | 85 | 3740 | −2.866 | 0.288 | 0.513 | **93.3%** |
+
+*(Repaired-data field references, §9.23: 0.936 / 0.893 / 0.673. Ridge and quadratic R² use
+compact features and are unaffected. The gap closed becomes 20.1% / 38.0% / 89.1%. On
+geometry6, over seeds 0–2, quadratic vs random becomes 89.1/91.8%, 88.1/90.3% and 87.0/86.9%.
+The conclusion is unchanged: random features match or beat the quadratic terms.)*
 
 A pattern in this table should have been a warning sign immediately: gap-closed rises
 monotonically with feature count (20% → 44% → 93%) against training samples fixed at 36. That
@@ -3065,6 +3119,33 @@ to <1%, and stand.
 
 None of these is retracted yet. Each is marked unreliable until re-measured on repaired data.
 
+**Repair applied, 2026-09-24 (option 1: relabel, no re-simulation).**
+- `scripts/repair_saved_data.py` rewrote all 545 NPZs. It relabels coordinates and rebuilds the
+  power field: from placement plus metadata on the layout data, and from the per-cell maps on
+  the fixed data. The maps regenerate bit-exactly: all 275 match the stored field to 6e-8.
+- Fresh 3D-ICE solves through the fixed parser reproduce repaired files to **0.00 K**
+  (geometry1/4/6).
+- After repair, temperature correlates with its own power field directly (0.56–0.84), not only
+  when transposed.
+- Every layout dataset balances energy to <4.3%; the residual is blocks straddling cells.
+- `generate_power_density_field` is fixed to be layer-aware, with a regression test.
+- Backup: `data/_backup_pre_relabel_20260923/`.
+
+**Re-measured:**
+- §9.17: all 10 datasets, current table at the head of that section.
+- §9.19: field-only R² 0.936 / 0.893 / 0.673.
+- §9.22: percentages recomputed.
+- Per-point results reproduced exactly, confirming the invariance argument (e.g. §9.17's ridge
+  rows).
+
+**Still open:**
+- the neural re-runs (need a GPU);
+- the fixed dataset's unphysical power placement (item 4);
+- geometry4's z-resolution;
+- the unexplained geometry5/6 fixed-data discrepancy in check B.
+
+The last three need re-simulation.
+
 **Repair path.**
 - **Transpose:** a deterministic relabelling of saved coordinates. No re-simulation is needed.
 - **Layout power fields:** rebuildable exactly from metadata and placement.
@@ -3157,7 +3238,7 @@ training a neural operator is a question worth asking.
 
 **And the diagnosis needed one more correction (§9.15c).** Asking whether a benchmark is
 "linearly solvable" is ill-posed without naming the input representation. The same 45
-geometry4 files admit a linear fit at R² 0.962 from the full per-cell power field and fail at
+geometry4 files admit a linear fit at R² 0.95 from the full per-cell power field and fail at
 R² −0.667 from the compact block-summary vector that surrogate models are conventionally
 given. Conduction *is* exactly linear in the per-cell source, so the field representation is
 the physically correct hypothesis class; it degrades only insofar as moving a chiplet also
@@ -3170,7 +3251,7 @@ re-run.)*
 
 **The representation also decides where the hotspot is (§9.17).** On layout-varying data, a
 linear fit on the power field localises the peak better than ridge on the compact vector on
-all three sharp-peaked geometries (8.75×, 6.28×, 1.33×, seed-stable), while ridge stays better
+all three sharp-peaked geometries (8.75×, 2.73×, 1.39×, seed-stable), while ridge stays better
 at peak *temperature* — the metric split above, now between two linear models. And where a
 peak-temperature prediction is needed with an error bar, **split conformal prediction gives
 valid coverage** (§9.20); MC Dropout did not.

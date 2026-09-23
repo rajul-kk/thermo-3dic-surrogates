@@ -8,17 +8,15 @@ preserves in full — every claim below is traceable to a numbered section there
 disagree. Full bibliography: `docs/references.md`. Molecular-property replication detail:
 `molprop/README.md`.
 
-> **⚠ Validation, 2026-09-23 (report §9.23).** An independent FV solver confirms 3D-ICE solves
-> the specified problem, but found pipeline faults in *this project's* data:
-> - every saved temperature field is transposed (stretched as well on geometry4–6);
-> - saved power fields are layer-blind on multi-die layout data;
-> - the fixed dataset is per-cell-map data whose metadata understates the simulated power, and it
->   places ~30% of power in underfill on chiplet packages;
-> - geometry4's discretisation is 11–40% from converged.
+> **Validation and repair, 2026-09-23/24 (report §9.23).** An independent FV solver confirms
+> 3D-ICE solves the specified problem. It found faults in *this project's* saved data:
+> transposed temperature labels and a layer-blind power field. **Both are repaired exactly, with
+> no re-simulation, and every affected linear result below is re-measured.**
 >
-> Linear-baseline results are unaffected. So are hotspot results on geometry1/3. **Neural-model
-> comparisons, geometry4–6 distances and layout-geometry2a/5/6 field-model numbers are unreliable
-> until re-measured on repaired data.**
+> Still open:
+> - neural-model comparisons were trained on the broken data (need GPU re-runs);
+> - the fixed dataset puts ~30% of its power in underfill on chiplet packages;
+> - geometry4's discretisation is 11–40% from converged.
 
 ---
 
@@ -36,7 +34,7 @@ linear and neural, localises the peak temperature no better than chance under th
 fixed-floorplan setup. We then show the benchmark is fixable — randomising chiplet
 *placement* moves three of four re-laid-out geometries out of the linear regime, with ridge
 becoming the *worst* baseline tested — and that "linearly solvable" turns out to be a property
-of the *input representation*, not the dataset: the same 45 files score R² 0.96 from the
+of the *input representation*, not the dataset: the same 45 files score R² 0.95 from the
 full power field and −0.67 from the compact vector surrogate papers conventionally use. We
 supply the missing linear baseline for an external benchmark (IC-ThermBench), where it
 *loses* — confirming the diagnostic works in both directions. Finally, on layout-varying data,
@@ -178,10 +176,11 @@ supplies.
 
 ### 4.5 "Linear-solvable" is a property of the representation, not the dataset (§9.15c)
 
-The same 45 geometry4-shelf files score linear R² **0.962** from the full per-cell power field
+The same 45 geometry4-shelf files score linear R² **0.95** from the full per-cell power field
 and **−0.667** from the compact block-summary vector surrogate papers conventionally consume.
 Conduction is exactly linear in the per-cell source, so the field representation is the
-physically correct hypothesis class; it degrades only insofar as moving a chiplet also moves
+physically correct hypothesis class. On repaired data this also holds on geometry5/6
+(field R² 0.94, 0.89 against compact −2.31, −2.87); it degrades only insofar as moving a chiplet also moves
 silicon. The compact vector discards exactly that. This is a benchmarking-flavoured
 restatement of the classical affine-vs-non-affine parametrisation distinction from
 reduced-basis/model-order-reduction theory (Kolmogorov n-width decay), not a new mechanism —
@@ -189,7 +188,9 @@ checked and stated as such (§9.16g).
 
 **The predicted follow-on experiment was run (§9.15d).** An FNO consumes the field
 representation, so it should inherit the field's cross-geometry difficulty gap
-(geometry4−geometry6 ≈ +0.427), not the compact vector's (≈ +2.192). Testing both plain FNO
+(geometry4−geometry6 ≈ +0.427 pre-repair; +0.263 on repaired data), not the compact vector's
+(≈ +2.192). *(The FNO runs in this paragraph were trained on transposed targets (§9.23) and
+are unreliable until re-run.)* Testing both plain FNO
 and the strongest architecture this repo implements (CNO-FNO with axial attention and a
 physics-informed loss): the prediction held, weakly (gap +0.125 to +0.178) — but the more
 robust finding is that **even the strongest architecture still loses to closed-form linear
@@ -230,28 +231,29 @@ non-neural baseline} together — ChipTherm has the first and third but not the 
 closest hotspot-position paper (arXiv:2503.04049) has the second but a fixed geometry and no
 non-neural baseline; HSLD (2021) has the first but neither of the others. This project
 measured it on six layout-randomised geometries, gated by a peak-sharpness diagnostic
-applied *before* any model was fit. Ratios are ridge ÷ field error (>1 = field better),
-mean over four seeds:
+applied *before* any model was fit. Ratios are ridge ÷ field error (>1 = field better), mean over
+four seeds, on the repaired data:
 
 | geometry | peak sharp enough for distance? | loc ratio (seed range) | recall ratio | shelf ÷ fixed (loc) |
 |---|---|---|---|---|
-| geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.83× | 4.91× |
-| geometry2a-shelf | yes | **6.28×** (5.74–6.74) | 10.51× | 5.81× |
-| geometry3-shelf | yes | 1.33× (1.20–1.46) | 5.73× | **0.53× (reverses)** |
-| geometry4-shelf | no (diffuse) | 2.21× (1.72–2.68) | 3.97× | 1.56× |
-| geometry5-shelf | no | 1.10× (0.92–1.33) | **0.78× (reverses)** | — |
-| geometry6-shelf | no | 1.31× (1.00–1.51) | 2.02× | — |
+| geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.87× | 4.92× |
+| geometry2a-shelf | yes | **2.73×** (2.27–3.77) | 5.98× | 2.68× |
+| geometry3-shelf | yes | 1.39× (1.20–1.66) | 6.05× | **0.56× (reverses)** |
+| geometry4-shelf | no (diffuse) | 1.96× (1.53–2.18) | 3.60× | 1.61× |
+| geometry5-shelf | no | 1.84× (1.54–2.03) | 3.83× | — |
+| geometry6-shelf | no | 2.10× (1.66–2.43) | 7.01× | — |
 
-On all three sharp geometries — where distance is a valid metric — the field model localises
-better, seed-stably. Layout randomisation usually amplifies the advantage (2 of 3) but not
-always. The counterweight is part of the claim: ridge has the lower peak-*temperature* error
-on every sharp geometry (e.g. 4.60 K vs 16.67 K on geometry2a-shelf). The representation that
-finds *where* the peak is costs accuracy in *how hot* it is — §4.2's metric split, now between
-two *linear* models, so it cannot be attributed to network capacity.
+The field model localises better than ridge on every dataset measured: all six layout-randomised
+ones above, plus four fixed-placement ones, where geometry2a-fixed is a near-tie at 1.02×.
+Layout randomisation usually amplifies the advantage (3 of 4) but not always. The counterweight
+is part of the claim: ridge has the lower peak-*temperature* error on every dataset (e.g. 4.60 K
+vs 13.53 K on geometry2a-shelf). The representation that finds *where* the peak is costs
+accuracy in *how hot* it is. That is §4.2's metric split, now between two *linear* models, so it
+cannot be attributed to network capacity.
 
 **Novelty scope.** The mechanism (the compact vector discards sub-block spatial detail) is not
-new — §4.2 already uses it. What is new is the measurement: the magnitudes, their
-geometry-dependence, and the two documented reversals.
+new; §4.2 already uses it. What is new is the measurement: the magnitudes and their
+geometry-dependence.
 
 ### 4.8 Calibrated peak-temperature intervals (§9.20)
 
