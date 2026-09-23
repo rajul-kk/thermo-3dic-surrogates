@@ -715,28 +715,25 @@ class ICESimulator(ThermalSimulator):
             # different column counts — seen with near-zero power or high HTC).
             row_lengths = [len(r) for r in temp_rows]
             if len(set(row_lengths)) > 1:
-                # Pick expected_width = self._ny (or mode if _ny not set).
-                expected_width = getattr(self, '_ny', max(set(row_lengths), key=row_lengths.count))
-                temp_rows = [r for r in temp_rows if len(r) == expected_width]
+                temp_rows = [r for r in temp_rows if len(r) == self._nx]
                 if not temp_rows:
                     continue
 
             temp_grid = np.array(temp_rows, dtype=np.float64)   # shape (n_rows, n_cols)
-            n_rows, n_cols = temp_grid.shape
 
-            x_c = (self._x_centers if n_rows == self._nx
-                   else np.linspace(self._x_centers[0], self._x_centers[-1], n_rows))
-            y_c = (self._y_centers if n_cols == self._ny
-                   else np.linspace(self._y_centers[0], self._y_centers[-1], n_cols))
+            # Tmap rows run along chip WIDTH (die_width = PINN x) and columns along
+            # chip LENGTH (die_length = PINN y), verified 2026-09-23 against an
+            # independent FV solve (docs/report.md §9.23). This parser previously
+            # assumed the opposite, which silently transposed every square field
+            # and, via a linspace fallback, stretched every non-square one.
+            if temp_grid.shape != (self._ny, self._nx):
+                raise ValueError(
+                    f"{out_file.name}: Tmap is {temp_grid.shape}, expected "
+                    f"(width cells, length cells) = ({self._ny}, {self._nx})")
 
-            xx, yy = np.meshgrid(x_c, y_c, indexing='ij')
-            zz = np.full_like(xx, matched_z)
-
-            # 3D-ICE Tmap rows = chip_length direction (die_length = PINN y),
-            # columns = chip_width direction (die_width = PINN x).
-            # Swap so that coords[:,0]=x (die_width) and coords[:,1]=y (die_length)
-            # to match PINN's coordinate convention for non-square geometries.
-            coords_all.append(np.stack([yy.ravel(), xx.ravel(), zz.ravel()], axis=1))
+            ww, ll = np.meshgrid(self._y_centers, self._x_centers, indexing='ij')
+            zz = np.full_like(ww, matched_z)
+            coords_all.append(np.stack([ww.ravel(), ll.ravel(), zz.ravel()], axis=1))
             temps_all.append(temp_grid.ravel())
 
         if not coords_all:
