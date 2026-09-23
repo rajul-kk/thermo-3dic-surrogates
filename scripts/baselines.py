@@ -132,14 +132,47 @@ def aggregate(per_scenario: List[Dict[str, float]]) -> Dict[str, float]:
 # unlike the ridge baseline below which deliberately does not -- kept for fidelity.
 FIELD_PCA_K = 8
 FIELD_LAMBDA = 1e-2
+FIELD_PCA_GRID = (4, 8, 16, 24, 32)       # nested selection grid (docs/report.md 9.17)
+
+
+def _field_fit(P_tr, Y_tr, pca_k):
+    """PCA-ridge from the power field to the temperature field; returns a predictor."""
+    f_mu, f_sd = P_tr.mean(0), P_tr.std(0) + 1e-12
+    Pc = (P_tr - f_mu) / f_sd
+    # Economy SVD of the (n_train x n_cells) matrix: never forms a cell-space Gram, which
+    # is 24-152 GB on these grids and is what OOMed the linearity audit on Darcy.
+    _, _, Vt = np.linalg.svd(Pc, full_matrices=False)
+    B = Vt[:min(pca_k, Vt.shape[0])].T
+    A = np.hstack([Pc @ B, np.ones((len(P_tr), 1))])
+    W = np.linalg.solve(A.T @ A + FIELD_LAMBDA * np.eye(A.shape[1]), A.T @ Y_tr)
+    return lambda P: np.hstack([((P - f_mu) / f_sd) @ B, np.ones((len(P), 1))]) @ W
+
+
+def select_field_pca_k(P_tr, Y_tr, grid=FIELD_PCA_GRID, folds=4, seed=0):
+    """pca_k maximising inner-CV spatially-detrended R², using the training scenarios only."""
+    idx = np.random.default_rng(seed).permutation(len(P_tr))
+    parts = np.array_split(idx, folds)
+    score = []
+    for k in grid:
+        r2 = []
+        for te in parts:
+            tr = np.setdiff1d(idx, te)
+            pred = _field_fit(P_tr[tr], Y_tr[tr], k)(P_tr[te])
+            for yp, yt in zip(pred, Y_tr[te]):
+                a, b = yp - yp.mean(), yt - yt.mean()
+                r2.append(1.0 - ((a - b) ** 2).sum() / max((b ** 2).sum(), 1e-12))
+        score.append(float(np.mean(r2)))
+    return grid[int(np.argmax(score))]
 
 
 def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
                 k: int, ridge_lambda: float, power_pca: int = 0,
-                include_field_linear: bool = False
+                include_field_linear: bool = False,
+                field_pca_k: Optional[int] = FIELD_PCA_K,
                 ) -> List[Dict[str, np.ndarray]]:
     """Fit every baseline on `train` and return raw predicted fields for `test`.
-    `include_field_linear` adds a linear fit on the full power field; off by default so §9.1a/§9.12d tables are unchanged."""
+    `include_field_linear` adds a linear fit on the full power field; off by default so §9.1a/§9.12d tables are unchanged.
+    `field_pca_k=None` selects its rank by nested CV on `train` (the §9.17 protocol)."""
     # Per-block positions enter the feature vector whenever the dataset carries them.
     # For fixed-placement data they are constant and the zero-variance guard below drops
     # them; for moving-source data (docs/report.md 9.14) they are what tells the baseline
@@ -186,20 +219,11 @@ def predict_all(train: List[dict], test: List[dict], block_keys: List[str],
 
     field_pred = None
     if include_field_linear:
-        # Economy SVD of the (n_train x n_cells) standardised power matrix, then solve in
-        # the low-rank space. Never forms a cell-space Gram: that is (n_cells x n_cells),
-        # 24-152 GB on these grids, and is what OOMed the linearity audit on Darcy.
         P_tr = np.stack([sc['power'] for sc in train])
         P_te = np.stack([sc['power'] for sc in test])
-        f_mu = P_tr.mean(0)
-        f_sd = P_tr.std(0) + 1e-12
-        Pc = (P_tr - f_mu) / f_sd
-        _, _, Vt_f = np.linalg.svd(Pc, full_matrices=False)
-        B = Vt_f[:min(FIELD_PCA_K, Vt_f.shape[0])].T
-        A_f = np.hstack([Pc @ B, np.ones((len(train), 1))])
-        W_f = np.linalg.solve(A_f.T @ A_f + FIELD_LAMBDA * np.eye(A_f.shape[1]), A_f.T @ Y_tr)
-        field_pred = np.hstack([((P_te - f_mu) / f_sd) @ B,
-                                np.ones((len(test), 1))]) @ W_f
+        k_f = field_pca_k if field_pca_k else select_field_pca_k(P_tr, Y_tr)
+        field_pred = _field_fit(P_tr, Y_tr, k_f)(P_te)
+        predict_all.last_field_pca_k = k_f
 
     preds: List[Dict[str, np.ndarray]] = []
 
