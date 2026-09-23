@@ -466,7 +466,7 @@ def build_geometry4() -> Geometry:
         power_blocks=power_blocks,
         die_width=25000.0,
         die_length=14000.0,
-        mesh_resolution=(100, 56, 40),
+        mesh_resolution=(56, 100, 40),  # (length, width): 14000/56=250µm, 25000/100=250µm
         die_footprints=die_footprints,
         underfill_k=0.7,
     )
@@ -560,7 +560,7 @@ def build_geometry5() -> Geometry:
         power_blocks=power_blocks,
         die_width=25000.0,
         die_length=14000.0,
-        mesh_resolution=(100, 56, 50),
+        mesh_resolution=(56, 100, 50),  # (length, width): 14000/56=250µm, 25000/100=250µm
         die_footprints=die_footprints,
         underfill_k=0.7,
         tsv_density=0.03,  # matches create_tsv_material(0.03) above; without this
