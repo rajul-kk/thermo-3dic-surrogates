@@ -42,7 +42,10 @@ def energy_balance(f: Path):
     area = (geom.die_width / g.shape[0]) * (geom.die_length / g.shape[1]) * 1e-12
     c, T = d['coords'], d['temp'].astype(np.float64)
     kz = np.abs(c[:, 2:3] - zc[None]).argmin(1)
-    w = d['power'].astype(np.float64) * area * dz[kz]
+    # the power field is W/m^3 over a whole active layer, whatever its z-split
+    thick = np.array([geom.layers[i].thickness * 1e-6 if geom.layers[i].is_active else 0.0 for i in g.z_layer])
+    vol_dz = np.where(thick[kz] > 0, thick[kz], dz[kz])
+    w = d['power'].astype(np.float64) * area * vol_dz
     p_field = float(w.sum())
     p_meta = sum(b.power_watts(float(m.get(f'block_power_{b.name}', 0.0)))
                  for b in geom.power_blocks if not b.is_tsv_region)
@@ -127,7 +130,7 @@ def layout_case(name):
 def top_active_peak(theta, g, geom):
     """(peak rise K, (x, y) µm of the argmax) on the uppermost active layer."""
     top = max(i for i, l in enumerate(geom.layers) if l.is_active)
-    ks = np.nonzero(g.z_layer == top)[0]
+    ks = np.nonzero((g.z_layer == top) & fv.source_cells(geom, g))[0]
     lay = theta[:, :, ks].mean(axis=2)
     i, j = np.unravel_index(np.nanargmax(lay), lay.shape)
     xc = 0.5 * (g.xe[:-1] + g.xe[1:]); yc = 0.5 * (g.ye[:-1] + g.ye[1:])
@@ -145,7 +148,10 @@ def run_case(label, geom, scen, workdir: Path):
 
     g0 = fv.make_grid(geom)
     ice = fv.ice_to_grid(parsed['coords'].astype(np.float64), parsed['temperature'].astype(np.float64), g0)
-    assert not np.isnan(ice).any(), '3D-ICE output does not map one-to-one onto the native grid'
+    node = ~np.isnan(ice)                      # 3D-ICE reports one node per stack element
+    active = np.isin(g0.z_layer, [i for i, l in enumerate(geom.layers) if l.is_active])
+    expected = fv.source_cells(geom, g0) | ~active
+    assert node.all(axis=(0, 1)).tolist() == expected.tolist(), '3D-ICE nodes do not match the native grid'
     th_ice = ice - t_amb
 
     levels = {}
@@ -165,7 +171,8 @@ def run_case(label, geom, scen, workdir: Path):
     peak_ice, loc_ice = top_active_peak(th_ice, g0, geom)
     peak_fv0, loc_fv0 = top_active_peak(th_fv0, g0, geom)
     peak_fine, loc_fine = top_active_peak(th_fine, g0, geom)
-    rise = float(th_ice.max())
+    rise = float(np.nanmax(th_ice))
+    th_ice, th_fv0, th_fine = th_ice[node], th_fv0[node], th_fine[node]
 
     def rel_rms(a, b):
         return float(np.sqrt(np.mean((a - b) ** 2)) / np.sqrt(np.mean(b ** 2)))

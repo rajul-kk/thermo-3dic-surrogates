@@ -235,6 +235,21 @@ class ScenarioGenerator:
             s.htc = floor + frac * (self.MAX_HTC - floor)
         return scenarios
 
+    @staticmethod
+    def _cap_within(p: np.ndarray, mask: np.ndarray, cap: float, iters: int = 50) -> np.ndarray:
+        """Apply the silicon ceiling per tile, moving clipped power to the block's other tiles."""
+        p = p.copy()
+        for _ in range(iters):
+            excess = float(np.clip(p - cap, 0, None).sum())
+            if excess <= 1e-12:
+                break
+            p = np.minimum(p, cap)
+            room = mask & (p < cap)
+            if not room.any():                  # the whole block is at the ceiling
+                break
+            p[room] += excess * p[room] / p[room].sum() if p[room].sum() > 0 else excess / room.sum()
+        return p
+
     def attach_power_maps(self, scenarios: List[ScenarioParameters],
                           geometry: Geometry,
                           kind: str = 'mixed',
@@ -248,21 +263,22 @@ class ScenarioGenerator:
         if not active:
             return scenarios
 
-        nx = resolution or int(geometry.mesh_resolution[0])
-        ny = resolution or int(geometry.mesh_resolution[1])
-        if resolution == 0 and geometry.die_footprints:
-            # 3D-ICE 4.0 heap-corrupts ("corrupted size vs. prev_size") when a
-            # die's source layer is both an IDENTIFIER-referenced layout (the
-            # Si/underfill footprint mechanism in ice_simulator.py) AND carries
-            # a full-mesh-resolution per-cell floorplan (~5600 elements on
-            # geometry5). resolution=64 (4096 elements) was validated crash-free
-            # on geometry4/5/6 against the real binary; full mesh resolution was
-            # NOT, on geometry5 specifically. Cap defensively for all footprint
-            # geometries rather than special-case the one observed to fail.
-            nx = min(nx, 64)
-            ny = min(ny, 64)
-        # Floorplan axis order is (length, width); mesh_resolution is (x=width, y=length).
-        n_l, n_w = ny, nx
+        # Tiles are a whole number of thermal cells (mesh_resolution is (length, width), as
+        # ICESimulator reads it), so tile, cell and chiplet edges coincide. Unaligned tiles
+        # put power into underfill-material cells at chiplet edges and made 3D-ICE and an
+        # independent solver disagree by 7-8% on geometry5/6 (docs/report.md 9.23).
+        n_len, n_wid = int(geometry.mesh_resolution[0]), int(geometry.mesh_resolution[1])
+        if resolution:
+            n_l = n_w = resolution
+        else:
+            f = 1
+            # 3D-ICE 4.0 heap-corrupts ("corrupted size vs. prev_size") when a footprint
+            # layout layer also carries a ~5600-element floorplan (geometry5); 4096 was
+            # validated crash-free, so footprint geometries stay under that many tiles.
+            while geometry.die_footprints and (
+                    n_len % f or n_wid % f or (n_len // f) * (n_wid // f) > 4096):
+                f += 1
+            n_l, n_w = n_len // f, n_wid // f
         cell_area_cm2 = (geometry.die_length / n_l) * (geometry.die_width / n_w) / 1e8
 
         for idx, s in enumerate(scenarios):
@@ -277,33 +293,47 @@ class ScenarioGenerator:
 
             s.power_map_kind = kind
             s.power_map_by_layer = {}
-            per_layer_w = prev_total_w / len(active)
+            tl, tw = geometry.die_length / n_l, geometry.die_width / n_w
+            ae, be = np.arange(n_l + 1) * tl, np.arange(n_w + 1) * tw
 
+            def overlap(b):
+                """Fraction of each tile covered by block b."""
+                oa = np.clip(np.minimum(ae[1:], b.y + b.height) - np.maximum(ae[:-1], b.y), 0, None) / tl
+                ob = np.clip(np.minimum(be[1:], b.x + b.width) - np.maximum(be[:-1], b.x), 0, None) / tw
+                return np.outer(oa, ob)
+
+            delivered = {}
             for li, layer in enumerate(active):
                 shape = generate_power_map(
                     n_l, n_w, kind=kind, seed=seed_base + 1000 * idx + li)
+                pm = np.zeros((n_l, n_w))
+                # Texture lives INSIDE each block, on the block's own layer, and each block
+                # keeps the power the scenario gave it. The previous version spread each
+                # layer's equal share of the budget over the whole die -- ~30% of the power
+                # landed in underfill on chiplet packages and every active layer (5 um RDL,
+                # HBM top dies) dissipated as much as the compute die (docs/report.md 9.23).
+                for b in geometry.power_blocks:
+                    if b.is_tsv_region or b.layer_name != layer.name or b.name not in s.power_blocks:
+                        continue
+                    watts = s.power_blocks[b.name] * self._active_block_area_cm2.get(b.name, 0.0)
+                    if watts <= 0:
+                        continue
+                    frac = overlap(b)
+                    patch = shape * frac
+                    if patch.sum() <= 0:
+                        patch = frac
+                    # Absolute silicon ceiling per tile; clipped power moves to the block's
+                    # other tiles, so a block keeps its total unless it is saturated everywhere.
+                    block_map = self._cap_within(patch / patch.sum() * watts, frac > 0,
+                                                 self.MAX_LOGIC_POWER_DENSITY_WCM2 * cell_area_cm2)
+                    pm += block_map
+                    delivered[b.name] = float(block_map.sum())
+                s.power_map_by_layer[layer.name] = pm                          # W/cell
 
-                # Scale so the layer dissipates its share of the scenario budget.
-                dens = shape / shape.sum() * per_layer_w / cell_area_cm2   # W/cm2
-                # Absolute silicon ceiling still applies pointwise.
-                dens = np.minimum(dens, self.MAX_LOGIC_POWER_DENSITY_WCM2)
-                s.power_map_by_layer[layer.name] = dens * cell_area_cm2    # -> W/cell
-
-            # Rebuild block powers as the mean density over each block's footprint,
-            # so summaries and the cooling-adequacy rule see a faithful picture.
-            for b in geometry.power_blocks:
-                if b.is_tsv_region or b.name not in s.power_blocks:
-                    continue
-                pm = s.power_map_by_layer.get(b.layer_name)
-                if pm is None:
-                    continue
-                a0 = int(b.y / geometry.die_length * n_l)
-                a1 = max(a0 + 1, int((b.y + b.height) / geometry.die_length * n_l))
-                b0 = int(b.x / geometry.die_width * n_w)
-                b1 = max(b0 + 1, int((b.x + b.width) / geometry.die_width * n_w))
-                patch = pm[a0:a1, b0:b1]
-                s.power_blocks[b.name] = (float(patch.mean()) / cell_area_cm2
-                                          if patch.size else 0.0)
+            # Block powers become the delivered mean density over each block, so the
+            # scalar summary and the map describe the same power.
+            for name, watts in delivered.items():
+                s.power_blocks[name] = watts / max(self._active_block_area_cm2[name], 1e-12)
 
         # Cooling must still match the (new) peak density.
         self._enforce_cooling_adequacy(scenarios)
