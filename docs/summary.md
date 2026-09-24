@@ -18,8 +18,8 @@ disagree. Full bibliography: `docs/references.md`. Molecular-property replicatio
 >
 > The fixed dataset and four layout datasets were regenerated, and 3D-ICE matches the FV solver
 > to ≤1.14% and grid convergence to ≤1.45%. Every number below is re-measured on the v5 data.
-> **Still open:** neural-model comparisons need GPU re-runs. The pilot datasets behind report
-> §9.8–9.11 were not regenerated.
+> The 306 pilot solves behind report §9.8–9.11 were regenerated too, and every pilot conclusion
+> survives. **Still open:** neural-model comparisons need GPU re-runs.
 
 ---
 

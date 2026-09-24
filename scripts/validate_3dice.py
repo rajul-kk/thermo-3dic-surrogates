@@ -28,11 +28,12 @@ OUT = Path('results/validation_3dice.json')
 
 
 # ── Check A: energy balance of every saved 3D-ICE solve ─────────────────────────
-def energy_balance(f: Path):
+def energy_balance(f: Path, include_feedback: bool = False):
     """Heat leaving the bottom face vs power injected (from the NPZ power field, i.e. what 3D-ICE was given)."""
     d = np.load(f, allow_pickle=True)
     m = d['metadata'].item()
-    if float(m.get('throttle_derate_factor', 1.0)) != 1.0 or float(m.get('leakage_multiplier', 1.0)) != 1.0:
+    feedback = float(m.get('throttle_derate_factor', 1.0)) != 1.0 or float(m.get('leakage_multiplier', 1.0)) != 1.0
+    if feedback and not include_feedback:     # the power field is the delivered power either way
         return None
     geom = get_geometry_by_name(m['geometry'])
     over = ast.literal_eval(m.get('layer_k_overrides', '{}') or '{}')

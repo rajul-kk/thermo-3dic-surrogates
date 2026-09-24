@@ -1011,6 +1011,11 @@ section):
   converges at all, even though no small feature subset cleanly captures the whole
   relationship on its own.
 
+**Correction, 2026-09-24.** On all 45 scenarios the ridge-accuracy result does not hold: on the
+28 converged scenarios (24 train / 4 test) kNN beats ridge, 0.320 vs 0.558 K det.MAE and
+0.951 vs 0.929 spatial R². Pre-v5 and v5 data give identical numbers (§9.24). "Ridge still wins"
+was an n=20 result.
+
 **Caveats.** One geometry, a small converged sample from one 45-scenario pilot (originally
 20; the ridge-accuracy figures above are measured on the original 20 for continuity), one
 damping/gain schedule — the direction is unambiguous but the exact numbers would tighten
@@ -3206,9 +3211,8 @@ regenerated: all 18 paired cases now agree to ≤1.14% and are converged to ≤1
 - Every new file balances energy to <4e-5, its block metadata equals the simulated power
   exactly, and it has no power in underfill.
 - **Old data archived** in `data/_archive_v4_pre_v5_20260924/`.
-- **Not regenerated, and still on the pre-§9.23 pipeline:** the rigid-translation, geometry7,
-  leakage, throttle, interface and microchannel pilot datasets. §9.8–9.11 and §9.15's numbers
-  come from these.
+- **Pilot datasets, regenerated separately (addendum below):** rigid-translation, geometry7,
+  leakage, throttle, interface and microchannel.
 
 **Re-measured** (`scripts/remeasure_v5.sh`, `results/v5/`):
 
@@ -3244,8 +3248,39 @@ sensors index layers by actual node height. Tests check the gridding against shu
 against a real v5 file. So no neural result in this report measured what it claimed to, on any
 dataset version. The neural re-run on v5 data is the first valid one.
 
+**Addendum: pilot datasets regenerated (2026-09-24).** All 306 pilot solves were regenerated on
+the v5 pipeline (`scripts/regen_pilots_v5.sh`).
+- **Re-solved from each file's own metadata (229):** geometry7 and its material sweep, the
+  interface pilots, and rigid translation.
+- **Regenerated with their original generators (77):** leakage, throttle and microchannel.
+  All 77 reproduce the old scenario inputs exactly.
+- Every non-runaway file balances energy to <1e-4. The microchannel set is excluded, since it
+  removes heat through its coolant.
+- geometry7 was validated first against the FV solver: 3D-ICE agrees to ≤0.58%, and the peak
+  is converged to ≤1.73%. Its field RMS error is 4–6%, above the other geometries' ≤1.1%,
+  probably because of the fine bridge/substrate structure.
+
+Re-measured (`scripts/remeasure_pilots_v5.sh`):
+
+| section | claim | pre-v5 | v5 |
+|---|---|---|---|
+| §9.8 throttle | ridge det.MAE / spatial R² | 0.707 K / 0.919 | **0.709 K / 0.919** |
+| §9.8 microchannel | 5-fold CV, ridge vs kNN mean R² (the original 8/4 split is unrecorded) | 0.844 / 0.820 | **0.843 / 0.818**, an effective tie |
+| §9.9 interfaces | largest peak-T spread (geometry4 `tim_die`) | 75.98 K | **77.90 K** |
+| §9.9 interfaces | T linear in 1/k | R² ≥ 0.996 | **R² ≥ 0.9956** |
+| §9.9 | ridge + 1/k feature | 0.683 K / 0.976 | **0.688 K / 0.976** |
+| §9.10 leakage | converged / runaway | 28 / 15 | **28 / 15** |
+| §9.10 | stability classifier, LOO | 43/45 vs 40/45 | **43/45 vs 40/45** |
+| §9.11 geometry7 | ridge / kNN det.MAE, R² | 0.462, 0.992 / 0.482, 0.992 | **identical** |
+| §9.15 rigid translation | ridge 5-fold CV mean R² (g1 / g4) | — | **0.857 / 0.862** (still the best model) |
+
+Every pilot conclusion survives. One stale claim is corrected in §9.10: "ridge still wins on
+converged leakage" was measured on the original 20 scenarios. At n=45, kNN beats ridge (det.MAE
+0.320 vs 0.558 K), and the pre-v5 45-scenario data gives the same numbers, so the change comes
+from sample size, not from v5.
+
 **Still open.** Neural results (§9.7, §9.12, §9.15d) need re-running on v5 data. That needs a
-GPU; the Kaggle zips in `data/*.zip` predate v5.
+GPU; the v5 zips are in `data/kaggle_v5/` (`notebooks/KAGGLE_SETUP.md`).
 
 ## 11. Conclusion
 
