@@ -1,5 +1,17 @@
 # Kaggle Setup Guide
 
+> **v5 data, 2026-09-24: read this first.** Every neural result before this date is void
+> (`docs/report.md` §9.23–9.24): the data was transposed, and all three neural loaders scrambled
+> or zeroed their inputs. For `kaggle_geometry4_vs_geometry6_fno.ipynb`:
+> 1. **Remove** any old `geometry4_shelf` / `geometry6_shelf` datasets from the notebook. File
+>    names overlap with v5, and the notebook searches every attached dataset.
+> 2. Upload `data/kaggle_v5/geometry4_shelf_v5.zip` and `geometry6_shelf_v5.zip` as new datasets
+>    (built locally; `data/` is gitignored). Zips for geometry1/2a/3/5 are there too.
+> 3. Settings -> Internet -> On (clones the fixed `src/` from `main`); Accelerator -> GPU T4.
+> 4. The physics-informed loss is **off** (`PDE_WEIGHT = FLUX_WEIGHT = 0`). Its
+>    finite-difference residual assumes uniform z, and 3D-ICE's z-nodes are not uniform.
+> 5. Expected grids: geometry4 (56, 100, 10), geometry6 (56, 168, 15), axes (length, width, z).
+
 > **`kaggle_geometry4_vs_geometry6_fno.ipynb` does not need the src dataset at all.** The
 > repo is public and tracks `src/`, so that notebook clones it (set **Settings -> Internet ->
 > On**) and falls back to an attached dataset if internet is off. The `.npz` data still has to

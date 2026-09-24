@@ -137,8 +137,12 @@ def interface_flux_loss(
 
 def grid_spacings(geometry) -> Tuple[float, float, float]:
     """Return (dx, dy, dz) in metres for a geometry's Cartesian mesh."""
-    nx, ny, nz = geometry.mesh_resolution
-    dx = (geometry.die_width  * 1e-6) / nx    # µm → m
-    dy = (geometry.die_length * 1e-6) / ny
+    # Grid axes are (length, width, z), as mesh_resolution and points_to_grid order them;
+    # this used to divide die_width by the length count (docs/report.md 9.24). dz is still
+    # a uniform approximation, and 3D-ICE's z-nodes are far from uniform, so the FD
+    # residual built on it is not the discrete conduction operator.
+    n_len, n_wid, nz = geometry.mesh_resolution
+    dx = (geometry.die_length * 1e-6) / n_len    # axis 0, µm → m
+    dy = (geometry.die_width  * 1e-6) / n_wid    # axis 1
     dz = (geometry.get_total_height() * 1e-6) / nz
     return dx, dy, dz

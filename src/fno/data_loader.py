@@ -110,6 +110,11 @@ class FNODataset(Dataset):
                     data['coords'], data['layer'].astype(np.float32),
                     norm_stats.norm_power(power_raw), norm_stats.norm_temp(data['temp']),
                     tsv_raw, dist_raw)
+                if T_norm.shape != (nx, ny, nz):
+                    # A transposed expectation would otherwise train silently: FNO layers
+                    # accept any grid size. Grids are (length, width, z).
+                    raise ValueError(f'{path.name}: data grid {T_norm.shape} != expected '
+                                     f'{(nx, ny, nz)} (axes are length, width, z)')
 
             elif n_points == n_expected_slice:
                 # Per-layer-slice layout (3D-ICE real data):

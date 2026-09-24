@@ -1,7 +1,8 @@
-"""Re-solve a saved layout dataset under the current ICE wrapper, reusing each file's own scenario.
-Placement, block powers, HTC, ambient and k-overrides come from the file's metadata, so no random
-draw has to be reproduced. Writes to a new directory; the caller swaps it in after validation.
-Usage: python scripts/resolve_layout_dataset.py geometry4 [--out data/3d-ice-layout-geometry4-v5]
+"""Re-solve a saved dataset under the current ICE wrapper, reusing each file's own scenario.
+Geometry, placement, block powers, HTC, ambient and k-overrides come from each file's metadata,
+so no random draw has to be reproduced. Only for block-scalar data with no feedback loop
+(leakage/throttle) and no TSV or power maps. Writes to a new directory for validation first.
+Usage: python scripts/resolve_from_metadata.py data/3d-ice-layout-geometry4 [--out <dir>]
 """
 import argparse
 import ast
@@ -22,12 +23,12 @@ ICE_EXE = 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('geometry')
+    ap.add_argument('src', type=Path)
     ap.add_argument('--out', type=Path, default=None)
     args = ap.parse_args()
-    src = Path(f'data/3d-ice-layout-{args.geometry}')
-    out = args.out or Path(f'data/3d-ice-layout-{args.geometry}-v5')
-    files = sorted(src.rglob(f'{args.geometry}_*.npz'))
+    src = args.src
+    out = args.out or src.with_name(src.name + '-v5')
+    files = sorted(src.rglob('*.npz'))
     for i, f in enumerate(files):
         target = out / f.relative_to(src)
         if target.exists():
@@ -35,9 +36,12 @@ def main():
         d = np.load(f, allow_pickle=True)
         arrays = {k: d[k] for k in d.files}
         m = arrays['metadata'].item()
+        if m.get('leakage_enabled') or m.get('throttle_enabled'):
+            raise ValueError(f'{f}: feedback scenarios need their generator, not a re-solve')
         offs = {k[len('placement_dx_'):]: (float(m[k]), float(m['placement_dy_' + k[len('placement_dx_'):]]))
                 for k in m if k.startswith('placement_dx_')}
-        geom = place_chiplets(get_geometry_by_name(args.geometry), offs)
+        offs = {('' if k == 'blocks' else k): v for k, v in offs.items()}   # exporter writes '' as 'blocks'
+        geom = place_chiplets(get_geometry_by_name(m['geometry']), offs)
         blocks = {b.name: float(m.get(f'block_power_{b.name}', 0.0)) for b in geom.power_blocks}
         scen = {'power_blocks': blocks, 'htc': float(m['htc']), 't_ambient': float(m['t_ambient_celsius']),
                 'layer_k_overrides': ast.literal_eval(m.get('layer_k_overrides', '{}') or '{}')}
