@@ -110,6 +110,13 @@ def conductivity(geometry, scenario: Dict[str, Any], g: FVGrid):
             lvl = idx[a[None, :], b[:, None]]
             k_l, k_v = tsv_effective_k(centres)
             kl, kv = k_l[lvl], k_v[lvl]
+            if layer.name in fps:              # TSV map clipped to the chiplet footprints
+                inside = np.zeros((nx, ny), bool)
+                for fp in fps[layer.name]:
+                    inside |= _centre_mask(g, fp.x, fp.y, fp.width, fp.height)
+                k_gap = (over.get(f'{layer.name}__gap', MaterialLibrary.get(layer.gap_material).k_thermal)
+                         if layer.gap_material else geometry.underfill_k)
+                kl = np.where(inside, kl, k_gap); kv = np.where(inside, kv, k_gap)
         elif layer.name in fps:
             if layer.gap_material:
                 k_gap = over.get(f'{layer.name}__gap', MaterialLibrary.get(layer.gap_material).k_thermal)

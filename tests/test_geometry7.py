@@ -166,23 +166,34 @@ def test_passive_layer_gap_material_overrides_underfill():
     assert decl_lines, "organic_substrate must appear in the material declarations"
 
 
-def test_gap_material_conflicting_with_tsv_map_raises():
-    """A layer cannot carry both a TSV density map and DiePrint footprints --
-    3D-ICE allows only one `layout` per layer declaration."""
+def test_tsv_map_on_a_footprint_layer_is_clipped_to_the_footprints():
+    """A layer holds one `layout`, so a TSV map on a footprint layer (geometry5/6's tsv_zone) is
+    clipped to the footprints and the rest of the layer takes the gap material."""
     geom = _make_probe_geometry(gap_material='organic_substrate')
     tmp = Path(tempfile.mkdtemp())
     cfg, out = tmp / 'cfg', tmp / 'out'
     cfg.mkdir(); out.mkdir()
-    n_l, n_w = 4, 4
     sc = {
         'htc': 5000.0, 't_ambient': 25.0, 'power_blocks': {'b1': 10.0},
-        'tsv_map_by_layer': {'passive_probe': np.full((n_l, n_w), 0.03)},
+        'tsv_map_by_layer': {'passive_probe': np.linspace(0.01, 0.05, 16).reshape(4, 4)},
     }
     sim = ICESimulator(config_dir=cfg, output_dir=out, executable='echo')
     sim._sublayers = sim._plan_sublayers(geom)
     sim._generate_layout_files(geom, sc)
-    with pytest.raises(ValueError, match='BOTH DiePrint footprints and a TSV'):
-        sim._generate_stack_file(geom, sc)
+    sim._generate_stack_file(geom, sc)
+
+    rects = [tuple(float(v) for v in line.split('(')[1].split(')')[0].split(','))
+             for line in (cfg / 'layout_passive_probe.lyt').read_text().splitlines() if 'rectangle' in line]
+    assert rects
+    area = 0.0
+    for x, y, dl, dw in rects:              # 3D-ICE axes; the footprint is 2000..5000 on both
+        assert 2000.0 - 1e-6 <= x and x + dl <= 5000.0 + 1e-6
+        assert 2000.0 - 1e-6 <= y and y + dw <= 5000.0 + 1e-6
+        area += dl * dw
+    assert abs(area - 3000.0 * 3000.0) < 1.0  # the footprint is fully tiled, nothing outside it
+    stk = (cfg / 'stack.stk').read_text()
+    assert 'layout_passive_probe.lyt' in stk
+    assert 'organic_substrate' in stk
 
 
 def test_organic_substrate_material_registered():

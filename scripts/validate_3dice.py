@@ -109,7 +109,7 @@ def fixed_cases(name):
     scens = gen.generate_all_scenarios(geom)
     gen.attach_tsv_maps(scens, geom)
     gen.attach_power_maps(scens, geom, kind='mixed')     # as regen_v4_final.ps1 generated data/3d-ice
-    tests = [_drop_footprint_tsv(geom, s.to_dict()) for s in scens if s.to_dict()['type'] == 'test']
+    tests = [s.to_dict() for s in scens if s.to_dict()['type'] == 'test']
     return [(f'{name}_fixed_{s["pattern"]}', geom, s) for s in tests[:2]]
 
 

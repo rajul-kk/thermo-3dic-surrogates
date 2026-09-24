@@ -151,15 +151,30 @@ class ICESimulator(ThermalSimulator):
             tile_w = geometry.die_width / n_w
             safe = self._sanitise(layer_name)
 
+            # A layer can hold one layout, so when it also has chiplet footprints (geometry5/6's
+            # tsv_zone) the TSV tiles are clipped to the footprints and the layer's base
+            # material is the gap material. Until 2026-08-17 the footprints on such a layer were
+            # silently dropped; from then until 2026-09-24 this combination raised instead.
+            # Rectangles are in 3D-ICE axes: X along chip length (PINN y), Y along width.
+            fps = [(fp.y, fp.x, fp.height, fp.width)
+                   for fp in self._footprints_by_layer(geometry).get(layer_name, [])]
             lines = [f"// TSV density layout — {geometry.name} / {layer_name}", ""]
             for li in range(len(centres)):
-                cells = np.argwhere(idx == li)
-                if cells.size == 0:
+                rects = []
+                for a, b in np.argwhere(idx == li):
+                    x0, y0 = a * tile_l, b * tile_w
+                    if not fps:
+                        rects.append((x0, y0, tile_l, tile_w))
+                    for fx, fy, fl, fw in fps:
+                        cx0, cx1 = max(x0, fx), min(x0 + tile_l, fx + fl)
+                        cy0, cy1 = max(y0, fy), min(y0 + tile_w, fy + fw)
+                        if cx1 - cx0 > 1e-6 and cy1 - cy0 > 1e-6:
+                            rects.append((cx0, cy0, cx1 - cx0, cy1 - cy0))
+                if not rects:
                     continue
                 lines.append(f"tsvmat_{safe}_{li} :")
-                for a, b in cells:
-                    lines.append(f"   rectangle ( {a * tile_l:.1f}, {b * tile_w:.1f}, "
-                                 f"{tile_l:.1f}, {tile_w:.1f} ) ;")
+                for x0, y0, dl, dw in rects:
+                    lines.append(f"   rectangle ( {x0:.1f}, {y0:.1f}, {dl:.1f}, {dw:.1f} ) ;")
                 lines.append("")
 
             path = self.config_dir / f"layout_{safe}.lyt"
@@ -353,14 +368,7 @@ class ICESimulator(ThermalSimulator):
             # uniformly its own material. Anything relying on lateral structure
             # in a passive layer would have been quietly simulated without it.
             has_footprints = layer.name in footprints_by_layer
-            if has_footprints and has_tsv_map:
-                raise ValueError(
-                    f"Layer {layer.name!r} has BOTH DiePrint footprints and a TSV "
-                    "density map. 3D-ICE takes at most one `layout` per layer "
-                    "declaration, so these cannot both be expressed -- split the "
-                    "lateral structure across two layers instead."
-                )
-            if has_footprints:
+            if has_footprints:              # also when a TSV map is clipped to the footprints
                 mat_name = self._gap_material_name(geometry, layer, layer_k_overrides)
             lines.append(f"layer type_layer_{s_idx} :")
             lines.append(f"   height {sub['thickness']:.1f} ;")
