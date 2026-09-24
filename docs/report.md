@@ -3229,6 +3229,21 @@ sits in one of a few block regions, which is the "short list" regime §9.4 descr
 the unphysical whole-die maps, not the benchmark, and is withdrawn for v5 data. The
 layout-varying results, which carry the paper's claims, are unchanged.
 
+**A third, independent reason the neural results are void (found 2026-09-24).** All three neural
+data loaders mishandled real 3D-ICE output:
+- The FNO loader (FNO, CNO-FNO, WHNO, PI-FNO) raw-reshaped the flat point list. 3D-ICE's point
+  order is z-outermost and width-major, so every input and target grid had its spatial
+  neighbours scrambled. Locality priors (spectral convolution, CNN encoders) were working on a
+  permuted field.
+- The DeepONet loader reshaped to the *declared* mesh, which never matches real z counts. It
+  fell back to all-zero power sensors, so the branch net never saw the power map.
+- The ARO loader skipped every geometry layer that had more than one z sub-layer.
+
+All three now grid points by coordinate (`src/core/mesh.py::points_to_grid`), and DeepONet's
+sensors index layers by actual node height. Tests check the gridding against shuffled points and
+against a real v5 file. So no neural result in this report measured what it claimed to, on any
+dataset version. The neural re-run on v5 data is the first valid one.
+
 **Still open.** Neural results (§9.7, §9.12, §9.15d) need re-running on v5 data. That needs a
 GPU; the Kaggle zips in `data/*.zip` predate v5.
 

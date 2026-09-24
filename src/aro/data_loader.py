@@ -96,22 +96,21 @@ class ARODataset(Dataset):
         T_norm = norm_stats.norm_temp(T_flat)
         Q_norm = norm_stats.norm_power(Q_flat)
 
+        # One slice per geometry layer, averaged over its z sub-layers. The previous
+        # per-layer reshape skipped every layer that sub-layer splitting gave more than
+        # one z-node, leaving zeros (docs/report.md 9.24).
+        from ..core.mesh import points_to_grid
+        Q_grid, T_grid, L_grid = points_to_grid(coords, Q_norm, T_norm, layer_ids)
+        if Q_grid.shape[:2] != (nx, ny):
+            raise ValueError(f'{path.name}: grid {Q_grid.shape[:2]} != mesh {(nx, ny)}')
+        z_layer = L_grid[0, 0, :]
         Q_stack = np.zeros((n_layers, nx, ny), dtype=np.float32)
         T_stack = np.zeros((n_layers, nx, ny), dtype=np.float32)
-
-        unique_layers = np.unique(layer_ids)
-        for lid in unique_layers:
-            if lid < 0 or lid >= n_layers:
-                continue
-            mask = layer_ids == lid
-            n_pts = mask.sum()
-            if n_pts != nx * ny:
-                # Subsample or skip malformed layers
-                _log.debug("Layer %d has %d points != nx*ny=%d in %s; skipping slice",
-                           lid, n_pts, nx * ny, path.name)
-                continue
-            Q_stack[lid] = Q_norm[mask].reshape(nx, ny)
-            T_stack[lid] = T_norm[mask].reshape(nx, ny)
+        for lid in range(n_layers):
+            ks = np.nonzero(z_layer == lid)[0]
+            if ks.size:
+                Q_stack[lid] = Q_grid[:, :, ks].mean(axis=2)
+                T_stack[lid] = T_grid[:, :, ks].mean(axis=2)
 
         # Per-layer normalised k
         k_norms = np.array(

@@ -66,3 +66,37 @@ def test_power_field_keeps_each_block_on_its_own_layer():
         want = sum(b.power_watts(blocks[b.name]) for b in geom.power_blocks
                    if b.layer_name == layer.name and not b.is_tsv_region)
         assert abs((p[sel] * vol[sel]).sum() - want) / want < 0.02, layer.name
+
+
+def test_points_to_grid_ignores_storage_order():
+    from src.core.mesh import points_to_grid
+    L, W, Z = np.meshgrid(np.arange(4) + 0.5, np.arange(3) + 0.5, [1.0, 5.0], indexing='ij')
+    coords = np.stack([W.ravel(), L.ravel(), Z.ravel()], 1)       # (x = width, y = length, z)
+    field = 100 * L.ravel() + 10 * W.ravel() + Z.ravel()
+    perm = np.random.default_rng(0).permutation(len(field))
+    g = points_to_grid(coords[perm], field[perm])
+    assert g.shape == (4, 3, 2)                                   # (length, width, z)
+    assert np.allclose(g, 100 * L + 10 * W + Z)
+
+
+def test_fno_dataset_grid_is_spatially_coherent_on_real_data():
+    import glob
+    import pytest
+    files = sorted(glob.glob('data/3d-ice-layout-geometry4/**/*.npz', recursive=True))[:2]
+    if not files:
+        pytest.skip('v5 layout data not on disk')
+    from pathlib import Path
+    from src.fno.data_loader import FNODataset
+    from src.pinn.data_loader import compute_norm_stats
+    d = np.load(files[0], allow_pickle=True)
+    c, t = d['coords'], d['temp']
+    from src.core.geometry_builders import get_geometry_by_name
+    ns = compute_norm_stats([Path(f) for f in files], {"geometry4": get_geometry_by_name("geometry4")})
+    mesh = d['metadata'].item()['mesh_resolution']
+    nz = len(t) // (mesh[0] * mesh[1])
+    ds = FNODataset([Path(files[0])], ns, (mesh[0], mesh[1], nz), target_grid=(mesh[0], mesh[1], nz))
+    T = ds[0]['T_norm'].numpy()
+    i, j, k = np.unravel_index(T.argmax(), T.shape)
+    lc, wc = np.unique(c[:, 1]), np.unique(c[:, 0])
+    peak = c[t.argmax()]
+    assert abs(lc[i] - peak[1]) < 1 and abs(wc[j] - peak[0]) < 1   # grid peak = file peak

@@ -59,6 +59,7 @@ def extract_sensors(
     Q_norm_grid: torch.Tensor,          # (nx, ny, nz) or (B, nx, ny, nz)
     geometry,
     device: torch.device,
+    z_centres=None,                     # (nz,) node heights in um; required for real 3D-ICE grids
 ) -> torch.Tensor:
     """
     Bilinear-downsample each active-layer power field to 16×16, concatenate,
@@ -82,10 +83,19 @@ def extract_sensors(
         total_h = geometry.get_total_height()
         z_lo = layer.z_bottom / total_h
         z_hi = layer.z_top   / total_h
-        z_lo_idx = max(0,    int(z_lo * nz))
-        z_hi_idx = min(nz-1, int(z_hi * nz) + 1)
-        # Average Q over the layer's z-extent
-        q_slice = Q_norm_grid[:, :, :, z_lo_idx:z_hi_idx].mean(dim=-1)  # (B, nx, ny)
+        if z_centres is not None:
+            # 3D-ICE nodes are far from uniform in z, so index by actual height; the
+            # height-fraction rule below gives thin top layers an empty (NaN) slice.
+            zc = torch.as_tensor(z_centres, dtype=torch.float32)
+            idx = torch.nonzero((zc >= layer.z_bottom) & (zc < layer.z_top)).flatten()
+            if idx.numel() == 0:
+                idx = torch.argmin((zc - 0.5 * (layer.z_bottom + layer.z_top)).abs()).reshape(1)
+            q_slice = Q_norm_grid[:, :, :, idx.to(Q_norm_grid.device)].mean(dim=-1)
+        else:
+            z_lo_idx = max(0,    int(z_lo * nz))
+            z_hi_idx = min(nz-1, int(z_hi * nz) + 1)
+            # Average Q over the layer's z-extent
+            q_slice = Q_norm_grid[:, :, :, z_lo_idx:z_hi_idx].mean(dim=-1)  # (B, nx, ny)
         # Bilinear downsample to (SENSOR_GRID, SENSOR_GRID)
         q_down = F.interpolate(
             q_slice.unsqueeze(1),                   # (B, 1, nx, ny)

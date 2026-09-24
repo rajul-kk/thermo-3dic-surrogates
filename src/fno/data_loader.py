@@ -103,12 +103,13 @@ class FNODataset(Dataset):
                 dist_raw = np.zeros(n_points, dtype=np.float32)
 
             if n_points == n_expected_full:
-                # Full mesh layout (mock simulator)
-                layer_ids = data['layer'].reshape(nx, ny, nz).astype(np.float32)
-                Q_norm = norm_stats.norm_power(power_raw).reshape(nx, ny, nz)
-                T_norm = norm_stats.norm_temp(data['temp']).reshape(nx, ny, nz)
-                TSV_norm = tsv_raw.reshape(nx, ny, nz)
-                DIST_norm = dist_raw.reshape(nx, ny, nz)
+                # One value per (x, y, z) node -- real 3D-ICE output and the mock alike.
+                # Gridded by coordinate: a raw reshape scrambled neighbours on real data.
+                from ..core.mesh import points_to_grid
+                layer_ids, Q_norm, T_norm, TSV_norm, DIST_norm = points_to_grid(
+                    data['coords'], data['layer'].astype(np.float32),
+                    norm_stats.norm_power(power_raw), norm_stats.norm_temp(data['temp']),
+                    tsv_raw, dist_raw)
 
             elif n_points == n_expected_slice:
                 # Per-layer-slice layout (3D-ICE real data):

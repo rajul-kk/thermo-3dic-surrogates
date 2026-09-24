@@ -79,18 +79,15 @@ class MultiGeomDataset(Dataset):
                      else float(meta.get('tsv_density', 0.0)))
 
             # Power sensor extraction: need Q on the FNO grid (nx,ny,nz)
-            nx, ny, nz = geometry.mesh_resolution
-            try:
-                Q_grid = Q_norm.reshape(nx, ny, nz)
-            except ValueError:
-                # Grid size mismatch (e.g. adaptive z gave different count)
-                # Approximate: use zeros as sensors (scenario still in dataset)
-                Q_grid = np.zeros((nx, ny, nz), dtype=np.float32)
-                _log.debug("Sensor extraction: reshape mismatch for %s, using zeros", path.name)
+            # Gridded by coordinate. The previous reshape to the DECLARED mesh never
+            # matched real 3D-ICE z counts, so every sensor silently fell back to zero.
+            from ..core.mesh import points_to_grid
+            Q_grid = points_to_grid(data['coords'], Q_norm.astype(np.float32))
 
             Q_grid_t = torch.from_numpy(Q_grid)
             sensors = extract_sensors(
-                Q_grid_t, geometry, device=torch.device('cpu')
+                Q_grid_t, geometry, device=torch.device('cpu'),
+                z_centres=np.unique(data['coords'][:, 2]),
             )  # (512,)
 
             scenario_scalars = torch.tensor(
@@ -166,8 +163,11 @@ def _build_q_grid_3d(
     N = len(Q_flat)
     Q_norm = norm_stats.norm_power(Q_flat.astype(np.float32))
 
-    if N == nx * ny * nz:
-        return Q_norm.reshape(nx, ny, nz)
+    try:
+        from ..core.mesh import points_to_grid
+        return points_to_grid(coords, Q_norm)          # real output: one value per node
+    except ValueError:
+        pass
 
     if N == n_layers * nx * ny:
         z_total = geometry.get_total_height()

@@ -333,3 +333,26 @@ def create_uniform_grid_summary(geometry: Geometry) -> str:
     ]
 
     return "\n".join(lines)
+
+
+def points_to_grid(coords: np.ndarray, *fields):
+    """Scatter per-point fields onto a (n_length, n_width, n_z) grid by coordinate, not storage order.
+    Axis order matches mesh_resolution (length, width) as ICESimulator reads it; z ascends."""
+    # 3D-ICE output order is not a grid order (z is outermost, in lexicographic inst_N
+    # order, and rows run along width), so a raw reshape scrambles neighbours. All three
+    # neural loaders did that until 2026-09-24 (docs/report.md 9.24).
+    coords = np.asarray(coords)
+    ul, uw, uz = np.unique(coords[:, 1]), np.unique(coords[:, 0]), np.unique(coords[:, 2])
+    shape = (len(ul), len(uw), len(uz))
+    if shape[0] * shape[1] * shape[2] != len(coords):
+        raise ValueError(f'{len(coords)} points do not form a full {shape} grid')
+    i = np.searchsorted(ul, coords[:, 1])
+    j = np.searchsorted(uw, coords[:, 0])
+    k = np.searchsorted(uz, coords[:, 2])
+    grids = []
+    for f in fields:
+        f = np.asarray(f)
+        g = np.empty(shape, dtype=f.dtype)
+        g[i, j, k] = f
+        grids.append(g)
+    return grids[0] if len(grids) == 1 else grids
