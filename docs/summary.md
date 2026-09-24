@@ -272,15 +272,22 @@ geometry/model tested:
 | geometry1-shelf | linear (field) | 93.3% / 93.3% | 39.5 |
 
 The intervals are honest but wide: conformal guarantees coverage, not narrowness, and the
-width reflects the point models' peak-temperature error.
+width reflects the point models' peak-temperature error. **Novelty scope:** split conformal for thermal neural operators already exists
+(arXiv:2606.09923, field intervals). This is an application check, not a new method.
 
 ---
 
 ## 5. Threats to validity
 
-- **3D-ICE itself has never been validated against silicon or another detailed solver in this
-  project** (`docs/assumptions.md`); all findings are internal to one simulator's ground
-  truth.
+- **Numerical correctness is independently checked; physical fidelity is not** (report
+  §9.23–9.24). An independent finite-volume solver (`src/validation/fv_solver.py`) matches the
+  exact 1D solution to 1e-8 K. On 18 paired cases it reproduces 3D-ICE to ≤1.14% of the
+  temperature rise, and grid refinement changes the dataset's answers by ≤1.45%. Every saved
+  solve balances energy to <4e-5. That establishes that the benchmark's ground truth is the
+  converged solution of the stated conduction problem. It does not establish that the stated
+  problem matches silicon: there is still no comparison against measurement or against a
+  detailed FEM model with resolved microstructure (TSVs, bumps), and the modelling
+  simplifications in `docs/assumptions.md` stand.
 - **Sample sizes are small** (45 scenarios per layout-varying geometry) for the
   high-dimensional layout spaces involved; absolute numbers should be read as directional,
   not asymptotic.

@@ -1725,7 +1725,8 @@ authoritative absolute-°C figure was found in a search pass; verified sources c
 CFD-vs-measurement studies ~2–4%). Two caveats keep that comparison from being a real
 industrial-accuracy claim: those targets are validated against silicon or a detailed
 reference model, not against another compact solver, and this benchmark's own ground
-truth (3D-ICE) has never been checked against either (§10, Threats to validity); and
+truth (3D-ICE) has been checked numerically against an independent solver (§9.23–9.24) but not
+against silicon or a detailed FEM model; and
 industrial accuracy is judged at the hotspot specifically, which is exactly where §9.4
 shows ridge is weakest, not where it wins. We do not claim published results are wrong —
 their datasets may be richer — but the linear-baseline comparison is rarely made, and it
@@ -1837,9 +1838,12 @@ since been implemented and measured, which is how their relative importance beca
 Transient simulation would add a further nonlinear axis; the present dataset is steady-state
 only.
 
-**Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation;
-HotSpot cross-validation covers geometry1 only and disagrees by ~15%, and no FEM spot-check
-has been performed. Ridge's advantage is measured on scenario counts of 20–50; with far more
+**Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation.
+HotSpot cross-validation covers geometry1 only and disagrees by ~15%. *(Updated 2026-09-24,
+§9.23–9.24: an independent finite-volume solver now reproduces 3D-ICE to ≤1.14% on 18 paired
+cases across all six geometries, and grid refinement changes the
+dataset by ≤1.45%. The numerical solution is verified; agreement with silicon or a
+microstructure-resolving FEM model is still untested.)* Ridge's advantage is measured on scenario counts of 20–50; with far more
 scenarios and a richer power parameterisation the ranking could change. The spatial TSV
 field is now exported per-point and consumed as a real channel by the FNO family (2026-08-06,
 §3); FourierPINN, DeepONet and ARO still receive only its scenario mean, so for those three
@@ -2904,7 +2908,11 @@ run (would require GPU training on shelf data, as in §9.15d) and remains open.
 
 ### 9.20 Calibrated uncertainty for peak-temperature prediction: split conformal works where MC Dropout did not (2026-09-22)
 
-No chip-thermal work found in this project's literature scoop calibrates uncertainty
+*(Correction, 2026-09-24: arXiv:2606.09923 (June 2026) already applies split conformal prediction to
+neural operators on steady heat conduction, motivated by electronics thermal management, with
+spatially adaptive field intervals. What remains specific here is scalar peak-temperature
+intervals for linear predictors on 3D-IC layout data, and the direct comparison with this
+project's MC Dropout. See `docs/references.md`.)* No chip-thermal work found in this project's literature scoop calibrates uncertainty
 specifically for hotspot/peak-temperature error — the one existing UQ result in this project
 (§7, `src/pinn/explain.py`) is MC Dropout, already measured miscalibrated (predictive std
 8.6–13 K on fields whose true spatial std is ~0.3 K, ~30× too large). Tested split conformal
@@ -3194,7 +3202,7 @@ regenerated: all 18 paired cases now agree to ≤1.14% and are converged to ≤1
 **Regenerated:**
 - **The fixed dataset**, 275 solves, same scenarios and seeds (`scripts/regen_v5_fixed.ps1`).
 - **Layout geometry1/3/4/5**, 180 solves, each re-solved from its own metadata
-  (`scripts/resolve_layout_dataset.py`).
+  (`scripts/resolve_from_metadata.py`).
 - Every new file balances energy to <4e-5, its block metadata equals the simulated power
   exactly, and it has no power in underfill.
 - **Old data archived** in `data/_archive_v4_pre_v5_20260924/`.

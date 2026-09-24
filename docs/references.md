@@ -880,3 +880,25 @@ central finding a priori and must be cited rather than rediscovered.**
   learning literature — e.g. *An operator learning perspective on parameter-to-observable
   maps* (arXiv:2402.06031). Our "compact vector vs per-cell field" contrast is an instance of
   this known distinction, not a new one.
+
+## Neural-operator improvement leads: prior-art check (2026-09-24)
+
+Four leads for a "better FNO" were proposed from this repo's measured results (linearity in the
+source, Neumann side walls, layered z-structure, the where/how-hot metric split). They were
+checked by web search *after* being proposed; until then their novelty was unverified. Result:
+three of four are substantially anticipated.
+
+| lead | closest prior art | verdict |
+|---|---|---|
+| Linear-in-source operator, learned geometry-dependent kernel | Neural Green's Functions, Yoo et al., NeurIPS 2025 ([arXiv:2511.01924](https://arxiv.org/abs/2511.01924)): a solution operator for linear PDEs, agnostic to the source by design, with a geometry-dependent decomposition. Classical Green's-function chip thermal: VarSim ([arXiv:2307.12119](https://arxiv.org/abs/2307.12119)) and Green-function thermal placement | **Anticipated** as an architecture |
+| DCT / real spectral basis for adiabatic walls | SPFNO ([arXiv:2312.06980](https://arxiv.org/abs/2312.06980)): spectral operators satisfying Dirichlet/Neumann BCs, 1.7–4.7× over non-BC baselines. Hartley Neural Operator ([arXiv:2606.24851](https://arxiv.org/abs/2606.24851)): real bases for self-adjoint elliptic operators | **Anticipated** |
+| Exact layered transfer-matrix backbone in z + learned lateral correction | Generic analytic-backbone + neural-residual designs exist (PPDNO: FFT principal part + low-rank residual). No neural operator using the layered transfer-matrix / thermal-quadrupole solution for chip stacks was found | **Open (one search pass; not exhaustive)** |
+| Label-free training on a discretised physics residual | DeepOHeat ([arXiv:2302.12949](https://arxiv.org/abs/2302.12949), DAC 2023): data-free 3D-IC operator. DeepOHeat-v2 ([arXiv:2608.16080](https://arxiv.org/abs/2608.16080)): discretised physics loss for high-contrast multi-die stacks, placement variation, peak error 0.55 K. BlocKOA ([arXiv:2510.23221](https://arxiv.org/abs/2510.23221)): 420× cheaper IC thermal data generation | **Anticipated** |
+| Two-head "where + how hot" model with conformal intervals | Junction temperature + hotspot position from one network ([arXiv:2503.04049](https://arxiv.org/abs/2503.04049), fixed geometry). Split conformal for neural operators on steady heat conduction ([arXiv:2606.09923](https://arxiv.org/abs/2606.09923)) | **Anticipated** in parts |
+| Thermal-resistance coordinate warping in z | Geo-FNO learns a general deformation to a uniform latent grid ([arXiv:2207.05209](https://arxiv.org/abs/2207.05209)). No fixed physics-derived warp was found | **Open but minor** |
+
+**What remains defensible.** A comparison of these ideas on this repo's verified, layout-varying
+v5 data under hotspot metrics and against the field-linear baseline. None of the works above
+reports a closed-form linear baseline or evaluates on placement-randomised data with a
+peak-sharpness gate. The transfer-matrix backbone is the one architectural idea without a found
+precedent.
