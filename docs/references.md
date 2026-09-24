@@ -911,3 +911,20 @@ Physics-plus-learned-residual chip thermal models exist too (e.g. PI-ONet, IEEE 
 the "open" lead above is open only as a *neural* architecture. The contribution that survives
 is the measurement: this classical solver, with no training, beats every trained baseline on the
 layout-varying data, and the neural benchmarks checked do not report it.
+
+**ThermoNO combination check, 2026-09-25 (~10 targeted searches, not exhaustive).** No work was
+found combining all four elements: (i) a correction operator exactly linear in power and gated by
+a power-free geometry encoder, (ii) DCT spectral layers with learned z-mixing, (iii) trained as a
+residual on a layer-homogenised DCT/Green's-function chip solver, and (iv) aimed at chiplet
+material heterogeneity. The closest works each cover one or two elements:
+- Neural Green's Functions (i).
+- SPFNO / Hartley NO (ii).
+- Residual-based error-corrector operators ([arXiv:2306.12047](https://arxiv.org/abs/2306.12047)) and ANCHOR ([arXiv:2512.19643](https://arxiv.org/abs/2512.19643)), for residual correction in general.
+- Green's function + neural net for 2D heat conduction ([arXiv:2504.02845](https://arxiv.org/abs/2504.02845)): generic, not chiplet heterogeneity.
+- GINO / GINOT for geometry encoders.
+
+The chiplet literature itself states the gap: Green's-function compact models "neglect material
+heterogeneity (silicon dies, epoxy underfill, Cu pillars)" (related-work discussion around
+[3D-ICE 4.0, arXiv:2512.05823](https://arxiv.org/abs/2512.05823)). **Verdict:** a new combination
+of known parts, aimed at a documented gap. Any novelty claim should rest on the measured result,
+not the architecture.
