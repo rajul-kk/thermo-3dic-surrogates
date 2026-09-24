@@ -277,6 +277,20 @@ width reflects the point models' peak-temperature error. **Novelty scope:** spli
 
 ---
 
+### 4.9 A training-free classical solver is the missing baseline (§9.25)
+
+A layered spectral solver (a DCT in-plane and a tridiagonal solve in z, with each layer's
+conductivity averaged laterally) needs no training and runs in ~20 ms. It is classical
+(Zhan & Sapatnekar, ~2005) and none of the neural-surrogate benchmarks checked reports it.
+- **On laterally uniform stacks** (geometry1/2a/3) it is exact by construction.
+- **On chiplet packages** (geometry4/5/6) it reaches R² 0.981–0.996 with hotspot recall
+  0.69–0.81 and peak error 2–3 K.
+- **It beats every trained model here on every metric**, and removes the where/how-hot split.
+- **A learned residual on top adds little.**
+
+The bar for a neural surrogate is therefore this solver, not ridge. The room left for learning
+is a 0.04–0.32 K heterogeneity residual.
+
 ## 5. Threats to validity
 
 - **Numerical correctness is independently checked; physical fidelity is not** (report

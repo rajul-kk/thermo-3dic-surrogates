@@ -100,3 +100,14 @@ def test_fno_dataset_grid_is_spatially_coherent_on_real_data():
     lc, wc = np.unique(c[:, 1]), np.unique(c[:, 0])
     peak = c[t.argmax()]
     assert abs(lc[i] - peak[1]) < 1 and abs(wc[j] - peak[0]) < 1   # grid peak = file peak
+
+
+def test_layered_backbone_is_exact_for_laterally_uniform_stacks():
+    """With no lateral heterogeneity the DCT x tridiagonal backbone must equal the full FV solve."""
+    from src.hybrid import layered_backbone as lb
+    geom = get_geometry_by_name('geometry1')                   # uniform layers, blocks only in power
+    blocks = {b.name: 20.0 + 15 * i for i, b in enumerate(geom.power_blocks)}
+    scen = {'power_blocks': blocks, 'htc': 15000.0, 't_ambient': 30.0}
+    ref = fv.solve(geom, scen)['T']
+    got = lb.solve(geom, scen)['T']
+    assert np.abs(got - ref).max() < 1e-6 * (ref.max() - 303.15)

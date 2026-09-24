@@ -3282,6 +3282,63 @@ from sample size, not from v5.
 **Still open.** Neural results (§9.7, §9.12, §9.15d) need re-running on v5 data. That needs a
 GPU; the v5 zips are in `data/kaggle_v5/` (`notebooks/KAGGLE_SETUP.md`).
 
+### 9.25 A training-free classical layered solver is the missing baseline (2026-09-25)
+
+The one "better FNO" lead without found prior art (`docs/references.md`, 2026-09-24) was an exact
+layered-stack backbone plus a learned correction. The backbone was built and tested first,
+because it needs no GPU.
+
+**What it is.** `src/hybrid/layered_backbone.py` replaces each z-cell's conductivity with its
+lateral mean. The FV conduction system is then diagonalised exactly by a 2D DCT-II, the
+eigenbasis of the Neumann Laplacian that the adiabatic side walls impose. Each lateral mode
+reduces to a tridiagonal solve in z, the discrete form of the layered transfer-matrix method. It
+is exact for laterally uniform stacks: it reproduces the full FV solve to 1e-6 of the rise
+(`tests/test_fv_solver.py`). It uses no training data and takes 11–28 ms per solve in numpy.
+**The method is classical, not new.** DCT/Green's-function solvers for layered chips date to Zhan
+& Sapatnekar (~2005); see the ACM survey of chip-level thermal simulators and arXiv:0709.1850.
+Physics-plus-learned-residual models are common too (e.g. PI-ONet, 2026).
+
+**Result.** 6 layout-randomised v5 datasets, 5-fold CV × 4 seeds, `scripts/backbone_eval.py`,
+`results/backbone_eval.json`:
+
+| geometry | model | R² mean | det.MAE (K) | top-1% recall | \|peak\| err (K) |
+|---|---|---|---|---|---|
+| geometry1/2a/3 (uniform layers) | ridge (compact) | −2.44 to 0.29 | 1.34–2.21 | 0.06–0.11 | 5.2–12.7 |
+| | linear (field) | 0.59–0.95 | 0.80–1.05 | 0.33–0.63 | 14.1–17.5 |
+| | **backbone, no training** | **1.000** | **≤0.001** | **≥0.998** | **0.00** |
+| geometry4 | linear (field) | 0.970 | 0.405 | 0.47 | 18.95 |
+| | **backbone** | **0.981** | **0.322** | **0.81** | **2.06** |
+| | backbone + learned residual | 0.993 | 0.148 | 0.65 | 2.56 |
+| geometry5 | linear (field) | 0.951 | 0.454 | 0.44 | 21.73 |
+| | **backbone** | **0.996** | **0.044** | **0.80** | **2.08** |
+| | backbone + learned residual | 0.995 | 0.047 | 0.75 | 1.90 |
+| geometry6 | linear (field) | 0.893 | 0.931 | 0.29 | 20.14 |
+| | **backbone** | **0.991** | **0.079** | **0.69** | **3.33** |
+| | backbone + learned residual | 0.991 | 0.079 | 0.64 | 3.09 |
+
+**Reading.**
+- On laterally uniform stacks the backbone *is* the conduction solver, just in a fast basis, so
+  it is exact by construction.
+- On chiplet packages it is approximate, since underfill and silicon are averaged per layer.
+  Even so, with no training it beats every trained model on every metric, and it removes the
+  where/how-hot split (§9.17): its recall and its peak-temperature error are both the best.
+- A learned linear residual adds little. It lowers field error on geometry4 and usually costs
+  hotspot recall.
+
+**Scope.**
+- The backbone's advantage is *knowing the stack*: materials, thicknesses and placement.
+  Designers have these, but the learned baselines here receive them only implicitly.
+- It shares the ground truth's physics and discretisation, so it inherits every modelling
+  assumption in `docs/assumptions.md` and says nothing about silicon.
+- Distances on geometry4–6 are descriptive only, because their peaks are diffuse.
+
+**What it changes.** The bar a neural surrogate must clear on this benchmark is not ridge or a
+linear fit. It is a training-free classical solver that runs in ~20 ms and matches 3D-ICE to
+within 0.5–2% on chiplet packages. None of the neural-surrogate benchmarks checked (IC-ThermBench's
+eight baselines, DeepOHeat's FEM comparisons) reports such a baseline. The room left for a
+learned model is the lateral-heterogeneity residual, 0.04–0.32 K detrended here. That residual is
+the natural target for an FNO correction, and running it needs the GPU.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures

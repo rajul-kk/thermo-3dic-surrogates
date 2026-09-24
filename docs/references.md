@@ -902,3 +902,12 @@ v5 data under hotspot metrics and against the field-linear baseline. None of the
 reports a closed-form linear baseline or evaluates on placement-randomised data with a
 peak-sharpness gate. The transfer-matrix backbone is the one architectural idea without a found
 precedent.
+
+**Update, 2026-09-25 (report §9.25).** The layered backbone was built and tested. The backbone
+itself is classical: DCT / Green's-function fast solvers for layered chips (Zhan & Sapatnekar,
+~2005; [ACM survey of chip-level thermal simulators](https://dl.acm.org/doi/10.1145/3309544);
+[arXiv:0709.1850](https://arxiv.org/abs/0709.1850); [arXiv:0801.1006](https://arxiv.org/abs/0801.1006)).
+Physics-plus-learned-residual chip thermal models exist too (e.g. PI-ONet, IEEE TCPMT 2026). So
+the "open" lead above is open only as a *neural* architecture. The contribution that survives
+is the measurement: this classical solver, with no training, beats every trained baseline on the
+layout-varying data, and the neural benchmarks checked do not report it.
