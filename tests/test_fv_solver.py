@@ -111,3 +111,19 @@ def test_layered_backbone_is_exact_for_laterally_uniform_stacks():
     ref = fv.solve(geom, scen)['T']
     got = lb.solve(geom, scen)['T']
     assert np.abs(got - ref).max() < 1e-6 * (ref.max() - 303.15)
+
+
+def test_thermono_is_exactly_linear_in_power_and_dct_is_orthonormal():
+    import torch
+    from src.fno.thermono import ThermoNO, dct_matrix
+    D = dct_matrix(12)
+    assert torch.allclose(D @ D.T, torch.eye(12), atol=1e-5)
+    torch.manual_seed(0)
+    m = ThermoNO((12, 8, 5), ch=6, n_blocks=2, modes=(6, 4)).double()
+    lin = torch.randn(2, 2, 12, 8, 5, dtype=torch.float64)
+    geo = torch.randn(2, 4, 12, 8, 5, dtype=torch.float64)
+    out = m(lin, geo)
+    assert torch.allclose(m(3.0 * lin, geo), 3.0 * out, atol=1e-9)           # homogeneous
+    lin2 = torch.randn_like(lin)
+    assert torch.allclose(m(lin + lin2, geo), out + m(lin2, geo), atol=1e-9)  # additive
+    assert torch.allclose(m(torch.zeros_like(lin), geo), torch.zeros_like(out))
