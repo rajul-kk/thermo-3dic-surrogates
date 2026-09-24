@@ -14,7 +14,7 @@ DATASETS = [(f'{g}-shelf', g, f'data/3d-ice-layout-{g}') for g in
             ['geometry1', 'geometry2a', 'geometry3', 'geometry4', 'geometry5', 'geometry6']] + \
            [(f'{g}-fixed', g, 'data/3d-ice') for g in ['geometry1', 'geometry2a', 'geometry3', 'geometry4']]
 SEEDS = [0, 1, 2, 3]
-OUT = Path('results/hotspot_remeasured.json')
+OUT = Path(os.environ.get('HOTSPOT_OUT', 'results/hotspot_remeasured.json'))
 
 
 def main():
