@@ -8,15 +8,18 @@ preserves in full — every claim below is traceable to a numbered section there
 disagree. Full bibliography: `docs/references.md`. Molecular-property replication detail:
 `molprop/README.md`.
 
-> **Validation and repair, 2026-09-23/24 (report §9.23).** An independent FV solver confirms
-> 3D-ICE solves the specified problem. It found faults in *this project's* saved data:
-> transposed temperature labels and a layer-blind power field. **Both are repaired exactly, with
-> no re-simulation, and every affected linear result below is re-measured.**
+> **Validation, repair and regeneration, 2026-09-23/24 (report §9.23–9.24).** An independent FV
+> solver confirmed 3D-ICE is correct and found faults in *this project's* pipeline. All are now
+> fixed:
+> - transposed temperature labels;
+> - a layer-blind power field;
+> - whole-die power maps that put ~30% of the power in underfill;
+> - an unconverged grid (single-node thick dies; a geometry4/5 mesh axis swap).
 >
-> Still open:
-> - neural-model comparisons were trained on the broken data (need GPU re-runs);
-> - the fixed dataset puts ~30% of its power in underfill on chiplet packages;
-> - geometry4's discretisation is 11–40% from converged.
+> The fixed dataset and four layout datasets were regenerated, and 3D-ICE matches the FV solver
+> to ≤1.14% and grid convergence to ≤1.45%. Every number below is re-measured on the v5 data.
+> **Still open:** neural-model comparisons need GPU re-runs. The pilot datasets behind report
+> §9.8–9.11 were not regenerated.
 
 ---
 
@@ -26,12 +29,9 @@ Neural surrogates for 3D-IC thermal simulation (PINNs, Fourier neural operators,
 are an active research area, but the field rarely reports a non-neural baseline. We show that
 on the standard evaluation setup — a fixed package floorplan with only power amplitude
 varying — **closed-form ridge regression reconstructs the temperature field at spatial
-R² 0.89–0.99** with no training and no GPU, across six 3D-IC package geometries and 275 real
+R² 0.93–0.98** with no training and no GPU, across six 3D-IC package geometries and 275 real
 3D-ICE simulations, and that this is a consequence of the physics (steady-state conduction is
-linear in the volumetric sources), not a weak dataset. We identify **hotspot localisation**,
-not field reconstruction, as the metric that actually discriminates: every model tested,
-linear and neural, localises the peak temperature no better than chance under the standard
-fixed-floorplan setup. We then show the benchmark is fixable — randomising chiplet
+linear in the volumetric sources), not a weak dataset. We then show the benchmark is fixable — randomising chiplet
 *placement* moves three of four re-laid-out geometries out of the linear regime, with ridge
 becoming the *worst* baseline tested — and that "linearly solvable" turns out to be a property
 of the *input representation*, not the dataset: the same 45 files score R² 0.95 from the
@@ -103,14 +103,14 @@ Tooling released: `scripts/baselines.py`, `scripts/hotspot_eval.py`, `scripts/la
 
 | geometry | ridge spatial R² | kNN spatial R² |
 |---|---|---|
-| geometry1 | 0.970 | 0.962 |
-| geometry2a | 0.986 | 0.985 |
-| geometry3 | 0.925 | **0.931** |
-| geometry4 | 0.891 | **0.903** |
-| geometry5 | 0.959 | 0.947 |
-| geometry6 | 0.956 | 0.954 |
+| geometry1 | **0.966** | 0.896 |
+| geometry2a | **0.982** | 0.961 |
+| geometry3 | **0.945** | 0.908 |
+| geometry4 | **0.959** | 0.929 |
+| geometry5 | 0.975 | **0.981** |
+| geometry6 | 0.933 | **0.950** |
 
-Ridge's margin over 3-NN is thin and on two geometries *negative* — kNN wins. If a
+Ridge's margin over 3-NN is thin, and on two geometries it is *negative*: kNN wins. If a
 distance-weighted lookup is competitive, the benchmark is not measuring operator learning.
 This holds under extrapolation to unseen power patterns, magnitudes, and ambient
 temperatures, and is not an artifact of an unrealistic operating point: regenerating on
@@ -123,17 +123,18 @@ magnitude faster than FEA — a fixed geometry with a fixed thermal impulse resp
 against a varying power map. The finding is a rediscovery of that fact from the ML side, not
 a new one; it is presented as such.
 
-### 4.2 Hotspot localisation is a universal failure on fixed-placement data (§9.4, §9.12c/d)
+### 4.2 Hotspot localisation discriminates only once the layout varies (§9.12, §9.24)
 
-Field R² and hotspot localisation come apart. On geometry1, ridge's mean absolute
-*peak-temperature* error is 3.76 K against a whole-field detrended MAE of 0.407 K — 9× worse
-exactly where a sign-off decision is made. Under 5-fold CV it recovers 9.3% of the 100 hottest
-cells and lands within 2 mm of the true peak in 16% of scenarios. On geometry6 the *trivial
-mean-field predictor* recovers more of the hot region (0.435) than ridge does (0.382). An
-earlier apparent neural win on this metric was measured from a 5-scenario split and reversed
-completely under 5-fold CV (§9.12b→d, retracted in place) — the honest reading is that field
-R² and hotspot localisation are two different tasks, and no model tried in this project wins
-the second one in absolute terms.
+Field R² and hotspot localisation are different tasks. On fixed placement with physically placed
+power, though, the hotspot sits in one of a few block regions, and ridge finds it. Its median
+error is 0.6–1.0 mm on geometry1/2a and 3.5–4.0 mm on geometry3/4, with top-1% recall
+0.28–0.68. It is still the model with the lowest peak-*temperature* error (2.8–4.3 K).
+
+An earlier version of this summary called localisation a universal failure on fixed placement.
+That measured the pre-v5 data, whose per-cell power maps spread heat over the whole die, and it
+is withdrawn. The metric earns its place on layout-varying data, where the hotspot can be
+anywhere (§4.4, §4.7). An earlier apparent neural win on this metric came from a 5-scenario
+split and reversed under 5-fold CV (§9.12b→d, retracted in place).
 
 ### 4.3 The diagnostic validates in the other direction: IC-ThermBench is not linear-solvable (§9.13)
 
@@ -156,8 +157,8 @@ per geometry:
 
 | geometry (shelf) | ridge R² (mean) | ridge R² (median) | worst by mean? | worst by median? |
 |---|---|---|---|---|
-| geometry4 | −0.667 | 0.423 | **yes** | no — the trivial mean-field baseline is worse (0.345) |
-| geometry5 | −2.305 | 0.302 | **yes** | **yes** |
+| geometry4 | −0.663 | 0.412 | **yes** | no — the trivial mean-field baseline is worse (0.344) |
+| geometry5 | −2.268 | 0.298 | **yes** | **yes** |
 | geometry6 | −2.866 | −0.303 | **yes** | **yes** |
 
 Ridge is worst by mean R² on all three; by median only on two — geometry4's heavy-tailed
@@ -177,10 +178,10 @@ supplies.
 ### 4.5 "Linear-solvable" is a property of the representation, not the dataset (§9.15c)
 
 The same 45 geometry4-shelf files score linear R² **0.95** from the full per-cell power field
-and **−0.667** from the compact block-summary vector surrogate papers conventionally consume.
+and **−0.663** from the compact block-summary vector surrogate papers conventionally consume.
 Conduction is exactly linear in the per-cell source, so the field representation is the
 physically correct hypothesis class. On repaired data this also holds on geometry5/6
-(field R² 0.94, 0.89 against compact −2.31, −2.87); it degrades only insofar as moving a chiplet also moves
+(field R² 0.94, 0.89 against compact −2.27, −2.87); it degrades only insofar as moving a chiplet also moves
 silicon. The compact vector discards exactly that. This is a benchmarking-flavoured
 restatement of the classical affine-vs-non-affine parametrisation distinction from
 reduced-basis/model-order-reduction theory (Kolmogorov n-width decay), not a new mechanism —
@@ -232,28 +233,30 @@ closest hotspot-position paper (arXiv:2503.04049) has the second but a fixed geo
 non-neural baseline; HSLD (2021) has the first but neither of the others. This project
 measured it on six layout-randomised geometries, gated by a peak-sharpness diagnostic
 applied *before* any model was fit. Ratios are ridge ÷ field error (>1 = field better), mean over
-four seeds, on the repaired data:
+four seeds, v5 data:
 
 | geometry | peak sharp enough for distance? | loc ratio (seed range) | recall ratio | shelf ÷ fixed (loc) |
 |---|---|---|---|---|
-| geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.87× | 4.92× |
-| geometry2a-shelf | yes | **2.73×** (2.27–3.77) | 5.98× | 2.68× |
-| geometry3-shelf | yes | 1.39× (1.20–1.66) | 6.05× | **0.56× (reverses)** |
-| geometry4-shelf | no (diffuse) | 1.96× (1.53–2.18) | 3.60× | 1.61× |
-| geometry5-shelf | no | 1.84× (1.54–2.03) | 3.83× | — |
+| geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.86× | 2.89× |
+| geometry2a-shelf | yes | **2.73×** (2.27–3.77) | 5.98× | 2.04× |
+| geometry3-shelf | yes | 1.39× (1.20–1.69) | 6.05× | **0.41× (reverses)** |
+| geometry4-shelf | no (diffuse) | 1.89× (1.30–2.36) | 3.99× | 1.93× |
+| geometry5-shelf | no | 1.68× (1.46–1.91) | 5.54× | — |
 | geometry6-shelf | no | 2.10× (1.66–2.43) | 7.01× | — |
 
-The field model localises better than ridge on every dataset measured: all six layout-randomised
-ones above, plus four fixed-placement ones, where geometry2a-fixed is a near-tie at 1.02×.
-Layout randomisation usually amplifies the advantage (3 of 4) but not always. The counterweight
-is part of the claim: ridge has the lower peak-*temperature* error on every dataset (e.g. 4.60 K
-vs 13.53 K on geometry2a-shelf). The representation that finds *where* the peak is costs
-accuracy in *how hot* it is. That is §4.2's metric split, now between two *linear* models, so it
+The field model localises better than ridge on all six layout-randomised geometries, and all
+four seeds agree on every one. On fixed placement it is better on three of four, ties on
+geometry4 (0.98×), and is seed-unstable on geometry3. Layout randomisation amplifies the recall
+advantage on all four geometries with a fixed counterpart, and the distance advantage on three
+of four.
+
+The counterweight is part of the claim: ridge has the lower peak-*temperature* error on every
+dataset (e.g. 4.60 K vs 13.53 K on geometry2a-shelf). The representation that finds *where* the
+peak is costs accuracy in *how hot* it is. That split holds between two *linear* models, so it
 cannot be attributed to network capacity.
 
 **Novelty scope.** The mechanism (the compact vector discards sub-block spatial detail) is not
-new; §4.2 already uses it. What is new is the measurement: the magnitudes and their
-geometry-dependence.
+new. What is new is the measurement: the magnitudes and their geometry-dependence.
 
 ### 4.8 Calibrated peak-temperature intervals (§9.20)
 
@@ -263,8 +266,8 @@ geometry/model tested:
 
 | data | model | empirical coverage at 80% / 90% target | half-width (K) |
 |---|---|---|---|
-| geometry1 fixed | ridge | 93.3% / 93.3% | 10.7 |
-| geometry6 fixed | ridge | 81.8% / 87.3% | 8.0 / 10.0 |
+| geometry1 fixed | ridge | 93.3% / 93.3% | 8.8 |
+| geometry6 fixed | ridge | 87.3% / 90.9% | 8.0 / 10.1 |
 | geometry1-shelf | ridge | 93.3% / 93.3% | 25.9 |
 | geometry1-shelf | linear (field) | 93.3% / 93.3% | 39.5 |
 

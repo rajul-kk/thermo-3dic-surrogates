@@ -37,7 +37,7 @@ generation pipeline needed to reproduce and extend it.
 Our principal finding is methodological and cautionary. Evaluating four non-neural
 baselines on this data, we find that **per-point ridge regression — a closed-form solve
 requiring no GPU and no training — reconstructs the spatial temperature field at
-R² = 0.89–0.99 across all six geometries**, and extrapolates to unseen power patterns,
+R² = 0.93–0.98 across all six geometries** (0.89–0.99 before the §9.24 regeneration), and extrapolates to unseen power patterns,
 unseen power magnitudes, and unseen ambient temperatures at R² > 0.9. (An earlier draft
 reported R² = 0.999 from a superseded dataset; that figure is retracted — see §9.1a for the
 current measurement on every geometry.) This is not a defect of any particular architecture but a
@@ -67,6 +67,8 @@ one of a few fixed positions and "predicting" it is memorising a short list; wit
 continuous field it must be computed. This isolates where an operator surrogate can earn
 its cost, and implies such work should be judged on **hotspot localisation rather than
 field R²**, since field R² is dominated by the linear component that needs no network.
+*(§9.24: on regenerated, physically placed fixed data ridge localises well, so this contrast
+applies to layout-varying data, not fixed placement.)*
 
 Finally, we show the problem is fixable and fix it. Randomising chiplet *placement* per
 scenario — so that the thermal operator itself varies rather than only its inputs — moves
@@ -127,7 +129,7 @@ This paper makes the following contributions:
    pilot. **675 real 3D-ICE solves in total**; counts verified against the files on disk
    (2026-09-23) rather than quoted from an earlier draft.
 2. **A demonstration that closed-form ridge regression solves the fixed-placement
-   benchmark** at spatial R² 0.89–0.99 with no training and no GPU, holding under
+   benchmark** at spatial R² 0.93–0.98 (§9.24) with no training and no GPU, holding under
    extrapolation to unseen power patterns, magnitudes and ambient temperatures. Ridge's
    margin over a 3-nearest-neighbour lookup is thin and sometimes negative (§9.1a), which
    sharpens rather than weakens the point: if kNN is competitive, the benchmark is not
@@ -142,7 +144,11 @@ This paper makes the following contributions:
    measured on the superseded dataset and overstates the effect; it is flagged there and
    needs re-measurement. (b) Under 5-fold CV ridge still beat both FNO configurations we
    trained on *every* hotspot metric (§9.12d). This is therefore a metric that separates
-   tasks, not one on which neural operators have been shown to win.
+   tasks, not one on which neural operators have been shown to win. **(c) Narrowed by §9.24:**
+   on the regenerated fixed data, where power sits only in the blocks, ridge localises within
+   0.6–4 mm with top-1% recall 0.28–0.68. So the "no better than chance" failure was a
+   property of the old whole-die power maps. The metric discriminates on layout-varying data
+   (§9.15b, §9.17), not on fixed placement.
 5. **Evidence that the fixed-placement result is structural, not a parameter-range
    artefact.** Regeneration on a physically grounded operating point raises the median
    spatial gradient from 1.10 K to 10.77 K and still leaves ridge above R² 0.94 on every
@@ -203,7 +209,7 @@ This paper makes the following contributions:
    combines layout-varying data, a localisation metric and a non-neural baseline. On all
    three sharp-peaked geometries, a linear fit on the per-cell power field localises the
    hotspot better than ridge on the compact vector — 8.75×, 2.73×, 1.39×, seed-stable, and
-   better on all 10 datasets measured — at the cost of worse peak-*temperature* error. The
+   better on every layout-varying dataset measured — at the cost of worse peak-*temperature* error. The
    mechanism is not new (§9.16g); the magnitudes and their geometry-dependence are.
    *(Re-measured on repaired data, §9.17/§9.23.)*
 12. **Calibrated peak-temperature intervals (§9.20).** Split conformal prediction meets its
@@ -353,7 +359,11 @@ We introduce three post-hoc explainability methods for chip thermal surrogates, 
 `det.MAE` and `spat.R²` are computed after removing each field's mean, so they score spatial
 structure only.
 
-#### 9.1a Current measurement — all six geometries (re-measured 2026-09-09)
+#### 9.1a Pre-regeneration measurement — all six geometries (2026-09-09)
+
+> **Superseded by §9.24 (2026-09-24).** The fixed dataset was regenerated with physically
+> placed power and a corrected grid. Ridge now scores spatial R² 0.93–0.98, and kNN is ahead on
+> geometry5/6 rather than geometry3/4. The table below is the pre-regeneration measurement.
 
 **Read this table, not the 2026-07-31 one below it.** §9.5 already noted that the
 2026-07-31 numbers describe a superseded dataset and that only geometry1 had been
@@ -2642,39 +2652,41 @@ re-checked immediately before any submission that relies on it.
 
 ### 9.17 Hotspot localisation on layout-varying data: the representation decides where the peak is (2026-09-18)
 
-> **Current numbers: re-measured on repaired data, 2026-09-24 (§9.23).** The tables further
-> down this section predate the §9.23 data repair and are kept as history. geometry1 and the
-> ridge rows reproduce exactly. geometry2a, geometry4–6 and every fixed-placement row changed,
-> because their saved power field or distance coordinates were wrong. Protocol unchanged:
-> 5-fold CV, 4 seeds, `pca_k` chosen by inner CV on detrended R² inside each training fold
-> (`scripts/hotspot_remeasure.py`, `results/hotspot_remeasured.json`). Ratios are ridge ÷ field
-> error (>1 = field better).
+> **Current numbers: v5 data, 2026-09-24 (§9.24).** The tables further down this section
+> predate the §9.23 repair and the §9.24 regeneration and are kept as history. The layout rows
+> use repaired data, re-solved on the corrected grid for geometry1/3/4/5. The fixed rows use the
+> regenerated, physically corrected fixed dataset. Protocol: 5-fold CV, 4 seeds, `pca_k` chosen
+> by inner CV on detrended R² inside each training fold (`scripts/hotspot_remeasure.py`,
+> `results/v5/hotspot_remeasured.json`). Ratios are ridge ÷ field error (>1 = field better).
 >
 > | dataset | peak spread (µm) | loc ratio, seed-mean (range) | recall ratio | \|peak\| K ridge / field |
 > |---|---|---|---|---|
-> | geometry1-shelf | 300 | **8.75×** (7.62–9.62) | 5.87× | **11.88** / 18.85 |
+> | geometry1-shelf | 300 | **8.75×** (7.62–9.62) | 5.86× | **11.90** / 18.86 |
 > | geometry2a-shelf | 294 | **2.73×** (2.27–3.77) | 5.98× | **4.60** / 13.53 |
-> | geometry3-shelf | 734 | **1.39×** (1.20–1.66) | 6.05× | **12.76** / 14.54 |
-> | geometry4-shelf | 2380 *(diffuse)* | 1.96× (1.53–2.18) | 3.60× | **7.52** / 24.52 |
-> | geometry5-shelf | 2520 *(diffuse)* | 1.84× (1.54–2.03) | 3.83× | **4.35** / 22.64 |
+> | geometry3-shelf | 734 | **1.39×** (1.20–1.69) | 6.05× | **12.79** / 14.56 |
+> | geometry4-shelf | 2750 *(diffuse)* | 1.89× (1.30–2.36) | 3.99× | **7.42** / 18.30 |
+> | geometry5-shelf | 3626 *(diffuse)* | 1.68× (1.46–1.91) | 5.54× | **3.75** / 20.77 |
 > | geometry6-shelf | 5178 *(diffuse)* | 2.10× (1.66–2.43) | 7.01× | **5.93** / 17.60 |
-> | geometry1-fixed | 324 | 1.78× (1.40–1.95) | 3.85× | **3.59** / 9.92 |
-> | geometry2a-fixed | 297 | 1.02× (0.84–1.12) | 2.62× | **3.31** / 10.97 |
-> | geometry3-fixed | 775 | 2.50× (2.18–2.79) | 2.53× | **1.94** / 9.07 |
-> | geometry4-fixed | 6797 *(diffuse)* | 1.22× (1.06–1.31) | 1.41× | **7.66** / 14.05 |
+> | geometry1-fixed | 300 | 3.03× (2.62–3.68) | 1.25× | **3.20** / 10.87 |
+> | geometry2a-fixed | 278 | 1.34× (1.24–1.43) | 1.10× | **3.05** / 14.87 |
+> | geometry3-fixed | 800 | 3.38× (**0.89–6.80**) | 1.16× | **3.26** / 11.30 |
+> | geometry4-fixed | 791 | **0.98×** (0.76–1.27) | 1.71× | **4.63** / 15.16 |
 >
 > **Reading.**
-> - The field representation localises better than ridge on **all 10 datasets**. The one
->   near-tie is geometry2a-fixed (1.02×, range spans 1). It has higher top-1% recall on all 10.
-> - Ridge has the lower peak-temperature error on all 10.
-> - The pre-repair geometry5 **reversal (recall 0.78×) was an artefact** of the layer-blind power
->   field; it is now 3.83×.
-> - geometry2a's advantage is real but **smaller than first reported** (2.73×, not 6.28×).
-> - Layout randomisation amplifies the localisation advantage on 3 of 4 geometries with a fixed
->   counterpart (shelf ÷ fixed: 4.92×, 2.68×, 1.61×). geometry3 is still the exception (0.56×).
->   Recall is amplified on all 4 (1.5–2.6×).
-> - All geometry4–6 peaks remain diffuse on the corrected coordinates, so distance there is
->   descriptive only.
+> - On layout-varying data the field representation localises better than ridge on all six
+>   geometries, and all four seeds agree on every one.
+> - On fixed placement it is better on three of four. geometry4-fixed is a tie (0.98×), and
+>   geometry3-fixed is seed-unstable (0.89–6.80×).
+> - Recall is higher for the field model on all 10. Ridge has the lower peak-temperature error
+>   on all 10.
+> - Randomising the layout amplifies the recall advantage on all four geometries with a fixed
+>   counterpart (4.7×, 5.4×, 5.2×, 2.3×). It amplifies the distance advantage on three of four
+>   (2.9×, 2.0×, 1.9×); geometry3 is again the exception (0.41×).
+> - The fixed-placement ratios fell from the pre-v5 values because ridge got better there. With
+>   power now confined to the blocks, the fixed-data hotspot sits inside a block again, and the
+>   compact block vector describes that well.
+> - geometry4's fixed peak is now sharp (791 µm). Its pre-v5 diffuseness (6797 µm) came from
+>   power spread over the whole die.
 
 Every hotspot measurement in this report until now used **fixed-placement** data
 (§9.12c/§9.12d, geometry1 and geometry6) and compared only **compact-vector** baselines.
@@ -2858,6 +2870,8 @@ before use (offsets differ substantially file-to-file; inter-scenario SDF correl
 | geometry5 | 0.4374 | 0.159 | — |
 | geometry6 | 0.5133 | **−0.032** | — |
 
+**v5 data (§9.24):** field-only 0.940 / 0.906 / 0.673, field+SDF −3.37 / 0.03 / 0.09. The SDF still hurts on all three.
+
 **Re-measured on repaired data (2026-09-24, §9.23), k=8:** field-only R² 0.936 / **0.893** /
 **0.673** and field+SDF −37.0 / −0.61 / 0.09 for geometry4/5/6. The pre-repair geometry5/6
 field-only values (0.437, 0.513) were depressed by the layer-blind power field. The conclusion
@@ -2983,7 +2997,8 @@ published before the control below was run.
 | geometry5 | 48 | 1224 | −2.305 | −1.089 | 0.437 | 44.3% |
 | geometry6 | 85 | 3740 | −2.866 | 0.288 | 0.513 | **93.3%** |
 
-*(Repaired-data field references, §9.23: 0.936 / 0.893 / 0.673. Ridge and quadratic R² use
+*(v5 data, §9.24: ridge −0.663 / −2.268 / −2.866, quadratic −0.335 / −0.975 / 0.288, field reference
+0.940 / 0.906 / 0.673, so gap closed is 20.5% / 40.7% / 89.1%. Repaired-data field references, §9.23: 0.936 / 0.893 / 0.673. Ridge and quadratic R² use
 compact features and are unaffected. The gap closed becomes 20.1% / 38.0% / 89.1%. On
 geometry6, over seeds 0–2, quadratic vs random becomes 89.1/91.8%, 88.1/90.3% and 87.0/86.9%.
 The conclusion is unchanged: random features match or beat the quadratic terms.)*
@@ -3153,6 +3168,62 @@ The last three need re-simulation.
   (≈1.5–2.5 h of 3D-ICE).
 - **geometry4:** needs sub-layer z-resolution in its active layer.
 
+### 9.24 Regenerating the data with the physics fixed (2026-09-24)
+
+§9.23's option 1 relabelled the saved data. Option 2 fixes what was physically wrong and
+regenerates. Every change was validated against the independent FV solver *before* any data was
+regenerated: all 18 paired cases now agree to ≤1.14% and are converged to ≤1.45%, down from
+≤8.9% and ≤40%.
+
+**Five fixes, each committed separately:**
+1. **Power maps stay inside their blocks, on their own layer, with each block's power
+   preserved.** Excess clipped at the 300 W/cm² ceiling water-fills within the block. The old
+   maps spread each layer's equal share over the whole die.
+2. **Active layers thicker than 100 µm become layer / source / layer thirds.** A 3D-ICE die
+   allows only one source element, so this is the only way to give a thick active layer more
+   than one vertical node.
+3. **geometry4/5 mesh axis order.** Their `mesh_resolution` was declared (width, length) while
+   the wrapper reads (length, width). That gave 140 × 446 µm cells instead of the documented
+   250 µm squares, and was the actual cause of geometry4's residual 11% error.
+4. **Power-map tiles are whole thermal cells.** Unaligned tiles put power into underfill cells
+   at chiplet edges; this was the source of the "unexplained" 7–8% 3D-ICE vs FV gap on
+   geometry5/6.
+5. **TSV maps clipped to chiplet footprints on geometry5/6's `tsv_zone`.** Before 2026-08-17
+   those footprints were silently dropped; after that the combination raised an error.
+
+**Regenerated:**
+- **The fixed dataset**, 275 solves, same scenarios and seeds (`scripts/regen_v5_fixed.ps1`).
+- **Layout geometry1/3/4/5**, 180 solves, each re-solved from its own metadata
+  (`scripts/resolve_layout_dataset.py`).
+- Every new file balances energy to <4e-5, its block metadata equals the simulated power
+  exactly, and it has no power in underfill.
+- **Old data archived** in `data/_archive_v4_pre_v5_20260924/`.
+- **Not regenerated, and still on the pre-§9.23 pipeline:** the rigid-translation, geometry7,
+  leakage, throttle, interface and microchannel pilot datasets. §9.8–9.11 and §9.15's numbers
+  come from these.
+
+**Re-measured** (`scripts/remeasure_v5.sh`, `results/v5/`):
+
+| result | before | v5 |
+|---|---|---|
+| §9.1a ridge spatial R², fixed (g1/2a/3/4/5/6) | 0.89–0.99 | **0.966 / 0.982 / 0.945 / 0.959 / 0.975 / 0.933** |
+| §9.1a kNN ahead of ridge on | geometry3, 4 | geometry5, 6 |
+| §9.15b ridge mean R², shelf g4/g5/g6 | −0.667 / −2.305 / −2.866 | **−0.663 / −2.268 / −2.866** (still the worst model) |
+| §9.17 field vs ridge localisation | see §9.17 | better on 6/6 layout, 3/4 fixed (geometry4-fixed ties) |
+| §9.19 SDF channel | hurts | **hurts** (field-only 0.940 / 0.906 / 0.673) |
+| §9.20 conformal coverage at 80/90% | 81.8–93.3% | **87.3–93.3%**, valid in every case |
+| §9.22 random features ≥ quadratic | yes | **yes** (geometry6 data unchanged) |
+
+**What changed in substance.** On fixed placement, ridge now localises hotspots far better than
+before (e.g. geometry2a 531 µm, was 5028 µm). With power confined to blocks, the hotspot again
+sits in one of a few block regions, which is the "short list" regime §9.4 describes. So
+§9.4/§9.12's claim that hotspot localisation is a universal failure on fixed placement described
+the unphysical whole-die maps, not the benchmark, and is withdrawn for v5 data. The
+layout-varying results, which carry the paper's claims, are unchanged.
+
+**Still open.** Neural results (§9.7, §9.12, §9.15d) need re-running on v5 data. That needs a
+GPU; the Kaggle zips in `data/*.zip` predate v5.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
@@ -3166,7 +3237,7 @@ dataset should be read as the substrate for the finding below, not as the findin
 
 The finding is a negative result we believe is more useful than the surrogate accuracy figures
 we set out to produce. Measured on the current dataset (§9.1a, 2026-09-09), closed-form ridge
-regression reconstructs the spatial temperature field at **spatial R² 0.89–0.99** across the
+regression reconstructs the spatial temperature field at **spatial R² 0.93–0.98** (§9.24) across the
 six geometries — beating or matching every other baseline, and beating plain kNN only
 narrowly, with kNN actually ahead on geometry3. No neural architecture tried in this project
 has beaten it on that metric. Out-of-distribution behaviour is materially worse than
