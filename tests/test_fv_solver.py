@@ -2,6 +2,7 @@
 import copy
 
 import numpy as np
+import pytest
 
 from src.core.geometry import PowerBlock
 from src.core.geometry_builders import get_geometry_by_name
@@ -127,3 +128,39 @@ def test_thermono_is_exactly_linear_in_power_and_dct_is_orthonormal():
     lin2 = torch.randn_like(lin)
     assert torch.allclose(m(lin + lin2, geo), out + m(lin2, geo), atol=1e-9)  # additive
     assert torch.allclose(m(torch.zeros_like(lin), geo), torch.zeros_like(out))
+
+
+def test_lt_fno_couples_layers_only_through_its_z_matrix():
+    """With identity z-coupling each layer is an independent 2D spectral conv; off-diagonal terms couple them."""
+    import torch
+    from src.fno.ltfno import LayerTransferConv3d, build_lt_fno
+    torch.manual_seed(0)
+    conv = LayerTransferConv3d(3, 3, (4, 3), nz=6).double()
+    with torch.no_grad():
+        conv.zcouple.copy_(torch.eye(6).expand(4, 3, 6, 6))
+        conv.weight.data = conv.weight.data.to(torch.cdouble)
+    x = torch.randn(2, 3, 10, 8, 6, dtype=torch.float64)
+    x2 = x.clone(); x2[..., 4] += torch.randn_like(x2[..., 4])        # perturb layer 4 only
+    d = (conv(x2) - conv(x)).abs().amax(dim=(0, 1, 2, 3))
+    assert torch.all(d[[0, 1, 2, 3, 5]] < 1e-10) and d[4] > 1e-3      # no leakage between layers
+    with torch.no_grad():
+        conv.zcouple[..., 4, 1] = 0.5                                   # couple layer 4 into layer 1
+    d = (conv(x2) - conv(x)).abs().amax(dim=(0, 1, 2, 3))
+    assert d[1] > 1e-3
+    m = build_lt_fno((12, 10, 7), modes=(4, 4, 3), hidden_ch=4, n_blocks=2)
+    out = m(torch.randn(2, 12, 10, 7), torch.randn(2, 12, 10, 7), torch.randn(2), torch.randn(2), torch.randn(2))
+    assert out.shape == (2, 12, 10, 7)
+
+
+@pytest.mark.parametrize('geo_arch,geo_attn', [('cno', False), ('cno', True)])
+def test_thermono_stays_linear_in_power_with_cno_geometry_encoder(geo_arch, geo_attn):
+    import torch
+    from src.fno.thermono import ThermoNO
+    torch.manual_seed(0)
+    m = ThermoNO((12, 8, 5), ch=8, n_blocks=2, modes=(6, 4), geo_arch=geo_arch, geo_attn=geo_attn).double()
+    lin = torch.randn(2, 2, 12, 8, 5, dtype=torch.float64)
+    geo = torch.randn(2, 4, 12, 8, 5, dtype=torch.float64)
+    out = m(lin, geo)
+    assert torch.allclose(m(3.0 * lin, geo), 3.0 * out, atol=1e-9)
+    lin2 = torch.randn_like(lin)
+    assert torch.allclose(m(lin + lin2, geo), out + m(lin2, geo), atol=1e-9)
