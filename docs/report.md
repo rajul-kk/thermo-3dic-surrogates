@@ -3418,14 +3418,46 @@ modes), 5-fold CV, seed 0, CPU (`scripts/ltfno_compare.py`):
 | FNO | 665k | −0.25 (0.48) | 2.57 | **5551** | 0.16 | 13.5 |
 | **LT-FNO** | **155k** | **0.06 (0.76)** | **1.78** | 6500 | **0.22** | **7.9** |
 
-**Reading.** LT-FNO beats FNO on 5 of 6 metrics with 4.3× fewer parameters: field error −31% and
+**Reading, CPU run.** LT-FNO beats FNO on 5 of 6 metrics with 4.3× fewer parameters: field error −31% and
 peak error −42%. **Both are weak in absolute terms.** Fold R² ranges from −1.3 to 0.76, and both
 sit far below the trained linear-field model (0.97) and the training-free backbone (0.981). At
 this data size (36 training scenarios) and budget, raw-temperature neural operators are not
 competitive here. What the result shows is the *direction*: layer coupling is a better z-prior
-than spectral-in-z for layered stacks. It needs a GPU-budget, multi-seed run
-(`notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`, which now includes `lt-fno`) before it can
-be claimed.
+than spectral-in-z for layered stacks. The GPU run below tests that.
+
+**GPU budget, geometry4 and geometry6 (Kaggle T4, 2026-09-26).**
+`notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`: 32 channels, 4 blocks, modes (16, 16, 8),
+early stopping (patience 80 epochs, cap 600) on a hold-out drawn from the training fold,
+best-checkpoint reload, 5-fold CV, seed 0. CNO-FNO-attn is the strongest neural model in the repo
+(FiLM + CNO multiscale + axial attention; physics loss off for v5). All three are raw-temperature
+models with no backbone. The linear-field and backbone rows are from §9.25 (4 seeds).
+
+| geometry | model | params | R² mean (median) | det.MAE (K) | scenarios with R² < 0 | T4 min |
+|---|---|---|---|---|---|---|
+| geometry4 | FNO | 6.30M | −0.53 (0.54) | 2.45 | 15/45 | 7 |
+| | LT-FNO | 1.16M | 0.17 (0.79) | 1.60 | 9/45 | 9 |
+| | CNO-FNO-attn | 0.59M | 0.75 (0.86) | 1.36 | 2/45 | 31 |
+| | linear (field) | | 0.970 | 0.405 | | |
+| | **backbone, no training** | 0 | **0.981** | **0.322** | | |
+| geometry6 | FNO | 8.40M | −1.02 (−0.68) | 2.92 | 34/45 | 13 |
+| | LT-FNO | 1.29M | 0.18 (0.24) | 1.86 | 14/45 | 16 |
+| | CNO-FNO-attn | 0.59M | 0.41 (0.53) | 1.72 | 8/45 | 57 |
+| | linear (field) | | 0.893 | 0.931 | | |
+| | **backbone, no training** | 0 | **0.991** | **0.079** | | |
+
+**Reading, GPU run.**
+- **LT-FNO vs FNO holds at GPU budget.** On both geometries LT-FNO beats FNO on mean R²
+  (+0.69 / +1.20), det.MAE (−35% / −36%) and the number of failed scenarios, with 5–6.5× fewer
+  parameters. Swapping spectral-in-z for layer coupling is a clear gain *within the FNO family*.
+- **It is not the best neural model.** CNO-FNO-attn beats LT-FNO on both geometries (R² 0.75 vs
+  0.17 and 0.41 vs 0.18), at 3.5× the training time. LT-FNO's median on geometry6 (0.24) is also
+  weak, so its mean gain there comes from fewer catastrophic scenarios, not better typical fits.
+- **No neural model is competitive.** All three are far below the linear field fit (0.97 / 0.89)
+  and the training-free backbone (0.981 / 0.991; det.MAE 4× and 22× lower than the best neural model). At 36 training scenarios,
+  learning raw temperature from scratch is the wrong task; learning a correction to the backbone
+  (§9.26) is the one that pays.
+- Seed 0 only, and this notebook's JSON does not store hotspot metrics. The ranking among the
+  three is consistent across both geometries, but the margins carry no error bar.
 
 ## 11. Conclusion
 

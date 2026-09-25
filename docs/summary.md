@@ -298,10 +298,11 @@ is a 0.04–0.32 K heterogeneity residual.
   localises the hottest cell 3.5–5× closer in all 9 runs. It lowers top-1% recall in all 9 runs.
   It improves the whole field only on geometry4; on geometry5/6 it roughly doubles the bulk
   field error of an already very accurate solver.
-- **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. It beats a
-  matched FNO on 5 of 6 metrics with 4.3× fewer parameters, but both remain far below the
-  linear and classical baselines at this data size. This is one geometry, one seed and a CPU
-  budget; the GPU run is pending.
+- **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. At GPU budget
+  on geometry4/6 it beats a plain FNO (R² 0.17 vs −0.53 and 0.18 vs −1.02, det.MAE −35%) with
+  5–6.5× fewer parameters. CNO-FNO-attn beats both (0.75 / 0.41), and every raw-temperature
+  neural model stays far below the linear field fit and the training-free solver
+  (0.98 / 0.99). Seed 0 only.
 
 ## 5. Threats to validity
 
