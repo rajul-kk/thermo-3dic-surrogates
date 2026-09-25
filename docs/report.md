@@ -3367,8 +3367,38 @@ hold-out drawn from the training fold):
   little but worsens peak error and localisation, and destabilises one fold. It does not earn its
   cost; plain ThermoNO is the default.
 
-**Scope.** One geometry, one seed, a small CPU model. Geometry4 has diffuse peaks (§9.17), so
-distance is descriptive only.
+**Multi-seed, three geometries (Kaggle T4, 2026-09-26).** Same script and defaults, seeds 0–2
+(seeds change the folds, the hold-out and the initialisation), 45 test scenarios per seed
+(`notebooks/kaggle_thermono_multiseed.ipynb`; JSONs in `results/thermono_kaggle/`). The backbone
+is deterministic, so its row does not vary with the seed. Mean ± std across seeds, with the number
+of seeds in which ThermoNO beats the backbone:
+
+| geometry | model | R² mean | det.MAE (K) | loc median (µm) | top-1% recall | \|peak\| err (K) |
+|---|---|---|---|---|---|---|
+| geometry4 | backbone | 0.981 | 0.322 | 3536 | **0.810** | 2.06 |
+| | ThermoNO | **0.995 ± 0.002** | **0.157 ± 0.035** | **674 ± 236** | 0.715 ± 0.031 | **0.79 ± 0.17** |
+| | *wins* | *3/3* | *3/3* | *3/3* | *0/3* | *3/3* |
+| geometry5 | backbone | 0.996 | **0.044** | 4250 | **0.801** | 2.08 |
+| | ThermoNO | 0.995 ± 0.000 | 0.104 ± 0.005 | **852 ± 107** | 0.546 ± 0.022 | **0.56 ± 0.03** |
+| | *wins* | *1/3* | *0/3* | *3/3* | *0/3* | *3/3* |
+| geometry6 | backbone | 0.991 | **0.079** | 3536 | **0.689** | 3.33 |
+| | ThermoNO | 0.992 ± 0.001 | 0.165 ± 0.015 | **1004 ± 6** | 0.595 ± 0.021 | **0.62 ± 0.08** |
+| | *wins* | *2/3* | *0/3* | *3/3* | *0/3* | *3/3* |
+
+**Reading, multi-seed.**
+- **Robust (9/9 runs):** ThermoNO cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and puts
+  the hottest cell 3.5–5× closer to the true one. This is the claim that survives.
+- **Also robust, in the other direction (0/9 runs):** top-1% recall is always lower, by 0.09–0.26.
+- **Geometry-dependent:** on geometry4 ThermoNO also improves the whole field (R², det.MAE halved).
+  On geometry5/6, where the backbone is already very accurate (det.MAE 0.04–0.08 K), ThermoNO ties
+  on R² but roughly doubles det.MAE. The peak-weighted loss (`--w-top 4`) buys peak accuracy with
+  bulk-field error once there is little bulk error left to remove.
+- The GPU seed-0 run on geometry4 (R² 0.992, |peak| 0.96 K) differs from the CPU seed-0 run above
+  (0.995, 0.78 K) through GPU non-determinism; the seed spread is the honest error bar.
+
+**Scope.** Geometry4 has diffuse peaks (§9.17), so its distance is descriptive only; geometry5/6
+localisation carries the weight. A lower `--w-top`, or a loss that also scores recall, is the
+obvious next test of whether the recall and bulk-error losses are the price of the peak gain.
 
 ### 9.27 LT-FNO: replacing FNO's spectral-in-z with learned layer coupling (2026-09-25)
 

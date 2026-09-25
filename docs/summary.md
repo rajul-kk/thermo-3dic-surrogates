@@ -291,16 +291,17 @@ conductivity averaged laterally) needs no training and runs in ~20 ms. It is cla
 The bar for a neural surrogate is therefore this solver, not ridge. The room left for learning
 is a 0.04–0.32 K heterogeneity residual.
 
-### 4.10 New operators built on these findings (§9.26–9.27, preliminary)
+### 4.10 New operators built on these findings (§9.26–9.27)
 
-- **ThermoNO** learns a correction to the classical solver that is exactly linear in power. On
-  geometry4 it beats the solver on field accuracy (R² 0.995), localisation (3.5× closer) and
-  peak error (0.78 K vs 2.06 K), but not on top-1% recall (0.70 vs 0.81).
+- **ThermoNO** learns a correction to the classical solver that is exactly linear in power.
+  Across 3 seeds × geometry4/5/6 it cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and
+  localises the hottest cell 3.5–5× closer in all 9 runs. It lowers top-1% recall in all 9 runs.
+  It improves the whole field only on geometry4; on geometry5/6 it roughly doubles the bulk
+  field error of an already very accurate solver.
 - **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. It beats a
   matched FNO on 5 of 6 metrics with 4.3× fewer parameters, but both remain far below the
-  linear and classical baselines at this data size.
-- Both results are one geometry, one seed and a small CPU budget, so they are directional
-  until GPU runs.
+  linear and classical baselines at this data size. This is one geometry, one seed and a CPU
+  budget; the GPU run is pending.
 
 ## 5. Threats to validity
 
