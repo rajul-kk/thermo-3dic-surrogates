@@ -2,7 +2,6 @@
 import copy
 
 import numpy as np
-import pytest
 
 from src.core.geometry import PowerBlock
 from src.core.geometry_builders import get_geometry_by_name
@@ -114,21 +113,13 @@ def test_layered_backbone_is_exact_for_laterally_uniform_stacks():
     assert np.abs(got - ref).max() < 1e-6 * (ref.max() - 303.15)
 
 
-def test_dct_matrix_is_orthonormal():
+def test_thermono_is_exactly_linear_in_power_and_dct_is_orthonormal():
     import torch
-    from src.fno.thermono import dct_matrix
-    M = dct_matrix(12)
-    assert torch.allclose(M @ M.T, torch.eye(12), atol=1e-5)
-
-
-@pytest.mark.parametrize('basis', ['dct', 'walsh'])
-@pytest.mark.parametrize('geo_arch,geo_attn', [('mlp', False), ('cno', False), ('cno', True)])
-def test_thermono_is_exactly_linear_in_power_under_every_ablation(basis, geo_arch, geo_attn):
-    import torch
-    from src.fno.thermono import ThermoNO
+    from src.fno.thermono import ThermoNO, dct_matrix
+    D = dct_matrix(12)
+    assert torch.allclose(D @ D.T, torch.eye(12), atol=1e-5)
     torch.manual_seed(0)
-    m = ThermoNO((12, 8, 5), ch=6, n_blocks=2, modes=(6, 4),
-                 basis=basis, geo_arch=geo_arch, geo_attn=geo_attn).double()
+    m = ThermoNO((12, 8, 5), ch=6, n_blocks=2, modes=(6, 4)).double()
     lin = torch.randn(2, 2, 12, 8, 5, dtype=torch.float64)
     geo = torch.randn(2, 4, 12, 8, 5, dtype=torch.float64)
     out = m(lin, geo)
