@@ -3453,9 +3453,9 @@ models with no backbone. The linear-field and backbone rows are from §9.25 (4 s
   0.17 and 0.41 vs 0.18), at 3.5× the training time. LT-FNO's median on geometry6 (0.24) is also
   weak, so its mean gain there comes from fewer catastrophic scenarios, not better typical fits.
 - **No neural model is competitive.** All three are far below the linear field fit (0.97 / 0.89)
-  and the training-free backbone (0.981 / 0.991; det.MAE 4× and 22× lower than the best neural model). At 36 training scenarios,
-  learning raw temperature from scratch is the wrong task; learning a correction to the backbone
-  (§9.26) is the one that pays.
+  and the training-free backbone (0.981 / 0.991), whose det.MAE is 4× and 22× lower than the
+  best neural model's. At 36 training scenarios, learning raw temperature from scratch is the
+  wrong task; learning a correction to the backbone (§9.26) is the one that pays.
 - Seed 0 only, and this notebook's JSON does not store hotspot metrics. The ranking among the
   three is consistent across both geometries, but the margins carry no error bar.
 
