@@ -1,5 +1,5 @@
 """Train ThermoNO on the layered backbone's residual, 5-fold CV on a v5 layout dataset (report §9.26).
-Usage: python scripts/thermono_train.py geometry4 [--epochs 300] [--ch 16] [--seed 0] [--folds 0 1 2 3 4]
+Usage: python scripts/thermono_train.py geometry4 [--epochs 300] [--ch 16] [--seed 0] [--folds 0 1 2 3 4] [--device cuda]
 """
 import argparse
 import ast
@@ -23,12 +23,12 @@ from scripts.layout_cv import per_scenario_stats
 CACHE = Path('results/thermono_cache')
 
 
-def build(geom_name):
+def build(geom_name, data_root='data'):
     """Per-scenario tensors on the FV grid (x = width, y = length, z), cached per geometry."""
     path = CACHE / f'{geom_name}.npz'
     if path.exists():
         return dict(np.load(path, allow_pickle=True))
-    files = sorted(Path(f'data/3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))
+    files = sorted(Path(data_root, f'3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))
     Q, BB, TH, MASK, KL, KV, HTC, TAMB, COORDS, TEMP = [], [], [], [], [], [], [], [], [], []
     for f in files:
         d = np.load(f, allow_pickle=True)
@@ -58,7 +58,7 @@ def build(geom_name):
     return out
 
 
-def tensors(D, idx, q_scale, th_scale):
+def tensors(D, idx, q_scale, th_scale, device='cpu'):
     kv = D['kv'][idx]
     # thermal-resistance z-coordinate: cumulative dz/k from the sink, per column (the "warp" lead)
     r = np.cumsum(D['dz'][None, None, None, :] / kv, axis=-1)
@@ -67,7 +67,7 @@ def tensors(D, idx, q_scale, th_scale):
     geo = np.stack([np.log10(D['kl'][idx]) / 2.0, np.log10(kv) / 2.0, r, htc - 4.0], 1)
     lin = np.stack([D['q'][idx] / q_scale, D['bb'][idx] / th_scale], 1)
     target = (D['theta'][idx] - D['bb'][idx]) / th_scale
-    f = lambda a: torch.as_tensor(np.ascontiguousarray(a), dtype=torch.float32)
+    f = lambda a: torch.as_tensor(np.ascontiguousarray(a), dtype=torch.float32, device=device)
     return f(lin), f(geo), f(target), f(D['mask'][idx].astype(np.float32))
 
 
@@ -78,17 +78,18 @@ def run_fold(D, tr, te, args):
     rng = np.random.default_rng(args.seed)
     val = rng.choice(tr, size=max(3, len(tr) // 9), replace=False)      # early-stopping holdout
     fit = np.setdiff1d(tr, val)
-    lin, geo, tgt, msk = tensors(D, fit, q_scale, th_scale)
-    vlin, vgeo, vtgt, vmsk = tensors(D, val, q_scale, th_scale)
+    dev = torch.device(args.device)
+    lin, geo, tgt, msk = tensors(D, fit, q_scale, th_scale, dev)
+    vlin, vgeo, vtgt, vmsk = tensors(D, val, q_scale, th_scale, dev)
     grid = D['q'].shape[1:]
     model = ThermoNO(grid, ch=args.ch, n_blocks=args.blocks, modes=(args.modes, args.modes),
-                     geo_arch=args.geo_arch, geo_attn=args.geo_attn)
+                     geo_arch=args.geo_arch, geo_attn=args.geo_attn).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     best, best_state, stale = np.inf, None, 0
     for ep in range(args.epochs):
         model.train()
-        for b in torch.randperm(len(fit)).split(args.batch):
+        for b in torch.randperm(len(fit), device=dev).split(args.batch):
             opt.zero_grad()
             loss = peak_weighted_mse(model(lin[b], geo[b]), tgt[b], msk[b], w_top=args.w_top)
             loss.backward()
@@ -106,9 +107,9 @@ def run_fold(D, tr, te, args):
                     break
     model.load_state_dict(best_state)
     model.eval()
-    tlin, tgeo, _, _ = tensors(D, te, q_scale, th_scale)
+    tlin, tgeo, _, _ = tensors(D, te, q_scale, th_scale, dev)
     with torch.no_grad():
-        corr = model(tlin, tgeo).numpy() * th_scale
+        corr = model(tlin, tgeo).cpu().numpy() * th_scale
     g = fv.FVGrid(D['xe'], D['ye'], D['ze'], None)
     rows = {'backbone': [], 'thermono': []}
     for j, i in enumerate(te):
@@ -134,9 +135,11 @@ def main():
     ap.add_argument('--folds', nargs='*', type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument('--geo-arch', choices=['mlp', 'cno'], default='mlp')
     ap.add_argument('--geo-attn', action='store_true')
+    ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
+    ap.add_argument('--data-root', default='data')
     args = ap.parse_args()
     torch.set_num_threads(max(1, torch.get_num_threads()))
-    D = build(args.geometry)
+    D = build(args.geometry, args.data_root)
     n = D['q'].shape[0]
     all_rows = {'backbone': [], 'thermono': []}
     for fi, fold in enumerate(kfold_indices(n, 5, args.seed)):
@@ -163,6 +166,7 @@ def main():
               f"loc {s['loc_err_um_median']:.0f} um recall {s['recall_mean']:.3f} |peak| {s['abs_peak_err_K']:.2f} K")
     tag = '' if args.geo_arch == 'mlp' else '_cno' + ('-attn' if args.geo_attn else '')
     out = Path(f'results/thermono_{args.geometry}{tag}_seed{args.seed}.json')
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({'args': vars(args), 'n_test': len(all_rows['thermono']), 'summary': summary}, indent=1))
 
 
