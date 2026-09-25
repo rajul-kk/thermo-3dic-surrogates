@@ -3339,6 +3339,64 @@ eight baselines, DeepOHeat's FEM comparisons) reports such a baseline. The room 
 learned model is the lateral-heterogeneity residual, 0.04–0.32 K detrended here. That residual is
 the natural target for an FNO correction, and running it needs the GPU.
 
+### 9.26 ThermoNO: a physics-shaped correction to the classical backbone (2026-09-25)
+
+`src/fno/thermono.py` learns a correction to the §9.25 backbone. The correction is exactly linear
+in power, through a bias-free linear path gated by a nonlinear, power-free geometry encoder. It
+uses DCT spectral layers (the Neumann eigenbasis), dense learned z-mixing, per-cell
+log-conductivity inputs, a thermal-resistance z-coordinate and a peak-weighted loss. Linearity is
+tested. Every component has prior art; the combination was not found
+(`docs/references.md`, 2026-09-25).
+
+Geometry4-shelf, 5-fold CV, seed 0, CPU (`scripts/thermono_train.py`; early stopping on a
+hold-out drawn from the training fold):
+
+| model | R² mean (median) | det.MAE (K) | loc median (µm) | top-1% recall | \|peak\| err (K) |
+|---|---|---|---|---|---|
+| backbone, no training | 0.981 (0.982) | 0.322 | 3536 | **0.810** | 2.06 |
+| backbone + linear residual (§9.25, 4 seeds) | 0.993 (0.994) | 0.148 | 3738 | 0.650 | 2.56 |
+| **ThermoNO** | **0.995 (0.996)** | **0.169** | **1000** | 0.700 | **0.78** |
+| ThermoNO + CNO geometry encoder | 0.989 (0.997) | 0.174 | 1750 | 0.741 | 1.39 |
+
+**Reading.**
+- ThermoNO beats the training-free backbone on field accuracy, localisation distance (3.5× closer)
+  and peak-temperature error (2.6× lower), where the linear residual made peak error worse.
+- It loses on top-1% recall (0.70 vs 0.81). It places the single hottest cell better but
+  reproduces the shape of the hot region less well.
+- The CNO encoder (CNOFNOHybrid's multiscale encoder, on the gate path only) raises recall a
+  little but worsens peak error and localisation, and destabilises one fold. It does not earn its
+  cost; plain ThermoNO is the default.
+
+**Scope.** One geometry, one seed, a small CPU model. Geometry4 has diffuse peaks (§9.17), so
+distance is descriptive only.
+
+### 9.27 LT-FNO: replacing FNO's spectral-in-z with learned layer coupling (2026-09-25)
+
+`src/fno/ltfno.py` is a one-component change to FNO3d, the way WHNO swaps the basis. The FFT stays
+in x and y. Each retained lateral mode gets a dense learned nz × nz layer-coupling matrix instead
+of truncated z Fourier modes. This is the transfer-matrix structure of layered conduction, at
+full z-rank, with no periodicity or uniform-spacing assumption. On 3D-ICE's 10–15 unevenly spaced
+z-nodes, FNO3d keeps only 4–6 z-modes. A test confirms that layers couple only through the z-matrix.
+No precedent was found for a learned per-mode layer-coupling operator inside an FNO (one search
+pass).
+
+Geometry4-shelf, raw temperature (no backbone), matched budget (16 channels, 3 blocks, 12 lateral
+modes), 5-fold CV, seed 0, CPU (`scripts/ltfno_compare.py`):
+
+| model | params | R² mean (median) | det.MAE (K) | loc median (µm) | top-1% recall | \|peak\| err (K) |
+|---|---|---|---|---|---|---|
+| FNO | 665k | −0.25 (0.48) | 2.57 | **5551** | 0.16 | 13.5 |
+| **LT-FNO** | **155k** | **0.06 (0.76)** | **1.78** | 6500 | **0.22** | **7.9** |
+
+**Reading.** LT-FNO beats FNO on 5 of 6 metrics with 4.3× fewer parameters: field error −31% and
+peak error −42%. **Both are weak in absolute terms.** Fold R² ranges from −1.3 to 0.76, and both
+sit far below the trained linear-field model (0.97) and the training-free backbone (0.981). At
+this data size (36 training scenarios) and budget, raw-temperature neural operators are not
+competitive here. What the result shows is the *direction*: layer coupling is a better z-prior
+than spectral-in-z for layered stacks. It needs a GPU-budget, multi-seed run
+(`notebooks/kaggle_geometry4_vs_geometry6_fno.ipynb`, which now includes `lt-fno`) before it can
+be claimed.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
