@@ -3578,8 +3578,30 @@ from, we scored three geometry-blind predictors on S5, each built from the S4 tr
   The inductive bias that transfers is exact linearity in power, with the geometry dependence
   learned. It is the same bias that made ThermoNO work on our own data (§9.26).
 
-**Limits.** One seed, and the S4 checkpoint came from an unstable run. The S5 result needs seeds
-before it is claimed. The in-distribution gap means ThermoNO is not a general replacement for
+**v2: stable training and three seeds (2026-09-27).** Same model, lr 2e-3, up to 150 epochs,
+patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
+
+| scope | v1 (lr 5e-3, 1 seed) | **v2 (lr 2e-3)** | v2 peak-T err | Therm-FM | ridge-per-geom |
+|---|---|---|---|---|---|
+| S2 | 3.85 | **1.88** (seed 0; stopped at the 150-epoch cap, still improving) | 1.50 | 0.443 | 1.943 |
+| S4 | 5.34 | **4.40 ± 0.06** (4.38, 4.49, 4.35) | 4.37 | 0.933 | 3.203 |
+| **S5 zero-shot** | 6.83 | **6.70 ± 0.37** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
+
+- **The S5 result is seed-stable.** All three seeds beat Therm-FM by 2.1–2.4× (R² 0.91–0.93).
+- **In distribution, stable training halves the S2 error**, and it was still falling when the
+  epoch cap stopped it. ThermoNO now edges our per-geometry linear baseline on S2 but not on S4.
+  It remains 4× from Therm-FM.
+- **Why the gap is fixable in principle.** Within the largest S2 layout group (815 samples, 324
+  distinct chiplet footprints), a plain linear map from the power map to temperature fits held-out
+  samples to 0.52 K with 64 power components. The data is linear in power once the layout is fixed.
+  ThermoNO is in the same function class, so its remaining gap is training and optimisation, not a
+  mismatch with the physics.
+- **The kxk local map plus linear multiscale branch** (`--local-k 3 --multiscale 3`, a lateral
+  pyramid that stays exactly linear in power) was tested on that group on CPU. At 2,000 steps it
+  was no better than the original (held-out 1.64 vs 1.64 K), with train ≈ held-out for both.
+  At this budget the model is step-limited, not capacity-limited.
+
+**Limits.** The S2 run is one seed. The in-distribution numbers are budget-limited. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
 itself a new trivial baseline that S5 should report.
