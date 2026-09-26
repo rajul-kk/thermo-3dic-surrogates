@@ -3601,6 +3601,22 @@ patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
   was no better than the original (held-out 1.64 vs 1.64 K), with train ≈ held-out for both.
   At this budget the model is step-limited, not capacity-limited.
 
+**v3: a 300-epoch S2 budget, original vs multiscale (2026-09-27). Inconclusive, for a
+recorded reason.** Both runs early-stopped halfway through their one-cycle schedule. The
+learning rate was still high, the validation RMSE was noisy, and patience 30 ran out before the
+annealing phase:
+
+| S2, seed 0 | epochs run (of 300) | test RMSE | peak-T err | params | T4 time |
+|---|---|---|---|---|---|
+| v2, original (150-epoch schedule, completed) | 150 | **1.88** | 1.50 | 4.24M | 65 min |
+| v3, original | 151 | 2.08 | 1.63 | 4.24M | 69 min |
+| v3, `--local-k 3 --multiscale 3` | 82 | 2.97 | 2.33 | 4.38M | 125 min |
+
+The multiscale branch is 3× slower per epoch and was behind the original at every matched epoch.
+With the CPU ablation above, there is no evidence it helps, and it is not pursued. A longer run
+must hold early stopping off until the schedule anneals, or use a schedule that anneals within
+the patience window.
+
 **Limits.** The S2 run is one seed. The in-distribution numbers are budget-limited. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
