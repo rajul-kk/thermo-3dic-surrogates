@@ -44,7 +44,8 @@ class Model(torch.nn.Module):
     def __init__(self, n_geo, args):
         super().__init__()
         self.net = ThermoNO((64, 64, 1), ch=args.ch, n_blocks=args.blocks, modes=(args.modes, args.modes),
-                            lin_in=1, geo_in=n_geo, geo_arch=args.geo_arch, geo_attn=args.geo_attn)
+                            lin_in=1, geo_in=n_geo, geo_arch=args.geo_arch, geo_attn=args.geo_attn,
+                            local_k=args.local_k, multiscale=args.multiscale)
         self.b = torch.nn.Parameter(torch.zeros(()))
         self.scale = args.th_scale
 
@@ -90,6 +91,8 @@ def main():
     ap.add_argument('--th-scale', type=float, default=20.0, help='K per unit of network output')
     ap.add_argument('--geo-arch', choices=['mlp', 'cno'], default='mlp')
     ap.add_argument('--geo-attn', action='store_true')
+    ap.add_argument('--local-k', type=int, default=1, help='lateral kernel of the linear local map (1 = original)')
+    ap.add_argument('--multiscale', type=int, default=0, help='levels of the linear multiscale branch (0 = off)')
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--limit', type=int, default=None, help='smoke test: first N samples of each split')
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')

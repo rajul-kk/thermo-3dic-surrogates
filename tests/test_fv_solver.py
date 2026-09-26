@@ -152,6 +152,32 @@ def test_lt_fno_couples_layers_only_through_its_z_matrix():
     assert out.shape == (2, 12, 10, 7)
 
 
+@pytest.mark.parametrize('local_k,multiscale', [(3, 0), (1, 3), (3, 3)])
+def test_thermono_stays_linear_with_local_and_multiscale_paths(local_k, multiscale):
+    import torch
+    from src.fno.thermono import ThermoNO
+    torch.manual_seed(0)
+    m = ThermoNO((13, 9, 3), ch=6, n_blocks=2, modes=(6, 4), local_k=local_k, multiscale=multiscale).double()
+    lin = torch.randn(2, 2, 13, 9, 3, dtype=torch.float64)
+    geo = torch.randn(2, 4, 13, 9, 3, dtype=torch.float64)
+    out = m(lin, geo)
+    assert out.shape == (2, 13, 9, 3)
+    assert torch.allclose(m(3.0 * lin, geo), 3.0 * out, atol=1e-9)
+    lin2 = torch.randn_like(lin)
+    assert torch.allclose(m(lin + lin2, geo), out + m(lin2, geo), atol=1e-9)
+
+
+def test_thermono_defaults_unchanged_by_new_options():
+    """local_k=1, multiscale=0 must build the same parameters in the same order as before."""
+    import torch
+    from src.fno.thermono import ThermoNO
+    torch.manual_seed(0)
+    a = ThermoNO((12, 8, 5), ch=6, n_blocks=2, modes=(6, 4))
+    assert a.ms is None and all(l.kernel_size == (1, 1, 1) for l in a.local)
+    assert sum(p.numel() for p in a.parameters()) == sum(
+        p.numel() for n, p in a.named_parameters() if not n.startswith('ms.'))
+
+
 @pytest.mark.parametrize('geo_arch,geo_attn', [('cno', False), ('cno', True)])
 def test_thermono_stays_linear_in_power_with_cno_geometry_encoder(geo_arch, geo_attn):
     import torch

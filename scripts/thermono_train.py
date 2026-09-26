@@ -83,7 +83,8 @@ def run_fold(D, tr, te, args):
     vlin, vgeo, vtgt, vmsk = tensors(D, val, q_scale, th_scale, dev)
     grid = D['q'].shape[1:]
     model = ThermoNO(grid, ch=args.ch, n_blocks=args.blocks, modes=(args.modes, args.modes),
-                     geo_arch=args.geo_arch, geo_attn=args.geo_attn).to(dev)
+                     geo_arch=args.geo_arch, geo_attn=args.geo_attn, local_k=args.local_k,
+                     multiscale=args.multiscale).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
     best, best_state, stale = np.inf, None, 0
@@ -135,6 +136,8 @@ def main():
     ap.add_argument('--folds', nargs='*', type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument('--geo-arch', choices=['mlp', 'cno'], default='mlp')
     ap.add_argument('--geo-attn', action='store_true')
+    ap.add_argument('--local-k', type=int, default=1, help='lateral kernel of the linear local map (1 = original)')
+    ap.add_argument('--multiscale', type=int, default=0, help='levels of the linear multiscale branch (0 = off)')
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     ap.add_argument('--data-root', default='data')
     args = ap.parse_args()
@@ -165,6 +168,7 @@ def main():
         print(f"  {name:<10} R2 {s['r2_mean']:.4f} (med {s['r2_median']:.4f}) det.MAE {s['det_mae_K']:.3f} K "
               f"loc {s['loc_err_um_median']:.0f} um recall {s['recall_mean']:.3f} |peak| {s['abs_peak_err_K']:.2f} K")
     tag = '' if args.geo_arch == 'mlp' else '_cno' + ('-attn' if args.geo_attn else '')
+    tag += (f'_k{args.local_k}' if args.local_k > 1 else '') + (f'_ms{args.multiscale}' if args.multiscale else '')
     out = Path(f'results/thermono_{args.geometry}{tag}_seed{args.seed}.json')
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({'args': vars(args), 'n_test': len(all_rows['thermono']), 'summary': summary}, indent=1))

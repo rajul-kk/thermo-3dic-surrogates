@@ -151,23 +151,53 @@ class CNOGeometryEncoder(nn.Module):
         return torch.chunk(self.head(x), self.n_gates, dim=1)
 
 
+class LinearMultiscale(nn.Module):
+    """Bias-free lateral pyramid: average-pool down, kxk conv per level, nearest-upsample and sum.
+    Every step is linear, so the branch keeps ThermoNO exactly linear in power. It supplies the
+    mid-range, local structure (chiplet edges, conductivity contrasts) that truncated global DCT
+    modes plus a 1x1 map cannot represent."""
+
+    def __init__(self, ch: int, k: int = 3, levels: int = 3):
+        super().__init__()
+        pad = (k // 2, k // 2, 0)
+        self.convs = nn.ModuleList(nn.Conv3d(ch, ch, (k, k, 1), padding=pad, padding_mode='replicate', bias=False)
+                                   for _ in range(levels))
+
+    def forward(self, x):
+        out, cur = 0, x
+        for lvl, conv in enumerate(self.convs):
+            if lvl:
+                cur = F.avg_pool3d(cur, (2, 2, 1), ceil_mode=True)
+            y = conv(cur)
+            out = out + (F.interpolate(y, size=x.shape[2:], mode='nearest') if lvl else y)
+        return out
+
+
 class ThermoNO(nn.Module):
     """Correction field dT = G_theta[power, backbone theta]: exactly linear in its power inputs."""
 
     def __init__(self, grid, ch: int = 16, n_blocks: int = 3, modes=(16, 16),
-                 lin_in: int = 2, geo_in: int = 4, geo_arch: str = 'mlp', geo_attn: bool = False):
+                 lin_in: int = 2, geo_in: int = 4, geo_arch: str = 'mlp', geo_attn: bool = False,
+                 local_k: int = 1, multiscale: int = 0):
         super().__init__()
         nx, ny, nz = grid
         # No bias anywhere on the linear path: a bias would break dT(a*q) = a*dT(q).
         self.lift = nn.Conv3d(lin_in, ch, 1, bias=False)
         self.spec = nn.ModuleList([DCTSpectralConv(ch, nx, ny, nz, *modes) for _ in range(n_blocks)])
-        self.local = nn.ModuleList([nn.Conv3d(ch, ch, 1, bias=False) for _ in range(n_blocks)])
+        # local_k > 1: lateral kxk local map instead of 1x1 (replicate padding = adiabatic walls, still linear)
+        lk, lp = (local_k, local_k, 1), (local_k // 2, local_k // 2, 0)
+        self.local = nn.ModuleList([nn.Conv3d(ch, ch, lk, padding=lp, padding_mode='replicate', bias=False)
+                                    for _ in range(n_blocks)])
+        # multiscale > 0: an extra gated LinearMultiscale branch per block with that many pyramid levels
+        self.ms = nn.ModuleList([LinearMultiscale(ch, 3, multiscale) for _ in range(n_blocks)]) if multiscale else None
+        per_block = 3 if multiscale else 2
+        self.per_block = per_block
         # geo_arch='cno' swaps the plain conv gate encoder for CNOFNOHybrid's multiscale
         # encoder/decoder (+ axial attention if geo_attn): sharper at chiplet/underfill edges.
         if geo_arch == 'mlp':
-            self.geo = GeometryEncoder(geo_in, ch, 2 * n_blocks + 1)
+            self.geo = GeometryEncoder(geo_in, ch, per_block * n_blocks + 1)
         elif geo_arch == 'cno':
-            self.geo = CNOGeometryEncoder(geo_in, ch, 2 * n_blocks + 1, grid, use_attention=geo_attn)
+            self.geo = CNOGeometryEncoder(geo_in, ch, per_block * n_blocks + 1, grid, use_attention=geo_attn)
         else:
             raise ValueError(f'unknown geo_arch {geo_arch!r}; expected "mlp" or "cno"')
         self.proj = nn.Conv3d(ch, 1, 1, bias=False)
@@ -176,9 +206,13 @@ class ThermoNO(nn.Module):
         """lin: (B, 2, ...) = [power, backbone theta], both linear in power; geo: (B, 4, ...) power-free."""
         gates = self.geo(geo)
         x = self.lift(lin) * gates[-1]
+        k = self.per_block
         for b, (spec, local) in enumerate(zip(self.spec, self.local)):
-            # gated sum of two linear maps: still linear in x, nonlinear in geometry
-            x = x + spec(x) * gates[2 * b] + local(x) * gates[2 * b + 1]
+            # gated sum of linear maps: still linear in x, nonlinear in geometry
+            dx = spec(x) * gates[k * b] + local(x) * gates[k * b + 1]
+            if self.ms is not None:
+                dx = dx + self.ms[b](x) * gates[k * b + 2]
+            x = x + dx
         return self.proj(x)[:, 0]
 
 
