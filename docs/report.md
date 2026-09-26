@@ -3528,6 +3528,62 @@ backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 me
   cannot serve as a third solver: it supports only single-die geometry1, where the backbone is
   already exact (§9.25).
 
+### 9.29 ThermoNO on an outside benchmark: weak in-distribution, 2.3× the best published model zero-shot (2026-09-26)
+
+IC-ThermBench (§9.13) is a single-layer 64×64 grid, so neither the layered backbone (§9.25) nor
+LT-FNO's layer coupling (§9.27) applies. LT-FNO reduces to a 2D FNO there and was not run.
+`scripts/icb_thermono.py` runs ThermoNO with no backbone. It predicts T − T_amb, is exactly linear
+in the power map, and is gated by layout (`grid_x`, `grid_y`), log-conductivity and, on S4, log
+HTC and log R_conv. T_amb is the `ambient_K` channel where present (S4/S5); on S2/S3, which have no
+ambient channel, it is 298.15 K plus one learned offset. The protocol is theirs throughout:
+- their unshuffled split;
+- their vendored metric code;
+- checkpoint selection on their validation split only;
+- S5 scored zero-shot with the frozen S4 model.
+
+One seed, T4, 4.2M parameters, lr 5e-3 one-cycle, plain MSE
+(`notebooks/kaggle_icb_thermono.ipynb`; `results/icb_thermono/`).
+
+| scope | ThermoNO RMSE | peak-T err | Top-50 MAE | R² | Therm-FM (best) | runner-up | ridge-per-geom (§9.13) |
+|---|---|---|---|---|---|---|---|
+| S2 | 3.85 | 4.22 | 5.08 | 0.956 | **0.443** | 0.703 | 1.943 |
+| S3 | 3.91 | 3.70 | 4.35 | 0.938 | **0.716** | 0.802 | 2.488 |
+| S4 | 5.34 | 5.61 | 5.41 | 0.954 | **0.933** | 1.216 | 3.203 |
+| **S5 zero-shot** | **6.83** | 10.60 | 10.61 | 0.913 | 15.51 | 19.10 | unstable (~1,700, §9.13c) |
+
+**In distribution it loses badly:** 4–9× worse than Therm-FM, and worse than our own linear
+baseline. Training was unstable. On S2 and S4 the validation RMSE bottomed out near epoch 24 and
+then diverged as the one-cycle schedule reached its peak learning rate. Early stopping kept that
+epoch-24 checkpoint. S3 trained smoothly to epoch 83 and still reached only 3.9 K. So part of the
+gap is optimisation, but the model has also not shown it can reach sub-kelvin accuracy here.
+
+**Zero-shot on S5 it is 2.3× better than the best published model** (6.83 vs 15.51 K RMSE;
+R² 0.91). This is the benchmark's headline OOD scope. Five unseen package systems, where every
+published model degrades 16× or more and our linear fits blow up. To find where the gain comes
+from, we scored three geometry-blind predictors on S5, each built from the S4 training fields:
+
+| S5 predictor (S4-trained) | RMSE | R² |
+|---|---|---|
+| mean field (§9.13c) | 29.64 | −0.15 |
+| T_amb + mean S4 rise field | 29.00 | −0.08 |
+| **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** | 0.49 |
+| Therm-FM, U-Net (published) | 15.51, 19.10 | — |
+| ThermoNO | **6.83** | 0.91 |
+
+- Using the ambient channel as an offset explains nothing (29.64 → 29.00).
+- Scaling the rise with total power, a one-parameter, geometry-blind rule, matches the best
+  published model on S5. S5 shifts power down (median total power 6.6e4 vs 1.16e5 on S4), and a
+  model that is not linear in power has to extrapolate there; one that is linear does not.
+- ThermoNO adds a geometry-conditioned linear operator on top of that and halves the error again.
+  The inductive bias that transfers is exact linearity in power, with the geometry dependence
+  learned. It is the same bias that made ThermoNO work on our own data (§9.26).
+
+**Limits.** One seed, and the S4 checkpoint came from an unstable run. The S5 result needs seeds
+before it is claimed. The in-distribution gap means ThermoNO is not a general replacement for
+Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
+the architecture beats a foundation model trained without it. The one-parameter scaling rule is
+itself a new trivial baseline that S5 should report.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
