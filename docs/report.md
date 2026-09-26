@@ -3456,8 +3456,42 @@ models with no backbone. The linear-field and backbone rows are from §9.25 (4 s
   and the training-free backbone (0.981 / 0.991), whose det.MAE is 4× and 22× lower than the
   best neural model's. At 36 training scenarios, learning raw temperature from scratch is the
   wrong task; learning a correction to the backbone (§9.26) is the one that pays.
-- Seed 0 only, and this notebook's JSON does not store hotspot metrics. The ranking among the
-  three is consistent across both geometries, but the margins carry no error bar.
+- Seed 0 only. The ranking among the three is consistent across both geometries, but the margins
+  carry no error bar.
+
+**Hotspot metrics and train-fold error (2026-09-26).** `scripts/fno_rescore.py` reloads the 30
+Kaggle checkpoints on CPU, rebuilding the notebook's folds, hold-out and normalisation. It
+reproduces the notebook's test R² to four decimals for all six variant × geometry pairs. It then
+adds hotspot metrics and scores the training scenarios too (`results/fno_kaggle/fno_rescore.json`).
+Test fold, with train-fold R² in brackets; ThermoNO and backbone rows are §9.26 (3 seeds):
+
+| geometry | model | R² test (train) | \|peak\| err (K) | \|T at true hotspot\| err (K) | loc median (µm) | top-1% recall |
+|---|---|---|---|---|---|---|
+| geometry4 | FNO | −0.53 (−0.95) | 11.7 | 12.3 | 5755 | 0.23 |
+| | LT-FNO | 0.17 (0.16) | 7.7 | 7.6 | 6600 | 0.23 |
+| | CNO-FNO-attn | 0.75 (0.85) | 5.5 | 7.9 | 5344 | 0.25 |
+| | backbone | 0.981 | 2.06 | | 3536 | **0.81** |
+| | **ThermoNO** | **0.995** | **0.79** | | **674** | 0.71 |
+| geometry6 | FNO | −1.02 (−1.07) | 15.7 | 17.8 | 10817 | 0.07 |
+| | LT-FNO | 0.18 (0.24) | 10.3 | 10.0 | 8459 | 0.10 |
+| | CNO-FNO-attn | 0.41 (0.54) | 6.8 | 8.9 | 10124 | 0.10 |
+| | backbone | 0.991 | 3.33 | | 3536 | **0.69** |
+| | **ThermoNO** | **0.992** | **0.62** | | **1004** | 0.60 |
+
+**Why the raw-temperature models fail: they underfit, they do not overfit.**
+- Train R² is about equal to test R² for FNO and LT-FNO, and only 0.1 above it for CNO-FNO-attn.
+  None of the three fits its own 32 training scenarios well, so more data alone would not fix it.
+- The best checkpoints come early. Plain FNO's are from epochs 10–150 (geometry4) and 10–80
+  (geometry6), with hold-out MAE still 5–17 K. Early stopping (80 epochs without improvement on
+  a 3–4-scenario hold-out) ended training before the model converged.
+- The loss hides the signal. Training minimises relative L2 on absolute temperature min-max
+  normalised over 298–600 K. Per-scenario spatial structure is about 5 K, only 7% of ‖T‖²
+  (geometry4 fold 1). The loss is dominated by the per-scenario offset (ambient, HTC, total power).
+  FNO on that fold still has a 9 K mean-offset error on its own training data.
+- So this is a weak test of the architectures, not evidence that FNO-type operators cannot learn
+  this physics. A fair rerun would predict the temperature rise over ambient (or the backbone
+  residual, as ThermoNO does), use a detrended or peak-weighted loss, and use longer patience.
+  Until then, LT-FNO's win over FNO may reflect easier optimisation as much as a better z-prior.
 
 ## 11. Conclusion
 
