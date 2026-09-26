@@ -3493,6 +3493,41 @@ Test fold, with train-fold R² in brackets; ThermoNO and backbone rows are §9.2
   residual, as ThermoNO does), use a detrended or peak-weighted loss, and use longer patience.
   Until then, LT-FNO's win over FNO may reflect easier optimisation as much as a better z-prior.
 
+### 9.28 Is ThermoNO correcting physics or 3D-ICE? The backbone against the full FV solve (2026-09-26)
+
+A learned correction to the §9.25 backbone could be learning the physics the backbone omits, or the
+quirks of the simulator that produced the labels. `scripts/backbone_vs_fv.py` separates the two on
+the same 45 layout scenarios per geometry. Per scenario it runs the full FV solve (§9.23) on the
+backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 metrics
+(`results/backbone_vs_fv.json`):
+
+| geometry (mean peak rise) | pair | R² | det.MAE (K) | \|peak\| err (K) | loc median (µm) | top-1% recall |
+|---|---|---|---|---|---|---|
+| geometry4 (34.0 K) | backbone vs FV: *physics the backbone omits* | 0.981 | 0.323 | 2.06 | 3536 | 0.81 |
+| | FV vs 3D-ICE: *solver gap* | 1.000 | 0.001 | 0.00 | 0 | 1.00 |
+| | backbone vs 3D-ICE: *what ThermoNO corrects* | 0.981 | 0.322 | 2.06 | 3536 | 0.81 |
+| geometry5 (25.6 K) | backbone vs FV | 0.996 | 0.043 | 1.72 | 4008 | 0.79 |
+| | FV vs 3D-ICE | 1.000 | 0.002 | 0.37 | 0 | 0.97 |
+| | backbone vs 3D-ICE | 0.996 | 0.044 | 2.08 | 4250 | 0.80 |
+| geometry6 (30.3 K) | backbone vs FV | 0.992 | 0.077 | 2.86 | 3041 | 0.69 |
+| | FV vs 3D-ICE | 1.000 | 0.004 | 0.47 | 0 | 0.97 |
+| | backbone vs 3D-ICE | 0.991 | 0.079 | 3.33 | 3536 | 0.69 |
+
+**Reading.**
+- **Almost all of the backbone's error is physics.** The lateral heterogeneity it averages away
+  costs 1.7–2.9 K of peak error. The two solvers differ by 0.00–0.47 K at the peak and put the
+  hotspot in the same cell every time. On geometry4 they agree to 0.001 K, because they discretise
+  the same cells the same way.
+- **ThermoNO sits at the solver-agreement floor, not below it.** Its peak error vs 3D-ICE
+  (0.79 / 0.56 / 0.62 K, §9.26) is close to the FV-vs-3D-ICE gap on geometry5/6 (0.37 / 0.47 K).
+  It has removed most of the physics error, and there is no sign it is fitting 3D-ICE specifics
+  beyond that.
+- **Caveat.** Both solvers share the same modelling assumptions and near-identical grids, so
+  "physics" here means *physics as discretised on this grid*. The ≤1.45% grid-convergence error
+  (§9.23), about 0.4–0.5 K at these rises, is common to both and invisible to this test. HotSpot
+  cannot serve as a third solver: it supports only single-die geometry1, where the backbone is
+  already exact (§9.25).
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
