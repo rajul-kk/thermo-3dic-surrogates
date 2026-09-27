@@ -3665,6 +3665,16 @@ against the direct solve:
   problem. That is the point. **For steady conduction with known material maps, a learned
   surrogate is not needed.** This is the same lesson as §9.1 and §9.25, one level up: every
   learned model here has been compared with the right classical baseline only in hindsight.
+- **geometry7 (CoWoS-L, 2026-09-28): the backbone fails, the preconditioned solve does not.**
+  geometry7's passive layer mixes k = 0.5 organic substrate with k = 60 bridge islands, so averaging
+  conductivity laterally is badly wrong. On its 40 fixed-placement scenarios (5-fold × 4 seeds,
+  `scripts/backbone_eval.py --data-dir "data/3d-ice-{g}-pilot"`) the backbone alone scores R² 0.457 with a
+  29.5 K peak error, far below ridge (0.984, 3.96 K; fixed placement is linear-solvable, §9.11). A
+  learned linear residual on top recovers it (R² 0.997, 0.87 K). As a *preconditioner*, the same
+  backbone still reaches the full solve fast: ≤ 0.30 K peak error at 20 iterations, ≤ 0.065 K at 30
+  and ≤ 0.008 K at 50 (~2.4 s, against 9–12 s for the direct solve; first three pilot scenarios).
+  §9.25's "the backbone beats every trained model" therefore has a boundary: layers with strong
+  in-plane contrast. §9.30's classical route does not.
 - Where learning can still earn its place: (i) when the operator is unknown, as on IC-ThermBench,
   where no stack or solver is released (§9.29); (ii) physics outside the FV model, e.g.
   leakage–temperature feedback or microchannel convection; (iii) latency far below the ~0.5 s

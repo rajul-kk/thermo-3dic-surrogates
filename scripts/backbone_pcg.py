@@ -1,6 +1,6 @@
 """Classical baseline for every learned correction (report §9.30): CG on the exact FV system, preconditioned by
 the layered DCT x tridiagonal backbone. No training. Prints peak/RMS error vs the direct solve per iteration.
-Usage: python scripts/backbone_pcg.py   (first 3 layout scenarios of geometry4/5/6)
+Usage: python scripts/backbone_pcg.py [--geometries geometry4 ...] [--data-dir "data/3d-ice-layout-{g}"] [--n 3] [--iters 30]
 """
 import sys, time, numpy as np
 sys.path.insert(0, '.')
@@ -25,8 +25,17 @@ def backbone_op(g, kl3, kv3, htc):
         return idctn(np.moveaxis(th, 0, 2), type=2, axes=(0, 1), norm='ortho').ravel()
     return apply
 
-for geom_name in ['geometry4', 'geometry5', 'geometry6']:
-    files = sorted(Path(f'data/3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))[:3]
+import argparse
+_ap = argparse.ArgumentParser()
+_ap.add_argument('--geometries', nargs='*', default=['geometry4', 'geometry5', 'geometry6'])
+_ap.add_argument('--data-dir', default='data/3d-ice-layout-{g}')
+_ap.add_argument('--n', type=int, default=3)
+_ap.add_argument('--iters', type=int, default=30)
+ARGS = _ap.parse_args()
+CHECK = sorted({1, 2, 3, 5, 10, 20, 30, 50, 100, 200, ARGS.iters} - {i for i in range(ARGS.iters + 1, 10 ** 6)})
+
+for geom_name in ARGS.geometries:
+    files = sorted(Path(ARGS.data_dir.format(g=geom_name)).rglob(f'{geom_name}_*.npz'))[:ARGS.n]
     for f in files:
         geom, scen, c, y = scenario(f, geom_name)
         g = fv.make_grid(geom); kl, kv = fv.conductivity(geom, scen, g)
@@ -35,9 +44,9 @@ for geom_name in ['geometry4', 'geometry5', 'geometry6']:
         M = backbone_op(g, kl, kv, scen['htc'])
         t0 = time.time(); x = np.zeros_like(b); r = b.copy(); z = M(r); p = z.copy(); rz = r @ z
         hist = []
-        for it in range(1, 31):
+        for it in range(1, ARGS.iters + 1):
             Ap = A @ p; a = rz / (p @ Ap); x += a * p; r -= a * Ap
-            if it in (1, 2, 3, 5, 10, 20, 30):
+            if it in CHECK:
                 hist.append((it, abs(x.max() - exact.max()), np.sqrt(np.mean((x - exact) ** 2)), time.time() - t0))
             z = M(r); rz_new = r @ z; p = z + (rz_new / rz) * p; rz = rz_new
         bb = M(b)

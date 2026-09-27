@@ -105,7 +105,7 @@ def main():
         res[key] = evaluate(g, args.seeds, args.data_dir)
         OUT.write_text(json.dumps(res, indent=1))
         print(f"\n=== {g}-shelf (n={res[g]['n']}, seeds {args.seeds}; backbone "
-              f"{1000 * res[g]['backbone_sec_per_solve']:.0f} ms/solve, no training)")
+              f"{1000 * res[key]['backbone_sec_per_solve']:.0f} ms/solve, no training)")
         print(f"  {'model':<19} {'R2 mean':>8} {'R2 med':>7} {'det.MAE K':>9} {'loc um':>8} {'recall':>7} {'|peak| K':>9}")
         for name, m in res[key]['models'].items():
             print(f"  {name:<19} {m['r2_mean']:>8.3f} {m['r2_median']:>7.3f} {m['det_mae_K']:>9.3f} "
