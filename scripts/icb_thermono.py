@@ -88,6 +88,8 @@ def main():
     ap.add_argument('--lr', type=float, default=5e-3)
     ap.add_argument('--w-top', type=float, default=0.0, help='peak weighting; 0 = plain MSE, matching their RMSE')
     ap.add_argument('--patience', type=int, default=15, help='epochs without val improvement')
+    ap.add_argument('--min-epochs', type=int, default=0,
+                    help='no early stopping before this epoch (let the one-cycle schedule anneal first)')
     ap.add_argument('--th-scale', type=float, default=20.0, help='K per unit of network output')
     ap.add_argument('--geo-arch', choices=['mlp', 'cno'], default='mlp')
     ap.add_argument('--geo-attn', action='store_true')
@@ -132,7 +134,7 @@ def main():
             stale += 1
         if ep % 5 == 0 or stale == 0:
             print(f'  epoch {ep:3d}  val RMSE {rmse:.4f}  best {best:.4f}  ({(time.time() - t0) / 60:.1f} min)', flush=True)
-        if stale >= args.patience:
+        if stale >= args.patience and ep + 1 >= args.min_epochs:
             break
     model.load_state_dict(best_state)
 
