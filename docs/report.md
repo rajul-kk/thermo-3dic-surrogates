@@ -3680,6 +3680,40 @@ against the direct solve:
   leakage–temperature feedback or microchannel convection; (iii) latency far below the ~0.5 s
   CPU cost, although the same PCG on a GPU would narrow that too.
 
+### 9.31 Learning the physics, then solving it exactly: a learned-conductance solver (2026-09-28)
+
+`src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
+(layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
+cell and conductance to ambient per cell. Temperature is then the exact solution of the 5-point
+finite-volume conservation law with those conductances. The solve is preconditioned CG, and
+gradients come from one adjoint solve, not from unrolling. Every prediction is a genuine
+steady-state solution: exactly linear in power, conservative, and determined by a *local*
+materials→conductance map. A test checks it against a dense solve, symmetry, linearity and
+`gradcheck`. It is closest to solver-in-the-loop training and to learning hidden physical
+parameters with a differentiable solver; one search pass found no application to chip thermal
+or IC-ThermBench (own reasoning).
+
+**How fast can it learn? 108 training samples (1% of S4), CPU, IC-ThermBench protocol**
+(`scripts/icb_physsolve.py --train-n 108 --val-n 256`; `results/icb_physsolve_runs/`):
+
+| model, 108 training samples | params | S4 test RMSE | S5 zero-shot RMSE | S5 R² | CPU time |
+|---|---|---|---|---|---|
+| ThermoNO | 4.24M | **13.6** | 14.0 | 0.64 | 31 min |
+| learned-conductance solver | 1.95M | 20.8 (still improving at the 100-epoch cap) | **13.9** | 0.58 | 176 min |
+| *Therm-FM, 10,800 samples (published)* | — | *0.93* | *15.51* | — | — |
+| *T_amb + mean rise × total power (one parameter, §9.29)* | 1 | — | *16.06* | 0.49 | — |
+
+**Reading.**
+- Both linear-in-power models, trained on 1% of the data, beat the best published model zero-shot
+  on S5. But the no-training one-parameter rule already gets 16.1, so most of that is the built-in
+  linearity, not physics learned from 108 samples. In distribution, both are far from useful
+  (13.6 and 20.8 K).
+- The learned-conductance solver matches ThermoNO on S5 with half the parameters. It is 6× slower
+  per epoch (one CG solve forward, one backward) and was still improving when stopped. With 108
+  samples it has not shown the better transfer its design aims at. The full-data GPU run
+  (`notebooks/kaggle_icb_physsolve.ipynb`) waits on the weekly GPU quota.
+- **"Learns physics quickly" is not established.** What 108 samples buy is the structural prior.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
