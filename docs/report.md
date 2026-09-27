@@ -3639,6 +3639,37 @@ Therm-FM. The claim is narrow: under structural OOD shift, building exact linear
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
 itself a new trivial baseline that S5 should report.
 
+### 9.30 The classical answer: backbone-preconditioned CG beats every learned correction (2026-09-28)
+
+Before designing another operator, we checked the classical route. The backbone of §9.25 is an
+exact fast solver for the layer-averaged stack. It is therefore a natural preconditioner for
+conjugate gradients on the exact FV system (§9.23), where the conductivity is known per cell.
+`scripts/backbone_pcg.py`, first three layout scenarios of geometry4/5/6, numpy on CPU, error
+against the direct solve:
+
+| iterations | worst peak error, 9 scenarios | typical RMS | time |
+|---|---|---|---|
+| 0 (backbone alone) | 5.33 K | — | ~0.02 s |
+| 10 | 2.68 K | 0.03–0.26 K | 0.2–1.5 s |
+| **20** | **0.31 K** (8 of 9 ≤ 0.03 K) | ≤ 0.02 K | 0.4–2.6 s |
+| **30** | **0.016 K** | ≤ 0.005 K | 0.5–3.1 s |
+| direct sparse solve (spsolve / AMG-CG) | exact | — | 3.3–14.3 s |
+
+**Reading.**
+- Twenty to thirty preconditioned iterations reach the direct solve's accuracy in 0.5–3 s, with
+  no training data. Against 3D-ICE the solver-agreement floor then dominates (0–0.47 K peak,
+  §9.28). ThermoNO's 0.56–0.79 K peak error (§9.26) is 25–50× worse than the solve it
+  approximates, and the classical route is already 3–15× faster than the direct solve. PCG time
+  excludes matrix assembly, which the direct solve includes.
+- The method is textbook: a fast-transform preconditioner for a variable-coefficient elliptic
+  problem. That is the point. **For steady conduction with known material maps, a learned
+  surrogate is not needed.** This is the same lesson as §9.1 and §9.25, one level up: every
+  learned model here has been compared with the right classical baseline only in hindsight.
+- Where learning can still earn its place: (i) when the operator is unknown, as on IC-ThermBench,
+  where no stack or solver is released (§9.29); (ii) physics outside the FV model, e.g.
+  leakage–temperature feedback or microchannel convection; (iii) latency far below the ~0.5 s
+  CPU cost, although the same PCG on a GPU would narrow that too.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
