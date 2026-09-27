@@ -3617,7 +3617,24 @@ With the CPU ablation above, there is no evidence it helps, and it is not pursue
 must hold early stopping off until the schedule anneals, or use a schedule that anneals within
 the patience window.
 
-**Limits.** The S2 run is one seed. The in-distribution numbers are budget-limited. The in-distribution gap means ThermoNO is not a general replacement for
+**v4: a completed 300-epoch schedule (2026-09-27).** Same as v3-original, but early stopping
+held off until epoch 240 (`--min-epochs 240`), so the one-cycle schedule anneals fully. It ran all
+300 epochs in 127 min, with the validation RMSE flat at 2.17 K from epoch ~240. **S2 test RMSE
+1.92 K** (peak-T err 1.56, Top-50 1.88, R² 0.985). That matches v2's 1.88 K at half the training.
+
+**This revises the step-limited reading above.** At 2,000 CPU steps on one layout group the model
+was still improving, but on the full data with a completed schedule it plateaus near 1.9 K, while
+a plain linear fit within a single layout group reaches 0.52 K. The remaining gap is architectural.
+ThermoNO adapts one global DCT operator to each layout only through per-cell multiplicative gates.
+That cannot represent 20 layouts × hundreds of chiplet footprints, each with its own Green's
+function, to sub-kelvin accuracy. Closing it needs a different way of conditioning the operator on
+geometry, not more training. Untested candidates:
+- geometry-dependent spectral weights, i.e. mixing matrices generated from a layout embedding
+  (hypernetwork-style), instead of per-cell gates on fixed weights;
+- a per-layout linear backbone fitted out-of-fold, with ThermoNO as its correction (the §9.26 recipe).
+
+**Limits.** The S2 runs are one seed each. S5 zero-shot (6.70 ± 0.37 K, three seeds) is the
+result that stands. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
 itself a new trivial baseline that S5 should report.
