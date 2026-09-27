@@ -59,8 +59,8 @@ def fit_residual(P_tr, R_tr, B_tr, Y_tr, grid=FIELD_PCA_GRID, folds=4, seed=0):
     return _field_fit(P_tr, R_tr, best), best
 
 
-def evaluate(geom_name, seeds):
-    files = sorted(Path(f'data/3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))
+def evaluate(geom_name, seeds, data_dir='data/3d-ice-layout-{g}'):
+    files = sorted(Path(data_dir.format(g=geom_name)).rglob(f'{geom_name}_*.npz'))
     scen = [load_scenario(f) for f in files]
     Y = np.stack([s['temp'] for s in scen]); P = np.stack([s['power'] for s in scen])
     coords = scen[0]['coords']
@@ -96,15 +96,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--geometries', nargs='*', default=GEOMS)
     ap.add_argument('--seeds', nargs='*', type=int, default=[0, 1, 2, 3])
+    ap.add_argument('--data-dir', default='data/3d-ice-layout-{g}', help='{g} is replaced by the geometry name')
+    ap.add_argument('--tag', default='', help='suffix for the results key, e.g. -fixed')
     args = ap.parse_args()
     res = json.loads(OUT.read_text()) if OUT.exists() else {}
     for g in args.geometries:
-        res[g] = evaluate(g, args.seeds)
+        key = g + args.tag
+        res[key] = evaluate(g, args.seeds, args.data_dir)
         OUT.write_text(json.dumps(res, indent=1))
         print(f"\n=== {g}-shelf (n={res[g]['n']}, seeds {args.seeds}; backbone "
               f"{1000 * res[g]['backbone_sec_per_solve']:.0f} ms/solve, no training)")
         print(f"  {'model':<19} {'R2 mean':>8} {'R2 med':>7} {'det.MAE K':>9} {'loc um':>8} {'recall':>7} {'|peak| K':>9}")
-        for name, m in res[g]['models'].items():
+        for name, m in res[key]['models'].items():
             print(f"  {name:<19} {m['r2_mean']:>8.3f} {m['r2_median']:>7.3f} {m['det_mae_K']:>9.3f} "
                   f"{m['loc_err_um_median']:>8.0f} {m['recall_mean']:>7.3f} {m['abs_peak_err_K']:>9.2f}", flush=True)
 

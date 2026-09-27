@@ -28,6 +28,7 @@ def main():
     ap.add_argument('--transfer', default=None)
     ap.add_argument('--data-root', type=Path, default=Path('data/ic-thermbench/datasets'))
     ap.add_argument('--train-n', type=int, default=None, help='cap on training samples (random subset)')
+    ap.add_argument('--val-n', type=int, default=None, help='cap on validation samples (fixed random subset; CPU runs)')
     ap.add_argument('--epochs', type=int, default=60)
     ap.add_argument('--min-epochs', type=int, default=0)
     ap.add_argument('--patience', type=int, default=15)
@@ -51,7 +52,11 @@ def main():
         pick = np.sort(np.random.default_rng(args.seed).choice(len(xtr), args.train_n, replace=False))
         xtr, ytr = xtr[pick], ytr[pick]
     tr = to_dev(xtr, ytr, s.channels, amb0, dev, args.limit)
-    va = to_dev(s.x_val, s.y_val, s.channels, amb0, dev, args.limit)
+    xva, yva = s.x_val, s.y_val
+    if args.val_n and args.val_n < len(xva):
+        pv_ = np.sort(np.random.default_rng(1000 + args.seed).choice(len(xva), args.val_n, replace=False))
+        xva, yva = xva[pv_], yva[pv_]
+    va = to_dev(xva, yva, s.channels, amb0, dev, args.limit)
     te = to_dev(s.x_test, s.y_test, s.channels, amb0, dev, args.limit)
     n_geo = tr[1].shape[1]
     if args.model == 'physsolve':
