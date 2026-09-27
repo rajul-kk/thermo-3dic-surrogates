@@ -190,3 +190,25 @@ def test_thermono_stays_linear_in_power_with_cno_geometry_encoder(geo_arch, geo_
     assert torch.allclose(m(3.0 * lin, geo), 3.0 * out, atol=1e-9)
     lin2 = torch.randn_like(lin)
     assert torch.allclose(m(lin + lin2, geo), out + m(lin2, geo), atol=1e-9)
+
+
+def test_learned_conductance_solve_matches_dense_and_has_exact_gradients():
+    """The CG solve must equal a dense solve, and its implicit gradients must pass gradcheck."""
+    import torch
+    from src.hybrid.learned_conductance import ConductanceSolve, apply_A, pcg
+    torch.manual_seed(0)
+    B, nx, ny = 2, 5, 4
+    kappa = torch.rand(B, nx, ny, dtype=torch.float64) * 5 + 0.1
+    g = torch.rand(B, nx, ny, dtype=torch.float64) * 0.2 + 0.01
+    q = torch.rand(B, nx, ny, dtype=torch.float64)
+    x, it, rel = pcg(q, kappa, g, tol=1e-12, max_iter=500)
+    for b in range(B):
+        eye = torch.eye(nx * ny, dtype=torch.float64).reshape(nx * ny, nx, ny)
+        A = apply_A(eye, kappa[b:b + 1].expand(nx * ny, -1, -1), g[b:b + 1].expand(nx * ny, -1, -1)).reshape(nx * ny, -1)
+        assert torch.allclose(A, A.T, atol=1e-12)                                   # symmetric
+        ref = torch.linalg.solve(A, q[b].reshape(-1)).reshape(nx, ny)
+        assert torch.allclose(x[b], ref, atol=1e-9)
+    assert torch.allclose(pcg(3 * q, kappa, g, 1e-12, 500)[0], 3 * x, atol=1e-9)     # linear in power
+    k = kappa.clone().requires_grad_(True); gg = g.clone().requires_grad_(True); qq = q.clone().requires_grad_(True)
+    f = lambda qq, k, gg: ConductanceSolve.apply(qq, k, gg, 1e-13, 1000)
+    assert torch.autograd.gradcheck(f, (qq, k, gg), eps=1e-6, atol=1e-5)
