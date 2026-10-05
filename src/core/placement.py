@@ -82,6 +82,54 @@ def place_chiplets(geometry, offsets: Dict[str, Offset]):
     return geom
 
 
+def grid_steps(geometry) -> Tuple[float, float]:
+    """3D-ICE cell size (x step, y step) in µm: x runs along die_width, y along die_length."""
+    n_len, n_wid = geometry.mesh_resolution[0], geometry.mesh_resolution[1]
+    return geometry.die_width / n_wid, geometry.die_length / n_len
+
+
+def snap_offsets(geometry, offsets: Dict[str, Offset], margin_um: float = 0.0) -> Optional[Dict[str, Offset]]:
+    """Move every chiplet to the nearest 3D-ICE cell boundary, or return None if no snapped layout fits.
+
+    3D-ICE maps a floorplan element onto the cells it overlaps and gives each cell its AREA SHARE of the power,
+    but a footprint layout assigns the chiplet material to cells it covers only partially (the gap material,
+    k = 0.7 W/m·K, stays there). A die edge that falls mid-cell therefore makes a heated insulator: a non-physical
+    edge hot spot that became the sample maximum in most layout-randomised g4-g6 files (warpage/goals.md,
+    2026-09-30; reproduced in plain 3D-ICE by warpage/scripts/edge_artifact_3dice.sh). Grid-aligned dies avoid it.
+    Each chiplet tries its nearest boundary first, then the other neighbours (floor/ceil in x and y); the first
+    combination that stays inside the package and keeps `margin_um` between chiplets wins."""
+    if not offsets:
+        return offsets
+    gx, gy = grid_steps(geometry)
+    W, H = geometry.die_width, geometry.die_length
+    chiplets = lateral_chiplets(geometry)
+    if not chiplets:
+        return offsets                                      # block-only geometries have no footprint layout
+    import itertools
+    rects, choices = [], []
+    for (x, y, w, h), names in chiplets:
+        dx, dy = offsets.get(names[0], (0.0, 0.0))
+        nx, ny = x + dx, y + dy
+        cx = sorted({np.floor(nx / gx) * gx, np.ceil(nx / gx) * gx}, key=lambda v: abs(v - nx))
+        cy = sorted({np.floor(ny / gy) * gy, np.ceil(ny / gy) * gy}, key=lambda v: abs(v - ny))
+        opts = [(a, b) for a in cx for b in cy if -1e-6 <= a and a + w <= W + 1e-6 and -1e-6 <= b and b + h <= H + 1e-6]
+        opts.sort(key=lambda p: abs(p[0] - nx) + abs(p[1] - ny))
+        if not opts:
+            return None
+        rects.append(((x, y, w, h), names)); choices.append(opts)
+    from types import SimpleNamespace as _R
+    for combo in itertools.product(*choices):
+        boxes = [_R(x=a, y=b, width=r[0][2], height=r[0][3]) for (a, b), r in zip(combo, rects)]
+        if any(_overlaps(p, q, margin_um) for i, p in enumerate(boxes) for q in boxes[i + 1:]):
+            continue
+        out = dict(offsets)
+        for (a, b), ((x, y, _, _), names) in zip(combo, rects):
+            for n in names:
+                out[n] = (float(a - x), float(b - y))
+        return out
+    return None
+
+
 def _overlaps(a, b, margin: float) -> bool:
     return not (a.x + a.width + margin <= b.x or b.x + b.width + margin <= a.x or
                 a.y + a.height + margin <= b.y or b.y + b.height + margin <= a.y)
@@ -130,7 +178,7 @@ def random_block_placement(geometry, rng, margin_um: float = 500.0,
     return {}
 
 
-def free_chiplet_placement(geometry, rng, margin_um: float = 250.0,
+def _free_chiplet_placement_raw(geometry, rng, margin_um: float = 250.0,
                            max_tries: int = 4000) -> Dict[str, Offset]:
     """Place each chiplet anywhere it fits, not within a bounded shift -- the 2.5D analogue of random_block_placement."""
     # The 2.5D counterpart of random_block_placement. random_placement bounds each chiplet
@@ -169,7 +217,7 @@ def free_chiplet_placement(geometry, rng, margin_um: float = 250.0,
     return {}
 
 
-def shelf_chiplet_placement(geometry, rng, margin_um: float = 250.0) -> Dict[str, Offset]:
+def _shelf_chiplet_placement_raw(geometry, rng, margin_um: float = 250.0) -> Dict[str, Offset]:
     """Permute chiplets along x and redistribute the slack -- layout variation for densely packed packages."""
     # free_chiplet_placement cannot serve geometry6 (7 chiplets filling ~69% of the package)
     # or geometry7: uniform random placement essentially always overlaps, so rejection
@@ -206,7 +254,7 @@ def shelf_chiplet_placement(geometry, rng, margin_um: float = 250.0) -> Dict[str
     return offsets
 
 
-def random_placement(geometry, rng, max_shift_um: float = 2000.0,
+def _random_placement_raw(geometry, rng, max_shift_um: float = 2000.0,
                      margin_um: float = 250.0, max_tries: int = 200
                      ) -> Dict[str, Offset]:
     """Sample per-chiplet offsets that keep everything inside the package and non-overlapping."""
@@ -257,6 +305,38 @@ def random_placement(geometry, rng, max_shift_um: float = 2000.0,
     log.warning('random_placement: no valid configuration for %s in %d tries; '
                 'falling back to the nominal placement', geometry.name, max_tries)
     return {dp.name: (0.0, 0.0) for dp in prints}
+
+
+def _grid_aligned(raw, geometry, rng, margin_um, tries=200, **kw):
+    """Draw from `raw` until the layout survives snapping to the 3D-ICE cell grid (see snap_offsets)."""
+    for _ in range(tries):
+        offsets = raw(geometry, rng, margin_um=margin_um, **kw)
+        if not offsets:
+            return offsets
+        snapped = snap_offsets(geometry, offsets, margin_um)
+        if snapped is not None:
+            return snapped
+    log.warning('%s: no grid-aligned layout for %s in %d draws; falling back to nominal',
+                raw.__name__, geometry.name, tries)
+    return {}
+
+
+def free_chiplet_placement(geometry, rng, margin_um: float = 250.0, max_tries: int = 4000) -> Dict[str, Offset]:
+    """Place each chiplet anywhere it fits, then snap it to the cell grid (see _free_chiplet_placement_raw)."""
+    return _grid_aligned(_free_chiplet_placement_raw, geometry, rng, margin_um, max_tries=max_tries)
+
+
+def shelf_chiplet_placement(geometry, rng, margin_um: float = 250.0) -> Dict[str, Offset]:
+    """Permute chiplets along x with random gaps, then snap to the cell grid (see _shelf_chiplet_placement_raw)."""
+    return _grid_aligned(_shelf_chiplet_placement_raw, geometry, rng, margin_um)
+
+
+def random_placement(geometry, rng, max_shift_um: float = 2000.0, margin_um: float = 250.0,
+                     max_tries: int = 200) -> Dict[str, Offset]:
+    """Bounded random shift per chiplet, snapped to the cell grid (see _random_placement_raw). Block-only
+    geometries (no footprint layout, so no edge artefact) are returned unsnapped."""
+    return _grid_aligned(_random_placement_raw, geometry, rng, margin_um, max_shift_um=max_shift_um,
+                         max_tries=max_tries)
 
 
 def placement_summary(offsets: Optional[Dict[str, Offset]]) -> str:
