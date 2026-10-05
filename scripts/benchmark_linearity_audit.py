@@ -336,6 +336,8 @@ REGISTRY: Dict[str, Callable[[], Tuple[np.ndarray, np.ndarray]]] = {
     # This project, placement varied (§9.15).
     'ours/geometry1-translate': lambda: _ours('data/3d-ice-moving-geometry1', 'geometry1'),
     'ours/geometry4-translate': lambda: _ours('data/3d-ice-moving-geometry4', 'geometry4'),
+    # same placements snapped to the 3D-ICE cell grid (no die-edge artefact); resolve_from_metadata.py --snap
+    'ours/geometry4-translate-snap': lambda: _ours('data/3d-ice-moving-geometry4-snap', 'geometry4'),
     'ours/geometry1-layout':    lambda: _ours('data/3d-ice-layout-geometry1', 'geometry1'),
     # Shelf layouts (§9.15b): chiplets permuted along x with the slack redistributed, which
     # is the only randomisation that fits the densely packed packages.
