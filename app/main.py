@@ -17,11 +17,13 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.job_queue import Job, JobQueue
-from app.models import JobRequest, JobResponse
+from app.models import FloorplanRequest, JobRequest, JobResponse, OptimiseRequest
+from src.core.placement import grid_steps
+from src.solver import thermal
 
 ICE_EXECUTABLE = os.environ.get(
     'ICE_EXECUTABLE',
-    'wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator',
+    'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator',     # the build the benchmark data was made with
 )
 OUTPUT_BASE = Path('data/app')
 MAX_MESH_AXIS = 500
@@ -173,6 +175,137 @@ async def register_geometry(body: dict):
         # KeyError: a required field (e.g. 'die_length') missing from the spec.
         # TypeError: Geometry()/Layer()/PowerBlock() called with a wrong type.
         raise HTTPException(422, detail=str(exc))
+
+
+# ── Floorplanner: classical solver, no trained model (src/solver/thermal.py) ─
+
+SILICON_LIMIT_WCM2 = 300.0      # README dataset bounds: logic ceiling
+MEMORY_LIMIT_WCM2 = 8.0         # HBM / memory dies
+
+
+def _floorplan_geometry(name: str):
+    geom = queue.get_geometry(name)
+    if geom is None:
+        raise HTTPException(404, f"Geometry '{name}' not found")
+    return geom
+
+
+def _scenario(req: FloorplanRequest, geom) -> dict:
+    valid = {b.name for b in geom.power_blocks}
+    unknown = set(req.power_blocks) - valid
+    if unknown:
+        raise HTTPException(422, f"Unknown power block(s) {sorted(unknown)}. Valid blocks: {sorted(valid)}")
+    if any(v < 0 for v in req.power_blocks.values()):
+        raise HTTPException(422, 'power densities must be >= 0')
+    return {'power_blocks': dict(req.power_blocks), 'htc': req.htc, 't_ambient': req.t_ambient, 'pattern': 'custom'}
+
+
+def _place(geom, offsets):
+    try:
+        return thermal.place(geom, {k: tuple(v) for k, v in offsets.items()})
+    except thermal.PlacementError as exc:
+        raise HTTPException(422, str(exc))
+
+
+@app.get('/floorplanner', include_in_schema=False)
+async def floorplanner_page():
+    return FileResponse(_static / 'floorplanner.html')
+
+
+@app.get('/floorplan/{name}')
+def floorplan(name: str):
+    """Package outline, grid, draggable items, power blocks and layer stack of a geometry."""
+    geom = _floorplan_geometry(name)
+    fp = thermal.describe(geom)
+    gx, gy = grid_steps(geom)
+    owner = {b: m.id for m in fp.movables for b in m.blocks}
+    return {
+        'name': name, 'width_um': float(geom.die_width), 'length_um': float(geom.die_length),
+        'grid_um': [gx, gy],
+        'movables': [{'id': m.id, 'x': m.x, 'y': m.y, 'width': m.width, 'height': m.height,
+                      'layers': m.layers, 'blocks': m.blocks} for m in fp.movables],
+        'blocks': [{'name': b.name, 'x': b.x, 'y': b.y, 'width': b.width, 'height': b.height,
+                    'layer': b.layer_name, 'movable': owner.get(b.name), 'area_cm2': b.area_cm2,
+                    'tsv': bool(b.is_tsv_region),
+                    'limit_wcm2': MEMORY_LIMIT_WCM2 if 'hbm' in b.name.lower() or 'chipb_d' in b.name.lower()
+                    else SILICON_LIMIT_WCM2}
+                   for b in geom.power_blocks],
+        'layers': [{'name': l.name, 'thickness_um': float(l.thickness), 'k': float(l.k_thermal),
+                    'active': bool(l.is_active)} for l in geom.layers],
+    }
+
+
+@app.post('/solve')
+def solve_floorplan(req: FloorplanRequest):
+    """Preview (layered solver, ~10-25 ms) or exact (preconditioned CG on the finite-volume system)."""
+    geom = _floorplan_geometry(req.geometry)
+    scen = _scenario(req, geom)
+    placed, snapped = _place(geom, req.offsets)
+    if req.layer and req.layer != 'hottest' and req.layer not in {l.name for l in geom.layers}:
+        raise HTTPException(422, f"Unknown layer '{req.layer}'")
+    try:
+        sol = thermal.solve(placed, scen, req.mode)
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc))
+    out = thermal.summarise(placed, sol, req.t_ambient, req.layer)
+    warnings = []
+    if req.mode == 'preview' and sol['preview_risk_layer']:
+        warnings.append(f"Preview is unreliable here: layer '{sol['preview_risk_layer']}' has strong in-plane "
+                        f"conductivity contrast between the heat sources and the sink. Use the exact solve.")
+    if req.t_limit_c is not None and out['peak_c'] > req.t_limit_c:
+        warnings.append(f"Peak {out['peak_c']:.1f} °C exceeds the {req.t_limit_c:.0f} °C limit "
+                        f"(layer {out['hotspot']['layer']}).")
+    out.update(mode=sol['mode'], iterations=sol['iterations'], residual=sol['residual'],
+               power_w=sol['power_w'], seconds=sol['seconds'], offsets=snapped, warnings=warnings)
+    return out
+
+
+@app.post('/optimise')
+def optimise_floorplan(req: OptimiseRequest):
+    """Move chiplets to lower the peak temperature (hill-climb on the preview solver), then report the result."""
+    geom = _floorplan_geometry(req.geometry)
+    scen = _scenario(req, geom)
+    _place(geom, req.offsets)                      # reject an invalid starting point with a clear message
+    res = thermal.optimise(geom, scen, {k: tuple(v) for k, v in req.offsets.items()},
+                           n_evals=req.evaluations, seed=req.seed)
+    return res
+
+
+@app.post('/export/3dice')
+def export_3dice(req: FloorplanRequest):
+    """The 3D-ICE input files (.stk, floorplans, layouts) for this placement, as a zip."""
+    import tempfile
+    import zipfile
+    from src.simulators.ice_simulator import ICESimulator
+    geom = _floorplan_geometry(req.geometry)
+    scen = _scenario(req, geom)
+    placed, _ = _place(geom, req.offsets)
+    buf = io.BytesIO()
+    with tempfile.TemporaryDirectory() as td:
+        cfg, out = Path(td) / 'configs', Path(td) / 'output'
+        cfg.mkdir(); out.mkdir()
+        ICESimulator(config_dir=cfg, output_dir=out, executable=ICE_EXECUTABLE).generate_config_files(placed, scen)
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+            for f in sorted(cfg.rglob('*')):
+                if f.is_file():
+                    z.write(f, f.relative_to(cfg).as_posix())
+    buf.seek(0)
+    return StreamingResponse(buf, media_type='application/zip',
+                             headers={'Content-Disposition': f'attachment; filename="{req.geometry}_3dice.zip"'})
+
+
+@app.post('/signoff')
+def signoff(req: FloorplanRequest):
+    """Queue a real 3D-ICE run of this placement; poll /jobs/{job_id} for the result."""
+    import uuid
+    geom = _floorplan_geometry(req.geometry)
+    scen = _scenario(req, geom)
+    placed, snapped = _place(geom, req.offsets)
+    tag = uuid.uuid4().hex[:8]
+    placed.name = f'{req.geometry}_fp_{tag}'
+    queue.register_custom(placed.name, placed)
+    job_id = queue.submit(placed.name, scen, f'floorplan_{tag}')
+    return {'job_id': job_id, 'geometry': placed.name, 'offsets': snapped}
 
 
 # ── Job routes ─────────────────────────────────────────────────────────────

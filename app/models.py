@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, Field
 
 
@@ -21,6 +21,23 @@ class JobRequest(BaseModel):
 class JobResponse(BaseModel):
     job_id: str
     status: Literal['pending', 'running', 'done', 'failed']
+
+
+class FloorplanRequest(BaseModel):
+    """A placement plus operating point for the interactive floorplanner."""
+    geometry: str
+    offsets: Dict[str, Tuple[float, float]] = {}      # movable id -> (dx, dy) in µm from the nominal placement
+    power_blocks: Dict[str, float] = {}               # block name -> W/cm²
+    htc: float = Field(10000.0, gt=0, le=1e6)         # W/m²·K
+    t_ambient: float = Field(45.0, ge=-50, le=150)    # °C
+    mode: Literal['preview', 'exact'] = 'preview'
+    layer: Optional[str] = None                       # layer to map; None or 'hottest' = the layer holding the peak
+    t_limit_c: Optional[float] = None
+
+
+class OptimiseRequest(FloorplanRequest):
+    evaluations: int = Field(300, ge=10, le=2000)
+    seed: int = 0
 
 
 class GeometryInfo(BaseModel):
