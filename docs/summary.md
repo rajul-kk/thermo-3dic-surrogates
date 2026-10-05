@@ -19,9 +19,10 @@ disagree. Full bibliography: `docs/references.md`. Molecular-property replicatio
 > The fixed dataset and four layout datasets were regenerated, and 3D-ICE matches the FV solver
 > to ≤1.14% and grid convergence to ≤1.45%. Every number below is re-measured on the v5 data.
 > The 306 pilot solves behind report §9.8–9.11 were regenerated too, and every pilot conclusion
-> survives. **Still open:** most neural-model comparisons need GPU re-runs on the corrected layout data. The only
-> neural rerun still pending is the fair-protocol FNO notebook pair (`notebooks/kaggle_fno_fair_a/b.ipynb`); the older-protocol
-> FNO / LT-FNO / CNO-FNO-attn notebook and the FNO A1/A2 test have been run on corrected data (§9.27, §9.32).
+> survives. **Still open:** most neural-model comparisons need GPU re-runs on the corrected layout data. The
+> older-protocol and fair-protocol FNO / LT-FNO / CNO-FNO-attn notebooks, the FNO A1/A2 test and the paired
+> projection test have now been run on corrected data (§9.27, §9.32); some cells are partial (fold and seed counts
+> are in those sections).
 
 ---
 
@@ -327,18 +328,36 @@ is geometry4's bulk residual, about 0.3 K, not the hotspot.
   (the labels: 36 / 35), and on corrected inputs its peak error rises (0.60 → 0.77 K, 0.71 → 1.34 K)
   while the solver's falls (2.08 → 0.15 K, 3.33 → 0.08 K). The seed 0 → 3-seed check did not change the verdict.
   ThermoNO's inputs are rebuilt from the snapped placement, so they shift slightly (backbone up to 1.8 K);
-  a label-swap projection test that removes this confound is pending. The same test on FNO and CNO-FNO-attn is **inconclusive**:
-  their field error (det.MAE 1.2–1.5 K) and peak error (4–12 K) are too large to resolve a one-cell edge
-  effect, and an FNO trained only on clean data puts its peak on an unpowered cell in 28 / 45 and 23 / 45
-  scenarios, as the old-data FNO does. The artefact was learned by the one model accurate enough to
-  resolve it; two models do not make a trend.
+  a paired label-swap test that gives both arms the corrected inputs removes this confound. It finds that ThermoNO
+  **learned the artefact**: the seed-mean projection slope β is 0.77 [0.59, 1.02] (geometry4, 2 of 5 folds),
+  0.77 [0.63, 0.97] (geometry5) and 0.80 [0.74, 0.87] (geometry6), each of 3 seeds individually "learned", with
+  same-label nulls near 0. Held-out ThermoNO predictions reproduce about 80% of the artefact's amplitude. The Kaggle
+  kernel hit its 12 h limit, so geometry4 is partial. The same test on FNO and CNO-FNO-attn is **inconclusive**: their
+  seed-to-seed null is wide (FNO geometry5 N–N CI [−0.02, 0.73]), so the test lacks power at their noise level.
+  A secondary support-restricted correlation for FNO is above its null on geometry5/6 (0.22, 0.35), at most a weak
+  partial reproduction. The single-seed A1/A2 run agrees: an FNO trained only on clean data puts its peak on an
+  unpowered cell in 28 / 45 and 23 / 45 scenarios, as the old-data FNO does. The artefact was learned by the one
+  model accurate enough to resolve it; one model family does not make a trend.
 - **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. At GPU budget
   on geometry4/6 it beats a plain FNO (R² 0.17 vs −0.53 and 0.18 vs −1.02, det.MAE −35%) with
   5–6.5× fewer parameters. CNO-FNO-attn beats both (0.75 / 0.41), and every raw-temperature
   neural model stays far below the linear field fit and the training-free solver
   (0.98 / 0.99). Seed 0 only. These are pre-fix numbers. Re-run on the corrected data (same older-protocol
   notebook, seed 0): R² 0.05 / 0.55 / 0.62 (geometry4) and −1.75 / 0.25 / 0.44 (geometry6) for
-  FNO / LT-FNO / CNO-FNO-attn; the ordering and the LT-FNO-over-FNO gain are unchanged (§9.27).
+  FNO / LT-FNO / CNO-FNO-attn; the ordering and the LT-FNO-over-FNO gain are unchanged (§9.27). The fair protocol
+  on corrected data (3 seeds, §9.27) gives the same ordering: peak error 8.8 ± 0.7 K (FNO) against 4.7 ± 0.7 K
+  (LT-FNO) on geometry4, and 4.0–7.7 K for the best neural model on every geometry, against 0.04–0.15 K for the
+  training-free solver.
+
+**Tools (§9.34).** Two command-line tools package the checks that found the data bugs. `tools/iceforge/` lints
+3D-ICE inputs before a solve (S001 and S003 flag the die-edge artefact on the misaligned repro), snaps edges to
+the grid (peak rise 14.562 → 11.118 K, against 11.130 K aligned), runs 3D-ICE through native, WSL or docker, and
+`diff` compares 3D-ICE against an independent finite-volume reference: AGREE on aligned, no-layout and snapped
+cases, DISAGREE (die-edge) on the misaligned one (max |ΔT| 7.37 K). `tools/fieldlint/` lints steady-diffusion
+datasets (rules F001–F007): on IC-ThermBench it finds the transposed inputs (corr 0.33–0.42 as stored, 0.70–0.78
+transposed), and the Therm-FM sets and our 3D-ICE data lint clean. Limits: non-uniform grids are skipped, HotSpot
+is not yet in `diff`, the docker backend was verified by hand, and fieldlint's orientation rule (F003) was tuned
+on two datasets and needs a third before we claim it generalises.
 
 ## 5. Threats to validity
 
