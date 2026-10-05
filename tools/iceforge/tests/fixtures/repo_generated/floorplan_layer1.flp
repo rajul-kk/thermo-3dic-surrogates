@@ -1,0 +1,8 @@
+cpu :
+   position  3000.0, 2000.0 ;
+   dimension 3000.0, 4000.0 ;
+   power values  60.0 ;
+hbm :
+   rectangle ( 7000.0, 1500.0, 2500.0, 2000.0 ) ;
+   rectangle ( 7000.0, 4500.0, 2500.0, 2000.0 ) ;
+   power values  15.0 ;

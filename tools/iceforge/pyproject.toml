@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iceforge"
+version = "0.1.0"
+description = "Standalone CLI front end for 3D-ICE: parse, lint, snap, run, and post-check thermal models."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+iceforge = "iceforge.cli:main"
+
+[tool.setuptools]
+packages = ["iceforge"]
+
+[tool.pytest.ini_options]
+markers = ["solver: needs a working 3D-ICE backend (WSL, native, or docker)"]
