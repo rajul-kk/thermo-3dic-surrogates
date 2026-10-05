@@ -11,8 +11,10 @@ requires-python = ">=3.9"
 dependencies = ["numpy"]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "scipy"]
 yaml = ["pyyaml"]
+diff = ["scipy", "pyamg"]
+plot = ["matplotlib"]
 
 [project.scripts]
 iceforge = "iceforge.cli:main"

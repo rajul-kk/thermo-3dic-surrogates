@@ -1,11 +1,14 @@
 import os
 import shutil
+import sys
 import tempfile
 
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, "fixtures")
+# always test the package next to these tests, even if another checkout is pip-installed in editable mode
+sys.path.insert(0, os.path.dirname(HERE))
 
 
 @pytest.fixture
