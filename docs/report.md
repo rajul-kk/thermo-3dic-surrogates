@@ -3536,8 +3536,37 @@ pre-fix. The same older-protocol notebook (absolute target, patience 80 epochs, 
   scenarios, and mean R² driven by a few catastrophic scenarios, treat those moves as indicative only.
 - No neural model beats the linear field fit on det.MAE on either geometry. As in the pre-fix run, this is
   an absolute-target protocol that §9.27 already called a weak test; the fair-protocol rerun on
-  corrected data is the pending neural run (§9.32, "Not yet redone").
+  corrected data is below.
 - Hotspot metrics (the rescore table below) were not recomputed for the corrected-data run.
+
+**Fair protocol on corrected data (2026-10-05).** `scripts/fno_fair_cv.py` (rise target, detrended loss,
+annealed early stopping) via `notebooks/kaggle_fno_fair_a/b.ipynb`, on the grid-snapped data (§9.32), 5-fold,
+seeds 0-2. Results: `results/fno_fair/` (geometry6 is split over the two notebooks and merged by key). Mean +/-
+sd over seeds. Geometry4-6 have 45 scenarios, geometry7 has 40. CNO-FNO-attn was run with one seed only, on
+geometry4 and geometry6, so it has no sd.
+
+| geometry | model | seeds | R² mean | det.MAE (K) | \|peak\| err (K) | loc median (µm) | top-1% recall |
+|---|---|---|---|---|---|---|---|
+| geometry4 | FNO | 3 | 0.63 ± 0.07 | 1.43 ± 0.06 | 8.8 ± 0.7 | 3509 ± 477 | 0.28 ± 0.00 |
+| | LT-FNO | 3 | 0.79 ± 0.01 | 1.15 ± 0.09 | 4.7 ± 0.7 | 3638 ± 631 | 0.31 ± 0.01 |
+| | CNO-FNO-attn | 1 | 0.92 | 0.91 | 4.4 | 2478 | 0.40 |
+| geometry5 | FNO | 3 | 0.40 ± 0.32 | 1.34 ± 0.16 | 10.2 ± 1.5 | 4046 ± 294 | 0.16 ± 0.02 |
+| | LT-FNO | 3 | 0.69 ± 0.04 | 1.03 ± 0.06 | 5.3 ± 0.8 | 4721 ± 564 | 0.17 ± 0.01 |
+| geometry6 | FNO | 3 | 0.56 ± 0.06 | 1.40 ± 0.03 | 11.4 ± 0.7 | 6894 ± 938 | 0.17 ± 0.01 |
+| | LT-FNO | 3 | 0.72 ± 0.05 | 1.15 ± 0.11 | 6.0 ± 1.1 | 7926 ± 523 | 0.14 ± 0.01 |
+| | CNO-FNO-attn | 1 | 0.71 | 1.23 | 4.0 | 6042 | 0.20 |
+| geometry7 | FNO | 3 | 0.90 ± 0.02 | 1.95 ± 0.02 | 17.0 ± 0.5 | 1593 ± 579 | 0.66 ± 0.01 |
+| | LT-FNO | 3 | 0.95 ± 0.02 | 1.15 ± 0.10 | 7.7 ± 1.3 | 1431 ± 73 | 0.78 ± 0.03 |
+
+- The ordering matches the older protocol. LT-FNO beats FNO on mean R², det.MAE and peak error on all four
+  geometries, by several seed sd on peak error (4.7 ± 0.7 against 8.8 ± 0.7 K on geometry4). The one-seed
+  CNO-FNO-attn is better than LT-FNO on geometry4 and comparable on geometry6 (lower peak error, higher
+  det.MAE, equal R²).
+- The fair protocol does not close the gap to the classical routes. The best neural peak error per geometry is
+  4.0-7.7 K. The training-free backbone has 0.04-0.15 K (§9.32, `results/cost_accuracy.json`) and ThermoNO
+  0.18-0.80 K on corrected data (§9.32). Neural det.MAE is 0.9-2.0 K against 0.05-0.11 K for ThermoNO.
+- FNO geometry5 has a large seed spread in R² (0.40 ± 0.32). Geometry7 has no backbone or ThermoNO reference
+  here, so only the within-family comparison holds there.
 
 **Hotspot metrics and train-fold error (2026-09-26).** `scripts/fno_rescore.py` reloads the 30
 Kaggle checkpoints on CPU, rebuilding the notebook's folds, hold-out and normalisation. It
@@ -4009,14 +4038,13 @@ is within 1 mm of the true peak.
   unpowered node in 31 / 45 and 42 / 45 scenarios. Its peak error rises (0.60 → 0.77 K, 0.71 → 1.34 K)
   while the backbone's falls (2.08 → 0.15 K, 3.33 → 0.08 K). Hit-1 mm falls 0.47 → 0.38 and
   0.53 → 0.09. A model trained on the new data reaches 0.18 / 0.31 K peak error (table above), so the
-  A2 loss is mostly the artefact the model learned, but A2 is not a pure label swap. ThermoNO's
+  A2 loss is mostly the artefact the model learned. A2 alone is not a pure label swap, though. ThermoNO's
   inputs (power on the FV grid and the backbone field) are rebuilt from the placement offsets in the
   metadata, which the snap changed: on geometry5 they differ by up to 0.024 in normalised power and
   1.79 K in the backbone between the pre-fix and corrected files. (The stored node `power` arrays, which
   the FNO family reads, are byte-identical in all 135 files, because they are cell-centre based and a
-  nearest-boundary snap never moves an edge across a cell centre.) The paired projection test
-  (`scripts/artefact_projection_run.py`, pending on Kaggle) removes this confound by giving both arms the
-  corrected inputs and swapping only the labels.
+  nearest-boundary snap never moves an edge across a cell centre.) The paired projection test below
+  removes this confound by giving both arms the corrected inputs and swapping only the labels.
 - **Fold spread is large.** On geometry6, ThermoNO's A1 peak error is 0.21 / 1.35 / 0.79 / 0.34 / 0.87 K
   across folds 0-4, and its A2 peak error is 0.99-1.71 K. In A1 the peak is unpowered in 9 of 9
   scenarios in every fold on both geometries, whereas the truth's counts are 9/6/7/9/5 (g5) and
@@ -4024,7 +4052,52 @@ is within 1 mm of the true peak.
   35 / 45 overall).
 - One seed; geometry4 not run.
 
-**Same test on the FNO family (FNO A1/A2): inconclusive.**
+**Paired label-swap projection test (2026-10-05).**
+Method: `src/validation/artefact_projection.py`, `scripts/artefact_projection_run.py`. Results:
+`results/artefact_projection/projection_summary.json` (print with `scripts/artefact_projection_report.py`).
+For each architecture and geometry, models are trained on the old labels (O) and on the corrected labels (N)
+with the same corrected inputs, hyper-parameters, folds and seeds. On a held-out scenario the true artefact is
+D = T_old - T_new and the learned difference is L = O(x) - N(x). The projection slope is
+beta = <L, D> / <D, D>: 1 if the artefact is reproduced exactly, 0 if L is orthogonal to D. A label-independent
+model error cancels in O - N, so beta stays meaningful for an inaccurate model. The null is the same statistic
+between two same-label models (N-N, O-O), which measures seed noise. The primary field is `beta`
+(pre-registered). The rule: *learned* if the seed-mean beta CI lies above the same-label null CI with lower
+bound > 0.2; *not learned* if the CI upper bound is < 0.1 and it overlaps the null CI; otherwise
+*inconclusive*. CIs are 95% bootstrap over held-out scenarios. The headline compares each seed singly. Seeds: 3
+for ThermoNO and FNO, 2 for CNO-FNO-attn.
+
+**The Kaggle kernel hit the 12 h limit.** The results are from incrementally saved folds, so the fold counts
+differ (column "folds"). ThermoNO geometry4 has 2 of 5 folds (n = 18), FNO geometry4 has 1 of 5 (n = 9), and
+CNO-FNO-attn geometry6 has 4 of 5 (n = 36). All other cells have 5 of 5 (n = 45).
+
+| model | geometry | folds | seed-mean beta [95% CI] | null N-N [95% CI] | per-seed beta | decision |
+|---|---|---|---|---|---|---|
+| ThermoNO | geometry4 | 2/5 | 0.77 [0.59, 1.02] | -0.01 [-0.06, 0.05] | 0.77 / 0.79 / 0.76, all learned | **learned** |
+| | geometry5 | 5/5 | 0.77 [0.63, 0.97] | 0.00 [-0.01, 0.01] | 0.75 / 0.81 / 0.76, all learned | **learned** |
+| | geometry6 | 5/5 | 0.80 [0.74, 0.87] | 0.01 [0.00, 0.02] | 0.77 / 0.80 / 0.83, all learned | **learned** |
+| FNO | geometry4 | 1/5 | 0.44 [0.19, 0.77] | 0.39 [0.13, 0.71] | -0.15 / 0.51 / 0.96, all inconclusive | inconclusive (n = 9) |
+| | geometry5 | 5/5 | 0.06 [-0.09, 0.19] | 0.34 [-0.02, 0.73] | 0.11 / -0.20 / 0.27, all inconclusive | inconclusive |
+| | geometry6 | 5/5 | 0.26 [0.15, 0.38] | 0.07 [-0.21, 0.33] | 0.23 / 0.25 / 0.30, all inconclusive | inconclusive |
+| CNO-FNO-attn | geometry5 | 5/5 | 0.06 [-0.32, 0.40] | 0.03 [-0.48, 0.60] | 0.01 / 0.11, all inconclusive | inconclusive |
+| | geometry6 | 4/5 | 0.29 [0.01, 0.61] | 0.26 [-0.08, 0.68] | 0.33 / 0.25, all inconclusive | inconclusive |
+
+Reading (the data are measured; the interpretation is ours):
+- **ThermoNO learned the artefact.** Seed-mean beta is 0.77-0.80 on all three geometries. Each of the three seeds
+  is individually "learned". The same-label nulls are about 0 (|mean| <= 0.03 for N-N and O-O). The Wilcoxon p
+  against N-N is 7.6e-6 on geometry4 and 5.7e-14 on geometry5 and geometry6. Restricted to the support of the
+  artefact (|D| > 0.1 K), beta_s is 0.82-0.86. Both arms use the corrected inputs, so this removes the
+  input-shift confound of A2: held-out ThermoNO predictions reproduce about 80% of the artefact's amplitude.
+  Geometry4 rests on 2 of 5 folds and is the weakest cell, but its point estimate matches the other two.
+- **FNO and CNO-FNO-attn: inconclusive, not "not learned".** The same-label seed-to-seed null is wide (FNO
+  geometry5 N-N CI [-0.02, 0.73]): seed noise is large relative to any artefact these models could
+  reproduce. The test lacks power at this noise level. FNO geometry4 has one fold and is not interpretable.
+- Secondary, exploratory: the support-restricted correlation corr_s of FNO is above its null on geometry5
+  (0.22, p = 6.5e-5) and geometry6 (0.35, p = 5e-9). This suggests at most a weak partial reproduction. It does
+  not meet the pre-registered rule and we do not call it learning.
+- The A1 result for ThermoNO therefore holds under a paired test. The FNO family stays untested at its noise
+  level. No claim about neural operators in general follows.
+
+**FNO A1/A2 (single seed): inconclusive.**
 `results/fno_artefact/fno_artefact/geometry{5,6}_seed0.json`. This is the fair protocol
 (`scripts/fno_fair_cv.py`: rise target, detrended loss, annealed early stopping), the same 5 folds as
 ThermoNO, seed 0, 45 scenarios per geometry. FNO and CNO-FNO-attn were trained on the *old* data and scored on old
@@ -4055,10 +4128,12 @@ Reading (the data are measured; the interpretation is ours):
 - The control FNO, which never saw the artefact, puts its peak on an unpowered node in 28 / 45 and 23 / 45
   scenarios with 1.0–1.2 K mean excess, the same as the FNO trained on the old data (27 / 31 of 45,
   1.0–1.4 K). Those unpowered peaks are therefore smoothing, not a learned artefact.
-- An FNO at this error level cannot resolve a one-cell edge effect, so it can neither confirm nor refute
-  artefact learning. The objection that "it is only our model" stays open.
-- Stated plainly, the artefact was learned by the one model accurate enough to resolve it (ThermoNO). Two
-  models are not a trend, and no claim about neural operators in general follows.
+- An FNO at this error level cannot resolve a one-cell edge effect, so this single-seed run can neither confirm
+  nor refute artefact learning. The paired test above did not settle it either: its FNO result is
+  inconclusive because the seed-to-seed null is wide.
+- Stated plainly, the artefact was learned by the one model accurate enough to resolve it (ThermoNO), and the
+  paired test confirms that on corrected inputs. One model family is not a trend, and no claim about neural
+  operators in general follows.
 
 **Cost versus accuracy** (`scripts/cost_accuracy.py --n 5`, `results/cost_accuracy.json`). The first 5
 scenarios per geometry of the corrected layout data, all scored against the 3D-ICE nodes. Times are
@@ -4127,10 +4202,12 @@ ThermoNO training: 4476 / 2116 / 1826 s per fold on CPU (geometry4 / 5 / 6).
 - Neural results on layout geometry4–6 other than ThermoNO (3 seeds) were trained on the old data and need a
   rerun on the new dataset version. Two of these have since been run:
   - the FNO A1/A2 run (above): inconclusive;
+  - the paired projection test (above): ThermoNO learned the artefact, FNO and CNO-FNO-attn inconclusive;
   - the older-protocol FNO / LT-FNO / CNO-FNO-attn notebook (absolute target; geometry4 and geometry6 only;
-    kernel `fno-ltfno-cnofno-geometry4-6`), now on corrected data (§9.27, "Same notebook on corrected data").
-  The only neural rerun still pending is the **fair-protocol FNO notebook pair
-  (`notebooks/kaggle_fno_fair_a/b.ipynb`) on corrected data**, which has not been run.
+    kernel `fno-ltfno-cnofno-geometry4-6`), now on corrected data (§9.27, "Same notebook on corrected data");
+  - the fair-protocol FNO notebook pair (`notebooks/kaggle_fno_fair_a/b.ipynb`), now on corrected data
+    (§9.27, "Fair protocol on corrected data").
+  No neural rerun is pending. Some cells are partial (fold counts above, seed counts in §9.27).
 - §9.20's conformal results use fixed-placement geometry1/6 and the untouched geometry1 layout data,
   so they are unaffected. The re-run gives coverage of 87.3–93.3%, matching the v5 summary.
 
@@ -4187,6 +4264,64 @@ unpowered). HS_OC and IND_* have 4–25% unpowered cells, so the test is informa
 
 **Draft issue reports (not sent).** `notes/icthermbench_orientation_report.md` (IC-ThermBench maintainers) and
 `notes/3dice_partial_cell_report.md` (3D-ICE, the die-edge partial-cell rule of §9.32).
+
+### 9.34 Tools: iceforge and fieldlint (2026-10-06)
+
+Two standalone command-line tools on branch `iceforge` package the checks that caught the bugs of §9.23, §9.32
+and §9.33. Neither imports from this repository. Both have READMEs with the full rule lists
+(`tools/iceforge/README.md`, `tools/fieldlint/README.md`).
+
+**iceforge** (`tools/iceforge/`, numpy only; `diff` needs scipy and pyamg). A front end for 3D-ICE 4.0.
+- Commands: `parse`, `check`, `snap`, `run`, `build`, `init`, `diff`, `doctor`. `run` uses a native, WSL or
+  docker backend.
+- `check` is a pre-solve lint. Rules S001-S009 include S001 (a powered, off-grid die edge next to a layout gap
+  cell: the §9.32 artefact) and S003 (off-grid `.lyt` rectangle). `snap` writes a grid-aligned copy. `run` also
+  parses the Tmap output (width-major rows, the §9.23 orientation) and warns if the hottest cell is unpowered.
+- The pipeline guard in `src/simulators/ice_simulator.py` runs `check` on every generated `stack.stk`. S001,
+  S003, S004 and S005 raise; `ICEFORGE_GUARD=0` disables it.
+
+Validation on the one-die repro of §9.32 (6 x 6 mm, 10 W, 250 µm cells; rises in K):
+- `check` flags S001 and S003 on the misaligned case. `snap` gives 11.118 K, against 11.130 K aligned and
+  14.562 K misaligned. The docker backend gives 11.130 K and 14.562 K.
+- `diff` runs 3D-ICE and an independent finite-volume reference (`iceforge/refsolve.py`: exact area fractions
+  of each layout rectangle, lateral grid refined by r = 4 and 8, sub-layers of at most 25 µm). Unlike
+  `src/validation/fv_solver.py`, it does not copy 3D-ICE's partial-cell rule.
+
+| case | 3D-ICE max rise | reference max rise | verdict |
+|---|---|---|---|
+| aligned | 11.130 | 11.044 | AGREE |
+| misaligned | 14.562 | 11.067 | DISAGREE (die-edge): 90 flagged cells, all at or next to die edges; max \|dT\| 7.37 K |
+| no layout | 11.027 | 10.970 | AGREE |
+| snapped | 11.118 | 11.047 | AGREE |
+
+The reference does not move with the die edge (11.044 against 11.067). Our generated geometry1 and geometry5
+models also AGREE.
+
+The aligned residual (up to 0.3 K at die corners) is a 3D-ICE node-placement convention, not a bug. In
+`thermal_grid.c` (`get_conductance_top/bottom`), a stack-end layer without a heat sink couples to its
+neighbour over its full height (k A / h) instead of half of it (k A / (h/2)), so its node sits effectively on
+the outer face. A reference solver that emulates this rule reproduces 3D-ICE to 0.005 K. `diff` reports flagged cells that
+match the emulation as explained, and only unexplained cells decide the verdict.
+
+**fieldlint** (`tools/fieldlint/`, numpy only). A generalisation of the dataset linter of §9.23 and §9.33 to
+steady diffusion-type PDE datasets, with file adapters (npz, npy, MATLAB, HDF5, 3D-ICE) and presets for
+IC-ThermBench, Therm-FM and this project's data. Rules F001-F007: integrity, maximum principle, orientation,
+duplicates across splits, range and units, a ridge linearity probe (info only), energy balance.
+- IC-ThermBench S2-S5, first 400 samples per scope: corr(smoothed power, T) is 0.33-0.42 as stored and
+  0.70-0.78 transposed. F002 violations are 84-147 of 400 as stored and 0 transposed.
+- The eight public Therm-FM steady sets and this project's 3D-ICE data lint clean for F001-F005.
+
+**Limitations.**
+- iceforge skips the off-grid rules and Tmap parsing on non-uniform grids, and `diff` refuses them, and also
+  refuses microchannel layers, pluggable heat sinks, transient solves and models with no power.
+- HotSpot is not yet a third solver in `diff`.
+- The docker backend was verified by hand on the repro fixtures, not in an automated test.
+- `diff` is checked on the repro, geometry1 and geometry5 only. At r = 1 on geometry5 the reference's own r
+  vs 2r change is 0.05 K, so use the default r = 4 for a real check.
+- fieldlint F003 (orientation) was refined once, to a band-passed vote, after it gave a false positive on the
+  Therm-FM HS_SC sets. It has been tuned on two dataset families (IC-ThermBench, Therm-FM). A third
+  independent dataset is needed before we claim it generalises.
+- fieldlint covers steady, non-negative-source diffusion problems only. F006 is a screening heuristic.
 
 ## 11. Conclusion
 
