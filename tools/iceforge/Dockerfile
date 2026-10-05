@@ -25,7 +25,9 @@ ENV ICE_EXECUTABLE=/opt/3d-ice/bin/3D-ICE-Emulator
 WORKDIR /opt/iceforge
 COPY pyproject.toml README.md ./
 COPY iceforge ./iceforge
-RUN pip3 install --no-cache-dir .
+# Ubuntu 22.04's setuptools (59) ignores [project] in pyproject.toml and installs "UNKNOWN-0.0.0"
+RUN pip3 install --no-cache-dir --upgrade pip "setuptools>=64" \
+    && pip3 install --no-cache-dir ".[yaml]"
 WORKDIR /work
 ENTRYPOINT ["iceforge"]
 CMD ["--help"]
