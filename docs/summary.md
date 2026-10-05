@@ -19,7 +19,9 @@ disagree. Full bibliography: `docs/references.md`. Molecular-property replicatio
 > The fixed dataset and four layout datasets were regenerated, and 3D-ICE matches the FV solver
 > to ≤1.14% and grid convergence to ≤1.45%. Every number below is re-measured on the v5 data.
 > The 306 pilot solves behind report §9.8–9.11 were regenerated too, and every pilot conclusion
-> survives. **Still open:** neural-model comparisons need GPU re-runs.
+> survives. **Still open:** most neural-model comparisons need GPU re-runs on the corrected layout data. The only
+> neural rerun still pending is the fair-protocol FNO notebook pair (`notebooks/kaggle_fno_fair_a/b.ipynb`); the older-protocol
+> FNO / LT-FNO / CNO-FNO-attn notebook and the FNO A1/A2 test have been run on corrected data (§9.27, §9.32).
 
 ---
 
@@ -38,10 +40,13 @@ of the *input representation*, not the dataset: the same 45 files score R² 0.95
 full power field and −0.67 from the compact vector surrogate papers conventionally use. We
 supply the missing linear baseline for an external benchmark (IC-ThermBench), where it
 *loses* — confirming the diagnostic works in both directions. Finally, on layout-varying data,
-a linear fit on the full power field localises hotspots up to 8.75× more accurately than
-ridge on the compact vector — seed-stable on all three sharp-peaked geometries, a new
-measurement — and split conformal prediction gives valid peak-temperature intervals where
-MC Dropout did not. We release the dataset, 675 3D-ICE solves in total, and the
+a linear fit on the full power field localises hotspots 1.4–8.8× more accurately than
+ridge on the compact vector, seed-stable on all six geometries (a new measurement), and split
+conformal prediction gives valid peak-temperature intervals where MC Dropout did not.
+
+The real bar is a training-free classical layered solver: 0.06–0.15 K peak error on the chiplet
+packages. A learned correction that appeared to beat it had learned a 3D-ICE die-edge artefact,
+which we found, reproduced and fixed. We release the dataset, 675 3D-ICE solves in total, and the
 baseline/audit tooling used throughout.
 
 ---
@@ -149,6 +154,12 @@ error, §9.13a), and on the hardest (structural-OOD) scope the best neural model
 better than the training mean (§9.13c) — neither visible without a trivial baseline in the
 table.
 
+**Correction (2026-10-05, §9.33).** The public IC-ThermBench files store the spatial inputs (power, grid, k)
+transposed in-plane relative to the temperature, and our loader mirrored that. Re-fitting S2–S4 with corrected
+orientation changes the ridge baselines by ≤ 0.34%, so the result above stands. The S5 numbers of §9.29 and
+§9.31 have not been fully rerun; at 108 training samples, corrected orientation lowered ThermoNO's S4 RMSE from
+13.64 to 11.46 K and the learned-conductance solver's S5 RMSE from 13.88 to 13.26 K (one seed).
+
 ### 4.4 The benchmark is fixable, and the first fix attempted did not work (§9.15, §9.15b)
 
 Randomising chiplet placement per scenario — so the thermal operator itself varies, not just
@@ -240,9 +251,12 @@ four seeds, v5 data:
 | geometry1-shelf | yes | **8.75×** (7.62–9.62) | 5.86× | 2.89× |
 | geometry2a-shelf | yes | **2.73×** (2.27–3.77) | 5.98× | 2.04× |
 | geometry3-shelf | yes | 1.39× (1.20–1.69) | 6.05× | **0.41× (reverses)** |
-| geometry4-shelf | no (diffuse) | 1.89× (1.30–2.36) | 3.99× | 1.93× |
-| geometry5-shelf | no | 1.68× (1.46–1.91) | 5.54× | — |
-| geometry6-shelf | no | 2.10× (1.66–2.43) | 7.01× | — |
+| geometry4-shelf | yes (734 µm) | **3.26×** (1.75–4.84) | 4.53× | 3.33× |
+| geometry5-shelf | yes (1031 µm) | **6.00×** (5.46–6.37) | 6.68× | — |
+| geometry6-shelf | yes (1031 µm) | **3.69×** (2.96–4.24) | 8.86× | — |
+
+The geometry4–6 rows are from the corrected data (report §9.32). On the pre-fix data they were
+1.68–2.10× and their peaks looked diffuse. Both effects came from a 3D-ICE die-edge artefact.
 
 The field model localises better than ridge on all six layout-randomised geometries, and all
 four seeds agree on every one. On fixed placement it is better on three of four, ties on
@@ -283,26 +297,48 @@ A layered spectral solver (a DCT in-plane and a tridiagonal solve in z, with eac
 conductivity averaged laterally) needs no training and runs in ~20 ms. It is classical
 (Zhan & Sapatnekar, ~2005) and none of the neural-surrogate benchmarks checked reports it.
 - **On laterally uniform stacks** (geometry1/2a/3) it is exact by construction.
-- **On chiplet packages** (geometry4/5/6) it reaches R² 0.981–0.996 with hotspot recall
-  0.69–0.81 and peak error 2–3 K.
-- **It beats every trained model here on every metric**, and removes the where/how-hot split.
-- **A learned residual on top adds little.**
+- **On chiplet packages** (geometry4/5/6, corrected data, §9.32) it reaches:
+  - R² 0.983 / 0.999 / 0.999;
+  - hotspot recall 0.84–0.91;
+  - peak-temperature error **0.06–0.15 K**;
+  - hotspot location error 0–250 µm.
+
+  (Pre-fix: 2–3 K and about 3.5 mm. The die-edge artefact put the true-data peak where no physics
+  solver could.)
+- **It beats every trained model here on hotspot location and peak temperature**, and removes the
+  where/how-hot split.
+- **A learned residual on top** lowers geometry4's bulk error (0.31 → 0.13 K) but always moves the
+  peak off the right cell.
+- **Boundary (§9.30):** on geometry7, with strong in-plane conductivity contrast, the backbone alone
+  fails (R² 0.46). As a CG preconditioner it still reaches the exact solve in 20–50 iterations.
 
 The bar for a neural surrogate is therefore this solver, not ridge. The room left for learning
-is a 0.04–0.32 K heterogeneity residual.
+is geometry4's bulk residual, about 0.3 K, not the hotspot.
 
 ### 4.10 New operators built on these findings (§9.26–9.27)
 
 - **ThermoNO** learns a correction to the classical solver that is exactly linear in power.
-  Across 3 seeds × geometry4/5/6 it cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and
-  localises the hottest cell 3.5–5× closer in all 9 runs. It lowers top-1% recall in all 9 runs.
-  It improves the whole field only on geometry4; on geometry5/6 it roughly doubles the bulk
-  field error of an already very accurate solver.
+  **Its headline did not survive the data fix (§9.32).** On the pre-fix data it cut
+  peak-temperature error 2.6–5.4× against the solver in all 9 runs. On the corrected data
+  (3 seeds), the solver is better on hotspot location and peak temperature on geometry4/5/6, and
+  better on every metric on geometry5/6. ThermoNO had learned the simulator artefact. It keeps
+  only a bulk-field edge on geometry4 (det.MAE 0.16 ± 0.05 vs 0.31 K). Trained on the pre-fix data
+  (5-fold, seed 0, geometry5/6), its predicted peak sits on an unpowered node in 45 / 45 scenarios
+  (the labels: 36 / 35), and on corrected inputs its peak error rises (0.60 → 0.77 K, 0.71 → 1.34 K)
+  while the solver's falls (2.08 → 0.15 K, 3.33 → 0.08 K). The seed 0 → 3-seed check did not change the verdict.
+  ThermoNO's inputs are rebuilt from the snapped placement, so they shift slightly (backbone up to 1.8 K);
+  a label-swap projection test that removes this confound is pending. The same test on FNO and CNO-FNO-attn is **inconclusive**:
+  their field error (det.MAE 1.2–1.5 K) and peak error (4–12 K) are too large to resolve a one-cell edge
+  effect, and an FNO trained only on clean data puts its peak on an unpowered cell in 28 / 45 and 23 / 45
+  scenarios, as the old-data FNO does. The artefact was learned by the one model accurate enough to
+  resolve it; two models do not make a trend.
 - **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. At GPU budget
   on geometry4/6 it beats a plain FNO (R² 0.17 vs −0.53 and 0.18 vs −1.02, det.MAE −35%) with
   5–6.5× fewer parameters. CNO-FNO-attn beats both (0.75 / 0.41), and every raw-temperature
   neural model stays far below the linear field fit and the training-free solver
-  (0.98 / 0.99). Seed 0 only.
+  (0.98 / 0.99). Seed 0 only. These are pre-fix numbers. Re-run on the corrected data (same older-protocol
+  notebook, seed 0): R² 0.05 / 0.55 / 0.62 (geometry4) and −1.75 / 0.25 / 0.44 (geometry6) for
+  FNO / LT-FNO / CNO-FNO-attn; the ordering and the LT-FNO-over-FNO gain are unchanged (§9.27).
 
 ## 5. Threats to validity
 
@@ -324,7 +360,17 @@ is a 0.04–0.32 K heterogeneity residual.
   scale; absolute temperatures do (`docs/assumptions.md`).
 - **geometry7 has no layout-varying data**: its chiplets exceed the die width for 1D
   shelf-packing (`docs/compute.md`). The 45 files in `data/3d-ice-layout-geometry7/` are
-  nominal-placement duplicates and are not used.
+  nominal-placement duplicates and are not used. They were also never repaired: the grid is
+  still transposed, and they show the die-edge artefact.
+- **The ground truth had a simulator artefact that energy balance and the paired FV check could
+  not see** (§9.32). Off-grid die edges produced spurious peaks of up to 14 K in the layout data. It
+  was fixed by grid-snapping the placement. Field-level results were unaffected (≤1% of variance);
+  hotspot results changed materially. Any 3D-ICE dataset with off-grid footprints should be
+  checked for an argmax in an unpowered cell.
+- **Positioning.** The general finding that ML-for-PDE results are inflated by weak baselines is
+  published (McGreivy & Hakim, *Nat. Mach. Intell.* 2024, arXiv:2407.07218). This work is a
+  domain-specific instance with three mechanisms that paper does not cover: linear solvability,
+  representation dependence and simulator-artefact learning.
 - **Every quantitative novelty claim in this paper has been through at least one adversarial
   prior-art check** (§9.14a, §9.16f/g, §9.16i) and several were narrowed or withdrawn as a
   result; this summary states only what survived.
