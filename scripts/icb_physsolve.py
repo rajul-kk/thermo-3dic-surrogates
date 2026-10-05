@@ -40,11 +40,13 @@ def main():
     ap.add_argument('--limit', type=int, default=None, help='smoke test: first N samples of every split')
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     ap.add_argument('--out', type=Path, default=None)
+    ap.add_argument('--fix-orientation', action='store_true',
+                    help='transpose in-plane axes of spatial input channels (IC-ThermBench stores them transposed vs temperature)')
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     dev = torch.device(args.device)
 
-    s = load_scope(args.data_root, args.scope)
+    s = load_scope(args.data_root, args.scope, fix_orientation=args.fix_orientation)
     print(s.summary(), flush=True)
     amb0 = 298.15
     xtr, ytr = s.x_train, s.y_train
@@ -98,7 +100,7 @@ def main():
     pt = predict(model, *te[:3], 64, dev)
     res[args.scope] = score(pt.reshape(len(pt), -1), te[3].cpu().numpy().reshape(len(pt), -1), 't')
     if args.transfer:
-        t = load_scope(args.data_root, args.transfer, split_data=False)
+        t = load_scope(args.data_root, args.transfer, split_data=False, fix_orientation=args.fix_orientation)
         assert t.channels == s.channels, (t.channels, s.channels)
         tt = to_dev(t.x_test, t.y_test, t.channels, amb0, dev, args.limit)
         p5 = predict(model, *tt[:3], 64, dev)

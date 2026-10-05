@@ -160,9 +160,10 @@ class FittedRidge:
 
 
 def run_scope(data_root: Path, scope: str, n_pca: int, raw_grid: bool,
-              knn_k: int, return_state: bool = False):
+              knn_k: int, return_state: bool = False, fix_orientation: bool = False):
     t0 = time.time()
-    split = load_scope(data_root, scope, split_data=(scope != 'level5'))
+    split = load_scope(data_root, scope, split_data=(scope != 'level5'),
+                       fix_orientation=fix_orientation)
     log.info('%s', split.summary())
 
     if scope == 'level5':
@@ -368,13 +369,15 @@ def run_scope(data_root: Path, scope: str, n_pca: int, raw_grid: bool,
 
 
 def run_transfer(data_root: Path, source: str, target: str, n_pca: int,
-                 raw_grid: bool, knn_k: int) -> Dict[str, Dict[str, float]]:
+                 raw_grid: bool, knn_k: int,
+                 fix_orientation: bool = False) -> Dict[str, Dict[str, float]]:
     """Zero-shot transfer: fit on `source`, evaluate on `target` without refitting."""
     log.info('=== transfer %s -> %s (zero-shot) ===', source, target)
     _, state, state_pca, mean_field = run_scope(data_root, source, n_pca, raw_grid,
-                                                knn_k, return_state=True)
+                                                knn_k, return_state=True,
+                                                fix_orientation=fix_orientation)
 
-    tgt = load_scope(data_root, target, split_data=False)
+    tgt = load_scope(data_root, target, split_data=False, fix_orientation=fix_orientation)
     log.info('%s', tgt.summary())
     if tgt.channels != state.channels:
         raise ValueError(f'channel mismatch: {source}={state.channels} '
@@ -405,11 +408,13 @@ def main():
     ap.add_argument('--transfer', nargs=2, metavar=('SOURCE', 'TARGET'), default=None,
                     help='zero-shot transfer, e.g. --transfer level4 level5 (their S5 protocol)')
     ap.add_argument('--output', type=Path, default=None)
+    ap.add_argument('--fix-orientation', action='store_true',
+                    help='transpose in-plane axes of spatial input channels (IC-ThermBench stores them transposed vs temperature)')
     args = ap.parse_args()
 
     if args.transfer:
         src, tgt = args.transfer
-        res = run_transfer(args.data_root, src, tgt, args.n_pca, args.raw_grid, args.knn_k)
+        res = run_transfer(args.data_root, src, tgt, args.n_pca, args.raw_grid, args.knn_k, fix_orientation=args.fix_orientation)
         print(f'\n=== {src} -> {tgt} zero-shot (their metrics) ===')
         print('  published S5 zero-shot: Therm-FM 15.51 RMSE (best), U-Net 19.10 (runner-up)')
         print(f'{"baseline":<14}' + ''.join(f'{k[:13]:>15}' for k in REPORT_KEYS))
@@ -430,7 +435,7 @@ def main():
 
     all_out = {}
     for scope in args.scope:
-        res = run_scope(args.data_root, scope, args.n_pca, args.raw_grid, args.knn_k)
+        res = run_scope(args.data_root, scope, args.n_pca, args.raw_grid, args.knn_k, fix_orientation=args.fix_orientation)
         all_out[scope] = res
 
         print(f'\n=== {scope} (test split, their metrics) ===')
