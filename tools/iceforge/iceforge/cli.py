@@ -108,6 +108,29 @@ def cmd_init(a) -> int:
     return 0
 
 
+def cmd_diff(a) -> int:
+    from . import diff as D
+    from . import refsolve as R
+    log = lambda *x: print(*x, file=sys.stderr)  # noqa: E731
+    try:
+        rep = D.run_diff(a.model, r=a.r, nz=a.nz, tol=a.tol, ice_npz=a.ice_npz, backend=a.backend,
+                         exe=a.exe, outdir=a.output, method=a.method, log=log)
+    except R.RefusedModel as e:
+        print(f"diff: refused: {e}", file=sys.stderr)
+        return 2
+    except (D.DiffError, OSError, RuntimeError) as e:
+        print(f"diff: {e}", file=sys.stderr)
+        return 2
+    if a.plot:
+        if D.plot_report(rep, a.plot):
+            log(f"diff: wrote {a.plot}")
+    if a.json:
+        _jdump(D.strip_private(rep))
+    else:
+        print(D.format_report(rep))
+    return 0 if rep['verdict'] == 'AGREE' else 1
+
+
 def cmd_doctor(a) -> int:
     info = dict(iceforge=__version__, python=sys.version.split()[0], platform=platform.platform(), backends={})
     env = os.environ.get("ICE_EXECUTABLE")
@@ -192,6 +215,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true", help="write JSON instead of YAML (needs pyyaml)")
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("diff", help="compare 3D-ICE with an independently discretised reference solver (needs scipy)")
+    s.add_argument("model")
+    s.add_argument("--r", type=int, default=4, help="lateral refinement of the reference (also run at 2r)")
+    s.add_argument("--nz", type=int, help="sub-layers per layer (default: <= 25 um each, min 2)")
+    s.add_argument("--tol", type=float, default=0.02, help="relative tolerance on max rise (default 0.02)")
+    s.add_argument("--ice-npz", help="reuse an existing run: a .npz file, or the output directory of `iceforge run`")
+    s.add_argument("--backend", choices=["auto", "native", "wsl", "docker"], default="auto")
+    s.add_argument("--exe", help="path to 3D-ICE-Emulator")
+    s.add_argument("-o", "--output", help="directory for the 3D-ICE run (default: a temp dir)")
+    s.add_argument("--method", choices=["auto", "amg", "direct", "cg"], default="auto",
+                   help="linear solver (auto: pyamg-preconditioned CG if pyamg is installed)")
+    s.add_argument("--plot", metavar="PNG", help="write a comparison figure (needs matplotlib)")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_diff)
 
     s = sub.add_parser("doctor", help="report which backends work and the 3D-ICE version")
     s.add_argument("--json", action="store_true")
