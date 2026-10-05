@@ -25,7 +25,9 @@ solves for 3D/2.5D IC packages, plus an audit of what neural thermal surrogates 
      offsets created such cells in the layout data, with spurious peaks up to 14 K.
    - ThermoNO's apparent 2.6–5.4× hotspot advantage over the backbone disappeared on the corrected data.
    - The layout data was regenerated on a grid-aligned placement on 2026-09-30.
-   - The same test on FNO-family models is inconclusive: their field error is too large to resolve a one-cell edge effect (§9.32).
+   - A paired label-swap test confirms it: ThermoNO's held-out predictions reproduce about 80% of the artefact's
+     amplitude (β 0.77–0.80, all 3 seeds, same-label nulls near 0; geometry4 has 2 of 5 folds). The FNO family is
+     inconclusive: its seed-to-seed noise is too large for the test to resolve a one-cell edge effect (§9.32).
 5. **The dataset linter's first external catch** (§9.33): the public IC-ThermBench release stores its spatial input
    channels transposed in-plane relative to the output temperature; our loader mirrored it, so our IC-ThermBench numbers
    came from mismatched pairs. Ridge-type baselines change by ≤ 0.34% when fixed. Fixed-orientation runs at 108 samples
@@ -242,6 +244,21 @@ python scripts/lint_dataset.py data/3d-ice data/3d-ice-layout-geometry5      # e
 
 The 545 benchmark files pass with no errors or warnings. The archived pre-fix layout data fails L005 in 28 / 36 / 34
 of 45 files per geometry. Rules are in `src/validation/lint.py`.
+
+**Tools.** Two standalone command-line tools package the checks behind findings 4 and 5. Neither imports from this
+repository.
+
+- **iceforge** (`tools/iceforge/`): lints 3D-ICE inputs before a solve, snaps edges to the cell grid, runs 3D-ICE
+  (native, WSL or docker), and `diff` compares it with an independent finite-volume reference.
+- **fieldlint** (`tools/fieldlint/`): lints steady-diffusion PDE datasets (orientation, maximum principle,
+  duplicates, units, energy balance).
+
+```bash
+pip install -e "tools/iceforge[diff]" && iceforge check model.stk      # then: iceforge snap / run / diff model.stk
+pip install -e tools/fieldlint && fieldlint path/to/data --preset thermfm   # presets: ictherm, thermfm, 3dice
+```
+
+See `tools/iceforge/README.md` and `tools/fieldlint/README.md`; results in report §9.34.
 
 ### 5. Evaluate and explain
 
