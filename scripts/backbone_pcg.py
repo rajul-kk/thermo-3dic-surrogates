@@ -25,30 +25,36 @@ def backbone_op(g, kl3, kv3, htc):
         return idctn(np.moveaxis(th, 0, 2), type=2, axes=(0, 1), norm='ortho').ravel()
     return apply
 
-import argparse
-_ap = argparse.ArgumentParser()
-_ap.add_argument('--geometries', nargs='*', default=['geometry4', 'geometry5', 'geometry6'])
-_ap.add_argument('--data-dir', default='data/3d-ice-layout-{g}')
-_ap.add_argument('--n', type=int, default=3)
-_ap.add_argument('--iters', type=int, default=30)
-ARGS = _ap.parse_args()
-CHECK = sorted({1, 2, 3, 5, 10, 20, 30, 50, 100, 200, ARGS.iters} - {i for i in range(ARGS.iters + 1, 10 ** 6)})
+def main():
+    global ARGS, CHECK
+    import argparse
+    _ap = argparse.ArgumentParser()
+    _ap.add_argument('--geometries', nargs='*', default=['geometry4', 'geometry5', 'geometry6'])
+    _ap.add_argument('--data-dir', default='data/3d-ice-layout-{g}')
+    _ap.add_argument('--n', type=int, default=3)
+    _ap.add_argument('--iters', type=int, default=30)
+    ARGS = _ap.parse_args()
+    CHECK = sorted({1, 2, 3, 5, 10, 20, 30, 50, 100, 200, ARGS.iters} - {i for i in range(ARGS.iters + 1, 10 ** 6)})
 
-for geom_name in ARGS.geometries:
-    files = sorted(Path(ARGS.data_dir.format(g=geom_name)).rglob(f'{geom_name}_*.npz'))[:ARGS.n]
-    for f in files:
-        geom, scen, c, y = scenario(f, geom_name)
-        g = fv.make_grid(geom); kl, kv = fv.conductivity(geom, scen, g)
-        A, _ = fv.assemble(g, kl, kv, scen['htc']); b = fv.power(geom, scen, g).ravel()
-        t = time.time(); exact = fv.solve(geom, scen, g)['T'].ravel() - (scen['t_ambient'] + 273.15); t_full = time.time() - t
-        M = backbone_op(g, kl, kv, scen['htc'])
-        t0 = time.time(); x = np.zeros_like(b); r = b.copy(); z = M(r); p = z.copy(); rz = r @ z
-        hist = []
-        for it in range(1, ARGS.iters + 1):
-            Ap = A @ p; a = rz / (p @ Ap); x += a * p; r -= a * Ap
-            if it in CHECK:
-                hist.append((it, abs(x.max() - exact.max()), np.sqrt(np.mean((x - exact) ** 2)), time.time() - t0))
-            z = M(r); rz_new = r @ z; p = z + (rz_new / rz) * p; rz = rz_new
-        bb = M(b)
-        print(f'{geom_name} {f.stem[-6:]} cells {b.size:,} | full solve {t_full:.2f}s | backbone |peak| {abs(bb.max()-exact.max()):.2f} K', flush=True)
-        print('   ' + '  '.join(f'it{it}: |peak| {pk:.3f} K rms {rm:.3f} ({tt:.2f}s)' for it, pk, rm, tt in hist), flush=True)
+    for geom_name in ARGS.geometries:
+        files = sorted(Path(ARGS.data_dir.format(g=geom_name)).rglob(f'{geom_name}_*.npz'))[:ARGS.n]
+        for f in files:
+            geom, scen, c, y = scenario(f, geom_name)
+            g = fv.make_grid(geom); kl, kv = fv.conductivity(geom, scen, g)
+            A, _ = fv.assemble(g, kl, kv, scen['htc']); b = fv.power(geom, scen, g).ravel()
+            t = time.time(); exact = fv.solve(geom, scen, g)['T'].ravel() - (scen['t_ambient'] + 273.15); t_full = time.time() - t
+            M = backbone_op(g, kl, kv, scen['htc'])
+            t0 = time.time(); x = np.zeros_like(b); r = b.copy(); z = M(r); p = z.copy(); rz = r @ z
+            hist = []
+            for it in range(1, ARGS.iters + 1):
+                Ap = A @ p; a = rz / (p @ Ap); x += a * p; r -= a * Ap
+                if it in CHECK:
+                    hist.append((it, abs(x.max() - exact.max()), np.sqrt(np.mean((x - exact) ** 2)), time.time() - t0))
+                z = M(r); rz_new = r @ z; p = z + (rz_new / rz) * p; rz = rz_new
+            bb = M(b)
+            print(f'{geom_name} {f.stem[-6:]} cells {b.size:,} | full solve {t_full:.2f}s | backbone |peak| {abs(bb.max()-exact.max()):.2f} K', flush=True)
+            print('   ' + '  '.join(f'it{it}: |peak| {pk:.3f} K rms {rm:.3f} ({tt:.2f}s)' for it, pk, rm, tt in hist), flush=True)
+
+
+if __name__ == '__main__':
+    main()
