@@ -25,10 +25,13 @@ CACHE = Path('results/thermono_cache')
 
 def build(geom_name, data_root='data'):
     """Per-scenario tensors on the FV grid (x = width, y = length, z), cached per geometry."""
-    path = CACHE / f'{geom_name}.npz'
-    if path.exists():
+    # one cache per (geometry, data root): the default root keeps its old name
+    slug = '' if Path(data_root) == Path('data') else '__' + Path(data_root).as_posix().strip('/').replace('/', '_')
+    path = CACHE / f'{geom_name}{slug}.npz'
+    files =sorted(Path(data_root, f'3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))
+    # rebuild when any data file is newer than the cache (a regenerated dataset otherwise reuses stale fields)
+    if path.exists() and all(f.stat().st_mtime < path.stat().st_mtime for f in files):
         return dict(np.load(path, allow_pickle=True))
-    files = sorted(Path(data_root, f'3d-ice-layout-{geom_name}').rglob(f'{geom_name}_*.npz'))
     Q, BB, TH, MASK, KL, KV, HTC, TAMB, COORDS, TEMP = [], [], [], [], [], [], [], [], [], []
     for f in files:
         d = np.load(f, allow_pickle=True)
@@ -72,6 +75,35 @@ def tensors(D, idx, q_scale, th_scale, device='cpu'):
 
 
 def run_fold(D, tr, te, args):
+    model, q_scale, th_scale, eps = fit_fold(D, tr, args)
+    return evaluate(D, model, te, q_scale, th_scale, args), eps
+
+
+def predict(D, model, te, q_scale, th_scale, args):
+    """Backbone and ThermoNO fields (rise above ambient, FV grid) for scenarios `te` of dataset D."""
+    tlin, tgeo, _, _ = tensors(D, te, q_scale, th_scale, torch.device(args.device))
+    with torch.no_grad():
+        corr = model(tlin, tgeo).cpu().numpy() * th_scale
+    return {'backbone': D['bb'][te], 'thermono': D['bb'][te] + corr}
+
+
+def sample_points(D, field, i):
+    """A field on the FV grid, sampled at scenario i's 3D-ICE nodes, in kelvin."""
+    return lb.sample(field, fv.FVGrid(D['xe'], D['ye'], D['ze'], None), D['coords'][i]) + float(D['tamb'][i])
+
+
+def evaluate(D, model, te, q_scale, th_scale, args):
+    fields = predict(D, model, te, q_scale, th_scale, args)
+    rows = {'backbone': [], 'thermono': []}
+    for j, i in enumerate(te):
+        c, y = D['coords'][i], D['temp'][i]
+        for name in rows:
+            p = sample_points(D, fields[name][j], i)
+            rows[name].append({**per_scenario_stats(y, p), **hotspot_metrics(p, y, c)})
+    return rows
+
+
+def fit_fold(D, tr, args):
     torch.manual_seed(args.seed)
     q_scale = float(D['q'][tr].std()) or 1.0
     th_scale = float(D['bb'][tr].std()) or 1.0
@@ -108,17 +140,7 @@ def run_fold(D, tr, te, args):
                     break
     model.load_state_dict(best_state)
     model.eval()
-    tlin, tgeo, _, _ = tensors(D, te, q_scale, th_scale, dev)
-    with torch.no_grad():
-        corr = model(tlin, tgeo).cpu().numpy() * th_scale
-    g = fv.FVGrid(D['xe'], D['ye'], D['ze'], None)
-    rows = {'backbone': [], 'thermono': []}
-    for j, i in enumerate(te):
-        c, y, t_amb = D['coords'][i], D['temp'][i], float(D['tamb'][i])
-        for name, field in (('backbone', D['bb'][i]), ('thermono', D['bb'][i] + corr[j])):
-            p = lb.sample(field, g, c) + t_amb
-            rows[name].append({**per_scenario_stats(y, p), **hotspot_metrics(p, y, c)})
-    return rows, ep + 1
+    return model, q_scale, th_scale, ep + 1
 
 
 def main():
@@ -140,6 +162,7 @@ def main():
     ap.add_argument('--multiscale', type=int, default=0, help='levels of the linear multiscale branch (0 = off)')
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     ap.add_argument('--data-root', default='data')
+    ap.add_argument('--out-dir', default='results')
     args = ap.parse_args()
     torch.set_num_threads(max(1, torch.get_num_threads()))
     D = build(args.geometry, args.data_root)
@@ -169,7 +192,7 @@ def main():
               f"loc {s['loc_err_um_median']:.0f} um recall {s['recall_mean']:.3f} |peak| {s['abs_peak_err_K']:.2f} K")
     tag = '' if args.geo_arch == 'mlp' else '_cno' + ('-attn' if args.geo_attn else '')
     tag += (f'_k{args.local_k}' if args.local_k > 1 else '') + (f'_ms{args.multiscale}' if args.multiscale else '')
-    out = Path(f'results/thermono_{args.geometry}{tag}_seed{args.seed}.json')
+    out = Path(args.out_dir) / f'thermono_{args.geometry}{tag}_seed{args.seed}.json'
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({'args': vars(args), 'n_test': len(all_rows['thermono']), 'summary': summary}, indent=1))
 
