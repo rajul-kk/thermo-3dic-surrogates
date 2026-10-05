@@ -4308,7 +4308,9 @@ steady diffusion-type PDE datasets, with file adapters (npz, npy, MATLAB, HDF5, 
 IC-ThermBench, Therm-FM and this project's data. Rules F001-F007: integrity, maximum principle, orientation,
 duplicates across splits, range and units, a ridge linearity probe (info only), energy balance.
 - IC-ThermBench S2-S5, first 400 samples per scope: corr(smoothed power, T) is 0.33-0.42 as stored and
-  0.70-0.78 transposed. F002 violations are 84-147 of 400 as stored and 0 transposed.
+  0.70-0.78 transposed. F002 violations are 84-147 of 400 as stored and 0 transposed (S2, S3 and S5; S4 was not
+  rerun transposed). These differ from §9.33's 101-154 because fieldlint uses a tolerance relative to the field range
+  (1e-3) rather than a fixed 0.01 K.
 - The eight public Therm-FM steady sets and this project's 3D-ICE data lint clean for F001-F005.
 
 **Limitations.**
