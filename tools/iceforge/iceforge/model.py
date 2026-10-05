@@ -250,6 +250,9 @@ class Stack:
 # --------------------------------------------------------------------------- parsers
 
 def _resolve(base: str, p: str) -> str:
+    m = re.match(r'^/mnt/([A-Za-z])(/.*)?$', p)
+    if m and os.name == 'nt':          # a stk written for WSL: /mnt/c/x -> C:/x so files can be read on Windows
+        p = f"{m.group(1).upper()}:{m.group(2) or '/'}"
     absolute = os.path.isabs(p) or re.match(r'^[A-Za-z]:[\\/]', p) or p.startswith('/')
     return os.path.normpath(p if absolute else os.path.join(base, p))
 

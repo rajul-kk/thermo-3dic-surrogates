@@ -1,5 +1,7 @@
 """3D-ICE thermal simulator wrapper."""
 
+import logging
+import os
 import subprocess
 import shlex
 from pathlib import Path
@@ -7,6 +9,11 @@ from typing import Dict, Any, List
 import numpy as np
 from .base_simulator import ThermalSimulator
 from ..core.geometry import Geometry, Layer, PowerBlock
+
+logger = logging.getLogger(__name__)
+
+# iceforge rules that make a solve silently wrong (heated insulator, layout/power mismatch).
+_GUARD_ERRORS = {'S001', 'S003', 'S004', 'S005'}
 
 
 class ICESimulator(ThermalSimulator):
@@ -47,6 +54,32 @@ class ICESimulator(ThermalSimulator):
         self._generate_layout_files(geometry, scenario)
         self._generate_floorplan_files(geometry, scenario)
         self._generate_stack_file(geometry, scenario)
+        self._guard_stack()
+
+    def _guard_stack(self) -> None:
+        """Lint the generated stack.stk with iceforge (tools/iceforge) before any solve.
+
+        Raises RuntimeError on S001/S003/S004/S005 (off-grid die edge with a footprint layout, off-grid
+        layout rectangle, powered cells without layout coverage, element outside chip / overlapping),
+        which 3D-ICE accepts silently but solves wrongly (docs/report.md 9.32). Other findings are logged.
+        Disabled with ICEFORGE_GUARD=0; silently skipped when iceforge is not installed."""
+        if os.environ.get('ICEFORGE_GUARD', '1') == '0':
+            return
+        try:
+            from iceforge.check import check_stack
+            from iceforge.model import parse_stk
+        except ImportError:
+            return
+        stk = self.config_dir / 'stack.stk'
+        findings = check_stack(parse_stk(str(stk)))
+        errs = [f for f in findings if f.code in _GUARD_ERRORS and f.severity == 'error']
+        for f in findings:
+            if f not in errs and f.severity in ('error', 'warning'):
+                logger.warning('iceforge: %s', f)
+        if errs:
+            raise RuntimeError(
+                f"iceforge guard: {stk} would solve wrongly (set ICEFORGE_GUARD=0 to bypass):\n  "
+                + "\n  ".join(str(f) for f in errs))
 
     # Vertical discretisation. 3D-ICE's compact model puts ONE temperature node at
     # the centre of each stack element, so z-resolution equals the number of elements
