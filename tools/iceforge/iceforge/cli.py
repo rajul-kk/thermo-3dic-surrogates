@@ -11,6 +11,7 @@ from typing import List, Optional
 from . import __version__, backends
 from .check import check_stack, exit_code, format_findings
 from .model import parse_stk, summary, to_dict
+from .build import build, load_spec, EXAMPLE_YAML
 from .run import run_model
 from .snap import snap
 
@@ -74,6 +75,37 @@ def cmd_run(a) -> int:
     if a.json:
         _jdump(report)
     return code
+
+
+def cmd_build(a) -> int:
+    try:
+        stk, notes = build(load_spec(a.spec), a.output, snap=a.snap)
+    except (OSError, ValueError) as e:      # BuildError is a ValueError
+        print(f"build: {e}", file=sys.stderr)
+        return 2
+    for n in notes:
+        print(f"note: {n}")
+    print(f"wrote {stk}")
+    return 0
+
+
+def cmd_init(a) -> int:
+    target = a.output or ("spec.json" if a.json else "spec.yaml")
+    if os.path.exists(target) and not a.force:
+        print(f"init: {target} exists (use --force to overwrite)", file=sys.stderr)
+        return 2
+    text = EXAMPLE_YAML
+    if a.json:
+        try:
+            import yaml
+        except ImportError:
+            print("init --json needs pyyaml to convert the example", file=sys.stderr)
+            return 2
+        text = json.dumps(yaml.safe_load(EXAMPLE_YAML), indent=2) + "\n"
+    with open(target, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    print(f"wrote {target}")
+    return 0
 
 
 def cmd_doctor(a) -> int:
@@ -148,6 +180,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--no-check", action="store_true", help="skip the pre-solve check")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_run)
+
+    s = sub.add_parser("build", help="generate grid-aligned .stk/.flp/.lyt from a YAML/JSON spec")
+    s.add_argument("spec")
+    s.add_argument("-o", "--output", required=True, help="output directory")
+    s.add_argument("--snap", action="store_true", help="snap off-grid die edges instead of refusing")
+    s.set_defaults(fn=cmd_build)
+
+    s = sub.add_parser("init", help="write an example build spec")
+    s.add_argument("-o", "--output", help="file to write (default spec.yaml, or spec.json with --json)")
+    s.add_argument("--json", action="store_true", help="write JSON instead of YAML (needs pyyaml)")
+    s.add_argument("--force", action="store_true")
+    s.set_defaults(fn=cmd_init)
 
     s = sub.add_parser("doctor", help="report which backends work and the 3D-ICE version")
     s.add_argument("--json", action="store_true")

@@ -12,6 +12,7 @@ dependencies = ["numpy"]
 
 [project.optional-dependencies]
 test = ["pytest"]
+yaml = ["pyyaml"]
 
 [project.scripts]
 iceforge = "iceforge.cli:main"
