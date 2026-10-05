@@ -1,0 +1,9 @@
+{
+  "name": "thermfm",
+  "_comment": "Therm-FM steady HotSpot release: <dir>/input.mat (N,P,L,H,W; channel 0 = volumetric power density; the release does not document the other channels, so only channel 0 is mapped) and <dir>/output.mat (N,L,H,W; values look like kelvin but the release does not state units, so units are left unspecified). MATLAB v7.3 (h5py order). No split is published with the files.",
+  "format": "mat",
+  "units": "",
+  "u": {"file": "output.mat", "key": "data", "layout": "NLHW"},
+  "source": {"file": "input.mat", "key": "data", "layout": "NCLHW", "channel": 0},
+  "splits": "none"
+}

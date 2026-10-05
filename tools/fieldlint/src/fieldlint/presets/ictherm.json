@@ -1,0 +1,10 @@
+{
+  "name": "ictherm",
+  "_comment": "IC-ThermBench S2-S5 as released: <dir>/input.mat (N,P,Z,Y,X; ch0 chiplet power, ch3 local thermal k from S3 on) and <dir>/output.mat (N,Z,Y,X temperature, K). MATLAB v7.3 (h5py order). Splits follow the benchmark's own index split (0.8 train+val, 0.9 of that train, no shuffle).",
+  "format": "mat",
+  "units": "K",
+  "u": {"file": "output.mat", "key": "data", "layout": "NZYX"},
+  "source": {"file": "input.mat", "key": "data", "layout": "NCZYX", "channel": 0},
+  "k": {"file": "input.mat", "key": "data", "layout": "NCZYX", "channel": 3, "optional": true},
+  "splits": {"rule": "ictherm"}
+}
