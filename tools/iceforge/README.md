@@ -7,6 +7,7 @@ It does not import anything from the surrounding repository.
 
 ```
 pip install -e tools/iceforge        # console script: iceforge   (or: python -m iceforge)
+pip install -e "tools/iceforge[yaml]"  # optional: pyyaml, for YAML build specs (JSON specs work without it)
 ```
 
 Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coefficient in W/um^2/K.
@@ -33,6 +34,8 @@ Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coeffic
 | `iceforge check model.stk [--json] [--strict]` | pre-solve lint, exit 1 on errors (and on warnings with `--strict`) |
 | `iceforge snap model.stk -o outdir [--mode nearest\|outward]` | write a gridded copy, report every move |
 | `iceforge run model.stk [--backend auto\|native\|wsl\|docker] [--exe PATH] [-o outdir] [--no-check]` | check, solve, parse Tmaps to `.npz`, post-check |
+| `iceforge build spec.yaml -o outdir [--snap]` | generate grid-aligned `model.stk` + `.flp` + `.lyt` from a small spec (see Build) |
+| `iceforge init [-o spec.yaml] [--json] [--force]` | write an example spec (the repro case) |
 | `iceforge doctor` | which backends work, which 3D-ICE was found |
 
 ### Check rules
@@ -63,6 +66,35 @@ element. `outward` grows only the `.lyt` rectangles to whole cells and leaves th
 is the repro's "snapped" case (S002 stays as a note). Inputs are never edited; the copy goes to `outdir`
 with `.flp`/`.lyt` files regenerated in canonical form (comments are not preserved).
 
+### Build
+
+`iceforge build` writes inputs that are on the cell grid by construction, instead of linting hand-written ones.
+`iceforge init` writes a starting spec. Spec units are SI (converted on output: k x1e-6 to W/um/K,
+rho_cp x1e-18, HTC x1e-12); lengths stay in um.
+
+```yaml
+chip: {length_um: 10000, width_um: 10000, cell_um: 250}   # or cell_length_um + cell_width_um
+heat_sink: {side: bottom, htc_W_m2K: 20000, t_ambient_K: 300}
+materials:
+  SI:  {k_W_mK: 148, rho_cp_J_m3K: 1.628e+6}   # YAML needs the sign in the exponent: 1.628e+6
+  GAP: {k_W_mK: 0.7, rho_cp_J_m3K: 1.628e+6}
+layers:                       # bottom -> top
+  - {name: SUB, height_um: 300, material: SI}
+  - name: SRC                 # a layer with `dies` is a source layer
+    height_um: 50
+    material: GAP             # material around the dies
+    dies:
+      - {name: blk, material: SI, x_um: 1500, y_um: 1500, length_um: 6000, width_um: 6000, power_W: 10}
+solver: steady                # only steady is supported
+```
+
+Each source layer becomes a die with `<layer>.flp` (one element per die) and `<layer>.lyt` (a footprint of each
+die's material), and a `Tmap` named `tmap_<layer>.txt`. The stack is emitted top to bottom with all layer
+definitions before die definitions, as the 3D-ICE grammar requires. A die edge or size that is not a whole
+number of cells is refused with the nearest valid values; `--snap` applies them (same rule as `iceforge snap`)
+and prints each move. Dies in one layer may not overlap or leave the chip. Without pyyaml, a `.json` spec
+(same schema) still works. Then `iceforge check outdir/model.stk` and `iceforge run outdir/model.stk`.
+
 ### Run and outputs
 
 `run` executes 3D-ICE with the working directory set to the stk's directory (so relative paths in the
@@ -85,7 +117,15 @@ docker run --rm -v "$PWD":/work iceforge:latest check model.stk
 ```
 
 The docker backend of `run` mounts the stk's directory at `/work` and calls the bundled emulator, so
-model files must use relative paths.
+model files must use relative paths. Verified (Docker Desktop, Windows): `iceforge run --backend docker` on the
+repro fixtures gives max rise 11.130 K (aligned) and 14.562 K (misaligned, P002 fires).
+
+### Guarding the repository pipeline
+
+`src/simulators/ice_simulator.py` runs `iceforge.check` on the `stack.stk` it generates (end of
+`generate_config_files`) when iceforge is importable. S001, S003, S004 and S005 raise `RuntimeError`; other
+findings are logged as warnings. `ICEFORGE_GUARD=0` disables it; without iceforge installed it is skipped.
+On Windows, iceforge maps the `/mnt/<drive>/...` paths of WSL-targeted stacks back to drive paths to read them.
 
 ## Tests
 
