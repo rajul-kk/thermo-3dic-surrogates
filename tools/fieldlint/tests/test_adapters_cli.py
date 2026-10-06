@@ -220,3 +220,18 @@ def test_cli_usage_errors_and_list_rules(tmp_path, capsys):
     for c in ('F001', 'F002', 'F003', 'F004', 'F005', 'F006', 'F007'):
         assert c in out
     assert 'Does NOT apply' in out
+
+
+def test_darcy_preset_reads_flattened_fields_and_beta_from_filename(tmp_path, darcy_like):
+    k, u = darcy_like
+    n = u.shape[-1]
+    np.savez(tmp_path / 'darcy_beta0.5_n24.npz', X=k.reshape(len(k), -1), Y=u.reshape(len(u), -1))
+    cfg = load_config('darcy')
+    cfg['u']['reshape'] = cfg['k']['reshape'] = [n, n]
+    ds = open_dataset(tmp_path / 'darcy_beta0.5_n24.npz', cfg)
+    s = ds.get(2)
+    assert np.array_equal(s.u, u[2]) and np.array_equal(s.k, k[2]) and np.all(s.source == 0.5)
+    rep = run(ds, rules=['F001', 'F008', 'F009'])
+    assert rep.exit_code == 0 or {r.code: r.status for r in rep.results}['F001'] == 'ok'
+    assert {r.code: r.status for r in rep.results}['F008'] in ('ok', 'skipped')
+    ds.close()

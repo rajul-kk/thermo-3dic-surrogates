@@ -49,7 +49,7 @@ def norm_layout(layout: str) -> str:
 
 # ── config loading ───────────────────────────────────────────────────────────────
 def load_config(path_or_name: str) -> Dict[str, Any]:
-    """A preset name (ictherm, thermfm, 3dice), or a path to a .json / .yaml / .yml file."""
+    """A preset name (ictherm, thermfm, 3dice, darcy), or a path to a .json / .yaml / .yml file."""
     p = Path(path_or_name)
     if not p.exists():
         preset = PRESET_DIR / f'{path_or_name}.json'
@@ -186,6 +186,20 @@ class _Field:
         return np.swapaxes(a, -1, -2) if self.transpose else a
 
 
+class _Reshaped:
+    """View of an (N, F) array as (N, *shape): lets flattened fields (PDEBench) be read with a normal layout."""
+
+    def __init__(self, arr, shape):
+        self._a, self._shape = arr, tuple(int(v) for v in shape)
+        if arr.ndim != 2 or arr.shape[1] != int(np.prod(self._shape)):
+            raise AdapterError(f'cannot reshape array of shape {tuple(arr.shape)} to (N, {self._shape})')
+        self.ndim, self.shape = 1 + len(self._shape), (arr.shape[0],) + self._shape
+
+    def __getitem__(self, idx):
+        i = idx[0]
+        return np.asarray(self._a[i]).reshape(self._shape)[idx[1:]]
+
+
 def _spec(cfg: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
     s = cfg.get(name)
     if s is None:
@@ -261,7 +275,10 @@ def _open_stacks(root: Path, cfg, specs) -> Dataset:
         if s.get('layout') is None:
             raise AdapterError(f"field '{nm}': give a 'layout' (e.g. NHW)")
         try:
-            fields[nm] = _Field(nm, f.get(key), s['layout'], s.get('channel'), transpose=bool(s.get('transpose')))
+            arr = f.get(key)
+            if s.get('reshape'):
+                arr = _Reshaped(arr, s['reshape'])
+            fields[nm] = _Field(nm, arr, s['layout'], s.get('channel'), transpose=bool(s.get('transpose')))
         except (AdapterError, IndexError) as exc:
             if s.get('optional') and (isinstance(exc, IndexError) or 'not in' in str(exc)):
                 continue
@@ -274,8 +291,19 @@ def _open_stacks(root: Path, cfg, specs) -> Dataset:
     label = _split_labels(cfg, n)
     name = cfg.get('name') or root.name
 
+    uni = cfg.get('source_uniform')              # a constant source: a number, or {"filename_regex": "beta([0-9.]+)"}
+    if uni is not None and 'source' not in fields:
+        if isinstance(uni, dict):
+            m = re.search(uni['filename_regex'], root.name)
+            if not m:
+                raise AdapterError(f"source_uniform: '{uni['filename_regex']}' does not match the file name {root.name}")
+            uni = float(m.group(1))
+        uni = float(uni)
+
     def load(i):
         kw = {nm: fields[nm].sample(i) for nm in ('u', 'source', 'k', 'dirichlet_mask') if nm in fields}
+        if uni is not None and 'source' not in fields:
+            kw['source'] = np.full(kw['u'].shape, uni)
         if 'dirichlet_mask' in kw:
             kw['dirichlet_mask'] = kw['dirichlet_mask'] > 0
         fo = fields['flux_out'].arr[i] if 'flux_out' in fields else None
@@ -283,6 +311,8 @@ def _open_stacks(root: Path, cfg, specs) -> Dataset:
                       flux_out=None if fo is None else float(np.asarray(fo).ravel()[0]))
 
     shapes = {nm: f.shape for nm, f in fields.items() if nm not in ('flux_out',)}
+    if uni is not None and 'source' not in fields:
+        shapes['source'] = fields['u'].shape
     ds = Dataset(n, load, name=name, units=sc['units'], shapes=lambda: shapes)
     ds._keep = files                                                # keep file handles alive
     return ds

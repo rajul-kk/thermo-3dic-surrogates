@@ -1,0 +1,12 @@
+{
+  "name": "darcy",
+  "_comment": "PDEBench 2D Darcy flow, -div(a grad u) = beta with u = 0 on the boundary, in one .npz: X (N, 16384) = coefficient a, Y (N, 16384) = u, each a flattened 128 x 128 field. beta (the uniform source) is read from the file name (darcy_beta1.0_...). Cell-centred grid, so the unit-square spacing is taken as 1/128 (irrelevant to the R^2 of F008).",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "spacing": [0.0078125, 0.0078125],
+  "u": {"key": "Y", "layout": "NHW", "reshape": [128, 128]},
+  "k": {"key": "X", "layout": "NHW", "reshape": [128, 128]},
+  "source_uniform": {"filename_regex": "beta([0-9]+(?:[.][0-9]+)?)"},
+  "splits": "none"
+}

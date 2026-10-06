@@ -39,3 +39,41 @@ def valid():
     rng = np.random.default_rng(0)
     src = random_blocks(rng, 48, 24)
     return src, solve(src)
+
+
+def solve_k(k, beta=1.0):
+    """-div(k grad u) = beta on an n x n grid, u = 0 just outside, harmonic-mean face k (boundary faces use the cell's own k).
+    k: (N, n, n). Returns u (N, n, n)."""
+    N, n, _ = k.shape
+    out = np.empty_like(k, dtype=float)
+    idx = np.arange(n * n).reshape(n, n)
+    for m in range(N):
+        kk = k[m]
+        A = np.zeros((n * n, n * n))
+        for y in range(n):
+            for x in range(n):
+                i = idx[y, x]
+                for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < n and 0 <= xx < n:
+                        kf = 2 * kk[y, x] * kk[yy, xx] / (kk[y, x] + kk[yy, xx])
+                        A[i, idx[yy, xx]] -= kf
+                    else:
+                        kf = kk[y, x]
+                    A[i, i] += kf
+        out[m] = np.linalg.solve(A, np.full(n * n, beta)).reshape(n, n)
+    return out
+
+
+@pytest.fixture(scope='session')
+def darcy_like():
+    """k-only problem: uniform source, piecewise-constant random k (two levels, asymmetric blobs), N=24, 20 x 20."""
+    rng = np.random.default_rng(1)
+    n = 20
+    k = np.ones((24, n, n))
+    for m in range(24):
+        for _ in range(rng.integers(2, 5)):
+            h, w = rng.integers(3, 8), rng.integers(3, 11)
+            y, x = rng.integers(0, n - h), rng.integers(0, n - w)
+            k[m, y:y + h, x:x + w] = 0.1
+    return k, solve_k(k, 1.0)

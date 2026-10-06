@@ -293,3 +293,110 @@ def test_f007(valid):
     r = f007_energy(dataset_from_arrays(u, src, spacing=(0.5, 0.5), flux_out=bad), OPT)
     assert r.metrics['violating'] == 4 and sev(r) == ['error']
     assert f007_energy(dataset_from_arrays(u, src), OPT).status == 'skipped'
+
+
+# ── F008 / F009 ──────────────────────────────────────────────────────────────────
+from fieldlint.rules import f008_operator_residual, f009_pairing, lateral_operator, operator_r2  # noqa: E402
+
+
+def test_lateral_operator_matches_laplacian():
+    rng = np.random.default_rng(3)
+    u = rng.normal(size=(9, 9))
+    L = lateral_operator(u)
+    ref = 4 * u[1:-1, 1:-1] - u[2:, 1:-1] - u[:-2, 1:-1] - u[1:-1, 2:] - u[1:-1, :-2]
+    assert np.allclose(L, ref)
+    assert np.allclose(lateral_operator(u, np.full_like(u, 3.0)), 3 * ref)
+    assert np.allclose(lateral_operator(u, None, 2.0, 2.0), ref / 4)
+
+
+def test_f008_clean_correct_orientation_wins(valid):
+    src, u = valid
+    assert operator_r2(src[0], None, u[0] - 300.0) > 0.999
+    r = f008_operator_residual(dataset_from_arrays(u, src), OPT)
+    assert r.status == 'ok' and r.metrics['median_r2_stored'] > 0.999
+    assert r.metrics['median_r2']['stored'] >= max(v for k, v in r.metrics['median_r2'].items())
+
+
+def test_f008_detects_transpose_flips_and_rolls(valid):
+    src, u = valid
+    cases = {'transpose': np.swapaxes(src, -1, -2), 'flip_x': src[:, :, ::-1], 'flip_y': src[:, ::-1],
+             'flip_xy': src[:, ::-1, ::-1], 'roll_x+1': np.roll(src, -1, axis=2)}
+    for want, bad in cases.items():
+        r = f008_operator_residual(dataset_from_arrays(u, np.ascontiguousarray(bad)), OPT)
+        assert r.status == 'flagged' and r.findings[0].severity == 'error', want
+        assert max(r.metrics['better_by_variant'], key=r.metrics['better_by_variant'].get).startswith(want[:6]), (want, r.metrics['better_by_variant'])
+
+
+def test_f008_partial_contamination_is_a_warning(valid):
+    src, u = valid
+    bad = src.copy()
+    bad[:6] = np.swapaxes(src[:6], -1, -2)               # 6 of 48 = 12.5%
+    r = f008_operator_residual(dataset_from_arrays(u, bad), OPT)
+    assert r.status == 'flagged' and r.findings[0].severity == 'warning'
+
+
+def test_f008_k_only_uniform_source(darcy_like):
+    k, u = darcy_like
+    src = np.ones_like(u)
+    r = f008_operator_residual(dataset_from_arrays(u, src, k), OPT)
+    assert r.status == 'ok' and r.metrics['modes']['uni'] == len(u) and r.metrics['median_r2_stored'] > 0.999
+    for bad in (np.swapaxes(k, -1, -2), k[:, :, ::-1], k[:, ::-1]):
+        r = f008_operator_residual(dataset_from_arrays(u, src, np.ascontiguousarray(bad)), OPT)
+        assert r.status == 'flagged' and r.findings[0].severity == 'error'
+
+
+def test_f008_skips_when_nothing_varies_or_out_of_scope(valid):
+    src, u = valid
+    r = f008_operator_residual(dataset_from_arrays(u, np.ones_like(u)), OPT)
+    assert r.status == 'skipped' and 'nothing to fit' in r.summary
+    r = f008_operator_residual(dataset_from_arrays(u), OPT)
+    assert r.status == 'skipped'
+    noise = np.random.default_rng(5).normal(size=u.shape)                  # not a diffusion field at all
+    r = f008_operator_residual(dataset_from_arrays(noise, src), OPT)
+    assert r.status == 'skipped' and 'not applicable' in r.summary
+    r = f008_operator_residual(dataset_from_arrays(u[:, :1], src[:, :1]), OPT)      # 1 x 24 cells
+    assert r.status == 'skipped'
+
+
+def test_f008_3d_layers_with_lumped_loss(valid):
+    src, u = valid
+    u3 = np.stack([u, u + 0.0], 1)                                         # two identical layers
+    s3 = np.stack([src, src], 1)
+    r = f008_operator_residual(dataset_from_arrays(u3, s3), OPT)
+    assert r.status == 'ok' and r.metrics['median_r2_stored'] > 0.999
+    r = f008_operator_residual(dataset_from_arrays(u3, np.swapaxes(s3, -1, -2)), OPT)
+    assert r.status == 'flagged'
+
+
+def test_f009_clean_and_shifted_and_shuffled(valid):
+    src, u = valid
+    r = f009_pairing(dataset_from_arrays(u, src), OPT)
+    assert r.status == 'ok' and r.metrics['wrong_rows'] == 0
+    r = f009_pairing(dataset_from_arrays(np.roll(u, 1, axis=0), src), OPT)
+    assert r.status == 'flagged' and r.findings[0].severity == 'error'
+    r = f009_pairing(dataset_from_arrays(np.roll(u[:24], 1, axis=0), src[:24]), OPT)       # all 24 scored: neighbours
+    assert r.metrics['most_common_offset_of_best_partner'] == 1
+    perm = np.random.default_rng(2).permutation(len(u))
+    r = f009_pairing(dataset_from_arrays(u[perm], src), OPT)
+    assert r.status == 'flagged'
+
+
+def test_f009_k_only_and_skips(darcy_like, valid):
+    k, u = darcy_like
+    src = np.ones_like(u)
+    assert f009_pairing(dataset_from_arrays(u, src, k), OPT).status == 'ok'
+    r = f009_pairing(dataset_from_arrays(np.roll(u, 1, axis=0), src, k), OPT)
+    assert r.status == 'flagged'
+    s, uu = valid
+    assert f009_pairing(dataset_from_arrays(uu, np.ones_like(uu)), OPT).status == 'skipped'
+
+
+def test_f008_face_mean_convention_option(darcy_like):
+    k, u = darcy_like
+    from fieldlint.rules import lateral_operator as lo
+    a = lo(u[0], k[0], face='arithmetic')
+    h = lo(u[0], k[0])
+    assert a.shape == h.shape and not np.allclose(a, h)                      # two contrasts of k -> two conventions differ
+    assert np.allclose(lo(u[0], np.full_like(u[0], 2.0), face='arithmetic'), lo(u[0], np.full_like(u[0], 2.0)))
+    r = f008_operator_residual(dataset_from_arrays(u, np.ones_like(u), k), Options(op_face_mean='arithmetic'))
+    assert r.status in ('ok', 'skipped')
