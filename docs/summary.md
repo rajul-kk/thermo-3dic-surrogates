@@ -21,8 +21,8 @@ disagree. Full bibliography: `docs/references.md`. Molecular-property replicatio
 > The 306 pilot solves behind report §9.8–9.11 were regenerated too, and every pilot conclusion
 > survives. **Still open:** most neural-model comparisons need GPU re-runs on the corrected layout data. The
 > older-protocol and fair-protocol FNO / LT-FNO / CNO-FNO-attn notebooks, the FNO A1/A2 test and the paired
-> projection test have now been run on corrected data (§9.27, §9.32); some cells are partial (fold and seed counts
-> are in those sections).
+> projection test (5 of 5 folds in every unit) have now been run on corrected data (§9.27, §9.32); some cells are
+> partial (seed counts are in §9.27).
 
 ---
 
@@ -329,13 +329,13 @@ is geometry4's bulk residual, about 0.3 K, not the hotspot.
   while the solver's falls (2.08 → 0.15 K, 3.33 → 0.08 K). The seed 0 → 3-seed check did not change the verdict.
   ThermoNO's inputs are rebuilt from the snapped placement, so they shift slightly (backbone up to 1.8 K);
   a paired label-swap test that gives both arms the corrected inputs removes this confound. It finds that ThermoNO
-  **learned the artefact**: the seed-mean projection slope β is 0.77 [0.59, 1.02] (geometry4, 2 of 5 folds),
+  **learned the artefact**: the seed-mean projection slope β is 0.95 [0.73, 1.23] (geometry4; seeds 0.89 / 1.01 / 0.97),
   0.77 [0.63, 0.97] (geometry5) and 0.80 [0.74, 0.87] (geometry6), each of 3 seeds individually "learned", with
-  same-label nulls near 0. Held-out ThermoNO predictions reproduce about 80% of the artefact's amplitude. The Kaggle
-  kernel hit its 12 h limit, so geometry4 is partial. The same test on FNO and CNO-FNO-attn is **inconclusive**: their
-  seed-to-seed null is wide (FNO geometry5 N–N CI [−0.02, 0.73]), so the test lacks power at their noise level.
-  A secondary support-restricted correlation for FNO is above its null on geometry5/6 (0.22, 0.35), at most a weak
-  partial reproduction. The single-seed A1/A2 run agrees: an FNO trained only on clean data puts its peak on an
+  same-label nulls near 0. All units have 5 of 5 folds. The same test on FNO and CNO-FNO-attn is **inconclusive**.
+  FNO shows a partial reproduction, with the CI above zero on geometry4 (0.35 [0.20, 0.50]) and geometry6
+  (0.26 [0.15, 0.38]), but it misses the pre-registered "learned" bar (one geometry4 seed is at 0.15, below 0.2) and
+  on geometry5 beta is 0.06; CNO-FNO-attn gives 0.06 (geometry5) and 0.34 [0.08, 0.61] (geometry6). Their
+  seed-to-seed nulls are wide (FNO geometry5 N–N CI [−0.02, 0.73]), so the test lacks power at their noise level. The single-seed A1/A2 run agrees: an FNO trained only on clean data puts its peak on an
   unpowered cell in 28 / 45 and 23 / 45 scenarios, as the old-data FNO does. The artefact was learned by the one
   model accurate enough to resolve it; one model family does not make a trend.
 - **LT-FNO** replaces FNO's spectral-in-z with learned per-mode layer coupling. At GPU budget
@@ -353,11 +353,17 @@ is geometry4's bulk residual, about 0.3 K, not the hotspot.
 3D-ICE inputs before a solve (S001 and S003 flag the die-edge artefact on the misaligned repro), snaps edges to
 the grid (peak rise 14.562 → 11.118 K, against 11.130 K aligned), runs 3D-ICE through native, WSL or docker, and
 `diff` compares 3D-ICE against an independent finite-volume reference: AGREE on aligned, no-layout and snapped
-cases, DISAGREE (die-edge) on the misaligned one (max |ΔT| 7.37 K). `tools/fieldlint/` lints steady-diffusion
-datasets (rules F001–F007): on IC-ThermBench it finds the transposed inputs (corr 0.33–0.42 as stored, 0.70–0.78
-transposed), and the Therm-FM sets and our 3D-ICE data lint clean. Limits: non-uniform grids are skipped, HotSpot
-is not yet in `diff`, the docker backend was verified by hand, and fieldlint's orientation rule (F003) was tuned
-on two datasets and needs a third before we claim it generalises.
+cases, DISAGREE (die-edge) on the misaligned one (max |ΔT| 7.37 K). On 24 archived real geometry4–6 solves
+(r = 2), `diff` gives DISAGREE on 23 of 24 pre-snap cases and AGREE on 24 of 24 snapped ones; all 13,028 flagged
+cells lie within 3 cells of a die edge (98.9% within 1). The one miss (geometry4 train_021, 0.04 K) is below the
+resolution of `diff` at r = 2 but is caught statically by `iceforge check`; an r = 4 spot check still disagrees.
+`tools/fieldlint/` lints steady-diffusion datasets: on IC-ThermBench it finds the transposed inputs (corr
+0.33–0.42 as stored, 0.70–0.78 transposed), and the Therm-FM sets and our 3D-ICE data lint clean. Rules F008/F009
+(operator residual, pairing) and a fault-injection benchmark were added, but the frozen v1 thresholds **failed**
+on the held-out PDEBench Darcy set (the operator model explained R² 0.16–0.19, below the gate, so the rules
+skipped); an arithmetic face-mean fix works on Darcy but is post-hoc, Burgers gives false alarms from F002/F003,
+and a round 2 with a fresh held-out set is in progress and not yet reported. Limits: non-uniform grids are
+skipped, HotSpot is not yet in `diff`, and the docker backend was verified by hand.
 
 ## 5. Threats to validity
 

@@ -25,9 +25,10 @@ solves for 3D/2.5D IC packages, plus an audit of what neural thermal surrogates 
      offsets created such cells in the layout data, with spurious peaks up to 14 K.
    - ThermoNO's apparent 2.6–5.4× hotspot advantage over the backbone disappeared on the corrected data.
    - The layout data was regenerated on a grid-aligned placement on 2026-09-30.
-   - A paired label-swap test confirms it: ThermoNO's held-out predictions reproduce about 80% of the artefact's
-     amplitude (β 0.77–0.80, all 3 seeds, same-label nulls near 0; geometry4 has 2 of 5 folds). The FNO family is
-     inconclusive: its seed-to-seed noise is too large for the test to resolve a one-cell edge effect (§9.32).
+   - A paired label-swap test confirms it: ThermoNO's held-out predictions reproduce about 80–95% of the artefact's
+     amplitude (β 0.77–0.95, all 3 seeds, same-label nulls near 0, 5 of 5 folds). The FNO family is inconclusive: it
+     shows a partial reproduction on geometry4/6 (β 0.35 and 0.26, CI above zero) but misses the pre-registered
+     "learned" bar, and its seed-to-seed noise is too large for the test to resolve a one-cell edge effect (§9.32).
 5. **The dataset linter's first external catch** (§9.33): the public IC-ThermBench release stores its spatial input
    channels transposed in-plane relative to the output temperature; our loader mirrored it, so our IC-ThermBench numbers
    came from mismatched pairs. Ridge-type baselines change by ≤ 0.34% when fixed. Fixed-orientation runs at 108 samples
@@ -249,9 +250,12 @@ of 45 files per geometry. Rules are in `src/validation/lint.py`.
 repository.
 
 - **iceforge** (`tools/iceforge/`): lints 3D-ICE inputs before a solve, snaps edges to the cell grid, runs 3D-ICE
-  (native, WSL or docker), and `diff` compares it with an independent finite-volume reference.
+  (native, WSL or docker), and `diff` compares it with an independent finite-volume reference. On 24 archived
+  real geometry4–6 solves, `diff` flags 23 / 24 pre-snap cases (DISAGREE) and passes 24 / 24 snapped ones; the one
+  miss is a 0.04 K case that `iceforge check` catches statically (§9.34).
 - **fieldlint** (`tools/fieldlint/`): lints steady-diffusion PDE datasets (orientation, maximum principle,
-  duplicates, units, energy balance).
+  duplicates, units, energy balance, operator residual, sample pairing). Its frozen thresholds failed on the held-out
+  PDEBench Darcy set; a second round is in progress (§9.34).
 
 ```bash
 pip install -e "tools/iceforge[diff]" && iceforge check model.stk      # then: iceforge snap / run / diff model.stk
