@@ -4102,8 +4102,10 @@ Reading (the data are measured; the interpretation is ours):
   roughly 80-95% of the artefact's amplitude.
 - **FNO: a partial reproduction, not "learned".** On geometry4 and geometry6 the seed-mean beta CI lies above
   zero (0.35 [0.20, 0.50] and 0.26 [0.15, 0.38]) and, on geometry4, the Wilcoxon p against N-N is 0.004. It still
-  misses the pre-registered "learned" bar: on geometry4 one seed has beta 0.15, below the 0.2 lower bound the
-  rule requires, and the per-seed rule needs all seeds to agree. On geometry5 beta is 0.06 and the null CI is
+  misses the pre-registered "learned" bar, which needs every seed's CI to lie above its same-label null CI with a
+  lower bound > 0.2. No FNO seed passes: each seed's CI overlaps its own seed-pair null (geometry4 seed 0:
+  0.38 [0.20, 0.58] vs null [-0.06, 0.40]; seed 2: 0.15 [-0.07, 0.39]). The seed-mean CI also overlaps the O-O
+  null (upper bound 0.36 on geometry4, 0.39 on geometry6). On geometry5 beta is 0.06 and the null CI is
   wide ([-0.02, 0.73]). The decision is inconclusive on all three, and we do not call FNO "learned".
 - **CNO-FNO-attn: inconclusive, not "not learned".** Geometry5 beta is 0.06; geometry6 is 0.34 [0.08, 0.61]
   (p vs N-N 0.059), with a null CI that overlaps it. Two seeds only. The test lacks power at this noise level.
