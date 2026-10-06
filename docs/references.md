@@ -950,3 +950,38 @@ differential testing of thermal solvers, and of the IC-ThermBench orientation mi
 - Differential testing: simulator comparisons exist (ATSim3.5D against Icepak and HotSpot; 3D-ICE 4.0 against
   HotSpot and COMSOL), but as accuracy benchmarks, not as a bug-finding tool with an independent discretisation.
   `iceforge diff` is novel as a tool, not as a comparison.
+
+## Prior-art review of 2026-10-07 (full text: docs/prior_art_review.md)
+
+Provenance: literature search, abstracts or landing pages read unless stated. Verdicts are in that file.
+
+- **Mohan, A., Chattopadhyay, A. & Miller, J. (2024). "What You See is Not What You Get: Neural Partial Differential
+  Equations and The Illusion of Learning."** arXiv:2411.15101. States that neural-PDE models learn artefacts of the
+  discretised Taylor-series truncation error in simulation training data. **Partially anticipates the general form of
+  the artefact-reproduction finding (§9.32).** No paired label-swap test in the abstract; full text not read.
+- **Suriyanarayanan, A., Chakraborty, D. & Maulik, R. (2026). "Deep Learning of Solver-Aware Turbulence Closures from
+  Nudged LES Dynamics."** arXiv:2604.23874. Learned correction "systematically tracks the discretization error of the
+  coarse solver". Related observation in LES closures.
+- **Koehler, F. (2026). "From Numerical Simulators of PDEs to Neural Emulators and Back."** arXiv:2608.24547. Spectral
+  analysis of numerical error in emulators; abstract only (PDF unreadable). Check full text for an artefact-reproduction test.
+- **Chen, T.Y., Feng, J. & Tse, T.H. (2002). "Metamorphic testing of programs on partial differential equations: a case
+  study."** COMPSAC 2002. https://www.cs.hku.hk/~tse/Papers/2000s/jqpdeCX.html. Elliptic-PDE program (snippet only).
+- **Kanewala, U. & Bieman, J. "Testing Scientific Software: A Systematic Literature Review."** arXiv:1804.01954.
+  Survey of metamorphic and differential testing for scientific software (snippet only).
+- **Shikhman, L. J. (2026). "A Diagnostic Software Suite for Auditing Learned PDE Simulators."** arXiv:2606.18200.
+  Model-side audit (semigroup, energy, admissibility); not a dataset linter.
+- **Li, M. et al. (2026). "Domain-Validity-Gated Metamorphic Testing of Scientific ML Surrogates."** arXiv:2606.17529.
+  Metamorphic tests of surrogates; model-side.
+- **Roohi, E. (2026). "FlowMLLab."** arXiv:2609.27975. CFD-to-ML framework with case-wise leakage-proof splits and matched
+  non-neural baselines; not a dataset linter.
+- **Jakeman, J. D., Barba, L. A., Martins, J. R. R. A. & O'Leary-Roseberry, T. (2026). "Verification and validation for
+  trustworthy scientific machine learning."** doi:10.1088/2632-2153/ae59ec. 16 V&V recommendations; no tool.
+- **Deng, Z., Sun, J., Meng, D. & Wang, F. (2026). "Randomized neural operator for parametric PDEs with fast training and
+  conformal uncertainty quantification" (PCA-RaNN).** arXiv:2606.29440. PCA plus closed-form least-squares readout is
+  competitive with operator-learning baselines on generic PDEs (abstract only).
+- **Chen, X. et al. (2021). "A Deep Neural Network Surrogate Modeling Benchmark for Temperature Field Prediction of Heat
+  Source Layout."** arXiv:2103.11177. Ten DNNs on layout-to-temperature; no non-neural baseline in the abstract.
+- **Northcutt, C., Athalye, A. & Mueller, J. (2021). "Pervasive Label Errors in Test Sets Destabilize Machine Learning
+  Benchmarks."** arXiv:2103.14749. General-ML label errors; not PDE-aware.
+- Trackers checked 2026-10-07: esl-epfl/3d-ice has two issues (#1 `.mlt` usage; #3 heat-sink with non-uniform mode), none
+  about layout partial cells; Day333/ThermalBench has none.
