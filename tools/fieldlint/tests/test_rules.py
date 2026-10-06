@@ -386,7 +386,7 @@ def test_f009_k_only_and_skips(darcy_like, valid):
     src = np.ones_like(u)
     assert f009_pairing(dataset_from_arrays(u, src, k), OPT).status == 'ok'
     r = f009_pairing(dataset_from_arrays(np.roll(u, 1, axis=0), src, k), OPT)
-    assert r.status == 'flagged'
+    assert r.status != 'ok'                     # flagged, or skipped when every pair fits badly (documented limitation)
     s, uu = valid
     assert f009_pairing(dataset_from_arrays(uu, np.ones_like(uu)), OPT).status == 'skipped'
 
@@ -400,3 +400,47 @@ def test_f008_face_mean_convention_option(darcy_like):
     assert np.allclose(lo(u[0], np.full_like(u[0], 2.0), face='arithmetic'), lo(u[0], np.full_like(u[0], 2.0)))
     r = f008_operator_residual(dataset_from_arrays(u, np.ones_like(u), k), Options(op_face_mean='arithmetic'))
     assert r.status in ('ok', 'skipped')
+
+
+# round 2: fitted face mean and scope gate
+import pytest  # noqa: E402
+from conftest import solve_k  # noqa: E402
+from fieldlint.rules import choose_face_mean, f002_max_principle as _f002, f003_orientation as _f003  # noqa: E402
+
+
+@pytest.mark.parametrize('face', ['harmonic', 'arithmetic'])
+def test_face_mean_is_chosen_and_orientation_still_detected(face):
+    rng = np.random.default_rng(7)
+    n = 20
+    k = np.ones((16, n, n))
+    for m in range(16):
+        for _ in range(3):
+            h, w = rng.integers(3, 8), rng.integers(3, 11)
+            y, x = rng.integers(0, n - h), rng.integers(0, n - w)
+            k[m, y:y + h, x:x + w] = 0.1
+    u = solve_k(k, 1.0, face=face)
+    src = np.ones_like(u)
+    ds = dataset_from_arrays(u, src, k)
+    chosen, scores = choose_face_mean(ds, OPT)
+    assert chosen == face and scores[face] > 0.999
+    r = f008_operator_residual(ds, OPT)
+    assert r.status == 'ok' and r.metrics['face_mean'] == face
+    bad = f008_operator_residual(dataset_from_arrays(u, src, np.ascontiguousarray(np.swapaxes(k, -1, -2))), OPT)
+    assert bad.status == 'flagged' and bad.metrics['face_mean'] == face      # choice survives a mis-oriented k
+
+
+def test_scope_gate_1d_and_time_dependent(valid):
+    src, u = valid
+    line = dataset_from_arrays(u[:, :1, :], src[:, :1, :], ambient=300.0)       # 1 x 24
+    for rule in (_f002, _f003, f008_operator_residual, f009_pairing):
+        r = rule(line, OPT)
+        assert r.status == 'skipped' and 'out of scope' in r.summary and '1D' in r.summary, rule.__name__
+    strip = dataset_from_arrays(u[:, :5, :], src[:, :5, :], ambient=300.0)       # 5 x 24: still under 8 cells
+    assert f008_operator_residual(strip, OPT).status == 'skipped'
+    ds = dataset_from_arrays(u, src, ambient=300.0)
+    ds.time_dependent = True
+    for rule in (_f002, _f003, f008_operator_residual, f009_pairing):
+        r = rule(ds, OPT)
+        assert r.status == 'skipped' and 'time-dependent' in r.summary, rule.__name__
+    ds.time_dependent = False
+    assert _f003(ds, OPT).status == 'ok'

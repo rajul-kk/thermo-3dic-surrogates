@@ -56,7 +56,9 @@ class Options:
     op_r2_applicable: float = 0.30          # below this best-orientation median R^2 the operator model does not describe the field
     op_shifts: int = 3                      # also try circular shifts of the inputs by +-1..op_shifts cells along each axis (0 = off)
     op_min_samples: int = 3
-    op_face_mean: str = 'harmonic'          # face conductivity in the stencil: 'harmonic' (finite-volume standard) or 'arithmetic'
+    op_face_mean: str = 'auto'              # face conductivity: 'auto' (fitted per dataset), 'harmonic', 'arithmetic' or 'geometric'
+    op_face_samples: int = 32               # samples used to choose the face mean when 'auto'
+    min_inplane_cells: int = 8              # scope gate: skip rules F002/F003/F008/F009 when an in-plane axis is shorter
     pair_samples: int = 32                  # F009: number of samples scored pairwise (M x M matrix)
     pair_tie: float = 0.10                  # F009: the diagonal counts as best when within this R^2 of the row maximum
     pair_r2_applicable: float = 0.30        # F009: skip when the median row-maximum R^2 is below this
@@ -139,6 +141,25 @@ def _pooled_corr(a: np.ndarray, b: np.ndarray) -> float:
     return float((a * b).sum() / den) if den > 0 else float('nan')
 
 
+def scope_skip(ds, opt: Options) -> Optional[str]:
+    """Reason why the steady 2D diffusion rules do not apply to this dataset, or None.
+
+    Out of scope: datasets flagged time_dependent (trajectory snapshots, not steady solutions) and fields that are effectively
+    1D (an in-plane axis shorter than `min_inplane_cells`, e.g. a 1 x N line or a 3 x N strip)."""
+    if getattr(ds, 'time_dependent', False):
+        return 'out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution'
+    shp = None
+    if ds.field_shapes:
+        shp = (ds.field_shapes() or {}).get('u')
+    if shp is None:
+        for _i, s in ds.samples(1):
+            shp = s.u.shape
+    if shp is not None and len(shp) >= 2 and min(shp[-2:]) < opt.min_inplane_cells:
+        return (f'out of scope: the field is effectively 1D (in-plane shape {tuple(shp[-2:])}, an axis is shorter than '
+                f'{opt.min_inplane_cells} cells); the steady 2D diffusion premises do not hold')
+    return None
+
+
 # ── F001 ─────────────────────────────────────────────────────────────────────────
 def f001_integrity(ds, opt: Options) -> RuleResult:
     """F001 finite values and consistent shapes.
@@ -205,12 +226,16 @@ def f002_max_principle(ds, opt: Options) -> RuleResult:
     dirichlet_mask. The excess is (max u) - (max u over the allowed zone), tested against a tolerance relative to the
     field's range. Reports the fraction of violating samples.
 
-    Does NOT apply: problems with sinks (s < 0, e.g. Peltier cooling or radiation modelled as a source) - samples with
+    Does NOT apply: time-dependent datasets and effectively 1D fields (skipped as out of scope, see scope_skip); problems with sinks (s < 0, e.g. Peltier cooling or radiation modelled as a source) - samples with
     negative source are skipped; time-dependent or advection-dominated fields; fields where every cell is powered (the
     check is vacuous and reported as such); datasets whose source is a coarse proxy of the true heating (e.g. a
     block-averaged power map on a finer grid) - raise `neighbourhood`.
     """
     res = RuleResult('F002', 'max-principle')
+    why = scope_skip(ds, opt)
+    if why:
+        res.status, res.summary = 'skipped', why
+        return res
     n = viol = vac = sinks = 0
     excess, ids = [], []
     for i, s in ds.samples(opt.max_samples):
@@ -279,7 +304,7 @@ def f003_orientation(ds, opt: Options) -> RuleResult:
     4x wider Gaussian, which removes large flat regions and keeps the hot spots) by half that margin. The rule fires when
     the votes cover most samples (>= 50% error, >= 10% warning).
 
-    Does NOT apply: sources that are symmetric under the tested operation (e.g. a single centred hot spot, symmetric
+    Does NOT apply: time-dependent datasets and effectively 1D fields (skipped as out of scope, see scope_skip); sources that are symmetric under the tested operation (e.g. a single centred hot spot, symmetric
     layouts) give no discrimination and no alarm; non-square grids cannot be tested for transposition (only flips); u
     fields dominated by boundary or k effects rather than by the source (strongly layered k, large convective gradient)
     can show low correlation in every orientation - then the rule stays quiet rather than guessing. When the plain
@@ -288,6 +313,10 @@ def f003_orientation(ds, opt: Options) -> RuleResult:
     is not tested, but it is normally exported together with the source and shares its orientation.
     """
     res = RuleResult('F003', 'orientation')
+    why = scope_skip(ds, opt)
+    if why:
+        res.status, res.summary = 'skipped', why
+        return res
     corr: Dict[str, List[float]] = {}
     bcorr: Dict[str, List[float]] = {}
     better: Dict[str, int] = {}
@@ -660,6 +689,10 @@ def _am(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return 0.5 * (a + b)
 
 
+def _gm(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return np.sqrt(np.clip(a, 0, None) * np.clip(b, 0, None))
+
+
 def _hm(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     d = a + b
     return np.where(d > 0, 2.0 * a * b / np.where(d > 0, d, 1.0), 0.0)
@@ -668,9 +701,9 @@ def _hm(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 def lateral_operator(u: np.ndarray, k: Optional[np.ndarray] = None, dy: float = 1.0, dx: float = 1.0,
                      face: str = 'harmonic') -> np.ndarray:
     """L(u) = -div(k grad u) on the interior cells of a 2D field, conservative 5-point stencil with harmonic-mean face k
-    (k = 1 when absent; face='arithmetic' averages the two cell values instead). Returns an array of shape (ny-2, nx-2)."""
+    (k = 1 when absent; face = 'arithmetic' or 'geometric' averages the two cell values that way instead). Returns an array of shape (ny-2, nx-2)."""
     c = u[1:-1, 1:-1]
-    hm = _am if face == 'arithmetic' else _hm
+    hm = {'arithmetic': _am, 'geometric': _gm}.get(face, _hm)
     if k is None:
         kE = kW = kN = kS = 1.0
     else:
@@ -764,6 +797,60 @@ def _prep_sample(s):
     return src, k, u
 
 
+def _sample_scores(p, spacing, opt: Options, face: str, modes=None) -> Dict[str, float]:
+    """R^2 of the operator fit for each orientation of the inputs of one prepared sample (src, k, u)."""
+    src, k, u = p
+    modes = modes or _layer_modes(_layers(src), _layers(k))
+    sv = _orient_variants(src, opt.op_shifts)
+    kv = _orient_variants(k, opt.op_shifts) if k is not None and np.ptp(k) > 0 else None
+    ops = _ops(u, spacing) if k is None else None
+    out = {}
+    for nm, v in sv.items():
+        if v is None:
+            continue
+        r = operator_r2(v, k if kv is None else kv[nm], u, spacing, modes, ops, face)
+        if r is not None:
+            out[nm] = r
+    return out
+
+
+FACE_MEANS = ('harmonic', 'arithmetic', 'geometric')
+
+
+def choose_face_mean(ds, opt: Options):
+    """(face mean, {mean: median best-orientation R^2}). Fixed by `op_face_mean` unless it is 'auto'.
+
+    'auto' makes the discretisation a fitted choice, one per dataset: on `op_face_samples` evenly spaced samples each face
+    mean is scored by the median over samples of the best R^2 over all input orientations (stored and alternatives), and
+    the mean with the highest score wins (harmonic on ties and whenever k is absent or constant, where the choice is moot).
+    Taking the best over orientations rather than the stored one keeps the choice from being decided by a mis-oriented
+    input; it is still decided before, and independently of, the orientation vote."""
+    if opt.op_face_mean != 'auto':
+        return opt.op_face_mean, {}
+    cache = getattr(ds, '_face_cache', None)
+    if cache is not None and cache[0] == (opt.op_face_samples, opt.op_shifts):
+        return cache[1], cache[2]
+    per = {f: [] for f in FACE_MEANS}
+    for _i, s in ds.samples(opt.op_face_samples):
+        p = _prep_sample(s)
+        if p is None or p[1] is None or not np.ptp(p[1]) > 0 or p[2].ndim not in (2, 3) or min(p[2].shape[-2:]) < 3:
+            continue
+        modes = _layer_modes(_layers(p[0]), _layers(p[1]))
+        if not any(modes):
+            continue
+        for f in FACE_MEANS:
+            r2 = _sample_scores(p, s.spacing, opt, f, modes)
+            if r2:
+                per[f].append(max(r2.values()))
+    med = {f: float(np.median(v)) for f, v in per.items() if v}
+    face = max(med, key=lambda f: (med[f] > max(med.values()) - 1e-9, f == 'harmonic')) if med else 'harmonic'
+    try:
+        ds._face_cache = ((opt.op_face_samples, opt.op_shifts), face, med)
+    except AttributeError:
+        pass
+    return face, med
+
+
 def f008_operator_residual(ds, opt: Options) -> RuleResult:
     """F008 operator-residual consistency.
 
@@ -787,9 +874,17 @@ def f008_operator_residual(ds, opt: Options) -> RuleResult:
     noise). Symmetric inputs (a centred spot, a symmetric k) cannot discriminate orientations. The check treats the inputs
     as exact: a source that is a coarse proxy for the real heating lowers R^2 in every orientation alike. The face
     conductivity is a convention: a dataset generated with a different one (PDEBench Darcy uses the arithmetic mean) is
-    reproduced only to the extent the two conventions agree, which for a 10x contrast in k is poorly - set `op_face_mean`.
+    reproduced only to the extent the two conventions agree, which for a 10x contrast in k is poorly. The face mean is
+    therefore a fitted choice (`op_face_mean = 'auto'`: harmonic, arithmetic or geometric, one per dataset, see
+    choose_face_mean) and is reported. Out of scope (skipped): time-dependent datasets and effectively 1D fields (an in-plane
+    axis shorter than `min_inplane_cells`).
     """
     res = RuleResult('F008', 'operator-residual')
+    why = scope_skip(ds, opt)
+    if why:
+        res.status, res.summary = 'skipped', why
+        return res
+    face, face_scores = choose_face_mean(ds, opt)
     scores: Dict[str, List[float]] = {}
     votes: Dict[str, int] = {}
     n = flagged = 0
@@ -803,22 +898,11 @@ def f008_operator_residual(ds, opt: Options) -> RuleResult:
         if u.ndim not in (2, 3) or min(u.shape[-2:]) < 3:
             res.status, res.summary = 'skipped', f'u has shape {u.shape}: needs 2D (or z-stacked 2D) fields of at least 3x3 cells'
             return res
-        S, K = _layers(src), _layers(k)
-        modes = _layer_modes(S, K)
+        modes = _layer_modes(_layers(src), _layers(k))
         if not any(modes):
             continue
         mode_counts['uni' if all(m in ('uni', None) for m in modes) else 'var'] += 1
-        sv = _orient_variants(src, opt.op_shifts)
-        kv = _orient_variants(k, opt.op_shifts) if k is not None and np.ptp(k) > 0 else None
-        r2 = {}
-        ops = _ops(u, s.spacing) if k is None else None
-        for nm, v in sv.items():
-            if v is None:
-                continue
-            kk = k if kv is None else kv[nm]
-            r = operator_r2(v, kk, u, s.spacing, modes, ops, opt.op_face_mean)
-            if r is not None:
-                r2[nm] = r
+        r2 = _sample_scores(p, s.spacing, opt, face, modes)
         if 'stored' not in r2:
             continue
         n += 1
@@ -839,14 +923,15 @@ def f008_operator_residual(ds, opt: Options) -> RuleResult:
     orient = {k_: v for k_, v in med.items() if not k_.startswith('roll')}
     res.metrics = {'checked': n, 'median_r2': {k_: round(v, 4) for k_, v in med.items()}, 'median_r2_stored': med['stored'],
                    'median_r2_best_orientation': best_med, 'margin': opt.op_margin,
-                   'fraction_alternative_better': flagged / n, 'better_by_variant': votes, 'modes': mode_counts}
+                   'fraction_alternative_better': flagged / n, 'better_by_variant': votes, 'modes': mode_counts,
+                   'face_mean': face, 'face_mean_scores': {k_: round(v, 4) for k_, v in face_scores.items()}}
     if best_med < opt.op_r2_applicable:
         res.status = 'skipped'
         res.summary = (f'not applicable: the operator model explains only median R2 = {best_med:.2f} in any orientation '
                        f'(< {opt.op_r2_applicable:g}); the field is probably time-dependent, advective or strongly coupled between layers')
         return res
     frac = flagged / n
-    res.summary = 'median R2 of s ~ aL(u)+b(u-c): ' + ', '.join(f'{k_} {v:.2f}' for k_, v in orient.items()) + \
+    res.summary = f'face mean {face}; median R2 of s ~ aL(u)+b(u-c): ' + ', '.join(f'{k_} {v:.2f}' for k_, v in orient.items()) + \
                   f'; alternative better in {100 * frac:.0f}% of {n} samples'
     if frac >= 0.1:
         res.status = 'flagged'
@@ -860,6 +945,7 @@ def f008_operator_residual(ds, opt: Options) -> RuleResult:
 
 def pair_scores(ds, opt: Options):
     """(items, M): the usable samples and the matrix M[i, j] = operator-fit R^2 of (inputs_i, u_j), stored orientation."""
+    face, _ = choose_face_mean(ds, opt)
     items = []
     for i, s in ds.samples(opt.pair_samples):
         p = _prep_sample(s)
@@ -876,7 +962,7 @@ def pair_scores(ds, opt: Options):
     for a, (_, sa, (src, k, _u)) in enumerate(items):
         modes = _layer_modes(_layers(src), _layers(k))
         for b, (_, _sb, (_s2, _k2, ub)) in enumerate(items):
-            r = operator_r2(src, k, ub, sa.spacing, modes, ops.get(b), opt.op_face_mean)
+            r = operator_r2(src, k, ub, sa.spacing, modes, ops.get(b), face)
             if r is not None:
                 M[a, b] = r
     return items, M
@@ -891,14 +977,21 @@ def f009_pairing(ds, opt: Options) -> RuleResult:
     puts the best match off the diagonal. A row is 'wrong' when some other column beats the diagonal by more than
     `pair_tie` in R^2. Fires as a warning when >= `pair_warn` and as an error when >= `pair_error` of the rows are wrong.
 
-    Does NOT apply (skipped with the reason): the cases F008 skips (no varying source or k, fields the operator model does not
+    Does NOT apply (skipped with the reason): the out-of-scope cases of F008 (time-dependent, effectively 1D); the cases F008 skips (no varying source or k, fields the operator model does not
     describe: the median best-column R^2 is below `pair_r2_applicable`); fewer than 4 usable samples. Datasets whose inputs
     are identical across samples (only boundary conditions vary) have no pairing information and give many ties, which count as
     correct. Samples must have the same grid. A fault that touches only a minority of the samples (< `pair_warn` of the rows)
-    is not reported, and a pairing fault that also destroys the operator fit everywhere makes the rule skip (R^2 below the gate).
+    is not reported. A pairing fault that destroys the operator fit everywhere makes the rule skip (R^2 below the gate): a
+    wrong pairing and an inapplicable operator model both give a diagonal indistinguishable from the off-diagonal entries, so
+    the two cannot be told apart from the score matrix alone and the rule does not guess.
     """
     res = RuleResult('F009', 'pairing')
+    why = scope_skip(ds, opt)
+    if why:
+        res.status, res.summary = 'skipped', why
+        return res
     items, M = pair_scores(ds, opt)
+    face = choose_face_mean(ds, opt)[0]
     if M is None:
         res.status, res.summary = 'skipped', f'only {len(items)} usable sample(s) (needs 4)'
         return res
@@ -919,7 +1012,7 @@ def f009_pairing(ds, opt: Options) -> RuleResult:
     offs = [int(best_col[a] - a) for a in np.flatnonzero(wrong)]
     consecutive = all(b[0] - a[0] == 1 for a, b in zip(items[:-1], items[1:]))   # the offset is only meaningful for neighbours
     common = max(set(offs), key=offs.count) if offs and consecutive else None
-    res.metrics = {'rows': int(ok.sum()), 'wrong_rows': int(wrong.sum()), 'fraction_wrong': frac,
+    res.metrics = {'face_mean': face, 'rows': int(ok.sum()), 'wrong_rows': int(wrong.sum()), 'fraction_wrong': frac,
                    'median_diag_r2': float(np.median(diag[ok])), 'median_row_max_r2': float(np.median(rowmax[ok])),
                    'most_common_offset_of_best_partner': common, 'tie': opt.pair_tie}
     res.summary = f"{int(wrong.sum())}/{int(ok.sum())} rows ({100 * frac:.0f}%) match another sample's u better than their own"

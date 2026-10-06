@@ -235,3 +235,18 @@ def test_darcy_preset_reads_flattened_fields_and_beta_from_filename(tmp_path, da
     assert rep.exit_code == 0 or {r.code: r.status for r in rep.results}['F001'] == 'ok'
     assert {r.code: r.status for r in rep.results}['F008'] in ('ok', 'skipped')
     ds.close()
+
+
+def test_time_dependent_flag_and_affine_in_config(tmp_path, darcy_like):
+    k, u = darcy_like
+    n = u.shape[-1]
+    np.savez(tmp_path / 'darcy_f1.npz', X=(k.reshape(len(k), -1) - 1.0) / 9.0, Y=u.reshape(len(u), -1))
+    cfg = {'format': 'npz', 'time_dependent': True, 'source_uniform': 1.0,
+           'u': {'key': 'Y', 'layout': 'NHW', 'reshape': [n, n]},
+           'k': {'key': 'X', 'layout': 'NHW', 'reshape': [n, n], 'affine': [9.0, 1.0]}}
+    ds = open_dataset(tmp_path / 'darcy_f1.npz', cfg)
+    assert ds.time_dependent and ds.head(5).time_dependent
+    assert np.allclose(ds.get(1).k, k[1])
+    r = {x.code: x for x in run(ds, rules=['F002', 'F003', 'F008', 'F009']).results}
+    assert all(x.status == 'skipped' and 'time-dependent' in x.summary for x in r.values())
+    ds.close()

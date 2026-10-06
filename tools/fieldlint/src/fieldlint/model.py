@@ -42,13 +42,15 @@ class Dataset:
     loader    callable i -> Sample
     shapes    optional callable () -> dict of field name -> per-sample shape, for cheap shape checks (F001)
     units     declared units of u ('K', 'C', or '' for unknown / dimensionless)
+    time_dependent  True when the fields are snapshots of a trajectory; the steady-state rules then report 'out of scope'
     name      label for reports
     """
 
     def __init__(self, n: int, loader: Callable[[int], Sample], name: str = 'dataset', units: str = '',
                  shapes: Optional[Callable[[], Dict[str, Tuple[int, ...]]]] = None,
-                 cache_bytes: int = 800 * 2 ** 20):
+                 cache_bytes: int = 800 * 2 ** 20, time_dependent: bool = False):
         self.n, self._loader, self.name, self.units = int(n), loader, name, units
+        self.time_dependent = bool(time_dependent)
         self.field_shapes = shapes
         self.errors: Dict[int, str] = {}
         self._cache: 'OrderedDict[int, Optional[Sample]]' = OrderedDict()
@@ -82,7 +84,7 @@ class Dataset:
 
     def head(self, n: int) -> 'Dataset':
         """A view on the first n samples (split labels are unchanged)."""
-        d = Dataset(min(n, self.n), self._loader, self.name, self.units, self.field_shapes)
+        d = Dataset(min(n, self.n), self._loader, self.name, self.units, self.field_shapes, time_dependent=self.time_dependent)
         d._cache, d._keep = self._cache, getattr(self, '_keep', None)
         return d
 

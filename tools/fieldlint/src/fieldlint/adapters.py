@@ -9,6 +9,7 @@ Config (dict from JSON/YAML, a preset, or CLI flags):
       "source": {"key": "power", "layout": "NHW"},
       "k":      {"key": "kmap",  "layout": "NHW", "optional": true},
       "dirichlet_mask": {...}, "flux_out": {"key": "q", "layout": "N"},
+      "time_dependent": false,           # true for trajectory snapshots: the steady-state rules report 'out of scope'
       "splits": "none" | "from_filename" | {"rule": "ictherm"} | {"train": [0, 0.8], "test": [0.8, 1]}
     }
 
@@ -154,8 +155,9 @@ class _File:
 class _Field:
     """One field of a dataset: an array plus its layout, with per-sample extraction to canonical ([Z,] Y, X) order."""
 
-    def __init__(self, name: str, arr, layout: str, channel: Optional[int], squeeze_z: bool = True, transpose: bool = False):
-        self.transpose = transpose
+    def __init__(self, name: str, arr, layout: str, channel: Optional[int], squeeze_z: bool = True, transpose: bool = False,
+                 affine=None):
+        self.transpose, self.affine = transpose, affine
         self.name, self.arr, self.layout, self.channel, self.squeeze_z = name, arr, norm_layout(layout), channel, squeeze_z
         if len(self.layout) != arr.ndim:
             raise AdapterError(f"field '{name}': layout '{layout}' has {len(self.layout)} axes but the array has shape "
@@ -181,6 +183,8 @@ class _Field:
             idx.append((i + offset) if c == 'N' else self.channel if c == 'C' else slice(None))
         a = np.asarray(self.arr[tuple(idx)])
         a = np.transpose(a, self._perm)
+        if self.affine:
+            a = a * float(self.affine[0]) + float(self.affine[1])
         if self.squeeze_z and self.order[0] == 'Z' and a.shape[0] == 1:
             a = a[0]
         return np.swapaxes(a, -1, -2) if self.transpose else a
@@ -237,6 +241,12 @@ def open_dataset(root, cfg: Dict[str, Any]) -> Dataset:
     root = Path(root)
     if not root.exists():
         raise AdapterError(f'no such path: {root}')
+    ds = _open_dataset(root, cfg)
+    ds.time_dependent = bool(cfg.get('time_dependent', False))
+    return ds
+
+
+def _open_dataset(root: Path, cfg: Dict[str, Any]) -> Dataset:
     fmt = (cfg.get('format') or 'auto').lower()
     if fmt == '3dice':
         return _open_3dice(root, cfg)
@@ -278,7 +288,7 @@ def _open_stacks(root: Path, cfg, specs) -> Dataset:
             arr = f.get(key)
             if s.get('reshape'):
                 arr = _Reshaped(arr, s['reshape'])
-            fields[nm] = _Field(nm, arr, s['layout'], s.get('channel'), transpose=bool(s.get('transpose')))
+            fields[nm] = _Field(nm, arr, s['layout'], s.get('channel'), transpose=bool(s.get('transpose')), affine=s.get('affine'))
         except (AdapterError, IndexError) as exc:
             if s.get('optional') and (isinstance(exc, IndexError) or 'not in' in str(exc)):
                 continue

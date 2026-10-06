@@ -41,7 +41,7 @@ def valid():
     return src, solve(src)
 
 
-def solve_k(k, beta=1.0):
+def solve_k(k, beta=1.0, face='harmonic'):
     """-div(k grad u) = beta on an n x n grid, u = 0 just outside, harmonic-mean face k (boundary faces use the cell's own k).
     k: (N, n, n). Returns u (N, n, n)."""
     N, n, _ = k.shape
@@ -56,7 +56,7 @@ def solve_k(k, beta=1.0):
                 for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
                     yy, xx = y + dy, x + dx
                     if 0 <= yy < n and 0 <= xx < n:
-                        kf = 2 * kk[y, x] * kk[yy, xx] / (kk[y, x] + kk[yy, xx])
+                        kf = 2 * kk[y, x] * kk[yy, xx] / (kk[y, x] + kk[yy, xx]) if face == 'harmonic' else 0.5 * (kk[y, x] + kk[yy, xx])
                         A[i, idx[yy, xx]] -= kf
                     else:
                         kf = kk[y, x]
