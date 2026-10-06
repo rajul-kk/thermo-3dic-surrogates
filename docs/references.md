@@ -928,3 +928,25 @@ heterogeneity (silicon dies, epoxy underfill, Cu pillars)" (related-work discuss
 [3D-ICE 4.0, arXiv:2512.05823](https://arxiv.org/abs/2512.05823)). **Verdict:** a new combination
 of known parts, aimed at a documented gap. Any novelty claim should rest on the measured result,
 not the architecture.
+
+## Prior art for the die-edge artefact and the tools (2026-10-06 web scoop check, report §9.32, §9.34)
+
+Provenance: literature search, not our own reasoning. Searched for prior reports of the `.lyt` partial-cell issue,
+of surrogates learning solver artefacts, of linear baselines on layout-randomised chip thermal data, of
+differential testing of thermal solvers, and of the IC-ThermBench orientation mismatch.
+
+- **Zhu, K., Huang, D., Costero, L., & Atienza, D. (2025). 3D-ICE 4.0.** arXiv:2512.05823
+  (already listed above). New relevance: its GDS import uses per-tile intersection-area overlap ratios to build
+  area-weighted equivalent materials. Our `.lyt` route assigns material by cell centre while splitting power by
+  overlap, so the die-edge artefact of §9.32 is an inconsistency inside 3D-ICE (GDS route area-weighted, `.lyt`
+  route not). No public report of the `.lyt` partial-cell issue was found.
+- **"Neural Emulator Superiority" (2025).** arXiv:2510.23111. Shows that neural emulators can filter solver error
+  in rollouts. Closest work found on surrogates and solver artefacts; cited as a contrast. Our result is the
+  converse, for a deterministic, spatially coherent artefact that ThermoNO reproduces, with a paired label-swap
+  causal test. Nothing found on such a projection test.
+- **Hang, D. et al. (2026). IC-ThermBench.** arXiv:2608.23977 (already listed above). New relevance: it randomises
+  layouts (6:2:1:1 modes), but no ridge-versus-layout claim was found, and no public report of its transposed
+  power / k channels (§9.33) was found as of 2026-10-05.
+- Differential testing: simulator comparisons exist (ATSim3.5D against Icepak and HotSpot; 3D-ICE 4.0 against
+  HotSpot and COMSOL), but as accuracy benchmarks, not as a bug-finding tool with an independent discretisation.
+  `iceforge diff` is novel as a tool, not as a comparison.
