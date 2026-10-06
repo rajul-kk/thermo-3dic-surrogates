@@ -76,6 +76,12 @@ CONTROL = [
                            'source': {'key': 'X', 'layout': 'NHW', 'reshape': [1, 1024]}}}),
 ]
 
+TUNING2 = TUNING + HELDOUT           # v2: the v1 tuning sets plus the two Darcy files, which the v1 held-out run has made seen
+HELDOUT2 = [('fno_darcy_128', 'heldout', DATA / '_external/fno_darcy/darcy_test_128.npz', 'fno_darcy', {'units': ''})]
+_CTL_TD = lambda spec: (spec[0] + '+time_dependent_flag', spec[1], spec[2], spec[3],        # noqa: E731
+                        {**spec[4], 'cfg': {**spec[4].get('cfg', {}), 'time_dependent': True}})
+CONTROL2 = CONTROL + [_CTL_TD(s) for s in CONTROL]
+
 FAULTS = ['transpose', 'flip_x', 'flip_y', 'roll1', 'roll2', 'roll3', 'shift_index', 'unit_slip', 'cross_dup',
           'transpose@20', 'flip_x@20', 'flip_y@20', 'roll1@20', 'shift_index@20']
 
@@ -109,6 +115,7 @@ def wrap(ds: Dataset, transform, name=None) -> Dataset:
         return transform(i, s)
     out = Dataset(ds.n, loader, name or ds.name, ds.units, ds.field_shapes)
     out._keep = getattr(ds, '_keep', None)
+    out.time_dependent = ds.time_dependent
     return out
 
 
@@ -193,10 +200,10 @@ def code_hash() -> dict:
     return {f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
 
 
-def load_frozen() -> tuple[Options, dict]:
-    p = RESULTS / 'frozen_thresholds.json'
+def load_frozen(version: str = '') -> tuple[Options, dict]:
+    p = RESULTS / f'frozen_thresholds{version}.json'
     if not p.exists():
-        sys.exit('refusing to run: results/frozen_thresholds.json does not exist (run --stage freeze after tuning)')
+        sys.exit('refusing to run: results/frozen_thresholds{version}.json does not exist (run the matching freeze stage first)')
     fr = json.loads(p.read_text())
     now = code_hash()
     changed = [k for k, v in fr['code_sha256'].items() if now.get(k) != v]
@@ -259,9 +266,20 @@ def markdown(blocks: dict, opt: dict, frozen_ts: str) -> str:
     return '\n'.join(lines)
 
 
+def controls_md(path, title) -> str:
+    nl = chr(10)
+    out = [nl + '## ' + title, '', '| dataset | ' + ' | '.join(RULE_CODES) + ' |', '|---|' + '---|' * len(RULE_CODES)]
+    for r in json.loads(Path(path).read_text()):
+        cells = [r['clean'][c]['status'] + (f" ({r['clean'][c]['severity']})" if r['clean'][c]['severity'] != 'none' else '')
+                 for c in RULE_CODES]
+        out.append(f"| {r['name']} | " + ' | '.join(cells) + ' |')
+    return nl.join(out) + nl
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--stage', required=True, choices=['explore', 'freeze', 'tuning', 'heldout', 'control', 'posthoc', 'report'])
+    ap.add_argument('--stage', required=True, choices=['explore', 'freeze', 'tuning', 'heldout', 'control', 'posthoc', 'report',
+                                           'freeze2', 'tuning2', 'heldout2', 'control2', 'report2'])
     ap.add_argument('--only', help='comma separated dataset-name substrings')
     ap.add_argument('--faults', help='comma separated subset of faults')
     ap.add_argument('--out', help='output directory for explore (default: ./bench_explore)')
@@ -281,6 +299,46 @@ def main(argv=None):
                                  'F009_fractions': [opt['pair_warn'], opt['pair_error']]}}
         (RESULTS / 'frozen_thresholds.json').write_text(json.dumps(out, indent=1))
         log(f'frozen at {out["frozen_at"]}')
+        return 0
+    if a.stage == 'freeze2':
+        opt = dataclasses.asdict(Options())
+        out = {'frozen_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'version': 2, 'tuned_on': [s[0] for s in TUNING2],
+               'held_out_not_yet_run': [s[0] for s in HELDOUT2], 'options': opt, 'code_sha256': code_hash(),
+               'v1_frozen_file_untouched': 'frozen_thresholds.json',
+               'fixed_in_code': {'F003_fire_fractions': [0.1, 0.5], 'F008_fire_fractions': [0.1, 0.5],
+                                 'F009_fractions': [opt['pair_warn'], opt['pair_error']]}}
+        (RESULTS / 'frozen_thresholds_v2.json').write_text(json.dumps(out, indent=1))
+        log(f'frozen v2 at {out["frozen_at"]}')
+        return 0
+    if a.stage == 'report2':
+        fr = json.loads((RESULTS / 'frozen_thresholds_v2.json').read_text())
+        blocks = {}
+        for nm, title in (('tuning_v2', 'v2 TUNING datasets (v1 tuning sets + both PDEBench Darcy files)'),
+                          ('heldout_v2', 'v2 FRESH HELD-OUT dataset (FNO-paper Darcy, Zenodo 12784353; never looked at before the v2 freeze)')):
+            p = RESULTS / f'{nm}.json'
+            blocks[title] = json.loads(p.read_text()) if p.exists() else []
+        md = markdown(blocks, fr['options'], fr['frozen_at'])
+        ctl = RESULTS / 'control_v2.json'
+        if ctl.exists():
+            md += controls_md(ctl, 'v2 out-of-scope controls (clean files, no faults)')
+        (RESULTS / 'bench_results_v2.md').write_text(md)
+        log(md)
+        return 0
+    if a.stage in ('tuning2', 'heldout2', 'control2'):
+        opt, fr = load_frozen('_v2')
+        if a.stage == 'control2':
+            recs = []
+            for s in select(CONTROL2):
+                base = with_splits(build_clean(s))
+                recs.append({'name': s[0], 'group': 'control', 'n': base.n, 'units': base.units, 'faults': {},
+                             'clean': summarise(base, opt)})
+                base.close()
+                log(f'  {s[0]} done')
+            (RESULTS / 'control_v2.json').write_text(json.dumps(recs, indent=1, default=float))
+        else:
+            specs = TUNING2 if a.stage == 'tuning2' else HELDOUT2
+            recs = [run_dataset(s, opt, faults, log) for s in select(specs)]
+            (RESULTS / f'{a.stage[:-1]}_v2.json').write_text(json.dumps(recs, indent=1, default=float))
         return 0
     if a.stage == 'explore':
         opt, outdir = Options(), Path(a.out or 'bench_explore')

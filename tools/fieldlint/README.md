@@ -69,7 +69,7 @@ axes are squeezed, so fields are `(Y, X)` or `(Z, Y, X)`.
 Presets: `ictherm` (IC-ThermBench S2-S5 as released: `input.mat` channel 0 power, channel 3 conductivity when present,
 `output.mat` temperature, the benchmark's own index split), `thermfm` (Therm-FM steady HotSpot sets, channel 0 power),
 `3dice` (this project's `.npz` files: scattered node coordinates are scattered onto the `(z, y, x)` tensor grid; split
-from the file name), `darcy` (PDEBench 2D Darcy `.npz`: flattened `X` = k and `Y` = u reshaped to 128 x 128, the uniform
+from the file name), `fno_darcy` (FNO-paper Darcy, NeuralOperator release; see the v2 section), `darcy` (PDEBench 2D Darcy `.npz`: flattened `X` = k and `Y` = u reshaped to 128 x 128, the uniform
 source beta read from the file name). Field specs also accept `reshape: [H, W]` for flattened arrays, and the config accepts
 `source_uniform` (a number, or `{filename_regex: ...}`) for a constant source.
 
@@ -84,12 +84,15 @@ source beta read from the file name). Field specs also accept `reshape: [H, W]` 
 | F005 | range-units | constant fields; K/C range plausibility; u below ambient with non-negative source; k <= 0; zero source | error / warning |
 | F006 | linearity-probe | held-out R^2 of a ridge fit from the source field to u (informational) | info only |
 | F007 | energy-balance | heat out / heat in = 1 within 1%; only when `flux_out` is supplied | error |
-| F008 | operator-residual | fit of s ~ a(-div k grad u) + b(u - c) (conservative 5-point stencil, harmonic face k) per z-layer; R^2 as stored vs transposed / flipped / shifted 1-3 cells; also works when the source is uniform and only k varies | warning >= 10% of samples, error >= 50% |
+| F008 | operator-residual | fit of s ~ a(-div k grad u) + b(u - c) (conservative 5-point stencil, face k harmonic / arithmetic / geometric chosen per dataset) per z-layer; R^2 as stored vs transposed / flipped / shifted 1-3 cells; also works when the source is uniform and only k varies | warning >= 10% of samples, error >= 50% |
 | F009 | pairing | M = 32 samples: F008's R^2 for every (inputs_i, u_j); the diagonal must be the best match of its row | warning >= 25% of rows, error >= 50% |
 
 F008 and F009 skip (with the reason) when the operator model explains a median R^2 below 0.3 in every orientation, when
 neither the source nor k varies, and for fields that are not 2D or z-stacked 2D. The face conductivity is a convention
-(`Options.op_face_mean`: `harmonic`, the default, or `arithmetic`); see the Darcy result below.
+(`Options.op_face_mean`: since v2 `auto`, the default, which fits `harmonic` / `arithmetic` / `geometric` per dataset and reports the
+choice; or a fixed one); see the Darcy results below. F002, F003, F008 and F009 also skip with an explicit "out of scope" reason
+when the field is effectively 1D (an in-plane axis shorter than 8 cells) or the dataset is flagged time-dependent
+(`time_dependent: true` in the mapping config; no shipped preset loads trajectories).
 
 Each rule's docstring (`fieldlint --list-rules`) gives its physical justification and the cases where it does not apply.
 Rules never guess: a rule that cannot run (no source field, every cell powered, no flux data) reports `skipped`.
@@ -181,6 +184,41 @@ on non-diffusion data as meaningless. The new rules stay out of the way.
 **HS_SC (Therm-FM).** Its negative plain correlation (-0.31 stored, +0.37 after flipping y) remains unexplained. F008 rules out
 a transposition (R^2 0.006 against 0.19 stored) but cannot adjudicate flips: stored 0.19 against 0.20-0.21 for the three
 flips, a difference inside the noise of a model that explains under a quarter of the variance.
+
+## Round 2 (v2): fitted discretisation, scope gate, fresh held-out
+
+The v1 numbers above stand as measured: the frozen v1 rules failed on their held-out set. v2 changes (all frozen on 2026-10-07T02:15,
+`bench/results/frozen_thresholds_v2.json` with the code SHA-256; the v1 file is untouched) and was then run once on a dataset nobody had looked at:
+
+* F008/F009 choose the face mean per dataset (`auto`): on 32 samples each of harmonic / arithmetic / geometric is scored by the median
+  best-orientation R^2 and the best wins. (Chosen on the best orientation rather than the stored one, so a mis-oriented input cannot decide
+  it; it is still independent of the orientation vote.) It picks arithmetic on both PDEBench Darcy files (R^2 1.00 / 0.99 against 0.19 / 0.17 harmonic).
+* Scope gate: F002/F003/F008/F009 skip as "out of scope" for time-dependent or effectively 1D data.
+* F009 gate unchanged: skipped, not warned. A wrong pairing and an inapplicable operator model both give a diagonal indistinguishable from the
+  off-diagonal scores, so the score matrix alone cannot separate them; a warning there would be a guess.
+* Tuning set = the v1 tuning sets plus both PDEBench Darcy files (seen in v1). Thresholds are otherwise the v1 ones.
+
+| | v1 (frozen, held-out = PDEBench Darcy) | v2 (frozen, fresh held-out = FNO-paper Darcy) |
+|---|---|---|
+| tuning false positives, any rule | 1/18 (IC-ThermBench S2 true duplicates) | 1/20 (same) |
+| F008 transpose / flip_x / flip_y on tuning | 10/15, 13/18, 13/18 (5 skips) | 13/17, 16/20, 16/20 (4 skips) |
+| F008 roll 1 / 2 / 3 cells on tuning | 8/18, 12/18, 13/18 | 13/20, 15/20, 16/20 |
+| F009 index shift on tuning | 12/18 (6 skips) | 12/20 (8 skips) |
+| any-rule on tuning: transpose / flip_x / flip_y / index shift / unit slip / duplicates | 15/15, 18/18, 16/18, 16/18, 15/18, 18/18 | 17/17, 20/20, 18/20, 16/20, 15/18, 20/20 |
+| held-out F008 / F009 | skipped on both files (R^2 0.19 / 0.16 < gate): **failed** | **skipped on the one file (R^2 0.03): not informative** |
+| held-out false positives | 0/2 (nothing ran) | 0/1 (nothing ran) |
+| controls: Burgers 1 x 1024 | F002 error, F003 warning (false alarms) | all skipped, "out of scope: effectively 1D" |
+| controls: diffusion-reaction | F008/F009 skipped | F002/F008/F009 skipped; with `time_dependent` also F003 skipped |
+
+(Full v2 tables: `bench/results/bench_results_v2.md`; v1: `bench/results/bench_results.md`. The v1 stage code path is kept, but its
+hash check now fails because the rules changed.)
+
+**Fresh held-out, FNO-paper Darcy** (Li et al. 2020; NeuralOperator release, Zenodo record 12784353, DOI 10.5281/zenodo.12784353, CC-BY-4.0,
+`darcy_128.tgz`, `darcy_test_128.pt`, 1000 samples, converted to `.npz`; stored under `data/_external/fno_darcy/`). F008 and F009 skipped: the operator
+explains a median R^2 of only 0.03 with any face mean. The released low-resolution file is processed (a is binary, u rescaled, the 128 grid is
+resampled from the 421 grid the PDE was solved on); a post-hoc probe with a = 3 + 9x and a = 12 - 9x and all three face means gave R^2 <= 0.033, so it is
+not a convention problem the fitted choice can absorb. F002/F003 skip (uniform source). Only F004 acts (cross-split duplicates 1/1). This held-out
+test therefore says nothing about F008's detection rate; the only held-out evidence that F008 works on k-only data remains the post-hoc PDEBench result above.
 
 ## Limitations
 
