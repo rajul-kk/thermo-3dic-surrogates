@@ -114,7 +114,8 @@ def cmd_diff(a) -> int:
     log = lambda *x: print(*x, file=sys.stderr)  # noqa: E731
     try:
         rep = D.run_diff(a.model, r=a.r, nz=a.nz, tol=a.tol, ice_npz=a.ice_npz, backend=a.backend,
-                         exe=a.exe, outdir=a.output, method=a.method, log=log)
+                         exe=a.exe, outdir=a.output, method=a.method, log=log, with_hotspot=a.with_hotspot,
+                         hotspot_exe=a.hotspot_exe, hotspot_r=a.hotspot_r, hotspot_grid=a.hotspot_grid)
     except R.RefusedModel as e:
         print(f"diff: refused: {e}", file=sys.stderr)
         return 2
@@ -227,6 +228,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-o", "--output", help="directory for the 3D-ICE run (default: a temp dir)")
     s.add_argument("--method", choices=["auto", "amg", "direct", "cg"], default="auto",
                    help="linear solver (auto: pyamg-preconditioned CG if pyamg is installed)")
+    s.add_argument("--with-hotspot", action="store_true",
+                   help="also solve the stack with HotSpot (grid model) and print a 3-way comparison")
+    s.add_argument("--hotspot-exe", help="HotSpot executable, e.g. 'wsl /home/u/HotSpot/hotspot' (or $HOTSPOT_EXECUTABLE); "
+                                         "needs a build with SUPERLU=1")
+    s.add_argument("--hotspot-r", type=int, default=1,
+                   help="HotSpot grid = smallest power of two >= r x the 3D-ICE cells per axis (default 1)")
+    s.add_argument("--hotspot-grid", type=int, help="force the HotSpot grid size (power of two, both axes)")
     s.add_argument("--plot", metavar="PNG", help="write a comparison figure (needs matplotlib)")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_diff)

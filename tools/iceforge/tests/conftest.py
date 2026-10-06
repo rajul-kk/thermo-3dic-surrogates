@@ -32,6 +32,16 @@ def _backend_available():
         return None
 
 
+def _hotspot_unavailable():
+    """None when a HotSpot build that passes iceforge's convergence self-test is available, else the reason."""
+    try:
+        from iceforge import hotspot
+        err, _ = hotspot.preflight()
+        return err
+    except Exception as e:
+        return str(e)
+
+
 def pytest_collection_modifyitems(config, items):
     if any("solver" in it.keywords for it in items):
         if _backend_available() is None:
@@ -39,3 +49,15 @@ def pytest_collection_modifyitems(config, items):
             for it in items:
                 if "solver" in it.keywords:
                     it.add_marker(skip)
+
+
+_HS = {}
+
+
+def pytest_runtest_setup(item):
+    """Skip a hotspot-marked test (lazily, so the self-test only runs when one is about to run)."""
+    if "hotspot" in item.keywords:
+        if "why" not in _HS:
+            _HS["why"] = _hotspot_unavailable()
+        if _HS["why"]:
+            pytest.skip("no usable HotSpot (set HOTSPOT_EXECUTABLE to a SUPERLU=1 build): " + _HS["why"][:120])

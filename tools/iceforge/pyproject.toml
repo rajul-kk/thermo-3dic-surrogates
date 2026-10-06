@@ -23,4 +23,7 @@ iceforge = "iceforge.cli:main"
 packages = ["iceforge"]
 
 [tool.pytest.ini_options]
-markers = ["solver: needs a working 3D-ICE backend (WSL, native, or docker)"]
+markers = [
+    "solver: needs a working 3D-ICE backend (WSL, native, or docker)",
+    "hotspot: needs a HotSpot build with SuperLU (HOTSPOT_EXECUTABLE='wsl /path/hotspot')",
+]
