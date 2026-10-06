@@ -1551,6 +1551,12 @@ is honestly reported as their headline finding. But "structural OOD transfer is 
 unsolved" is a much sharper statement when the reference point is a predictor with no
 parameters at all, and supplying that reference point costs seconds.
 
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** The mechanism (chip thermal is linear in power for a fixed
+stack) is classical, and the general weak-baseline critique is McGreivy & Hakim (2024, arXiv:2407.07218). That layout
+randomisation breaks a fixed linear map is close to true by construction; what this project contributes is the measurement on
+real 3D-ICE data and its use as a benchmark-design diagnostic. No paper reporting ridge-versus-layout on chip-thermal data
+was found (IC-ThermBench, arXiv:2608.23977, has no non-neural row).
+
 ### 9.14 Why our benchmark is linear-solvable and theirs is not — and why that is a criticism of ours (2026-09-11)
 
 §9.13 leaves an obvious question: ridge is competitive on our data and loses badly on theirs,
@@ -4229,6 +4235,15 @@ ThermoNO training: 4476 / 2116 / 1826 s per fold on CPU (geometry4 / 5 / 6).
 - §9.20's conformal results use fixed-placement geometry1/6 and the untouched geometry1 layout data,
   so they are unaffected. The re-run gives coverage of 87.3–93.3%, matching the v5 summary.
 
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** The general claim that surrogates trained on discretised
+simulation data learn the discretisation's artefacts is already published (Mohan, Chattopadhyay & Miller 2024,
+arXiv:2411.15101; Neural Emulator Superiority, arXiv:2510.23111, treats it as a known failure mode). What this section adds
+is a specific, understood bug class in a steady-state chip-thermal setting and a paired label-swap projection test with
+pre-registered thresholds; we found no prior paired test, though only abstracts of the closest works were read. For the
+`.lyt` rule itself, no public report was found; the 3D-ICE 4.0 paper (arXiv:2512.05823) describes area-overlap equivalent
+materials only for its GDS tile extraction and says nothing about `.lyt`, so "inconsistent with the GDS route" is an
+inference, not a documented fact.
+
 ### 9.33 Linting public datasets: the IC-ThermBench orientation mismatch (2026-10-05)
 
 The dataset linter (`scripts/lint_dataset.py`, `src/validation/lint.py`; external formats in
@@ -4439,6 +4454,13 @@ Darcy), and no detection or false-positive rates had been measured.
   on PDEBench Darcy failed for F008/F009 as frozen (above), so generalisation is not established; round 2 uses
   a fresh held-out set.
 - fieldlint covers steady, non-negative-source diffusion problems only. F006 is a screening heuristic.
+
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** Differential testing and code-to-code comparison of
+independent simulators are standard verification practice, and metamorphic testing of PDE programs dates to Chen, Feng & Tse
+(COMPSAC 2002); a HotSpot grid-model bug was exposed by model disagreement. `iceforge diff` is therefore a tool and an
+application, not a new technique. For `fieldlint`, no PDE-dataset linter was found; the nearest works audit trained models
+(arXiv:2606.18200, arXiv:2606.17529) or give general frameworks (FlowMLLab, arXiv:2609.27975). The search could not index
+GitHub or PyPI, so this is weak evidence of absence.
 
 ## 11. Conclusion
 
