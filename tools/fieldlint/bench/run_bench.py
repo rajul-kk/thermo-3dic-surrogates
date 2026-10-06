@@ -78,6 +78,7 @@ CONTROL = [
 
 TUNING2 = TUNING + HELDOUT           # v2: the v1 tuning sets plus the two Darcy files, which the v1 held-out run has made seen
 HELDOUT2 = [('fno_darcy_128', 'heldout', DATA / '_external/fno_darcy/darcy_test_128.npz', 'fno_darcy', {'units': ''})]
+HELDOUT2B = [('fno_darcy_native421', 'heldout', DATA / '_external/fno_darcy/piececonst_r421_N1024_smooth1_sample100.hdf5', 'fno_darcy_native', {'units': ''})]
 _CTL_TD = lambda spec: (spec[0] + '+time_dependent_flag', spec[1], spec[2], spec[3],        # noqa: E731
                         {**spec[4], 'cfg': {**spec[4].get('cfg', {}), 'time_dependent': True}})
 CONTROL2 = CONTROL + [_CTL_TD(s) for s in CONTROL]
@@ -279,7 +280,7 @@ def controls_md(path, title) -> str:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--stage', required=True, choices=['explore', 'freeze', 'tuning', 'heldout', 'control', 'posthoc', 'report',
-                                           'freeze2', 'tuning2', 'heldout2', 'control2', 'report2'])
+                                           'freeze2', 'tuning2', 'heldout2', 'heldout2b', 'control2', 'report2'])
     ap.add_argument('--only', help='comma separated dataset-name substrings')
     ap.add_argument('--faults', help='comma separated subset of faults')
     ap.add_argument('--out', help='output directory for explore (default: ./bench_explore)')
@@ -314,7 +315,8 @@ def main(argv=None):
         fr = json.loads((RESULTS / 'frozen_thresholds_v2.json').read_text())
         blocks = {}
         for nm, title in (('tuning_v2', 'v2 TUNING datasets (v1 tuning sets + both PDEBench Darcy files)'),
-                          ('heldout_v2', 'v2 FRESH HELD-OUT dataset (FNO-paper Darcy, Zenodo 12784353; never looked at before the v2 freeze)')):
+                          ('heldout_v2', 'v2 FRESH HELD-OUT dataset (FNO-paper Darcy, Zenodo 12784353; never looked at before the v2 freeze)'),
+                          ('heldout_native_v2', 'v2 FRESH HELD-OUT dataset, native 421 grid (Li et al. 2020 piececonst_r421_N1024_smooth1, HF LDA1020/codepde-data; frozen v2 thresholds, hash-checked)')):
             p = RESULTS / f'{nm}.json'
             blocks[title] = json.loads(p.read_text()) if p.exists() else []
         md = markdown(blocks, fr['options'], fr['frozen_at'])
@@ -324,7 +326,7 @@ def main(argv=None):
         (RESULTS / 'bench_results_v2.md').write_text(md)
         log(md)
         return 0
-    if a.stage in ('tuning2', 'heldout2', 'control2'):
+    if a.stage in ('tuning2', 'heldout2', 'heldout2b', 'control2'):
         opt, fr = load_frozen('_v2')
         if a.stage == 'control2':
             recs = []
@@ -336,9 +338,9 @@ def main(argv=None):
                 log(f'  {s[0]} done')
             (RESULTS / 'control_v2.json').write_text(json.dumps(recs, indent=1, default=float))
         else:
-            specs = TUNING2 if a.stage == 'tuning2' else HELDOUT2
+            specs = {'tuning2': TUNING2, 'heldout2': HELDOUT2, 'heldout2b': HELDOUT2B}[a.stage]
             recs = [run_dataset(s, opt, faults, log) for s in select(specs)]
-            (RESULTS / f'{a.stage[:-1]}_v2.json').write_text(json.dumps(recs, indent=1, default=float))
+            (RESULTS / f"{a.stage[:-1] if a.stage != 'heldout2b' else 'heldout_native'}_v2.json").write_text(json.dumps(recs, indent=1, default=float))
         return 0
     if a.stage == 'explore':
         opt, outdir = Options(), Path(a.out or 'bench_explore')

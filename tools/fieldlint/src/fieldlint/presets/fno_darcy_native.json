@@ -1,0 +1,11 @@
+{
+  "name": "fno_darcy_native",
+  "_comment": "Original Li et al. 2020 Darcy flow (piececonst_r421_N1024_smooth1) on its native 421 x 421 solver grid, as redistributed in the Hugging Face dataset LDA1020/codepde-data (darcy/piececonst_r421_N1024_smooth1_sample100.hdf5, 100 samples). coeff: a in {3, 12} (uint8), sol: u (float64), -div(a grad u) = 1 with u = 0 on the boundary.",
+  "format": "h5",
+  "units": "",
+  "ambient": 0.0,
+  "u": {"key": "sol", "layout": "NHW"},
+  "k": {"key": "coeff", "layout": "NHW"},
+  "source_uniform": 1.0,
+  "splits": "none"
+}

@@ -220,6 +220,21 @@ resampled from the 421 grid the PDE was solved on); a post-hoc probe with a = 3 
 not a convention problem the fitted choice can absorb. F002/F003 skip (uniform source). Only F004 acts (cross-split duplicates 1/1). This held-out
 test therefore says nothing about F008's detection rate; the only held-out evidence that F008 works on k-only data remains the post-hoc PDEBench result above.
 
+**Second fresh held-out, native grid** (run under the v2 hash check, frozen v2 thresholds unchanged; the only code-side addition is the new
+preset file `fno_darcy_native.json`, which the hash check does not cover as it only verifies the frozen files). Source: the original Li et al. 2020
+Darcy flow `piececonst_r421_N1024_smooth1` on its native 421 x 421 solver grid, as redistributed in the Hugging Face dataset
+`LDA1020/codepde-data`, file `darcy/piececonst_r421_N1024_smooth1_sample100.hdf5` (100 samples; sha256
+`7032793a1a61f33f6945031252ad8edeeea32b930037ed2bf2ad6bb905486a07`, equal to the repository's LFS id). Checked as native: `coeff` is uint8 with values
+{3, 12} only, `sol` is float64, both 421 x 421, solution near zero on the border. Result (1 dataset, so each cell is 0/1 or 1/1): the fitted face mean is
+arithmetic; F008's median R^2 on the stored data is only 0.31 (0.02 transposed or flipped), just above the 0.3 gate, so the original solver's discretisation is
+matched only loosely. False positives 0/1. F008 detects transpose, flip_x, flip_y and roll 1, 2, 3 (each 1/1). It skips (R^2 below the gate) on
+the 20%-contaminated variants and on the index shift, and F009 skips on every fault. So on data on its solver grid F008 works for whole-dataset faults, with a
+margin so thin that partial contamination drops it below the applicability gate. Full numbers: `bench/results/bench_results_v2.md`.
+
+**Scope statement.** F008/F009 apply only to data stored on the solver's native grid, with a known (or fitted) face-conductivity convention, and only
+while the operator explains a median R^2 of at least 0.3. The first fresh held-out file (the NeuralOperator 128 x 128 release, resampled from the 421 grid
+with rescaled fields) violates the first condition, which is why that test was uninformative; the native file above does not.
+
 ## Limitations
 
 * Scope is steady, non-negative-source diffusion-type problems. Time-dependent, advective or sink-dominated problems
