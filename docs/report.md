@@ -3897,6 +3897,17 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
     also why §9.28 attributed the backbone's 2–3 K peak error to physics.
   - It took a solver with exact material regions (the warpage FE model) to expose it.
 
+**Prior art and positioning (web search, 2026-10-06; literature, not our own reasoning).**
+- The 3D-ICE 4.0 paper (arXiv:2512.05823) describes its GDS import as using per-tile intersection-area overlap
+  ratios to build area-weighted equivalent materials. Our `.lyt` path assigns material by cell centre while
+  power is split by overlap. So the cell-centre rule is inconsistent within 3D-ICE itself: the GDS route is
+  area-weighted and the `.lyt` route is not. This is a stronger framing for the maintainer note than "an
+  unusual convention". We found no public report of the `.lyt` partial-cell issue.
+- Closest work on surrogates and solver artefacts: "Neural Emulator Superiority" (arXiv:2510.23111) shows that
+  emulators can *filter* solver error in rollouts. Our result is the converse, for a deterministic, spatially
+  coherent artefact (ThermoNO reproduces it, see the projection test below), and is supported by a paired causal
+  test. We found nothing on a paired label-swap projection test.
+
 **Extent.**
 - It affects all 135 layout-randomised geometry4–6 solves. Fixed-placement data is clean.
 - In the old data, the hottest cell was an *unpowered* edge cell in 28 / 36 / 35 of 45 samples
@@ -4066,36 +4077,41 @@ bound > 0.2; *not learned* if the CI upper bound is < 0.1 and it overlaps the nu
 *inconclusive*. CIs are 95% bootstrap over held-out scenarios. The headline compares each seed singly. Seeds: 3
 for ThermoNO and FNO, 2 for CNO-FNO-attn.
 
-**The Kaggle kernel hit the 12 h limit.** The results are from incrementally saved folds, so the fold counts
-differ (column "folds"). ThermoNO geometry4 has 2 of 5 folds (n = 18), FNO geometry4 has 1 of 5 (n = 9), and
-CNO-FNO-attn geometry6 has 4 of 5 (n = 36). All other cells have 5 of 5 (n = 45).
+**Folds.** The first Kaggle kernel hit the 12 h limit with some folds missing. The missing folds were run in a
+resume kernel with the same script, hyper-parameters and seeds; every unit now has 5 of 5 folds (n = 45). The old
+partial results are kept in `results/artefact_projection/_pre_resume/`. No decision changed from the partial
+results; the ThermoNO and FNO geometry4 estimates did (below).
 
 | model | geometry | folds | seed-mean beta [95% CI] | null N-N [95% CI] | per-seed beta | decision |
 |---|---|---|---|---|---|---|
-| ThermoNO | geometry4 | 2/5 | 0.77 [0.59, 1.02] | -0.01 [-0.06, 0.05] | 0.77 / 0.79 / 0.76, all learned | **learned** |
+| ThermoNO | geometry4 | 5/5 | 0.95 [0.73, 1.23] | 0.08 [0.03, 0.15] | 0.89 / 1.01 / 0.97, all learned | **learned** |
 | | geometry5 | 5/5 | 0.77 [0.63, 0.97] | 0.00 [-0.01, 0.01] | 0.75 / 0.81 / 0.76, all learned | **learned** |
 | | geometry6 | 5/5 | 0.80 [0.74, 0.87] | 0.01 [0.00, 0.02] | 0.77 / 0.80 / 0.83, all learned | **learned** |
-| FNO | geometry4 | 1/5 | 0.44 [0.19, 0.77] | 0.39 [0.13, 0.71] | -0.15 / 0.51 / 0.96, all inconclusive | inconclusive (n = 9) |
+| FNO | geometry4 | 5/5 | 0.35 [0.20, 0.50] | -0.02 [-0.24, 0.18] | 0.38 / 0.52 / 0.15, all inconclusive | inconclusive |
 | | geometry5 | 5/5 | 0.06 [-0.09, 0.19] | 0.34 [-0.02, 0.73] | 0.11 / -0.20 / 0.27, all inconclusive | inconclusive |
 | | geometry6 | 5/5 | 0.26 [0.15, 0.38] | 0.07 [-0.21, 0.33] | 0.23 / 0.25 / 0.30, all inconclusive | inconclusive |
 | CNO-FNO-attn | geometry5 | 5/5 | 0.06 [-0.32, 0.40] | 0.03 [-0.48, 0.60] | 0.01 / 0.11, all inconclusive | inconclusive |
-| | geometry6 | 4/5 | 0.29 [0.01, 0.61] | 0.26 [-0.08, 0.68] | 0.33 / 0.25, all inconclusive | inconclusive |
+| | geometry6 | 5/5 | 0.34 [0.08, 0.61] | 0.19 [-0.11, 0.53] | 0.47 / 0.21, all inconclusive | inconclusive |
 
 Reading (the data are measured; the interpretation is ours):
-- **ThermoNO learned the artefact.** Seed-mean beta is 0.77-0.80 on all three geometries. Each of the three seeds
-  is individually "learned". The same-label nulls are about 0 (|mean| <= 0.03 for N-N and O-O). The Wilcoxon p
-  against N-N is 7.6e-6 on geometry4 and 5.7e-14 on geometry5 and geometry6. Restricted to the support of the
-  artefact (|D| > 0.1 K), beta_s is 0.82-0.86. Both arms use the corrected inputs, so this removes the
-  input-shift confound of A2: held-out ThermoNO predictions reproduce about 80% of the artefact's amplitude.
-  Geometry4 rests on 2 of 5 folds and is the weakest cell, but its point estimate matches the other two.
-- **FNO and CNO-FNO-attn: inconclusive, not "not learned".** The same-label seed-to-seed null is wide (FNO
-  geometry5 N-N CI [-0.02, 0.73]): seed noise is large relative to any artefact these models could
-  reproduce. The test lacks power at this noise level. FNO geometry4 has one fold and is not interpretable.
+- **ThermoNO learned the artefact.** Seed-mean beta is 0.95 on geometry4 (CI [0.73, 1.23]), 0.77 on geometry5 and
+  0.80 on geometry6. Each of the three seeds is individually "learned" on every geometry. The same-label nulls
+  are about 0 (N-N means 0.08, 0.00, 0.01). The Wilcoxon p against N-N is 5.7e-14 on all three geometries.
+  Restricted to the support of the artefact (|D| > 0.1 K), beta_s is 1.09 / 0.84 / 0.82. Both arms use the
+  corrected inputs, so this removes the input-shift confound of A2: held-out ThermoNO predictions reproduce
+  roughly 80-95% of the artefact's amplitude.
+- **FNO: a partial reproduction, not "learned".** On geometry4 and geometry6 the seed-mean beta CI lies above
+  zero (0.35 [0.20, 0.50] and 0.26 [0.15, 0.38]) and, on geometry4, the Wilcoxon p against N-N is 0.004. It still
+  misses the pre-registered "learned" bar: on geometry4 one seed has beta 0.15, below the 0.2 lower bound the
+  rule requires, and the per-seed rule needs all seeds to agree. On geometry5 beta is 0.06 and the null CI is
+  wide ([-0.02, 0.73]). The decision is inconclusive on all three, and we do not call FNO "learned".
+- **CNO-FNO-attn: inconclusive, not "not learned".** Geometry5 beta is 0.06; geometry6 is 0.34 [0.08, 0.61]
+  (p vs N-N 0.059), with a null CI that overlaps it. Two seeds only. The test lacks power at this noise level.
 - Secondary, exploratory: the support-restricted correlation corr_s of FNO is above its null on geometry5
-  (0.22, p = 6.5e-5) and geometry6 (0.35, p = 5e-9). This suggests at most a weak partial reproduction. It does
-  not meet the pre-registered rule and we do not call it learning.
-- The A1 result for ThermoNO therefore holds under a paired test. The FNO family stays untested at its noise
-  level. No claim about neural operators in general follows.
+  (0.22, p = 6.5e-5) and geometry6 (0.35, p = 5e-9). This is consistent with a weak partial reproduction. It
+  does not meet the pre-registered rule.
+- The A1 result for ThermoNO therefore holds under a paired test on all three geometries. The FNO family shows at
+  most a partial reproduction at its noise level. No claim about neural operators in general follows.
 
 **FNO A1/A2 (single seed): inconclusive.**
 `results/fno_artefact/fno_artefact/geometry{5,6}_seed0.json`. This is the fair protocol
@@ -4202,12 +4218,12 @@ ThermoNO training: 4476 / 2116 / 1826 s per fold on CPU (geometry4 / 5 / 6).
 - Neural results on layout geometry4–6 other than ThermoNO (3 seeds) were trained on the old data and need a
   rerun on the new dataset version. Two of these have since been run:
   - the FNO A1/A2 run (above): inconclusive;
-  - the paired projection test (above): ThermoNO learned the artefact, FNO and CNO-FNO-attn inconclusive;
+  - the paired projection test (above, 5/5 folds in every unit): ThermoNO learned the artefact, FNO and CNO-FNO-attn inconclusive;
   - the older-protocol FNO / LT-FNO / CNO-FNO-attn notebook (absolute target; geometry4 and geometry6 only;
     kernel `fno-ltfno-cnofno-geometry4-6`), now on corrected data (§9.27, "Same notebook on corrected data");
   - the fair-protocol FNO notebook pair (`notebooks/kaggle_fno_fair_a/b.ipynb`), now on corrected data
     (§9.27, "Fair protocol on corrected data").
-  No neural rerun is pending. Some cells are partial (fold counts above, seed counts in §9.27).
+  No neural rerun is pending. Some cells are partial (seed counts in §9.27).
 - §9.20's conformal results use fixed-placement geometry1/6 and the untouched geometry1 layout data,
   so they are unaffected. The re-run gives coverage of 87.3–93.3%, matching the v5 summary.
 
@@ -4303,26 +4319,123 @@ neighbour over its full height (k A / h) instead of half of it (k A / (h/2)), so
 the outer face. A reference solver that emulates this rule reproduces 3D-ICE to 0.005 K. `diff` reports flagged cells that
 match the emulation as explained, and only unexplained cells decide the verdict.
 
+**iceforge diff on archived real data (2026-10-07).**
+The one-die repro above is synthetic. `scripts/iceforge_realdata_diff.py` runs `diff` on real archived solves:
+8 scenarios per geometry for geometry4-6 (sorted names, every k-th), taken from
+`data/_archive_pre_snap_20260930/`. Each stack is rebuilt twice from the metadata, once with the original
+(pre-snap) placement offsets and once with the snapped offsets. Results: `results/iceforge_realdata/`
+(`summary.md`, per-case JSON). Pre-registered expectation: pre-snap DISAGREE with flagged cells at or next to die
+edges, snapped AGREE.
+- Snapped: 24 / 24 AGREE.
+- Pre-snap (orig): 23 / 24 DISAGREE. The one miss is geometry4 train_021: 3D-ICE peak rise 35.133 K against a
+  reference 35.093 K (a 0.04 K effect), max |dT| 0.81 K, below the verdict threshold of
+  max(0.02 x rise = 0.70 K, 3x the reference's own r-vs-2r change). That is a mild artefact below the
+  resolution of `diff` at r = 2. `iceforge check` raised S001 and S003 on it statically, so the pre-solve lint
+  catches it where the solve-and-compare does not. `diff` confirms only thermally material cases at this
+  resolution.
+- Sanity: 3D-ICE's peak rise matches the archived npz peak (original arm) and the corrected npz peak (snapped
+  arm) to within 0.05 K in 48 / 48 cases.
+
+Verdict counts (n = 8 per row). `own` is the pre-registered rule: the die-edge mask comes from each layer's own
+floorplan / layout edges. `union` is a **post-hoc** rule, added after seeing the data: the in-plane union of all
+layers' edges.
+
+| geometry | arm | own AGREE | own die-edge | own diffuse | union AGREE (post-hoc) | union die-edge (post-hoc) | union diffuse (post-hoc) |
+|---|---|---|---|---|---|---|---|
+| geometry4 | orig | 1 | 2 | 5 | 1 | 6 | 1 |
+| geometry4 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+| geometry5 | orig | 0 | 1 | 7 | 0 | 8 | 0 |
+| geometry5 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+| geometry6 | orig | 0 | 1 | 7 | 0 | 8 | 0 |
+| geometry6 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+
+Totals, orig arm: own rule 4 die-edge + 19 diffuse; union rule (post-hoc) 22 die-edge + 1 diffuse.
+
+Why the own rule says "diffuse": the artefact does not stay in the layer whose edge causes it. The heated gap cell
+spills vertically into a neighbouring layer that has no edges of its own at that position, so the own rule, which
+tests each layer against its own edges, labels those flagged cells as interior. The union rule tests against the
+edges of every layer. It was added after the own rule produced mostly "diffuse" labels, so the union counts
+are post-hoc and the own counts are the pre-registered ones. The vertical-spill reading is our interpretation; the
+distance statistics below do not depend on either rule.
+
+Distance of the flagged (unexplained) cells to the nearest union edge, orig arm, pooled over the 24 cases
+(post-hoc, chessboard distance in cells): 0 cells 10,726; 1 cell 2,159; 2 cells 119; 3 cells 24; none beyond 3.
+Of the 13,028 flagged cells, 100% lie within 3 cells of a die edge and 98.9% within 1 cell. The only case still
+labelled "diffuse" under the union rule is geometry4 train_002 (13.4 K peak excess: archived 65.71 K against
+52.75 K corrected). It has no interior flagged cell, but 76 of its 304 flagged cells are 1-3 cells from an edge,
+a bucket the label rule does not count as edge. Its check codes are S001 and S003 only, so it is the same
+artefact, not a different bug.
+
+**Resolution deviation and the r = 4 spot check.** These runs used lateral refinement r = 2 and nz = 2
+(`--r 2 --nz 2`), not the README default of r = 4 / 8, because the r = 4 reference on these stacks is about
+21 M unknowns. To check that r = 2 is not a coarse-grid artefact, geometry4 test_041 (orig) was rerun at r = 4
+(419 s): still DISAGREE, max |dT| 4.25 K (r = 2: 4.51 K), reference peak 62.50 K (r = 2: 62.48 K). The finer
+reference flags 159 cells against 119 at r = 2, the extra 40 in the neighbouring layer, and all 159 are at
+distance 0 from a die edge. The own rule says diffuse and the union rule die-edge, as at r = 2. So r = 2 is, if
+anything, conservative on this case; it is one case, not a general statement.
+
 **fieldlint** (`tools/fieldlint/`, numpy only). A generalisation of the dataset linter of §9.23 and §9.33 to
 steady diffusion-type PDE datasets, with file adapters (npz, npy, MATLAB, HDF5, 3D-ICE) and presets for
 IC-ThermBench, Therm-FM and this project's data. Rules F001-F007: integrity, maximum principle, orientation,
-duplicates across splits, range and units, a ridge linearity probe (info only), energy balance.
+duplicates across splits, range and units, a ridge linearity probe (info only), energy balance. F008 and F009
+(added 2026-10-06) are an operator-residual consistency check and a sample-pairing check, described below.
 - IC-ThermBench S2-S5, first 400 samples per scope: corr(smoothed power, T) is 0.33-0.42 as stored and
   0.70-0.78 transposed. F002 violations are 84-147 of 400 as stored and 0 transposed (S2, S3 and S5; S4 was not
   rerun transposed). These differ from §9.33's 101-154 because fieldlint uses a tolerance relative to the field range
   (1e-3) rather than a fixed 0.01 K.
 - The eight public Therm-FM steady sets and this project's 3D-ICE data lint clean for F001-F005.
 
+**fieldlint F008/F009 and the fault-injection benchmark (2026-10-06).**
+Three weaknesses of the first version motivated this round: the F003 thresholds had been retuned on Therm-FM
+HS_SC (overfit risk), F003 needs a spatially varying source (so it is useless for k-only problems such as
+Darcy), and no detection or false-positive rates had been measured.
+- F008 (operator residual): per orientation of the inputs, fit s ~ a(-div k grad u) + b(u - c) by least squares
+  and report R^2; it fires when an alternative orientation wins by a margin. It works for k-only and
+  source-only problems. F009 (pairing): on M = 32 samples, score every (inputs_i, u_j) pair with F008's
+  residual and flag if the diagonal is not the best match.
+- Harness: `tools/fieldlint/bench/`. It injects faults into clean copies (transpose, flip_x, flip_y, roll 1-3
+  cells, index shift by 1, C/K unit slip, cross-split duplicates, and 20%-of-samples variants) and records
+  per-rule detection and false-positive rates (`bench/results/bench_results.md`). Thresholds were frozen on the
+  tuning datasets (18: IC-ThermBench S2-S5 read with inputs transposed so they are clean, 8 Therm-FM steady
+  sets, 6 of our 3D-ICE geometries) on 2026-10-06 before the held-out sets were run.
+- Tuning results (thresholds fitted here, so optimistic): clean false positives 1 / 18 for any rule (F004 on
+  IC-ThermBench S2, whose first 400 samples contain identical u fields). Any rule detects 15 / 15 transposes,
+  18 / 18 flip_x, 16 / 18 flip_y, 18 / 18 cross-split duplicates and 15 / 18 unit slips. F008 alone scores
+  10 / 15 transposes and 13 / 18 flips (skipped on 5 of 18 datasets, counted as misses; where it runs it
+  catches every transpose, 10 / 10, and flip, 13 / 13) and catches rolls that F003 misses (roll 1: 8 / 18,
+  roll 2: 12 / 18, roll 3: 13 / 18, against 0 / 18 for F003 on all three). A one-cell roll stays invisible to
+  every rule where the operator R^2 is around 0.5.
+- **Held-out, frozen v1: failure.** On PDEBench Darcy (beta 1.0 and 0.01; k varies, uniform source, u = 0
+  boundary) F008 and F009 skipped on both sets and every fault. With the harmonic face-conductivity stencil the
+  operator explains only R^2 = 0.16-0.19, below the 0.3 applicability gate. F002 and F003 skip (no varying
+  source). Only F004 acted (cross-split duplicates, 2 / 2). False positives 0 / 2, but only because nothing ran.
+  We keep this as the held-out measurement of v1.
+- **Post-hoc** result: PDEBench's Darcy data match the arithmetic mean of k on cell faces. Re-running with that
+  option (chosen after seeing the failure, so a convention fix and not a held-out estimate) gives operator
+  R^2 = 1.00 on the stored data, and F008 detects transpose, flip_x, flip_y, roll 1-3 and the 20% variants on
+  2 / 2 datasets with 0 / 2 false positives. F009 still detects nothing on shifted data: with a wrong pairing
+  every (inputs_i, u_j) R^2 is near zero and the applicability gate reads that as "operator does not apply".
+- Out-of-scope controls: diffusion-reaction (t = 20) gives no finding. PDEBench Burgers (read as a 1 x 1024
+  line) gives **false alarms**, an F002 error and an F003 warning, on both files; F008 / F009 skip.
+- HS_SC (Therm-FM): the negative plain correlation (-0.31 stored, +0.37 after flipping y) is still unexplained.
+  F008 rules out a transposition (R^2 0.006 against 0.19 stored) but cannot separate the flips (0.19 stored
+  against 0.20-0.21), a difference inside the noise of a model that explains under a quarter of the variance.
+- Round 2 is in progress and not yet reported: automatic choice of face-mean convention, a scope gate for
+  1D / time-dependent data, refreezing the thresholds, and a fresh held-out set. Until it is reported, the v1
+  failure above stands as the held-out result.
+
 **Limitations.**
 - iceforge skips the off-grid rules and Tmap parsing on non-uniform grids, and `diff` refuses them, and also
   refuses microchannel layers, pluggable heat sinks, transient solves and models with no power.
 - HotSpot is not yet a third solver in `diff`.
 - The docker backend was verified by hand on the repro fixtures, not in an automated test.
-- `diff` is checked on the repro, geometry1 and geometry5 only. At r = 1 on geometry5 the reference's own r
-  vs 2r change is 0.05 K, so use the default r = 4 for a real check.
+- `diff` is checked on the repro, geometry1 and geometry5, and on the 48 archived geometry4-6 solves above (r = 2
+  and nz = 2, with one r = 4 spot check). At r = 1 on geometry5 the reference's own r vs 2r change is 0.05 K, so
+  use the default r = 4 for a real check; r = 2 can miss mild artefacts (geometry4 train_021).
 - fieldlint F003 (orientation) was refined once, to a band-passed vote, after it gave a false positive on the
-  Therm-FM HS_SC sets. It has been tuned on two dataset families (IC-ThermBench, Therm-FM). A third
-  independent dataset is needed before we claim it generalises.
+  Therm-FM HS_SC sets. It has been tuned on two dataset families (IC-ThermBench, Therm-FM). The held-out check
+  on PDEBench Darcy failed for F008/F009 as frozen (above), so generalisation is not established; round 2 uses
+  a fresh held-out set.
 - fieldlint covers steady, non-negative-source diffusion problems only. F006 is a screening heuristic.
 
 ## 11. Conclusion
