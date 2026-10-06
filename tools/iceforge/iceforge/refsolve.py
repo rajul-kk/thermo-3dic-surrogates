@@ -94,6 +94,8 @@ class RefModel:
     top: Optional[Tuple[float, float]]      # (HTC, T_amb)
     bottom: Optional[Tuple[float, float]]
     total_power: float = 0.0
+    non_uniform: bool = False       # the 3D-ICE model uses a floorplan-driven mesh; (cell_l, cell_w) is only the
+    #                                 nominal size that sets the reference's base grid
 
     def tmap_layer(self, instance: str) -> int:
         """Index (top to bottom) of the layer a Tmap of ``instance`` reports."""
@@ -116,8 +118,6 @@ def _k3(m: Material) -> Tuple[float, float, float]:
 
 def build_model(st: Stack) -> RefModel:
     d = st.dims
-    if d.non_uniform:
-        raise RefusedModel("non-uniform grids are not supported by the reference solver")
     if st.solver.mode == 'transient':
         raise RefusedModel("transient solves are not supported (the reference solver is steady state only)")
     if any('pluggable' in w.lower() for w in st.warnings):
@@ -202,7 +202,8 @@ def build_model(st: Stack) -> RefModel:
             bot = (h.htc, h.temperature)
     if top is None and bot is None:
         raise RefusedModel("no heat sink declared: the steady problem is singular")
-    return RefModel(st, layers, d.chip_l, d.chip_w, d.cell_l, d.cell_w, top, bot, total_power)
+    return RefModel(st, layers, d.chip_l, d.chip_w, d.cell_l, d.cell_w, top, bot, total_power,
+                    non_uniform=bool(d.non_uniform))
 
 
 # --------------------------------------------------------------------------- solve
@@ -226,6 +227,14 @@ class RefSolution:
         if n % 2:
             return self.T[s.start + n // 2]
         return 0.5 * (self.T[s.start + n // 2 - 1] + self.T[s.start + n // 2])
+
+
+def cell_average(F: np.ndarray, xe: np.ndarray, ye: np.ndarray, cells: np.ndarray) -> np.ndarray:
+    """Exact area average of the fine-grid field ``F`` (nx, ny) over each rectangle of ``cells`` (N, 4 = x, y,
+    length, width in um): the reference restated on a non-uniform 3D-ICE mesh."""
+    Wx = np.array([overlap_1d(xe, c[0], c[0] + c[2]) / c[2] for c in cells])      # (N, nx)
+    Wy = np.array([overlap_1d(ye, c[1], c[1] + c[3]) / c[3] for c in cells])      # (N, ny)
+    return ((Wx @ F) * Wy).sum(axis=1)
 
 
 def block_average(F: np.ndarray, r: int) -> np.ndarray:

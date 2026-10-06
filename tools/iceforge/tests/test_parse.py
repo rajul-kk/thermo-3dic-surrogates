@@ -43,7 +43,7 @@ def test_example_steady_details(fixtures):
 def test_non_uniform_is_reported_not_fatal(fixtures):
     st = parse_stk(os.path.join(fixtures, "3dice_examples", "example_steady_material.stk"))
     assert st.dims.non_uniform
-    assert any("non-uniform grid: off-grid checks skipped" in w for w in st.warnings)
+    assert any("non-uniform grid" in w for w in st.warnings)
     assert st.materials["SILICON"].k == [1.3e-4] * 3        # anisotropic form
     fp = list(st.floorplans.values())[0]
     assert fp.elements[0].rects[0].l == 5000

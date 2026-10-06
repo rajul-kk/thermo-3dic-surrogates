@@ -457,7 +457,7 @@ def parse_stk(path: str, load_children: bool = True) -> Stack:
             st.warnings.append(f"unknown section ignored: {' '.join(hdr)}")
 
     if st.dims.non_uniform:
-        st.warnings.append("non-uniform grid: off-grid checks skipped")
+        st.warnings.append("non-uniform grid: the mesh follows the floorplan elements (see non_uniform_cells)")
     if load_children:
         _load_children(st)
     return st
@@ -483,6 +483,62 @@ def _load_children(st: Stack) -> None:
 
 
 # --------------------------------------------------------------------------- helpers
+
+def _cidx(v: float) -> int:
+    """3D-ICE stores discretisation levels in an unsigned cell index: DVALUE is truncated."""
+    return int(v)
+
+
+def default_discretization(st: Stack) -> Tuple[int, int]:
+    """3D-ICE's default discretisation (x, y) of a stack element: chip / cell, truncated."""
+    d = st.dims
+    return (_cidx(d.chip_l / d.cell_l) if d.cell_l else 0, _cidx(d.chip_w / d.cell_w) if d.cell_w else 0)
+
+
+def _subdivide(r: Rect, dx: int, dy: int) -> List[Rect]:
+    """dx x dy equal sub-cells of ``r``, x index running fastest (3D-ICE's cell order)."""
+    cl, cw = r.l / dx, r.w / dy
+    return [Rect(r.x + cl * (k % dx), r.y + cw * (k // dx), cl, cw) for k in range(dx * dy)]
+
+
+def non_uniform_cells(st: Stack, se: StackElement) -> Optional[List[Rect]]:
+    """Cells of one stack element in a ``non-uniform true`` model, in 3D-ICE's own order (this is also the
+    order of the values in a Tmap file); None when the element's mesh cannot be derived.
+
+    Verified against 3D-ICE 4.0 ``thermal_data.c`` (``get_cell_position``) and its ``xyaxis_<id>.txt`` output:
+      * a ``die`` is meshed from its floorplan: each element is subdivided into ``discretization`` cells,
+        the element's own ``discretization x, y`` line, else the die's (``discretization X Y`` on the stack
+        line, else chip / cell).  Only the FIRST rectangle of an element is meshed.  Floorplan elements are
+        taken in file order, cells of an element row by row with x fastest.  Every layer of the die shares
+        this mesh;
+      * a plain ``layer`` is the whole chip cut into ``discretization X Y`` (default chip / cell) equal cells;
+      * the area of a die not covered by any element has no cells at all (a void).
+    """
+    d = st.dims
+    dflt = default_discretization(st)
+    if se.kind == 'layer':
+        dx, dy = (_cidx(se.discretization[0]), _cidx(se.discretization[1])) if se.discretization else dflt
+        if dx < 1 or dy < 1:
+            return None
+        return _subdivide(Rect(0.0, 0.0, d.chip_l, d.chip_w), dx, dy)
+    if se.kind != 'die':
+        return None
+    fp = st.floorplans.get(se.floorplan_path) if se.floorplan_path else None
+    if fp is None:
+        return None
+    ddx, ddy = (_cidx(se.discretization[0]), _cidx(se.discretization[1])) if se.discretization else dflt
+    cells: List[Rect] = []
+    for e in fp.elements:
+        if not e.rects:
+            continue
+        ex, ey = (_cidx(e.discretization[0]), _cidx(e.discretization[1])) if e.discretization else (0, 0)
+        if ex == 0 or ey == 0:
+            ex, ey = ddx, ddy
+        if ex < 1 or ey < 1:
+            return None
+        cells += _subdivide(e.rects[0], ex, ey)
+    return cells
+
 
 def resolved_die_layers(st: Stack, dd: DieDef) -> List[DieLayer]:
     """Die layers with global-layer references expanded (height/material/layout filled in)."""
@@ -512,7 +568,7 @@ def summary(st: Stack) -> str:
     L.append(f"stack      {st.path}")
     L.append(f"chip       {dm.chip_l:g} x {dm.chip_w:g} um (length x width)")
     if dm.non_uniform:
-        L.append("grid       non-uniform grid: off-grid checks skipped")
+        L.append("grid       non-uniform: the mesh follows the floorplan elements")
     else:
         L.append(f"grid       cell {dm.cell_l:g} x {dm.cell_w:g} um -> "
                  f"{dm.n_cols} columns (length) x {dm.n_rows} rows (width)")

@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .model import Stack, Rect, Layout, DieLayer, resolved_die_layers, parse_stk
+from .model import Stack, Rect, Layout, DieLayer, resolved_die_layers, parse_stk, non_uniform_cells
 
 GRID_TOL = 1e-6     # in cell fractions
 GEOM_EPS = 1e-6     # um
@@ -130,17 +130,18 @@ def power_of(e) -> float:
 def check_stack(st: Stack) -> List[Finding]:
     F: List[Finding] = []
     d = st.dims
-    grid_ok = (not d.non_uniform) and d.cell_l > 0 and d.cell_w > 0 and d.chip_l > 0 and d.chip_w > 0
+    dims_ok = d.cell_l > 0 and d.cell_w > 0 and d.chip_l > 0 and d.chip_w > 0
+    grid_ok = (not d.non_uniform) and dims_ok
 
     if d.non_uniform:
-        F.append(Finding('I001', 'info', "non-uniform grid: off-grid checks skipped"))
+        _check_non_uniform(st, F)
 
     # S008 missing files
     for kind, p in st.missing_files:
         F.append(Finding('S008', 'error', f"missing {kind} file: {p}", file=p))
 
-    # S006 chip vs cell
-    if grid_ok:
+    # S006 chip vs cell (also sets the default discretisation of a non-uniform model)
+    if dims_ok:
         for what, ext, c in (('length', d.chip_l, d.cell_l), ('width', d.chip_w, d.cell_w)):
             if _off(ext, c):
                 F.append(Finding('S006', 'warning',
@@ -215,6 +216,108 @@ def check_stack(st: Stack) -> List[Finding]:
     order = {'error': 0, 'warning': 1, 'info': 2}
     F.sort(key=lambda f: (order[f.severity], f.code))
     return F
+
+
+def _layout_users(st: Stack):
+    """(stack element, layout path) for every stack element whose layers use a layout."""
+    for se in st.stack:
+        paths = []
+        if se.kind == 'layer':
+            ld = st.layers.get(se.ref)
+            if ld and ld.layout_path:
+                paths.append(ld.layout_path)
+        elif se.kind == 'die':
+            dd = st.dies.get(se.ref)
+            for dl in (resolved_die_layers(st, dd) if dd else []):
+                if dl.layout_path and dl.layout_path not in paths:
+                    paths.append(dl.layout_path)
+        for p in paths:
+            yield se, p
+
+
+def _rect_edges_in_cells(r: Rect, cells: List[Rect]) -> int:
+    """Number of the four edges of ``r`` that cut through the interior of some cell of ``cells``."""
+    n = 0
+    for name, v, lo, hi in (('x0', r.x, r.y, r.y1), ('x1', r.x1, r.y, r.y1),
+                            ('y0', r.y, r.x, r.x1), ('y1', r.y1, r.x, r.x1)):
+        vert = name[0] == 'x'
+        for c in cells:
+            a0, a1, b0, b1 = (c.x, c.x1, c.y, c.y1) if vert else (c.y, c.y1, c.x, c.x1)
+            if a0 + GEOM_EPS < v < a1 - GEOM_EPS and min(b1, hi) - max(b0, lo) > GEOM_EPS:
+                n += 1
+                break
+    return n
+
+
+def _check_non_uniform(st: Stack, F: List[Finding]) -> None:
+    """Rules for ``non-uniform true`` models (3D-ICE 4.0; behaviour verified by experiment, see README).
+
+    The mesh is not a grid: each die is cut along its floorplan elements and every cell is one element
+    sub-cell, so a floorplan edge is a cell edge by construction (S001/S002 cannot happen) and a layout is not
+    read at all (S003/S004 are replaced by N001).  What can go wrong instead is N001-N004."""
+    d = st.dims
+    cells_of = {se.instance: non_uniform_cells(st, se) for se in st.stack}
+    n_cells = {k: len(v) for k, v in cells_of.items() if v is not None}
+    F.append(Finding('I001', 'info',
+                     "non-uniform grid: the mesh follows the floorplan elements, not a regular grid; "
+                     "uniform-grid rules S001-S004 do not apply (see N001-N004). Cells per stack element: "
+                     + ', '.join(f"{k} {v}" for k, v in n_cells.items()), file=st.path,
+                     detail=dict(cells=n_cells)))
+    # N001: layouts are ignored
+    reported = set()
+    for se, p in _layout_users(st):
+        ly = st.layouts.get(p)
+        if ly is None or (se.instance, p) in reported:
+            continue
+        reported.add((se.instance, p))
+        cells = cells_of.get(se.instance) or []
+        rects = [r for rs in ly.shapes.values() for r in rs]
+        cutting = sum(1 for r in rects if _rect_edges_in_cells(r, cells) > 0) if cells else 0
+        F.append(Finding(
+            'N001', 'error',
+            f"layout {os.path.basename(p)} on {se.instance} has no effect in a non-uniform model: 3D-ICE 4.0 builds "
+            f"the cells from the floorplan elements and takes every cell's material from the layer "
+            f"(identical Tmap with and without the .lyt); {cutting} of its {len(rects)} rectangle(s) also cut "
+            f"through cells. Use a uniform grid, or put the material in the floorplan element (material line)",
+            file=p, detail=dict(stack_element=se.instance, n_rectangles=len(rects), n_cutting_cells=cutting)))
+    # N002: die area not covered by floorplan elements has no cells
+    chip = d.chip_l * d.chip_w
+    for se in st.stack:
+        if se.kind != 'die':
+            continue
+        cells = cells_of.get(se.instance)
+        if cells is None:
+            continue
+        area = sum(c.l * c.w for c in cells)
+        if chip > 0 and area < chip * (1 - 1e-6):
+            F.append(Finding(
+                'N002', 'error',
+                f"die {se.instance}: floorplan elements cover {100 * area / chip:.1f} % of the {d.chip_l:g} x "
+                f"{d.chip_w:g} um chip; in a non-uniform model the uncovered {100 * (1 - area / chip):.1f} % "
+                f"has no thermal cells at all (a void, no heat flows through it)", file=se.floorplan_path,
+                detail=dict(stack_element=se.instance, covered_fraction=area / chip)))
+    # N003: bottom heat sink segfaults 3D-ICE 4.0
+    if any(h.side == 'bottom' for h in st.heatsinks):
+        F.append(Finding(
+            'N003', 'error',
+            "bottom heat sink with a non-uniform grid crashes 3D-ICE 4.0 (segmentation fault while preparing "
+            "thermal data in the tested build; the shipped non-uniform example uses a top heat sink)", file=st.path))
+    # N004: only the first rectangle of an element is meshed; fractional discretisation is truncated
+    for p, fp in st.floorplans.items():
+        for e in fp.elements:
+            if len(e.rects) > 1:
+                F.append(Finding('N004', 'warning',
+                                 f"element {e.name} has {len(e.rects)} rectangles; a non-uniform mesh uses only the "
+                                 f"first one", file=p, detail=dict(element=e.name)))
+            if e.discretization and any(abs(v - int(v)) > 1e-9 for v in e.discretization):
+                F.append(Finding('N004', 'warning',
+                                 f"element {e.name}: discretization {e.discretization} is truncated to integers",
+                                 file=p, detail=dict(element=e.name)))
+    for se in st.stack:
+        if se.discretization and any(abs(v - int(v)) > 1e-9 for v in se.discretization):
+            F.append(Finding('N004', 'warning',
+                             f"{se.instance}: discretization {se.discretization} is truncated to integers",
+                             file=st.path))
 
 
 def _check_floorplan(st, F, fp, layers: List[DieLayer], grid_ok, se):

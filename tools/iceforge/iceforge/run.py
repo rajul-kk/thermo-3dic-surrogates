@@ -6,6 +6,12 @@ one text line per ROW.  A floorplan element's ``position x, y`` / ``dimension le
 map x -> column (along chip LENGTH) and y -> row (along chip WIDTH).  So a Tmap file has
 n_width_cells lines of n_length_cells values (rows run along the chip width).  iceforge
 stores ``T`` as (length_index, width_index), i.e. the transpose of the file layout.
+
+Non-uniform models (``non-uniform true``) write a different file: ONE line holding one value per cell of the
+stack element, in the order of ``model.non_uniform_cells``, plus ``xyaxis_<instance>.txt`` (x, y, length, width
+of each cell, two decimals) in the solver's working directory.  iceforge stores ``T`` as a 1-D array of N
+cells with ``cells`` (N, 4) = x, y, length, width in um, taken from the mesh derived from the inputs and
+checked against the xyaxis file when it is present.
 """
 from __future__ import annotations
 
@@ -19,7 +25,7 @@ import numpy as np
 
 from . import backends
 from .check import Finding, check_stack, format_findings, power_of
-from .model import Stack, parse_stk
+from .model import Stack, parse_stk, non_uniform_cells
 
 
 @dataclass
@@ -69,6 +75,29 @@ def parse_tmap(path: str, n_rows: int, n_cols: int):
     return block.T.copy(), F                                  # (length_index, width_index)
 
 
+def parse_tmap_nu(path: str, n_cells: int):
+    """Non-uniform Tmap: (T as a 1-D array of n_cells values, findings). Takes the last line of values."""
+    rows = read_tmap_blocks(path)
+    if not rows:
+        return None, [Finding('P001', 'error', "Tmap file holds no numeric data", file=path)]
+    last = rows[-1]
+    if len(last) != n_cells:
+        return None, [Finding('P001', 'error',
+                              f"non-uniform Tmap has {len(last)} values; the mesh derived from the inputs has "
+                              f"{n_cells} cells (discretization semantics changed, or the wrong stack element)",
+                              file=path)]
+    return np.asarray(last, dtype=float), []
+
+
+def read_xyaxis(path: str) -> Optional[np.ndarray]:
+    """x, y, length, width per cell from ``xyaxis_<id>.txt``; None if unreadable."""
+    try:
+        a = np.loadtxt(path, ndmin=2)
+    except (OSError, ValueError):
+        return None
+    return a if a.ndim == 2 and a.shape[1] == 4 else None
+
+
 def _powered_rects(st: Stack):
     rects = []
     for se in st.stack:
@@ -105,6 +134,75 @@ def post_checks(st: Stack, T: np.ndarray, source: str) -> (List[Finding], dict):
     return F, hot
 
 
+def post_checks_nu(st: Stack, T: np.ndarray, cells: np.ndarray, source: str) -> (List[Finding], dict):
+    """P002 for a non-uniform Tmap: the hottest cell centre must lie under a powered floorplan element."""
+    F: List[Finding] = []
+    i = int(np.argmax(T))
+    xc, yc = cells[i, 0] + 0.5 * cells[i, 2], cells[i, 1] + 0.5 * cells[i, 3]
+    hot = dict(cell=i, x_um=float(xc), y_um=float(yc), T=float(T[i]))
+    if st.solver.mode == 'transient':
+        return F, hot
+    eps = 1e-6
+    under = [n for n, r in _powered_rects(st)
+             if r.x - eps <= xc <= r.x1 + eps and r.y - eps <= yc <= r.y1 + eps]
+    if not under:
+        F.append(Finding('P002', 'warning',
+                         f"hottest cell (index {i}; centre x={xc:g}, y={yc:g} um; {T[i]:.3f} K) is not under any "
+                         f"powered floorplan element", file=source, detail=hot))
+    else:
+        hot['under'] = under[0]
+    return F, hot
+
+
+def write_npz_nu(outdir: str, name: str, st: Stack, T: np.ndarray, cells: np.ndarray, src: str, instance: str,
+                 t_ref):
+    path = os.path.join(outdir, name + '.npz')
+    np.savez(path, T=T, cells=cells, x_um=cells[:, 0] + 0.5 * cells[:, 2], y_um=cells[:, 1] + 0.5 * cells[:, 3],
+             units=np.array('K'), grid=np.array('non-uniform'),
+             axes=np.array('T[cell]; cells[cell] = x, y, length, width in um, 3D-ICE cell order'),
+             t_ref=np.array(np.nan if t_ref is None else t_ref))
+    side = dict(name=name, instance=instance, units='K', source_tmap=src, stk=st.path, grid='non-uniform',
+                n_cells=int(T.size), cells_columns=['x_um', 'y_um', 'length_um', 'width_um'],
+                chip_um=[st.dims.chip_l, st.dims.chip_w], t_max=float(T.max()), t_min=float(T.min()),
+                heat_sink_temperature=t_ref, max_rise=None if t_ref is None else float(T.max() - t_ref))
+    with open(os.path.join(outdir, name + '.json'), 'w') as f:
+        json.dump(side, f, indent=2)
+    return path
+
+
+def _collect_nu(st: Stack, o, outdir: str, used: set) -> TmapResult:
+    inst = o.instance or '?'
+    se = next((e for e in st.stack if e.instance == o.instance), None)
+    cells_r = non_uniform_cells(st, se) if se is not None else None
+    if cells_r is None:
+        return TmapResult(inst, o.path, None, None, None, None, None, None,
+                          [Finding('P001', 'error', f"cannot derive the non-uniform mesh of {inst}", file=o.path)])
+    if not os.path.isfile(o.path):
+        return TmapResult(inst, o.path, None, None, None, None, None, None,
+                          [Finding('P001', 'error', "Tmap output file was not produced", file=o.path)])
+    T, F = parse_tmap_nu(o.path, len(cells_r))
+    if T is None:
+        return TmapResult(inst, o.path, None, None, None, None, None, None, F)
+    cells = np.array([[c.x, c.y, c.l, c.w] for c in cells_r])
+    xy = os.path.join(st.base_dir, f"xyaxis_{inst}.txt")
+    if os.path.isfile(xy):
+        a = read_xyaxis(xy)
+        if a is None or a.shape != cells.shape or float(np.abs(a - cells).max()) > 0.011:
+            F.append(Finding('P003', 'warning',
+                             f"{os.path.basename(xy)} does not match the mesh derived from the inputs"
+                             + ("" if a is None or a.shape != cells.shape else
+                                f" (max difference {float(np.abs(a - cells).max()):g} um)"), file=xy))
+    pf, hot = post_checks_nu(st, T, cells, o.path)
+    F += pf
+    stem = os.path.splitext(os.path.basename(o.path))[0]
+    name = stem if stem not in used else f"{stem}_{inst}"
+    used.add(name)
+    t_ref = st.sink_temperature
+    npz = write_npz_nu(outdir, name, st, T, cells, o.path, inst, t_ref)
+    return TmapResult(inst, o.path, npz, tuple(T.shape), float(T.max()), t_ref,
+                      None if t_ref is None else float(T.max() - t_ref), hot, F)
+
+
 def write_npz(outdir: str, name: str, st: Stack, T: np.ndarray, src: str, instance: str, t_ref):
     d = st.dims
     x = (np.arange(T.shape[0]) + 0.5) * d.cell_l
@@ -133,9 +231,7 @@ def collect_outputs(st: Stack, outdir: str) -> List[TmapResult]:
         if o.kind != 'Tmap' or not o.path:
             continue
         if d.non_uniform:
-            results.append(TmapResult(o.instance or '?', o.path, None, None, None, None, None, None,
-                                      [Finding('I001', 'info', "non-uniform grid: Tmap parsing skipped",
-                                               file=o.path)]))
+            results.append(_collect_nu(st, o, outdir, used))
             continue
         if not os.path.isfile(o.path):
             results.append(TmapResult(o.instance or '?', o.path, None, None, None, None, None, None,
@@ -208,7 +304,7 @@ def run_model(stk_path: str, backend: str = 'auto', exe: Optional[str] = None, o
         if t.npz:
             hot = t.hottest or {}
             log(f"run: {t.instance}: Tmax {t.t_max:.3f} K, max rise {t.max_rise:.3f} K above "
-                f"{t.t_ref:g} K  -> {t.npz}  (T shape {t.shape} = (length, width))"
+                f"{t.t_ref:g} K  -> {t.npz}  (T shape {t.shape}{'' if st.dims.non_uniform else ' = (length, width)'})"
                 if t.t_ref is not None else f"run: {t.instance}: Tmax {t.t_max:.3f} K -> {t.npz}")
     if not results:
         log("run: no Tmap outputs declared; nothing to parse")

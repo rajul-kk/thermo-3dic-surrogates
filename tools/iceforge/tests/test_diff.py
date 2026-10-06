@@ -128,7 +128,7 @@ def test_slab_top_sink_mirror(tmp_path):
 
 # ------------------------------------------------------------------ refusals
 
-def test_refuses_microchannel_and_nonuniform(tmp_path):
+def test_refuses_microchannel_and_transient(tmp_path):
     base = open(os.path.join(os.path.dirname(__file__), "fixtures", "repro", "aligned", "s.stk")).read()
     (tmp_path / "die.flp").write_text(open(os.path.join(os.path.dirname(__file__), "fixtures", "repro",
                                                         "aligned", "die.flp")).read())
@@ -136,8 +136,7 @@ def test_refuses_microchannel_and_nonuniform(tmp_path):
                                                        "aligned", "fp.lyt")).read())
     (tmp_path / "nu.stk").write_text(base.replace("cell length 250.0 , width  250.0 ;",
                                                   "cell length 250.0 , width  250.0 ;\n   non-uniform true ;"))
-    with pytest.raises(R.RefusedModel, match="non-uniform"):
-        R.build_model(parse_stk(str(tmp_path / "nu.stk")))
+    assert R.build_model(parse_stk(str(tmp_path / "nu.stk"))).non_uniform      # supported since 3D-ICE 4.0 meshes
     (tmp_path / "ch.stk").write_text(base.replace("   layer BOT  SUB ;", "   layer BOT  SUB ;\n   channel CH ;"))
     with pytest.raises(R.RefusedModel, match="microchannel"):
         R.build_model(parse_stk(str(tmp_path / "ch.stk")))

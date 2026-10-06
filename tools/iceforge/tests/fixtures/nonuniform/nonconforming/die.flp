@@ -1,0 +1,9 @@
+A :
+   position 0, 0 ;
+   dimension 4000, 10000 ;
+   discretization 8, 20 ;
+   power values 6.0 ;
+B :
+   position 4000, 0 ;
+   dimension 6000, 10000 ;
+   power values 4.0 ;

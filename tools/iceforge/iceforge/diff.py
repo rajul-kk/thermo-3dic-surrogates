@@ -15,6 +15,15 @@ model error or a partial-cell artefact. Only unexplained cells decide the verdic
 Cell classes: ``die-edge`` (a floorplan/layout edge crosses the cell interior), ``edge-adjacent`` (a
 neighbour of such a cell: the heated-insulator artefact conducts into it), ``interior`` (everything else).
 
+Non-uniform 3D-ICE meshes (``non-uniform true``): there is no regular grid, so the comparison is made PER
+3D-ICE CELL: the reference (its own uniform fine grid at r and 2r times the nominal ``cell`` size, mid-plane of
+the Tmap layer) is area-averaged exactly over each cell's rectangle (``refsolve.cell_average``) and compared
+cell by cell with the same flagging rule.  Edge classes and the vertical-rule explanation need a regular grid
+are not computed.  Flagged cells are classified by MESH MISMATCH instead: a cell is ``mesh-edge`` when a cell edge of
+another stack element's mesh cuts through it, or one of its own edges cuts through a cell of another mesh (the
+non-conforming interface that a regular grid never has), ``mesh-adjacent`` when it touches such a cell of its own
+mesh, else ``interior``.  The verdict rule is the uniform one with ``die-edge`` read as ``mesh-edge``.
+
 Verdicts
   AGREE                         no unexplained flagged cell
   DISAGREE (die-edge)           >= EDGE_SHARE of the unexplained cells are die-edge or edge-adjacent:
@@ -98,6 +107,14 @@ def edge_crossing_mask(xe: np.ndarray, ye: np.ndarray, rects: List[Rect]) -> np.
     return mask
 
 
+def _load_npz(path: str) -> dict:
+    z = np.load(path)
+    d = dict(T=z['T'], source=path)
+    if 'cells' in z.files:
+        d['cells'] = z['cells']
+    return d
+
+
 def load_ice(st: Stack, ice_npz: Optional[str], backend: str = 'auto', exe: Optional[str] = None,
              outdir: Optional[str] = None, log=lambda *a: None) -> Dict[str, dict]:
     """Return {instance: dict(T=(length,width) K, source=str)} for each Tmap output of the model."""
@@ -112,9 +129,9 @@ def load_ice(st: Stack, ice_npz: Optional[str], backend: str = 'auto', exe: Opti
                 for cand in (stem, f"{stem}_{o.instance}"):
                     p = os.path.join(ice_npz, cand + '.npz')
                     if os.path.isfile(p) and o.instance not in out:
-                        out[o.instance] = dict(T=np.load(p)['T'], source=p)
+                        out[o.instance] = _load_npz(p)
         elif os.path.isfile(ice_npz):
-            out[tm[0].instance] = dict(T=np.load(ice_npz)['T'], source=ice_npz)
+            out[tm[0].instance] = _load_npz(ice_npz)
         else:
             raise DiffError(f"--ice-npz not found: {ice_npz}")
         if not out:
@@ -127,7 +144,7 @@ def load_ice(st: Stack, ice_npz: Optional[str], backend: str = 'auto', exe: Opti
         raise DiffError(f"3D-ICE run failed: {rep.get('status')}")
     for t in rep.get('tmaps', []):
         if t.get('npz') and t['instance'] not in out:
-            out[t['instance']] = dict(T=np.load(t['npz'])['T'], source=t['npz'])
+            out[t['instance']] = _load_npz(t['npz'])
     if not out:
         raise DiffError("3D-ICE produced no parsable Tmap")
     rep_out = os.path.abspath(outdir)
@@ -237,10 +254,207 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
     )
 
 
+def _pair(a: np.ndarray, b: np.ndarray, tol_k: float) -> dict:
+    """Agreement of field a with field b: raw, and after removing the best affine map a ~ s*b + o.
+
+    The affine fit is what makes a third solver usable: a different boundary model (HotSpot's package, its
+    vertical convention) mostly rescales and offsets the rise field, and that is not a partial-cell effect."""
+    d = a - b
+    A = np.vstack([b.ravel(), np.ones(b.size)]).T
+    (s, o), *_ = np.linalg.lstsq(A, a.ravel(), rcond=None)
+    fit = a - (s * b + o)
+    return dict(max_abs=float(np.abs(d).max()), rms=float(np.sqrt((d ** 2).mean())), mean=float(d.mean()),
+                fit_max_abs=float(np.abs(fit).max()), fit_rms=float(np.sqrt((fit ** 2).mean())),
+                fit_scale=float(s), fit_offset_K=float(o), within_tol=bool(np.abs(d).max() <= tol_k),
+                fit_within_tol=bool(np.abs(fit).max() <= tol_k))
+
+
+def hotspot_side(hr: dict, hi: dict, ir: dict, ice_agrees: bool, tol_k: float) -> str:
+    """Which solver HotSpot sides with, from the affine-fit residuals (see ``_pair``).
+
+    When 3D-ICE and the reference already agree (``ice_agrees``, including differences the diff explains by
+    3D-ICE's vertical rule), HotSpot is held to the tolerance against the reference and to the tolerance plus
+    that accepted 3D-ICE offset against 3D-ICE.  When they disagree, HotSpot's residual to each decides."""
+    if ice_agrees:
+        ok_hr = hr['fit_max_abs'] <= tol_k
+        ok_hi = hi['fit_max_abs'] <= tol_k + ir['fit_max_abs']
+        if ok_hr and ok_hi:
+            return 'all three agree'
+        if ok_hr:
+            return 'HotSpot agrees with the reference, not with 3D-ICE'
+        return 'HotSpot differs from both (its own modelling difference)'
+    ok_hr, ok_hi = hr['fit_max_abs'] <= tol_k, hi['fit_max_abs'] <= tol_k
+    if ok_hr and not ok_hi:
+        return 'HotSpot sides with the reference'
+    if ok_hi and not ok_hr:
+        return 'HotSpot sides with 3D-ICE'
+    if not ok_hr and not ok_hi:
+        if hr['fit_max_abs'] * 2 <= hi['fit_max_abs']:
+            return 'HotSpot is closer to the reference (neither within tolerance)'
+        if hi['fit_max_abs'] * 2 <= hr['fit_max_abs']:
+            return 'HotSpot is closer to 3D-ICE (neither within tolerance)'
+    return 'inconclusive'
+
+
+def _model_t_ref(model: R.RefModel) -> float:
+    for h in (model.top, model.bottom):
+        if h:
+            return h[1]
+    return 0.0
+
+
+def hotspot_opinion(st: Stack, model: R.RefModel, layers: List[dict], tol: float, exe: Optional[str] = None,
+                    r: int = 1, grid: Optional[int] = None, log=lambda *a: None) -> dict:
+    """Run HotSpot on the same stack and compare it with 3D-ICE and the reference, layer by layer.
+
+    Never raises for a model HotSpot cannot represent: returns ``status`` 'refused' with the reason."""
+    from . import hotspot as H
+    try:
+        case = H.translate(st, r=r, grid=grid)
+    except (H.HotspotRefused, R.RefusedModel) as e:
+        return dict(status='refused', reason=str(e))
+    try:
+        log(f"diff: HotSpot grid solve ({case.rows}x{case.cols}, {len(case.layers)} layers) ...")
+        fields = H.hotspot_fields(case, exe)
+    except H.HotspotError as e:
+        return dict(status='error', reason=str(e))
+    out = []
+    t_ref = _model_t_ref(model)
+    for c in layers:
+        li = model.tmap_layer(c['instance'])
+        lcf = case.lcf_index(li)
+        if lcf not in fields:
+            return dict(status='error', reason=f"HotSpot output has no layer {lcf} for {c['instance']}")
+        T_ice, T_ref = c['_fields']['ice'], c['_fields']['ref']
+        T_hs = H.remap(fields[lcf], T_ice.shape[0], T_ice.shape[1])
+        tol_k = c['tolerance_K']
+        hr, hi, ir = _pair(T_hs, T_ref, tol_k), _pair(T_hs, T_ice, tol_k), _pair(T_ice, T_ref, tol_k)
+        out.append(dict(instance=c['instance'], layer=c['layer'], tolerance_K=tol_k,
+                        max_rise=dict(ice=float(T_ice.max() - t_ref), reference=float(T_ref.max() - t_ref),
+                                      hotspot=float(T_hs.max() - t_ref)),
+                        hotspot_vs_reference=hr, hotspot_vs_3dice=hi, ice_vs_reference=ir,
+                        side=hotspot_side(hr, hi, ir, c['verdict'] == 'AGREE', tol_k), _T_hs=T_hs))
+    return dict(status='ok', rows=case.rows, cols=case.cols, n_hotspot_layers=len(case.layers),
+                detailed_3d=case.heterogeneous, grid_remapped=(case.cols, case.rows) != (case.n_cols, case.n_rows),
+                n_cols=case.n_cols, n_rows=case.n_rows, layers=out)
+
+
+def _cut_by(cells: np.ndarray, others: np.ndarray, chunk: int = 512) -> np.ndarray:
+    """True for every cell of ``cells`` (N, 4) whose interior is crossed by an edge of a cell in ``others``."""
+    N = len(cells)
+    out = np.zeros(N, dtype=bool)
+    ox0, oy0, ox1, oy1 = others[:, 0], others[:, 1], others[:, 0] + others[:, 2], others[:, 1] + others[:, 3]
+    for s0 in range(0, N, chunk):
+        c = cells[s0:s0 + chunk]
+        cx0, cy0 = c[:, 0:1], c[:, 1:2]
+        cx1, cy1 = cx0 + c[:, 2:3], cy0 + c[:, 3:4]
+        y_ov = np.minimum(cy1, oy1[None]) - np.maximum(cy0, oy0[None]) > EPS
+        x_ov = np.minimum(cx1, ox1[None]) - np.maximum(cx0, ox0[None]) > EPS
+        hit = np.zeros(y_ov.shape, dtype=bool)
+        for ex in (ox0, ox1):
+            hit |= (cx0 + EPS < ex[None]) & (ex[None] < cx1 - EPS) & y_ov
+        for ey in (oy0, oy1):
+            hit |= (cy0 + EPS < ey[None]) & (ey[None] < cy1 - EPS) & x_ov
+        out[s0:s0 + chunk] = hit.any(axis=1)
+    return out
+
+
+def mesh_mismatch_mask(cells: np.ndarray, others: List[np.ndarray]) -> np.ndarray:
+    """Cells that are not a clean union/sub-division of the cells of the other meshes (see module docstring)."""
+    mask = np.zeros(len(cells), dtype=bool)
+    for o in others:
+        if len(o) == 0:
+            continue
+        mask |= _cut_by(cells, o)                 # an edge of the other mesh cuts this cell
+        mask |= _edges_cut_cells(cells, o, 512)   # an edge of this cell cuts a cell of the other mesh
+    return mask
+
+
+def _edges_cut_cells(cells: np.ndarray, o: np.ndarray, chunk: int) -> np.ndarray:
+    N = len(cells)
+    out = np.zeros(N, dtype=bool)
+    ox0, oy0, ox1, oy1 = o[:, 0], o[:, 1], o[:, 0] + o[:, 2], o[:, 1] + o[:, 3]
+    for s0 in range(0, N, chunk):
+        c = cells[s0:s0 + chunk]
+        cx0, cy0 = c[:, 0:1], c[:, 1:2]
+        cx1, cy1 = cx0 + c[:, 2:3], cy0 + c[:, 3:4]
+        y_ov = np.minimum(cy1, oy1[None]) - np.maximum(cy0, oy0[None]) > EPS
+        x_ov = np.minimum(cx1, ox1[None]) - np.maximum(cx0, ox0[None]) > EPS
+        hit = np.zeros(y_ov.shape, dtype=bool)
+        for ex in (cx0, cx1):
+            hit |= (ox0[None] + EPS < ex) & (ex < ox1[None] - EPS) & y_ov
+        for ey in (cy0, cy1):
+            hit |= (oy0[None] + EPS < ey) & (ey < oy1[None] - EPS) & x_ov
+        out[s0:s0 + chunk] = hit.any(axis=1)
+    return out
+
+
+def compare_layer_nu(model: R.RefModel, instance: str, T_ice: np.ndarray, cells: np.ndarray, sol_r: R.RefSolution,
+                     sol_2r: R.RefSolution, tol: float, meshes: Optional[Dict[str, np.ndarray]] = None) -> dict:
+    """Per-cell comparison on a non-uniform 3D-ICE mesh (see the module docstring)."""
+    li = model.tmap_layer(instance)
+    t_ref = sol_r.t_ref
+    if T_ice.shape != (len(cells),):
+        raise DiffError(f"{instance}: {T_ice.shape} temperatures for {len(cells)} cells")
+    ref_r = R.cell_average(sol_r.layer_field(li), sol_r.xe, sol_r.ye, cells)
+    ref_2r = R.cell_average(sol_2r.layer_field(li), sol_2r.xe, sol_2r.ye, cells)
+    dT = T_ice - ref_2r
+    own = np.abs(ref_2r - ref_r)
+    max_rise_ref = float(ref_2r.max() - t_ref)
+    thr = np.maximum(tol * max_rise_ref, 3.0 * own)
+    flag = np.abs(dT) > thr
+    others = [m for k, m in (meshes or {}).items() if k != instance]
+    mism = mesh_mismatch_mask(cells, others) if others else np.zeros(len(cells), dtype=bool)
+    # adjacency to a mismatched cell of the same mesh
+    x0, y0, x1, y1 = cells[:, 0], cells[:, 1], cells[:, 0] + cells[:, 2], cells[:, 1] + cells[:, 3]
+    adj = np.zeros(len(cells), dtype=bool)
+    if mism.any():
+        mi = np.nonzero(mism)[0]
+        touch = ((np.minimum(x1[:, None], x1[mi][None]) - np.maximum(x0[:, None], x0[mi][None]) >= -EPS) &
+                 (np.minimum(y1[:, None], y1[mi][None]) - np.maximum(y0[:, None], y0[mi][None]) >= -EPS))
+        adj = touch.any(axis=1) & ~mism
+
+    def cls(i):
+        return 'mesh-edge' if mism[i] else 'mesh-adjacent' if adj[i] else 'interior'
+
+    order = np.argsort(-np.abs(dT))
+    flagged = [dict(cell=int(i), x_um=float(cells[i, 0] + 0.5 * cells[i, 2]), y_um=float(cells[i, 1] + 0.5 * cells[i, 3]),
+                    length_um=float(cells[i, 2]), width_um=float(cells[i, 3]), T_ice=float(T_ice[i]),
+                    T_ref=float(ref_2r[i]), dT=float(dT[i]), threshold=float(thr[i]), cls=cls(i), explained=False)
+               for i in order if flag[i]]
+    n_flag = len(flagged)
+    n_edge = sum(1 for f in flagged if f['cls'] == 'mesh-edge')
+    n_adj = sum(1 for f in flagged if f['cls'] == 'mesh-adjacent')
+    if n_flag == 0:
+        verdict = 'AGREE'
+    elif n_edge + n_adj < EDGE_SHARE * n_flag:      # no DIFFUSE_FRACTION test: most cells of a mesh may be mismatched
+        verdict = 'DISAGREE (diffuse)'
+    else:
+        verdict = 'DISAGREE (die-edge)'
+    ia, ib = int(np.argmax(T_ice)), int(np.argmax(ref_2r))
+    return dict(
+        grid='non-uniform', instance=instance, layer=model.layers[li].name, verdict=verdict,
+        max_abs_dT=float(np.abs(dT).max()), max_abs_dT_cell=[int(np.argmax(np.abs(dT)))],
+        max_rise_ice=float(T_ice.max() - t_ref), max_rise_ref=max_rise_ref,
+        peak_diff=float(T_ice.max() - ref_2r.max()),
+        argmax_ice_um=[float(cells[ia, 0] + 0.5 * cells[ia, 2]), float(cells[ia, 1] + 0.5 * cells[ia, 3])],
+        argmax_ref_um=[float(cells[ib, 0] + 0.5 * cells[ib, 2]), float(cells[ib, 1] + 0.5 * cells[ib, 3])],
+        argmax_displacement_um=float(np.hypot(cells[ia, 0] + 0.5 * cells[ia, 2] - cells[ib, 0] - 0.5 * cells[ib, 2],
+                                              cells[ia, 1] + 0.5 * cells[ia, 3] - cells[ib, 1] - 0.5 * cells[ib, 3])),
+        ref_r_vs_2r_max_change=float(own.max()), ref_r_vs_2r_peak_change=float(ref_2r.max() - ref_r.max()),
+        tolerance_K=tol * max_rise_ref, n_cells=int(T_ice.size), n_mesh_mismatch_cells=int(mism.sum()),
+        max_abs_dT_vs_emulation=None, n_flagged_raw=n_flag, n_explained_by_3dice_vertical_rule=0,
+        n_flagged=n_flag, n_flagged_die_edge=n_edge, n_flagged_edge_adjacent=n_adj, n_flagged_near_edge=0,
+        n_flagged_interior=n_flag - n_edge - n_adj, edge_source='mesh', by_edge_source={}, distance_hist={},
+        flagged=flagged, _fields=dict(ice=T_ice, ref=ref_2r, dT=dT, flag=flag, cells=cells),
+    )
+
+
 def run_diff(stk_path: str, r: int = 4, nz: Optional[int] = None, tol: float = 0.02,
              ice_npz: Optional[str] = None, backend: str = 'auto', exe: Optional[str] = None,
              outdir: Optional[str] = None, method: str = 'auto', edge_source: str = 'union',
-             log=lambda *a: None) -> dict:
+             log=lambda *a: None, with_hotspot: bool = False, hotspot_exe: Optional[str] = None,
+             hotspot_r: int = 1, hotspot_grid: Optional[int] = None) -> dict:
     st = parse_stk(stk_path)
     model = R.build_model(st)            # raises RefusedModel
     ice = load_ice(st, ice_npz, backend, exe, outdir, log)
@@ -248,14 +462,30 @@ def run_diff(stk_path: str, r: int = 4, nz: Optional[int] = None, tol: float = 0
     s1 = R.solve(model, r=r, nz=nz, method=method)
     log(f"diff: reference solve at r={2 * r} ...")
     s2 = R.solve(model, r=2 * r, nz=nz, method=method)
-    s_emu = R.solve(model, r=1, nz=1, emulate_3dice_ends=True)
+    nu = bool(st.dims.non_uniform)
+    s_emu = None if nu else R.solve(model, r=1, nz=1, emulate_3dice_ends=True)
     layers = []
     union_edge = None
+    meshes = None
     for inst, d in ice.items():
         try:
             model.tmap_layer(inst)
         except KeyError:
             raise DiffError(f"Tmap instance {inst} is not a die or layer of the stack")
+        if nu:
+            if 'cells' not in d:
+                raise DiffError(f"{inst}: the non-uniform Tmap result carries no cell geometry (rerun `iceforge run`)")
+            if meshes is None:
+                from .model import non_uniform_cells
+                meshes = {}
+                for se in st.stack:
+                    cl = non_uniform_cells(st, se)
+                    if cl:
+                        meshes[se.instance] = np.array([[q.x, q.y, q.l, q.w] for q in cl])
+            c = compare_layer_nu(model, inst, d['T'], d['cells'], s1, s2, tol, meshes)
+            c['ice_source'] = d['source']
+            layers.append(c)
+            continue
         if union_edge is None:      # once per stack: in-plane union of every layer's floorplan and layout edges
             T0 = d['T']
             union_edge = edge_crossing_mask(np.arange(T0.shape[0] + 1) * st.dims.cell_l,
@@ -271,13 +501,19 @@ def run_diff(stk_path: str, r: int = 4, nz: Optional[int] = None, tol: float = 0
             return 'DISAGREE (diffuse)'
         return 'DISAGREE (die-edge)'
     overall = _overall([c['verdict'] for c in layers])
-    verdict_by_source = {k: _overall([c['by_edge_source'][k]['verdict'] for c in layers]) for k in ('own', 'union')}
-    return dict(stk=st.path, verdict=overall, edge_source=edge_source, verdict_by_edge_source=verdict_by_source, r=r, r_fine=2 * r, nz=nz, tol=tol,
+    verdict_by_source = {k: _overall([c['by_edge_source'].get(k, {'verdict': c['verdict']})['verdict'] for c in layers]) for k in ('own', 'union')}
+    hs = hotspot_opinion(st, model, layers, tol, hotspot_exe, hotspot_r, hotspot_grid, log) if with_hotspot else None
+    return dict(stk=st.path, verdict=overall, hotspot=hs, edge_source=edge_source, verdict_by_edge_source=verdict_by_source, r=r, r_fine=2 * r, nz=nz, tol=tol,
                 reference=dict(r=s1.info, r2=s2.info), layers=layers, _model=model)
 
 
 def strip_private(rep: dict, max_cells: int = 200) -> dict:
     out = {k: v for k, v in rep.items() if not k.startswith('_')}
+    if rep.get('hotspot'):
+        hs = dict(rep['hotspot'])
+        if 'layers' in hs:
+            hs['layers'] = [{k: v for k, v in c.items() if not k.startswith('_')} for c in hs['layers']]
+        out['hotspot'] = hs
     out['layers'] = []
     for c in rep['layers']:
         c2 = {k: v for k, v in c.items() if not k.startswith('_')}
@@ -295,6 +531,9 @@ def format_report(rep: dict, max_cells: int = 12) -> str:
         L.append(f"  ref {nm}: {i['nx']}x{i['ny']}x{i['nz_total']} = {i['unknowns']} unknowns, {i['method']}, "
                  f"residual {i['relative_residual']:.1e}, heat out/in {i['heat_out']:.6g}/{i['power_in']:.6g} W")
     for c in rep['layers']:
+        if c.get('grid') == 'non-uniform':
+            L.extend(_format_layer_nu(c))
+            continue
         L.append("")
         L.append(f"layer {c['instance']} ({c['layer']})   3D-ICE max rise {c['max_rise_ice']:.3f} K   "
                  f"reference {c['max_rise_ref']:.3f} K   peak diff {c['peak_diff']:+.3f} K")
@@ -317,15 +556,70 @@ def format_report(rep: dict, max_cells: int = 12) -> str:
         if c['n_flagged'] > max_cells:
             L.append(f"    ... {c['n_flagged'] - max_cells} more (see --json)")
         L.append(f"  verdict: {c['verdict']}")
+    hs = rep.get('hotspot')
+    if hs:
+        L.append("")
+        L.extend(format_hotspot(hs))
     L.append("")
     L.append(f"VERDICT: {rep['verdict']}")
     if rep['verdict'] == 'DISAGREE (die-edge)':
-        L.append("  disagreement is localised at die/layout edges: partial-cell artefact suspected "
-                 "(run `iceforge check`, then `iceforge snap`)")
+        if any(c.get('grid') == 'non-uniform' for c in rep['layers']):
+            L.append("  disagreement is localised at cells that do not conform to the mesh of another stack element: "
+                     "make the discretizations of adjacent elements/layers line up (equal cell edges)")
+        else:
+            L.append("  disagreement is localised at die/layout edges: partial-cell artefact suspected "
+                     "(run `iceforge check`, then `iceforge snap`)")
     elif rep['verdict'] == 'DISAGREE (diffuse)':
         L.append("  disagreement is not localised at edges: look for a model or boundary-condition mismatch "
                  "(heat-sink side, layer order, units, material k)")
     return '\n'.join(L)
+
+
+def _format_layer_nu(c: dict, max_cells: int = 12) -> List[str]:
+    L = ["", f"layer {c['instance']} ({c['layer']})   non-uniform mesh, {c['n_cells']} cells, compared per 3D-ICE cell   "
+             f"3D-ICE max rise {c['max_rise_ice']:.3f} K   reference {c['max_rise_ref']:.3f} K   "
+             f"peak diff {c['peak_diff']:+.3f} K",
+         f"  max |dT| {c['max_abs_dT']:.3f} K (tolerance {c['tolerance_K']:.3f} K)   reference r->2r change: "
+         f"max {c['ref_r_vs_2r_max_change']:.3f} K, peak {c['ref_r_vs_2r_peak_change']:+.4f} K",
+         f"  cells beyond tolerance: {c['n_flagged']} of {c['n_cells']} ({c['n_mesh_mismatch_cells']} cells of this "
+         f"mesh do not conform to another stack element's mesh; no vertical-rule explanation on a non-uniform mesh)",
+         f"  flagged: {c['n_flagged_die_edge']} mesh-edge, {c['n_flagged_edge_adjacent']} mesh-adjacent, "
+         f"{c['n_flagged_interior']} interior"]
+    for cell in c['flagged'][:max_cells]:
+        L.append(f"    cell {cell['cell']:4d} x={cell['x_um']:g} y={cell['y_um']:g} um ({cell['length_um']:g} x "
+                 f"{cell['width_um']:g})  3D-ICE {cell['T_ice']:.3f}  ref {cell['T_ref']:.3f}  dT {cell['dT']:+.3f}  "
+                 f"{cell['cls']}")
+    if c['n_flagged'] > max_cells:
+        L.append(f"    ... {c['n_flagged'] - max_cells} more (see --json)")
+    L.append(f"  verdict: {c['verdict']}")
+    return L
+
+
+def format_hotspot(hs: dict) -> List[str]:
+    if hs['status'] != 'ok':
+        return [f"HotSpot third opinion: {hs['status']}: {hs['reason']}"]
+    g = f"{hs['rows']}x{hs['cols']}"
+    if hs['grid_remapped']:
+        g += f" (area-averaged onto the {hs['n_cols']}x{hs['n_rows']} 3D-ICE cells)"
+    L = [f"HotSpot third opinion: grid {g}, {hs['n_hotspot_layers']} HotSpot layers (two per 3D-ICE layer), "
+         f"per-tile conductivity (detailed-3D): {'yes' if hs['detailed_3d'] else 'no'}"]
+    for c in hs['layers']:
+        hr, hi, ir = c['hotspot_vs_reference'], c['hotspot_vs_3dice'], c['ice_vs_reference']
+        mr = c['max_rise']
+        L.append(f"layer {c['instance']} ({c['layer']}), tolerance {c['tolerance_K']:.3f} K")
+        L.append("  solver     max rise K | max|dT| vs reference raw/fit | max|dT| vs 3D-ICE raw/fit")
+        L.append(f"  3D-ICE     {mr['ice']:10.3f} | {ir['max_abs']:9.3f} / {ir['fit_max_abs']:7.3f}        |"
+                 f" {'-':>9s}")
+        L.append(f"  reference  {mr['reference']:10.3f} | {'-':>9s}                    |"
+                 f" {ir['max_abs']:9.3f} / {ir['fit_max_abs']:7.3f}")
+        L.append(f"  HotSpot    {mr['hotspot']:10.3f} | {hr['max_abs']:9.3f} / {hr['fit_max_abs']:7.3f}        |"
+                 f" {hi['max_abs']:9.3f} / {hi['fit_max_abs']:7.3f}")
+        L.append(f"  (fit = after the best affine map; HotSpot ~ {hr['fit_scale']:.3f} x reference rise "
+                 f"{hr['fit_offset_K']:+.3f} K, its own boundary/vertical model)")
+        L.append(f"  => {c['side']}")
+    sides = {c['side'] for c in hs['layers']}
+    L.append(f"HotSpot overall: {sides.pop() if len(sides) == 1 else 'mixed: ' + '; '.join(sorted(sides))}")
+    return L
 
 
 def plot_report(rep: dict, path: str) -> bool:
@@ -336,7 +630,10 @@ def plot_report(rep: dict, path: str) -> bool:
     except ImportError:
         print("diff: matplotlib not installed, --plot skipped", file=sys.stderr)
         return False
-    layers = rep['layers']
+    layers = [c for c in rep['layers'] if c.get('grid') != 'non-uniform']
+    if not layers:
+        print("diff: --plot is not available for non-uniform meshes", file=sys.stderr)
+        return False
     fig, ax = plt.subplots(len(layers), 3, figsize=(13, 4 * len(layers)), squeeze=False)
     for row, c in enumerate(layers):
         f = c['_fields']
