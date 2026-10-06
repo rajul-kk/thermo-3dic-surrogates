@@ -296,10 +296,16 @@ def _pde(fn: str, **kw) -> Tuple[np.ndarray, np.ndarray]:
     return getattr(P, fn)(**kw)
 
 
+# The public IC-ThermBench files store power/grid/k transposed in-plane relative to the temperature
+# (report 9.33). True (default) transposes the spatial inputs to match; --icb-as-stored reproduces
+# the pre-2026-10-05 behaviour. Set from main().
+ICB_FIX_ORIENTATION = True
+
+
 def _icthermbench(scope: str) -> Tuple[np.ndarray, np.ndarray]:
     from scripts.ic_thermbench_data import load_scope, spatial_channel_indices
     s = load_scope(Path('data/ic-thermbench/datasets'), scope,
-                   split_data=(scope != 'level5'))
+                   split_data=(scope != 'level5'), fix_orientation=ICB_FIX_ORIENTATION)
     x = s.x_test if scope == 'level5' else np.concatenate([s.x_train, s.x_val, s.x_test])
     y = s.y_test if scope == 'level5' else np.concatenate([s.y_train, s.y_val, s.y_test])
     sp = spatial_channel_indices(s.channels)
@@ -376,7 +382,11 @@ def main():
     ap.add_argument('--seed', type=int, default=0,
                     help='seed for the subsampling permutation used when --max-samples bites')
     ap.add_argument('--output', type=Path, default=Path('results/linearity_audit.json'))
+    ap.add_argument('--icb-as-stored', action='store_true',
+                    help='load IC-ThermBench with its stored (transposed) input orientation, as before 2026-10-05')
     args = ap.parse_args()
+    global ICB_FIX_ORIENTATION
+    ICB_FIX_ORIENTATION = not args.icb_as_stored
 
     if args.list:
         for k in REGISTRY:
