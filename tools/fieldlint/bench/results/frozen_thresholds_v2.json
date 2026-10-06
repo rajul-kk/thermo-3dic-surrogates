@@ -1,0 +1,83 @@
+{
+ "frozen_at": "2026-10-07T02:15:55+0800",
+ "version": 2,
+ "tuned_on": [
+  "ictherm_s2",
+  "ictherm_s3",
+  "ictherm_s4",
+  "ictherm_s5",
+  "thermfm_HS_OC_refine1",
+  "thermfm_HS_OC_refine2",
+  "thermfm_HS_QC_refine1",
+  "thermfm_HS_QC_refine2",
+  "thermfm_HS_SC_refine1",
+  "thermfm_HS_SC_refine2",
+  "thermfm_IND_8C",
+  "thermfm_IND_32C",
+  "3dice_geometry1",
+  "3dice_geometry2a",
+  "3dice_geometry3",
+  "3dice_geometry4",
+  "3dice_geometry5",
+  "3dice_geometry6",
+  "darcy_beta1.0",
+  "darcy_beta0.01"
+ ],
+ "held_out_not_yet_run": [
+  "fno_darcy_128"
+ ],
+ "options": {
+  "max_samples": 400,
+  "source_rel_threshold": 1e-06,
+  "max_principle_rel_tol": 0.001,
+  "max_principle_abs_tol": 0.0,
+  "neighbourhood": 1,
+  "neighbourhood_z": 0,
+  "smooth_sigma": 2.0,
+  "orientation_margin": 0.1,
+  "op_margin": 0.05,
+  "op_r2_applicable": 0.3,
+  "op_shifts": 3,
+  "op_min_samples": 3,
+  "op_face_mean": "auto",
+  "op_face_samples": 32,
+  "min_inplane_cells": 8,
+  "pair_samples": 32,
+  "pair_tie": 0.1,
+  "pair_r2_applicable": 0.3,
+  "pair_warn": 0.25,
+  "pair_error": 0.5,
+  "dup_rtol": 1e-05,
+  "linear_max_samples": 1500,
+  "linear_max_features": 1024,
+  "linear_seed": 0,
+  "energy_tol": 0.01,
+  "max_temperature_k": 1500.0
+ },
+ "code_sha256": {
+  "rules.py": "3895a9b4259368aca0c8a9e8da6b74c14e45cbae35f78fe6df067032822494f5",
+  "adapters.py": "1fa1bb9ddfd141d0dc68386aa88c40985ef44288f5689993587dff99a02c87ca",
+  "model.py": "76a632bfe0a96786a61520975222e5d29fafc1f29647bd9346a8b55375110577",
+  "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
+  "3dice.json": "7dc571120bb40796b44b1288d15cba00cad121c42b8afefa80911ac274ee8d50",
+  "darcy.json": "9cc3f91039f6005b269037e325341fe97d64fa80ccf1441b10591fbf558e0d57",
+  "fno_darcy.json": "fc10ff4200ad46843d165cfa59fe113d34ff40a3b52f8ff95c8be128cf705427",
+  "ictherm.json": "54c0e63bc16bd755f045fbcc94fa138f453f24fdd308b1413ba348430e239624",
+  "thermfm.json": "62e2601e8439c2e784475b3f24f90bee2e638aff9b3beaf3ea6b65e88fccfae5"
+ },
+ "v1_frozen_file_untouched": "frozen_thresholds.json",
+ "fixed_in_code": {
+  "F003_fire_fractions": [
+   0.1,
+   0.5
+  ],
+  "F008_fire_fractions": [
+   0.1,
+   0.5
+  ],
+  "F009_fractions": [
+   0.25,
+   0.5
+  ]
+ }
+}

@@ -1,0 +1,465 @@
+[
+ {
+  "name": "diff_react_t20",
+  "group": "control",
+  "n": 300,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "300 samples checked; no problems",
+    "metrics": {
+     "checked": 300,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "nothing to check (0 vacuous / no-heating, 300 with sinks)",
+    "metrics": {
+     "checked": 0,
+     "violating": 0,
+     "fraction": null,
+     "vacuous_or_no_heating": 0,
+     "skipped_negative_source": 300
+    }
+   },
+   "F003": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "corr(smoothed source, u): stored 0.05, transpose 0.00, flip_x 0.00, flip_y 0.00, flip_xy 0.00; alternative better in 0% of 300 samples",
+    "metrics": {
+     "checked": 300,
+     "fraction_alternative_better": 0.0,
+     "fraction_raw_only_preference": 0.0,
+     "margin": 0.1,
+     "sigma_cells": 2.0
+    }
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "300 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 300,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-0.3361, 0.3175] (units unspecified); 300 samples; 1 note(s)",
+    "metrics": {
+     "checked": 300,
+     "u_min": -0.3361055552959442,
+     "u_max": 0.3175082206726074,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "not applicable: the operator model explains only median R2 = 0.00 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+    "metrics": {
+     "checked": 300,
+     "median_r2_stored": 0.0012862228016880528,
+     "median_r2_best_orientation": 0.0012862228016880528,
+     "margin": 0.05,
+     "fraction_alternative_better": 0.0,
+     "face_mean": "harmonic"
+    }
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "not applicable: the best match of each row has median R2 0.00 (< 0.3); the operator model does not describe this field",
+    "metrics": {}
+   }
+  }
+ },
+ {
+  "name": "burgers_nu0.01",
+  "group": "control",
+  "n": 400,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples checked; no problems",
+    "metrics": {
+     "checked": 400,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F003": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 400,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-1.677, 1.852] (units unspecified); 400 samples; 1 note(s)",
+    "metrics": {
+     "checked": 400,
+     "u_min": -1.6767544746398926,
+     "u_max": 1.851766586303711,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   }
+  }
+ },
+ {
+  "name": "burgers_nu0.01_t200",
+  "group": "control",
+  "n": 400,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples checked; no problems",
+    "metrics": {
+     "checked": 400,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F003": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 400,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-1.677, 1.852] (units unspecified); 400 samples; 1 note(s)",
+    "metrics": {
+     "checked": 400,
+     "u_min": -1.6767544746398926,
+     "u_max": 1.851766586303711,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the field is effectively 1D (in-plane shape (1, 1024), an axis is shorter than 8 cells); the steady 2D diffusion premises do not hold",
+    "metrics": {}
+   }
+  }
+ },
+ {
+  "name": "diff_react_t20+time_dependent_flag",
+  "group": "control",
+  "n": 300,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "300 samples checked; no problems",
+    "metrics": {
+     "checked": 300,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F003": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "300 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 300,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-0.3361, 0.3175] (units unspecified); 300 samples; 1 note(s)",
+    "metrics": {
+     "checked": 300,
+     "u_min": -0.3361055552959442,
+     "u_max": 0.3175082206726074,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   }
+  }
+ },
+ {
+  "name": "burgers_nu0.01+time_dependent_flag",
+  "group": "control",
+  "n": 400,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples checked; no problems",
+    "metrics": {
+     "checked": 400,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F003": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 400,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-1.677, 1.852] (units unspecified); 400 samples; 1 note(s)",
+    "metrics": {
+     "checked": 400,
+     "u_min": -1.6767544746398926,
+     "u_max": 1.851766586303711,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   }
+  }
+ },
+ {
+  "name": "burgers_nu0.01_t200+time_dependent_flag",
+  "group": "control",
+  "n": 400,
+  "units": "",
+  "faults": {},
+  "clean": {
+   "F001": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples checked; no problems",
+    "metrics": {
+     "checked": 400,
+     "load_failures": 0
+    }
+   },
+   "F002": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F003": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F004": {
+    "status": "ok",
+    "severity": "none",
+    "detected": false,
+    "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+    "metrics": {
+     "checked": 400,
+     "duplicate_samples": 0,
+     "cross_split": 0,
+     "within_split": 0,
+     "splits_labelled": true,
+     "inputs_repeated_across_splits": 0
+    }
+   },
+   "F005": {
+    "status": "ok",
+    "severity": "info",
+    "detected": false,
+    "summary": "u in [-1.677, 1.852] (units unspecified); 400 samples; 1 note(s)",
+    "metrics": {
+     "checked": 400,
+     "u_min": -1.6767544746398926,
+     "u_max": 1.851766586303711,
+     "units": "(unspecified)",
+     "constant_fields": 0
+    }
+   },
+   "F008": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   },
+   "F009": {
+    "status": "skipped",
+    "severity": "none",
+    "detected": false,
+    "summary": "out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution",
+    "metrics": {}
+   }
+  }
+ }
+]
