@@ -4239,7 +4239,9 @@ ThermoNO training: 4476 / 2116 / 1826 s per fold on CPU (geometry4 / 5 / 6).
 simulation data learn the discretisation's artefacts is already published (Mohan, Chattopadhyay & Miller 2024,
 arXiv:2411.15101; Neural Emulator Superiority, arXiv:2510.23111, treats it as a known failure mode). What this section adds
 is a specific, understood bug class in a steady-state chip-thermal setting and a paired label-swap projection test with
-pre-registered thresholds; we found no prior paired test, though only abstracts of the closest works were read. For the
+pre-registered thresholds. Mohan et al. work on 1-D equations through numerical analysis and model-Jacobian/eigen
+analysis, not paired retraining; Koehler (arXiv:2608.24547) studies unconverged training solvers through mode-wise Fourier
+analysis. We found no prior paired label-swap test (abstract-level check; full texts not yet read). For the
 `.lyt` rule itself, no public report was found; the 3D-ICE 4.0 paper (arXiv:2512.05823) describes area-overlap equivalent
 materials only for its GDS tile extraction and says nothing about `.lyt`, so "inconsistent with the GDS route" is an
 inference, not a documented fact.
