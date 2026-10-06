@@ -54,6 +54,33 @@ def _layer_rects(model: R.RefModel, layer_idx: int) -> List[Rect]:
     return rects
 
 
+def _all_rects(model: R.RefModel) -> List[Rect]:
+    """Every floorplan-element and layout rectangle of every layer (the in-plane union)."""
+    rects: List[Rect] = []
+    for L in model.layers:
+        rects += [r for _, rs in L.patches for r in rs]
+        rects += [r for r, _ in L.power_rects]
+    return rects
+
+
+NEAR_EDGE_CELLS = 3      # "near-edge" bucket: within this many cells (chessboard) of an edge cell
+
+
+def _neighbour_mask(edge: np.ndarray) -> np.ndarray:
+    near = edge.copy()
+    near[1:, :] |= edge[:-1, :]; near[:-1, :] |= edge[1:, :]
+    near[:, 1:] |= edge[:, :-1]; near[:, :-1] |= edge[:, 1:]
+    return near
+
+
+def _edge_distance(edge: np.ndarray) -> np.ndarray:
+    """Chessboard distance in cells to the nearest edge-crossing cell (-1 everywhere if there is none)."""
+    if not edge.any():
+        return np.full(edge.shape, -1, dtype=int)
+    from scipy.ndimage import distance_transform_cdt
+    return distance_transform_cdt(~edge, metric='chessboard').astype(int)
+
+
 def edge_crossing_mask(xe: np.ndarray, ye: np.ndarray, rects: List[Rect]) -> np.ndarray:
     """True for every cell (nx, ny) whose interior is crossed by an edge of any rectangle."""
     nx, ny = len(xe) - 1, len(ye) - 1
@@ -111,7 +138,10 @@ def load_ice(st: Stack, ice_npz: Optional[str], backend: str = 'auto', exe: Opti
 
 def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.RefSolution,
                   sol_2r: R.RefSolution, tol: float, cell_l: float, cell_w: float,
-                  sol_emu: Optional[R.RefSolution] = None) -> dict:
+                  sol_emu: Optional[R.RefSolution] = None, edge_source: str = 'union',
+                  union_edge: Optional[np.ndarray] = None) -> dict:
+    if edge_source not in ('union', 'own'):
+        raise ValueError("edge_source must be 'union' or 'own'")
     li = model.tmap_layer(instance)
     t_ref = sol_r.t_ref
     ref_r = R.block_average(sol_r.layer_field(li), sol_r.r)
@@ -127,10 +157,18 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
     # edge classification on the 3D-ICE grid
     xe = np.arange(T_ice.shape[0] + 1) * cell_l
     ye = np.arange(T_ice.shape[1] + 1) * cell_w
-    edge = edge_crossing_mask(xe, ye, _layer_rects(model, li))
-    near = edge.copy()
-    near[1:, :] |= edge[:-1, :]; near[:-1, :] |= edge[1:, :]
-    near[:, 1:] |= edge[:, :-1]; near[:, :-1] |= edge[:, 1:]
+    edges = {'own': edge_crossing_mask(xe, ye, _layer_rects(model, li)),
+             'union': union_edge if union_edge is not None else edge_crossing_mask(xe, ye, _all_rects(model))}
+    nears = {k: _neighbour_mask(e) for k, e in edges.items()}
+    dists = {k: _edge_distance(e) for k, e in edges.items()}
+
+    def _cls(src, i, j):
+        if edges[src][i, j]:
+            return 'die-edge'
+        if nears[src][i, j]:
+            return 'edge-adjacent'
+        d = dists[src][i, j]
+        return 'near-edge' if 0 <= d <= NEAR_EDGE_CELLS else 'interior'
 
     emu = sol_emu.layer_field(li) if sol_emu is not None else None
     ii, jj = np.nonzero(flag)
@@ -139,7 +177,8 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
         cells.append(dict(i_length=i, j_width=j, x_um=(i + 0.5) * cell_l, y_um=(j + 0.5) * cell_w,
                           T_ice=float(T_ice[i, j]), T_ref=float(ref_2r[i, j]), dT=float(dT[i, j]),
                           threshold=float(thr[i, j]),
-                          cls='die-edge' if edge[i, j] else 'edge-adjacent' if near[i, j] else 'interior',
+                          cls=_cls(edge_source, i, j), cls_own=_cls('own', i, j), cls_union=_cls('union', i, j),
+                          dist_cells_union=int(dists['union'][i, j]), dist_cells_own=int(dists['own'][i, j]),
                           T_emulated=None if emu is None else float(emu[i, j]),
                           explained=bool(emu is not None and
                                          abs(T_ice[i, j] - emu[i, j]) <= EXPLAIN_FRACTION * tol * max_rise_ref)))
@@ -147,15 +186,31 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
     n_expl = sum(1 for c in cells if c['explained'])
     cells = [c for c in cells if not c['explained']] + [c for c in cells if c['explained']]
     unexpl = [c for c in cells if not c['explained']]
-    n_flag = len(unexpl)
-    n_edge = sum(1 for c in unexpl if c['cls'] == 'die-edge')
-    n_adj = sum(1 for c in unexpl if c['cls'] == 'edge-adjacent')
-    if n_flag == 0:
-        verdict = 'AGREE'
-    elif n_flag > DIFFUSE_FRACTION * T_ice.size or n_edge + n_adj < EDGE_SHARE * n_flag:
-        verdict = 'DISAGREE (diffuse)'
-    else:
-        verdict = 'DISAGREE (die-edge)'
+
+    def _verdict(key):
+        n_flag = len(unexpl)
+        n_edge = sum(1 for c in unexpl if c[key] == 'die-edge')
+        n_adj = sum(1 for c in unexpl if c[key] == 'edge-adjacent')
+        if n_flag == 0:
+            v = 'AGREE'
+        elif n_flag > DIFFUSE_FRACTION * T_ice.size or n_edge + n_adj < EDGE_SHARE * n_flag:
+            v = 'DISAGREE (diffuse)'
+        else:
+            v = 'DISAGREE (die-edge)'
+        dk = 'dist_cells_' + key.split('_')[1]
+        hist: Dict[str, int] = {}
+        for c in unexpl:
+            d = c[dk]
+            lab = 'no-edge' if d < 0 else str(d) if d < 8 else '>=8'
+            hist[lab] = hist.get(lab, 0) + 1
+        return dict(verdict=v, n_flagged=n_flag, n_die_edge=n_edge, n_edge_adjacent=n_adj,
+                    n_near_edge=sum(1 for c in unexpl if c[key] == 'near-edge'),
+                    n_interior=sum(1 for c in unexpl if c[key] == 'interior'), distance_hist=hist)
+
+    by_source = {'own': _verdict('cls_own'), 'union': _verdict('cls_union')}
+    sel = by_source[edge_source]
+    verdict, n_flag, n_edge, n_adj = sel['verdict'], sel['n_flagged'], sel['n_die_edge'], sel['n_edge_adjacent']
+    n_near = sel['n_near_edge']
 
     ia = np.unravel_index(int(np.argmax(T_ice)), T_ice.shape)
     ib = np.unravel_index(int(np.argmax(ref_2r)), ref_2r.shape)
@@ -175,7 +230,8 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
         max_abs_dT_vs_emulation=None if emu is None else float(np.abs(T_ice - emu).max()),
         n_flagged_raw=n_raw, n_explained_by_3dice_vertical_rule=n_expl,
         n_flagged=n_flag, n_flagged_die_edge=n_edge, n_flagged_edge_adjacent=n_adj,
-        n_flagged_interior=n_flag - n_edge - n_adj,
+        n_flagged_near_edge=n_near, n_flagged_interior=n_flag - n_edge - n_adj - n_near,
+        edge_source=edge_source, by_edge_source=by_source, distance_hist=sel['distance_hist'],
         flagged=cells,
         _fields=dict(ice=T_ice, ref=ref_2r, dT=dT, flag=flag),
     )
@@ -183,7 +239,8 @@ def compare_layer(model: R.RefModel, instance: str, T_ice: np.ndarray, sol_r: R.
 
 def run_diff(stk_path: str, r: int = 4, nz: Optional[int] = None, tol: float = 0.02,
              ice_npz: Optional[str] = None, backend: str = 'auto', exe: Optional[str] = None,
-             outdir: Optional[str] = None, method: str = 'auto', log=lambda *a: None) -> dict:
+             outdir: Optional[str] = None, method: str = 'auto', edge_source: str = 'union',
+             log=lambda *a: None) -> dict:
     st = parse_stk(stk_path)
     model = R.build_model(st)            # raises RefusedModel
     ice = load_ice(st, ice_npz, backend, exe, outdir, log)
@@ -193,22 +250,29 @@ def run_diff(stk_path: str, r: int = 4, nz: Optional[int] = None, tol: float = 0
     s2 = R.solve(model, r=2 * r, nz=nz, method=method)
     s_emu = R.solve(model, r=1, nz=1, emulate_3dice_ends=True)
     layers = []
+    union_edge = None
     for inst, d in ice.items():
         try:
             model.tmap_layer(inst)
         except KeyError:
             raise DiffError(f"Tmap instance {inst} is not a die or layer of the stack")
-        c = compare_layer(model, inst, d['T'], s1, s2, tol, st.dims.cell_l, st.dims.cell_w, s_emu)
+        if union_edge is None:      # once per stack: in-plane union of every layer's floorplan and layout edges
+            T0 = d['T']
+            union_edge = edge_crossing_mask(np.arange(T0.shape[0] + 1) * st.dims.cell_l,
+                                            np.arange(T0.shape[1] + 1) * st.dims.cell_w, _all_rects(model))
+        c = compare_layer(model, inst, d['T'], s1, s2, tol, st.dims.cell_l, st.dims.cell_w, s_emu,
+                          edge_source=edge_source, union_edge=union_edge)
         c['ice_source'] = d['source']
         layers.append(c)
-    verdicts = [c['verdict'] for c in layers]
-    if all(v == 'AGREE' for v in verdicts):
-        overall = 'AGREE'
-    elif any(v == 'DISAGREE (diffuse)' for v in verdicts):
-        overall = 'DISAGREE (diffuse)'
-    else:
-        overall = 'DISAGREE (die-edge)'
-    return dict(stk=st.path, verdict=overall, r=r, r_fine=2 * r, nz=nz, tol=tol,
+    def _overall(verdicts):
+        if all(v == 'AGREE' for v in verdicts):
+            return 'AGREE'
+        if any(v == 'DISAGREE (diffuse)' for v in verdicts):
+            return 'DISAGREE (diffuse)'
+        return 'DISAGREE (die-edge)'
+    overall = _overall([c['verdict'] for c in layers])
+    verdict_by_source = {k: _overall([c['by_edge_source'][k]['verdict'] for c in layers]) for k in ('own', 'union')}
+    return dict(stk=st.path, verdict=overall, edge_source=edge_source, verdict_by_edge_source=verdict_by_source, r=r, r_fine=2 * r, nz=nz, tol=tol,
                 reference=dict(r=s1.info, r2=s2.info), layers=layers, _model=model)
 
 
@@ -245,7 +309,8 @@ def format_report(rep: dict, max_cells: int = 12) -> str:
                  f"(match the r=1, one-cell-per-layer emulation; max |3D-ICE - emulation| "
                  f"{c['max_abs_dT_vs_emulation']:.3f} K)")
         L.append(f"  unexplained: {c['n_flagged']}  ({c['n_flagged_die_edge']} die-edge, "
-                 f"{c['n_flagged_edge_adjacent']} edge-adjacent, {c['n_flagged_interior']} interior)")
+                 f"{c['n_flagged_edge_adjacent']} edge-adjacent, {c['n_flagged_near_edge']} near-edge, "
+                 f"{c['n_flagged_interior']} interior)")
         for cell in [x for x in c['flagged'] if not x['explained']][:max_cells]:
             L.append(f"    ({cell['i_length']:3d},{cell['j_width']:3d}) x={cell['x_um']:g} y={cell['y_um']:g} um  "
                      f"3D-ICE {cell['T_ice']:.3f}  ref {cell['T_ref']:.3f}  dT {cell['dT']:+.3f}  {cell['cls']}")

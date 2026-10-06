@@ -254,3 +254,45 @@ def test_diff_repro_cases(repro, case, verdict, code, capsys):
         assert lay["n_flagged_die_edge"] > 0
     else:
         assert lay["max_rise_ref"] == pytest.approx(ICE_RISE[case], abs=0.2)
+
+
+# ------------------------------------------------------------------ edge classification across layers
+
+def _two_tmap_case(repro, tmp_path):
+    """Misaligned repro with a second Tmap on the layout-free substrate (BOT) next to the die layer."""
+    d = os.path.join(repro, "misaligned")
+    s = open(os.path.join(d, "s.stk")).read().replace(
+        '   Tmap (TOPD, "tmap.txt", final) ;', '   Tmap (TOPD, "tmap.txt", final) ;\n   Tmap (BOT, "tb.txt", final) ;')
+    p = os.path.join(d, "s2.stk")
+    open(p, "w").write(s)
+    m = R.build_model(parse_stk(p))
+    sol = R.solve(m, r=1, nz=1, emulate_3dice_ends=True, method="direct")
+    npz = str(tmp_path / "ice")
+    os.makedirs(npz)
+    np.savez(os.path.join(npz, "tmap.npz"), T=sol.layer_field(m.tmap_layer("TOPD")))
+    Tb = sol.layer_field(m.tmap_layer("BOT")).copy()
+    Tb[5, 10:20] += 3.0        # spill-over of the artefact into the layer below, under the die's left edge
+    np.savez(os.path.join(npz, "tb.npz"), T=Tb)
+    return p, npz
+
+
+def test_neighbour_layer_spillover_is_die_edge_under_union_diffuse_under_own(repro, tmp_path):
+    p, npz = _two_tmap_case(repro, tmp_path)
+    u = D.run_diff(p, r=2, ice_npz=npz, edge_source="union")
+    o = D.run_diff(p, r=2, ice_npz=npz, edge_source="own")
+    assert u["verdict"] == "DISAGREE (die-edge)" and o["verdict"] == "DISAGREE (diffuse)"
+    bot_u = [c for c in u["layers"] if c["instance"] == "BOT"][0]
+    bot_o = [c for c in o["layers"] if c["instance"] == "BOT"][0]
+    assert bot_u["n_flagged"] == bot_o["n_flagged"] == 10
+    assert bot_u["n_flagged_die_edge"] == 10 and bot_o["n_flagged_die_edge"] == 0
+    # both classifications are always reported, whichever drives the verdict
+    assert u["verdict_by_edge_source"] == {"own": "DISAGREE (diffuse)", "union": "DISAGREE (die-edge)"}
+    assert bot_u["distance_hist"] == {"0": 10}
+
+
+def test_near_edge_bucket_is_not_counted_toward_edge_share():
+    edge = np.zeros((20, 20), bool)
+    edge[10, :] = True
+    d = D._edge_distance(edge)
+    assert d[10, 3] == 0 and d[13, 3] == 3 and d[14, 3] == 4
+    assert (D._edge_distance(np.zeros((4, 4), bool)) == -1).all()
