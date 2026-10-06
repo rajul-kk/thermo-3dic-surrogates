@@ -185,7 +185,7 @@ This paper makes the following contributions:
    Darcy, Burgers, Navier–Stokes, §9.16): it correctly places nonlinear Burgers at the
    discriminative extreme, shows our *fixed* benchmark was the most linearly-solvable dataset
    measured, and (on pre-repair data) shows the layout fix made ours harder than Darcy at matched sample size and
-   capacity; on the v5 rerun of 2026-10-07 the layout datasets sit at or above Darcy's 0.82-0.85 (§9.16a). It also found that **time-evolution PDE benchmarks omit the persistence
+   capacity; on the v5 rerun of 2026-10-07 the layout datasets sit at or above Darcy's 0.82-0.85 (§9.16a) with ridge on the per-cell power field, while ridge on the block-power vector still fails there (§9.15b-c). It also found that **time-evolution PDE benchmarks omit the persistence
    baseline** — on PDEBench Navier–Stokes a linear fit scores 0.958 while assuming nothing
    moved scores 0.9997, a gap the conventional mean-field baseline misses entirely (§9.16b).
    That is a fourth instance of this paper's structural finding, in the most-used benchmark

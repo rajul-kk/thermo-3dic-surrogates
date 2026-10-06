@@ -216,7 +216,7 @@ water), correctly places nonlinear Burgers at the discriminative extreme and con
 project's fixed-placement dataset was the most linearly-solvable dataset measured, ahead of
 Darcy. (Audit rerun on the repaired v5 data, 2026-10-07: the fixed-placement rows hold at 0.96-0.99, but
 the layout datasets move from 0.42-0.54 to 0.87-0.95, at or above Darcy, so the earlier "layout
-datasets are harder than Darcy" statement no longer holds; §9.16a.) It also found that time-evolution PDE benchmarks generally omit a **persistence
+datasets are harder than Darcy" statement no longer holds; §9.16a. This audit fits ridge on the per-cell power field; the block-power-vector ridge of §9.15b still fails on layout data, R² mean −0.65 to −3.0.) It also found that time-evolution PDE benchmarks generally omit a **persistence
 baseline** (assume nothing moved): on PDEBench Navier–Stokes at a short time gap, a linear fit
 scores 0.958 while persistence scores 0.9997.
 
