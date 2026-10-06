@@ -184,8 +184,8 @@ This paper makes the following contributions:
    diagnostic is calibrated against the canonical operator-learning benchmarks (PDEBench
    Darcy, Burgers, Navier–Stokes, §9.16): it correctly places nonlinear Burgers at the
    discriminative extreme, shows our *fixed* benchmark was the most linearly-solvable dataset
-   measured, and shows the layout fix made ours harder than Darcy at matched sample size and
-   capacity. It also found that **time-evolution PDE benchmarks omit the persistence
+   measured, and (on pre-repair data) shows the layout fix made ours harder than Darcy at matched sample size and
+   capacity; on the v5 rerun of 2026-10-07 the layout datasets sit at or above Darcy's 0.82-0.85 (§9.16a). It also found that **time-evolution PDE benchmarks omit the persistence
    baseline** — on PDEBench Navier–Stokes a linear fit scores 0.958 while assuming nothing
    moved scores 0.9997, a gap the conventional mean-field baseline misses entirely (§9.16b).
    That is a fourth instance of this paper's structural finding, in the most-used benchmark
@@ -1370,11 +1370,14 @@ that are more useful than the claim would have been:
 
 ### 9.13 The linear baseline on IC-ThermBench: it loses, and that reframes this paper (2026-09-10)
 
-> **Note (2026-10-05, §9.33).** The public IC-ThermBench files store the spatial inputs transposed in-plane
-> relative to the temperature, and this project's loader mirrored that. The ridge-type rows here were re-fit
-> with corrected orientation for S2–S4 and change by ≤ 0.34% (kNN / NN by up to +2.0%), so the
-> "linear baseline loses" result stands (§9.31). The S4→S5 ridge instability (§9.13c) persists with corrected
-> orientation.
+> **Note (2026-10-05, §9.33; rerun table added 2026-10-07).** The public IC-ThermBench files store the
+> spatial inputs transposed in-plane relative to the temperature, and this project's loader mirrored that,
+> so every number in the tables below was fit on mismatched input/output pairs. The table directly under the
+> results ("Fixed-orientation rerun") re-fits all baselines with the corrected orientation (same script,
+> split, λ grids and metrics; only `--fix-orientation` differs). The ridge variants change by ≤ 0.34% and
+> kNN by ≤ 1.7%, so the conclusion "the linear baseline loses on every scope" stands unchanged (§9.31).
+> The S4→S5 ridge instability (§9.13c) shrinks from ~1,700-2,000 K to ~53-59 K but persists: ridge is
+> still about 2x worse than the mean predictor. The as-stored rows are kept as originally reported.
 
 IC-ThermBench (arXiv:2608.23977) evaluates eight baselines — U-Net, FNO, U-FNO, SAU-FNO,
 DeepOHeat, Therm-FM T/B/L — and **not one is non-neural**. This section supplies the
@@ -1411,6 +1414,33 @@ index-based and unshuffled: 10,800 train / 1,200 val / 3,000 test. λ was select
 | | ridge-green | 8.116 | 7.152 | 0.895 | 16.72 | 7.73 | 8.56 | 35.7 M |
 | | ridge-pca | 6.946 | 6.090 | 0.918 | 14.04 | 6.84 | 7.49 | 4.2 M |
 | | **ridge-per-geom** | **3.203** | 2.635 | 0.984 | 9.05 | 2.76 | 3.03 | 21.2 M |
+
+**Fixed-orientation rerun (2026-10-07).** Same `scripts/ic_thermbench_baselines.py`, their split, λ selected
+on their validation split (the selected λ is identical in both orientations), `--fix-orientation` added
+(`results/icb_orientation/baselines_{old,fixed}.json`). RMSE column: as stored → fixed; the other columns
+are the fixed run, and the last column is the RMSE change. The mean-field row is orientation-independent and
+unchanged.
+
+| scope | baseline | RMSE (K), stored → fixed | MAE | R² | MaxAE | peak-T err | Top-50 MAE | RMSE change |
+|---|---|---|---|---|---|---|---|---|
+| S2 | knn | 4.406 → **4.438** | 3.533 | 0.853 | 11.84 | 3.71 | 4.60 | +0.73% |
+|  | ridge-green | 3.131 → **3.131** | 2.514 | 0.962 | 8.78 | 3.10 | 3.73 | +0.00% |
+|  | ridge-pca | 3.430 → **3.437** | 2.764 | 0.961 | 9.43 | 3.48 | 4.13 | +0.21% |
+|  | ridge-per-geom | 1.943 → **1.945** | 1.485 | 0.980 | 6.97 | 1.96 | 1.86 | +0.10% |
+| S3 | knn | 10.889 → **11.071** | 9.703 | 0.296 | 22.11 | 10.87 | 15.03 | +1.67% |
+|  | ridge-green | 4.603 → **4.604** | 3.786 | 0.922 | 11.89 | 4.03 | 5.37 | +0.02% |
+|  | ridge-pca | 4.159 → **4.161** | 3.462 | 0.936 | 10.16 | 4.36 | 5.31 | +0.06% |
+|  | ridge-per-geom | 2.488 → **2.479** | 1.976 | 0.972 | 7.90 | 1.92 | 2.21 | -0.34% |
+| S4 | knn | 20.654 → **20.950** | 19.804 | 0.146 | 33.04 | 21.95 | 24.35 | +1.43% |
+|  | ridge-green | 8.116 → **8.115** | 7.151 | 0.895 | 16.72 | 7.73 | 8.56 | -0.00% |
+|  | ridge-pca | 6.946 → **6.939** | 6.083 | 0.918 | 14.04 | 6.88 | 7.51 | -0.10% |
+|  | ridge-per-geom | 3.203 → **3.196** | 2.626 | 0.984 | 9.03 | 2.75 | 3.02 | -0.23% |
+
+Ratios to Therm-FM with the best fixed linear model (ridge-per-geom): 4.39× / 3.46× / 3.42× on S2 / S3 / S4
+(as stored: 4.39× / 3.47× / 3.43×). **Does it still lose? Yes, on every scope, by the same margin.** The fix
+changes so little for ridge for a mechanical reason: a fixed in-plane permutation of the input is a linear map
+of the input, which ridge absorbs apart from the regulariser's slightly different geometry. Only the
+distance-based kNN rows move noticeably (+0.7 to +1.7% RMSE).
 
 **The headline: the linear baseline loses, clearly and on every scope.** The best linear
 model is 4.4× / 3.5× / 3.4× worse than Therm-FM on S2 / S3 / S4, and worse than every one
@@ -1506,6 +1536,12 @@ same way:
 | **mean field (trivial)** | **29.638** | 28.905 | −0.151 | 29.57 |
 | ridge-pca | 1740.5 | 1389.3 | −9037.5 | 1715.7 |
 | ridge-green | 1973.5 | 1841.3 | −11668.5 | 888.8 |
+| ridge-pca, fixed orientation (2026-10-07) | 53.46 | 45.67 | −3.55 | 77.64 |
+| ridge-green, fixed orientation (2026-10-07) | 59.23 | 53.99 | −4.58 | 37.72 |
+
+(The two ridge rows above the fixed ones are as stored. The fixed rows are from
+`results/icb_orientation/baselines_transfer_fixed.json`: same S4 fit, same unchanged preprocessing. Fixed
+orientation removes the numerical blow-up but not the failure: both are 1.8-2.0× worse than the mean predictor.)
 
 Two findings, and they point in opposite directions.
 
@@ -1705,7 +1741,8 @@ The peak temperature changes by a median −0.69 K per scenario (range −13.25 
 median 3.3 mm. The qualitative claim survives: rigid translation is a low-dimensional family that a linear fit
 covers, with or without the artefact. The table row above (geometry4, rigid translate; det.MAE 0.755, norm err 0.128,
 R² 0.962) and the ridge 5-fold CV of 0.862 in §9.24 are **pre-fix** and will be rerun after the swap. (The stored
-`results/linearity_audit.json` is older and gives 0.9729 for the original; the 0.9736 above is a fresh run.)
+`results/linearity_audit.json` is older and gives 0.9729 for the original; the 0.9736 above is a fresh run,
+and the full v5 rerun, `results/linearity_audit_v5.json`, reproduces 0.9736 and 0.9750.)
 
 **Attempt 1 (rigid translation) failed.** Relative to the signal, ridge barely moved: +8% on
 geometry1, +5% on geometry4, and geometry4's spatial R² actually *improved* (0.891 → 0.962).
@@ -2038,6 +2075,19 @@ statistics are reported rather than one.
 > than first stated. The field representation is near-linear-solvable on all three layout
 > geometries, not just geometry4, while the compact vector fails on all three (−0.67, −2.31,
 > −2.87, unchanged). The 0.962 figures below are the pre-repair audit value; quote ≈0.95.
+>
+> **Audit rerun on current (v5, repaired, snapped) data, 2026-10-07** (`results/linearity_audit_v5.json`,
+> same script and settings as `results/linearity_audit.json` of 2026-09-12: single 20% split, PCA-restricted
+> and dense ridge, `--max-samples 3000`, seed 0). The audit table that follows was measured on
+> pre-repair data and is kept as originally reported. Detrended linear spatial R², old → v5: geometry4-shelf
+> 0.962 → 0.964, geometry5-shelf **0.418 → 0.948**, geometry6-shelf **0.536 → 0.870**; effective DOF
+> 7.6/3.2/2.5 → 7.6/4.8/5.2. The audit's shelf rows therefore no longer separate geometry4 from geometry5
+> (both are at or near the 0.95 threshold; geometry5 at 0.9475 is just under it and still labelled
+> "discriminative"), which agrees with the CV re-measurement above (0.936/0.951/0.954 and 0.893/0.923/0.937).
+> The old geometry5/6 audit values were an artefact of the layer-blind field. The conclusion of this section
+> (the field representation is linear-solvable where the compact vector is not) is strengthened, and the
+> "geometry5/6 are the hardest, because their material map changes most" reading below does not survive on
+> v5 data. Same 45-file single-split caveat as below.
 
 Adding the shelf datasets to the cross-benchmark linearity audit
 (`scripts/benchmark_linearity_audit.py`) produced a direct contradiction with §9.15b, and
@@ -2177,6 +2227,22 @@ column** — see §9.16c.
    exact regime our shelf datasets run in, still scores 0.816. It is therefore not an artifact
    of our datasets being small. (Darcy being comparatively easy for linear methods is
    consistent with existing criticism of it as an operator-learning benchmark.)
+
+> **Re-measured on v5 data, 2026-10-07 (`results/linearity_audit_v5.json`).** The ladder above is
+> pre-repair for the 'ours' rows. PDEBench rows are unchanged to every printed digit (same data, same
+> seed). Ours, old → v5: geometry5-shelf 0.418 → 0.948; geometry6-shelf 0.536 → 0.870;
+> geometry4-shelf 0.962 → 0.964; geometry1-layout 0.863 → 0.862; geometry1-fixed 0.988 → 0.986;
+> geometry4-fixed 0.946 → 0.982 (flips to LINEAR-SOLVABLE); geometry6-fixed 0.961 → 0.956;
+> geometry7-pilot 0.847 → 0.987 (flips to LINEAR-SOLVABLE). IC-ThermBench S2/S3/S4 (now loaded with
+> orientation fixed): 0.712 → 0.711, 0.594 → 0.594, 0.556 → 0.556; S4→S5 −0.228 → −0.228. Consequences:
+> items 1 and 2 above stand (Burgers is still the extreme, fixed placement is still among the most solvable,
+> geometry1-fixed 0.986 and shallow water 0.9999). **Item 3 does not stand on v5 data:** the layout
+> datasets are no longer less linearly explained than Darcy (0.816 at n = 45, 0.852 at n = 1000):
+> geometry5-shelf is 0.948 and geometry6-shelf 0.870, above both. Only geometry1-layout (0.862) is
+> comparable to Darcy, and it is at the Darcy n = 1000 level, not below it. The harder-than-Darcy claim
+> should be read as pre-repair; what the audit supports now is "layout randomisation lowers the field-linear
+> R² from ~0.98 to 0.86-0.95, to about Darcy's level", with the ridge-on-compact-vector failure (§9.15b)
+> being the stronger evidence. IC-ThermBench remains clearly discriminative (0.56-0.71) and unaffected.
 
 #### 9.16b Navier–Stokes: the missing baseline is persistence, not the mean
 
@@ -3815,8 +3881,9 @@ against the direct solve:
 > channels (power, grid, k) transposed in-plane relative to the output temperature. This project's loader
 > mirrored theirs, so every number in the *as-stored* rows below came from mismatched input/output pairs.
 > The fixed-orientation rows are added to the table, and the Reading is revised below them. The same
-> mismatch also underlies the IC-ThermBench numbers of §9.13 and §9.29, which have not been rerun
-> (see the notes there).
+> mismatch also underlies the IC-ThermBench numbers of §9.13 and §9.29. §9.13 was rerun in full on
+> 2026-10-07 (fixed-orientation table in §9.13; the conclusion is unchanged). §9.29 is handled in its own
+> notes.
 
 `src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
 (layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
