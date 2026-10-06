@@ -36,7 +36,7 @@ Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coeffic
 | `iceforge run model.stk [--backend auto\|native\|wsl\|docker] [--exe PATH] [-o outdir] [--no-check]` | check, solve, parse Tmaps to `.npz`, post-check |
 | `iceforge build spec.yaml -o outdir [--snap]` | generate grid-aligned `model.stk` + `.flp` + `.lyt` from a small spec (see Build) |
 | `iceforge init [-o spec.yaml] [--json] [--force]` | write an example spec (the repro case) |
-| `iceforge diff model.stk [--r 4] [--nz N] [--tol 0.02] [--ice-npz PATH] [--json] [--plot out.png]` | run 3D-ICE and an independently discretised reference solver, compare per Tmap layer, give a verdict (needs `iceforge[diff]`) |
+| `iceforge diff model.stk [--r 4] [--nz N] [--tol 0.02] [--ice-npz PATH] [--with-hotspot] [--json] [--plot out.png]` | run 3D-ICE and an independently discretised reference solver, compare per Tmap layer, give a verdict; optionally HotSpot as a third solver (needs `iceforge[diff]`) |
 | `iceforge doctor` | which backends work, which 3D-ICE was found |
 
 ### Check rules
@@ -52,11 +52,15 @@ Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coeffic
 | S007 | warning | unit sanity: k outside [1e-9, 1e-2] W/um/K, HTC outside [1e-12, 1e-3], layer height < 1 or > 1e5 um |
 | S008 | error | referenced file missing |
 | S009 | warning | total floorplan power <= 0 |
+| N001 | error | non-uniform grid: a layout is used but 3D-ICE 4.0 ignores it (see Non-uniform grids) |
+| N002 | error | non-uniform grid: the floorplan elements do not cover the die; the rest has no cells (a void) |
+| N003 | error | non-uniform grid with a bottom heat sink: 3D-ICE 4.0 segfaults |
+| N004 | warning | non-uniform grid: element with several rectangles (only the first is meshed) or fractional discretization |
 
 "Gap material" means the layer's own material when it is much less conductive (below half the largest k
 used by the layout), the usual footprint-layout convention. Layouts over a uniform-conductivity base (for
-example TSV density maps) are not treated as gaps. With `non-uniform true` grids, the off-grid rules
-(S001-S004, S006) are skipped and reported as `I001`.
+example TSV density maps) are not treated as gaps. With `non-uniform true` the regular-grid rules S001-S004 do not
+apply and are replaced by N001-N004 (below); I001 lists the cells per stack element.
 
 ### Snap
 
@@ -108,7 +112,7 @@ For each `Tmap` directive, `<outdir>/<name>.npz` holds `T` shaped `(length_index
 `<name>.json` sidecar adds shape, cell and chip size, maximum temperature and the maximum rise above the
 heat-sink temperature. Post-solve checks: `P001` shape matches the grid, `P002` the hottest cell must lie
 under a powered floorplan element (otherwise it warns; this is the artefact signature). Transient runs
-skip P002; non-uniform grids skip Tmap parsing.
+skip P002. Non-uniform grids are parsed too (see Non-uniform grids).
 
 ### Diff: a second opinion from an independent discretisation
 
@@ -136,8 +140,7 @@ Reference solver:
 Boundary conditions follow 3D-ICE 4.0 (checked in `thermal_grid.c`/`system_matrix.c`): `top heat sink` is a
 film on the top face of the first stack element, `bottom heat sink` on the bottom face of the last one
 (conductance `2 k h A / (dz h + 2 k)`, half a cell in series with the film); every other face is adiabatic.
-Anisotropic `k` (three values, x y z) is honoured. Refused with a message: non-uniform grids,
-microchannel layers, pluggable heat sinks, transient solves, models with no power.
+Anisotropic `k` (three values, x y z) is honoured. Refused with a message: microchannel layers, pluggable heat sinks, transient solves, models with no power.
 Linear solver: pyamg-preconditioned CG if pyamg is installed (about 7 s for 360 k unknowns, 25 s for 1.4 M),
 otherwise sparse LU up to 150 k unknowns and Jacobi CG above (slow; install pyamg).
 
@@ -178,7 +181,83 @@ is 0.05 K there, so r = 1 is coarse for that stack; use the default r = 4 for a 
 
 Argmax displacement is reported but is not used in the verdict: on a flat plateau the argmax is arbitrary.
 
-Future work: HotSpot as a third, independently written solver (out of scope for this build).
+### HotSpot as a third solver (`diff --with-hotspot`)
+
+`iceforge/hotspot.py` translates the stack to HotSpot's grid model (steady state) and `diff` prints a 3-way table.
+It needs a HotSpot **built with SuperLU** (`make SUPERLU=1`, needs `libsuperlu-dev`): the default build solves the
+steady state iteratively and, on stiff stacks, returns unconverged fields without a warning (seen here: 0.66 K rise
+instead of 10.8 K). iceforge runs a self-test on every HotSpot it is pointed at (`--hotspot-exe 'wsl /home/u/HotSpot/hotspot'`,
+`$HOTSPOT_EXECUTABLE`, else WSL `~/HotSpot/hotspot`, else `hotspot` on PATH) and refuses a build that fails it.
+Files are streamed into a `wsl mktemp -d` directory (no Windows path ever reaches a command line, so the space in
+`3D-ICE Thermal-modelling` cannot break it).
+
+What translates: uniform-k layers, floorplan power, a top or bottom heat sink with a film coefficient, and **`.lyt`
+layouts**. HotSpot's grid model does support per-block materials: with `-detailed_3D on` (needs a layer
+configuration file) every floorplan line may carry its own resistivity, and a grid cell shared by several blocks
+gets the occupancy-weighted parallel conductance (a block covering >= 95 % of a cell takes the cell). So each layout
+layer becomes a tiling of the chip (breakpoints of the layout and power rectangles) with a resistivity per tile,
+and power is split by tile area. That is an area-fraction rule like the reference's, not 3D-ICE's cell-centre rule.
+
+Refused with a clear message instead of approximated: microchannels, pluggable heat sinks, transient, non-uniform
+grids, both a top and a bottom sink (one primary heat path), no sink, non-square chips (HotSpot's spreader and sink are
+square), anisotropic k, overlapping layout rectangles or floorplan elements.
+
+Facts measured on this HotSpot (they shape the translation, and are the "own modelling differences"):
+- grid rows and columns must be powers of two: the grid is the next power of two >= r x the 3D-ICE cells and the field is
+  area-averaged onto the 3D-ICE cells (`--hotspot-r`, `--hotspot-grid`);
+- row 0 of the grid output is the TOP of the die (largest y); flipping it took the max difference to the reference
+  from 4.7 K to 0.06 K. (`src/simulators/hotspot_simulator.py` indexes `y = (row + 0.5) / rows` and so flips y.)
+- a layer's node sits at its face away from the sink and joins the next layer through the layer's FULL thickness. Each
+  3D-ICE layer is therefore split into two half-thickness HotSpot layers, which puts a node at the mid-plane where
+  3D-ICE's is;
+- the sink path is zero-thickness spreader/sink layers of the chip's size (a hair larger, `RIM_FACTOR`; equal sizes
+  give NaN) with k = 10 W/m/K so they do not spread heat sideways, and `r_convec = 1 / (h A_sink)`;
+- `-detailed_3D on` puts an extra film/2 in series per cell; the film is divided by 1.5 in that mode (checked on a
+  homogeneous control, DET vs ordinary mode: 0.05 K of 10.9 K; the self-test repeats this on every run).
+
+The comparison removes the best affine map (`HotSpot ~ s x reference + o`) before judging, because HotSpot's boundary and
+vertical model mostly rescale and offset the rise; both raw and "fit" residuals are printed. HotSpot is held to the
+tolerance against the reference; when 3D-ICE and the reference disagree, whichever HotSpot is within tolerance of
+"wins". The exit code of `diff` is still decided by 3D-ICE vs the reference only.
+
+3-way results (rises in K above ambient; max |dT| raw against the reference / against 3D-ICE; HotSpot at 64 x 64):
+
+| case | 3D-ICE | reference | HotSpot | HotSpot vs ref | HotSpot vs 3D-ICE | HotSpot sides with |
+|---|---|---|---|---|---|---|
+| repro misaligned | 14.562 | 11.067 | 11.060 | 0.058 | 7.375 | the reference |
+| repro aligned | 11.130 | 11.044 | 11.037 | 0.125 | 0.355 | all three agree |
+| repro nolayout | 11.027 | 10.970 | 10.930 | 0.088 | 0.163 | all three agree |
+| repro snapped | 11.118 | 11.047 | 11.040 | 0.096 | 0.145 | all three agree |
+| geometry1 (die, 12 layers, r = 1, nz = 3; HotSpot 64 x 64 remapped to 100 x 100) | 12.420 | 12.393 | 12.350 | 0.110 | 0.109 | all three agree |
+| geometry1 sink-end layer | 4.196 | 4.196 | 4.200 | 0.006 | 0.006 | all three agree |
+
+### Non-uniform grids
+
+3D-ICE 4.0 exposes them in the `.stk`: `non-uniform true ;` after the `cell` line of `dimensions` (grammar
+`optional_nonuniform`), plus `discretization X Y` on a stack element and `discretization X, Y ;` in a floorplan
+element. The mesh is not a grid. Read from `thermal_data.c` (`get_cell_position`) and checked against the
+`xyaxis_<id>.txt` files 3D-ICE writes: a die is cut along its floorplan elements, each element into its own
+`discretization` cells (else the die's, else chip / cell), only the FIRST rectangle of an element, cells row by row
+with x fastest; a plain layer is the whole chip cut into `discretization` cells; all layers of a die share its mesh.
+Experiments (3D-ICE 4.0, this machine):
+- layouts are ignored: identical Tmap with and without a `.lyt` (N001);
+- floorplan elements that do not cover the die leave a void with no cells, silently (N002);
+- a `bottom heat sink` segfaults the emulator (N003); the shipped example uses a top sink;
+- a Tmap is ONE line of N values plus `xyaxis_<instance>.txt` (x, y, length, width per cell, two decimals).
+
+iceforge: `model.non_uniform_cells(st, stack_element)` derives the cells; `run` stores `T` (N,) and `cells` (N, 4) in the
+`.npz` (checked against the xyaxis file, P003 on a mismatch); `check` applies N001-N004 (S001-S004 cannot occur: a
+floorplan edge is a cell edge by construction, and layouts are not read); `diff` compares **per 3D-ICE cell**: the
+reference is area-averaged exactly over each cell's rectangle (no interpolation), flagged with the usual rule, and
+classified by mesh mismatch (`mesh-edge`: another stack element's cell edge cuts the cell, or its edge cuts a cell of
+another mesh; `mesh-adjacent`). There is no vertical-rule explanation on a non-uniform mesh, so a thick stack-end layer
+shows up as a residual of order q h / 2k; keep stack-end layers thin or raise `--tol`. HotSpot is refused.
+
+Findings on `tests/fixtures/nonuniform` (same physics; reference r = 4/8, tolerance 2 %): with every cell 500 x 500 um
+(conforming) 3D-ICE agrees, max |dT| 0.10 K of a 7.5 K rise; with die element B at 600 x 1000 um cells next to A at
+500 x 500 and a 500 x 500 layer, 60 of 260 die cells and 120 of 400 layer cells are off by up to 0.87 K (11 %),
+all of them at cells that do not line up with the other mesh, while the peak rise is off by only 0.002 K. The shipped
+steady example (`example_steady_material.stk`, 400 cells) agrees to 0.036 K.
 
 ### Docker
 
@@ -204,5 +283,6 @@ On Windows, iceforge maps the `/mnt/<drive>/...` paths of WSL-targeted stacks ba
 python -m pytest tools/iceforge/tests -q
 ```
 
-Tests marked `solver` need a working backend and are skipped otherwise. Fixtures in
+Tests marked `solver` need a working backend and are skipped otherwise; tests marked `hotspot` need a SuperLU
+HotSpot (`HOTSPOT_EXECUTABLE='wsl /home/u/HotSpot_slu/hotspot'`). Fixtures in
 `tests/fixtures/3dice_examples` are copies of GPL-3.0-or-later example files from the 3D-ICE source tree.
