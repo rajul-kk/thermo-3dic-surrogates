@@ -45,7 +45,7 @@ Several 2026 arXiv items are recent and unreviewed.
 | Mohan, Chattopadhyay & Miller (2024), "What You See is Not What You Get: Neural PDEs and the Illusion of Learning", [arXiv:2411.15101](https://arxiv.org/abs/2411.15101) | Abstract states neural-PDE models "learn the artifacts in the simulation training data arising from the discretized Taylor Series truncation error". The general claim is already made. Methods: numerical analysis, Jacobian analysis, weight eigenanalysis; no paired label-swap test in the abstract. Full text not read. | found |
 | Koehler & Thuerey (2025), "Neural Emulator Superiority", NeurIPS 2025, [arXiv:2510.23111](https://arxiv.org/abs/2510.23111) | Converse: emulators can filter structured solver error in rollouts. Its related work itself cites the "emulators learn artefacts" failure mode (to Mohan et al.). All experiments are autoregressive rollouts, no steady-state setting, no paired artefact-projection test (checked in the HTML version). | found |
 | Suriyanarayanan, Chakraborty & Maulik (2026), "Deep Learning of Solver-Aware Turbulence Closures from Nudged LES Dynamics", [arXiv:2604.23874](https://arxiv.org/abs/2604.23874) | Abstract: learned correction "systematically tracks the discretization error of the coarse solver". Different setting (LES closure); a related observation that learned models carry the discretization error. | found |
-| Koehler (2026), "From Numerical Simulators of PDEs to Neural Emulators and Back", [arXiv:2608.24547](https://arxiv.org/abs/2608.24547) | Spectral analysis of numerical errors in emulators, unconverged-solver effects on training. PDF text could not be read; I cannot say whether it contains a reproduction test. | found (abstract only) |
+| Koehler (2026), "From Numerical Simulators of PDEs to Neural Emulators and Back", [arXiv:2608.24547](https://arxiv.org/abs/2608.24547) | Spectral analysis of numerical errors in emulators, unconverged-solver effects on training. Follow-up 2026-10-07: thesis PDF text (219 pp) grepped locally, no label swap, counterfactual or retraining on corrected labels. Appendix G.3 (read in context) enlarges the 1D-heat MLP emulator 10x and retrains with Progressively Refined Differentiable Physics: accuracy improves and solver-iteration savings stay near 80%. That is a model-size ablation, not an artefact-projection test. Grep is not a full read; the main chapters were not read. | read (grep plus appendix G.3) |
 | Northcutt et al. (2021), "Pervasive Label Errors in Test Sets Destabilize ML Benchmarks", [arXiv:2103.14749](https://arxiv.org/abs/2103.14749) | Label errors in general ML benchmarks. Not PDE-aware, not about deterministic solver structure. | found (snippet) |
 
 **Verdict: PARTIALLY ANTICIPATED.** The general statement "surrogates trained on discretised simulation data can learn the
@@ -53,7 +53,12 @@ discretisation's artefacts" is published (Mohan et al. 2024), and Neural Emulato
 failure mode. What remains ours: (a) a specific, mechanistically understood bug class (partial-cell power or material
 inconsistency), not generic truncation error; (b) a steady-state, chip-thermal, non-rollout setting; (c) the paired
 label-swap projection test with pre-registered thresholds, which gave a per-architecture answer (ThermoNO 77-95%,
-FNO partial and below the bar). No prior paired test found, but I only read abstracts of the closest works.
+FNO partial and below the bar). No prior paired test found. Follow-up 2026-10-07: the Mohan et al. full text (29 pp, local
+extraction, experiment sections) was read and has no paired or label-swap test. Its method is two Burgers experiments that
+differ only in the numerical scheme of the advective term, one training trajectory, test on varied initial conditions; it
+claims the network learns truncation artefacts from the initial condition, and it states relevance to dataset integrity of
+foundation models as a hypothesis, not a tested lint. The Koehler thesis was only grepped (see table). Verdict unchanged:
+partially anticipated (the phenomenon), the paired projection test not found in either.
 The correct framing is "a clean causal measurement of a known phenomenon", not "a new phenomenon".
 
 ## Finding 2. 3D-ICE 4.0 `.lyt` route: material by cell centre, power by overlap area
@@ -61,8 +66,8 @@ The correct framing is "a clean causal measurement of a known phenomenon", not "
 | Work | Overlap | Provenance |
 |---|---|---|
 | Zhu, Huang, Costero & Atienza (2025), 3D-ICE 4.0, [arXiv:2512.05823](https://arxiv.org/abs/2512.05823) | Its GDS-import pipeline (Algorithm 1, quadtree tiles) computes per-tile intersection area with layout polygons and an overlap ratio rho used to build equivalent per-tile models. Text read locally. It does not discuss `.lyt` files or the cell-centre rule. | found |
-| 3D-ICE GitHub issues, [esl-epfl/3d-ice](https://github.com/esl-epfl/3d-ice/issues) | Two issues only: #1 `.mlt` file usage (2021); #3 "Bugs that may exist" (2026-05), abnormal temperature with top and bottom heat sinks plus non-uniform mode. Neither concerns layout partial cells. | found |
-| 3D-ICE user guide, [eslweb.epfl.ch](https://eslweb.epfl.ch/3Dice/3D-ICE-User_Guide.pdf) | Documents the layout format; not read for the partial-cell rule this session. | found (not read) |
+| 3D-ICE GitHub issues, [esl-epfl/3d-ice](https://github.com/esl-epfl/3d-ice/issues) | Two open issues: #1 `.mlt` file usage (2021); #3 "Bugs that may exist" (Allow306, 2026-05-18; no comments or labels visible), abnormal temperature with top and bottom heat sinks plus non-uniform mode. Neither concerns layout partial cells. The issues page was read through a summariser. | read (summarised) |
+| 3D-ICE user guide, version 3.1.0 (7 Dec 2021), [eslweb.epfl.ch](https://eslweb.epfl.ch/3Dice/3D-ICE-User_Guide.pdf) | Read locally (2026-10-07 follow-up; text extracted). It documents floorplan (`.flp`) files only, with no occurrence of `.lyt`. It states that a floorplan element's power is divided among the cells it intersects and scaled by the fraction of each cell's surface covered, i.e. power by area fraction. It says nothing on material assignment of partially covered cells. For non-uniform mode it documents `non-uniform 1;` and `discretization`, and nothing about a layout file being ignored or about heat-sink restrictions. The guide predates 4.0, and we have not seen a 4.0 guide, which might document `.lyt`. | read |
 | Cut-cell / volume-fraction treatments in FV/FD solvers (general numerics) | A partially filled cell should treat source and material consistently by volume fraction. Standard knowledge, no specific citation. | inferred |
 
 **Verdict: NOVEL as a bug report; the framing needs softening.** No public report found, and the tracker is nearly
@@ -87,8 +92,26 @@ is ours; the maintainers' intent is unknown. It has not been reported upstream, 
   (arXiv:2512.05823) or in the documentation we could read, and the issue tracker's non-uniform report (#3, abnormal
   temperatures with top and bottom heat sinks) is a different symptom. Absence from the sources we searched is not proof
   that it is unreported or undocumented; the user guide was not read for this rule. Verdict for this observation:
-  NOVEL as a report, weak evidence, same standing as the main finding. A bottom-heat-sink segfault in non-uniform mode
-  was seen once and is unverified; it is not claimed.
+  NOVEL as a report, weak evidence, same standing as the main finding. (The segfault noted here originally as
+  unverified is now reproduced; see the follow-up below.)
+
+**Follow-up (2026-10-07): scoop check, `notes/2026-10-07-scoop-check.md`.** Labels: read = text read this session
+(local PDF extraction, or HTML through a summariser, as marked); snippet = search snippet only.
+- *Documented power rule strengthens the finding.* The 3D-ICE user guide (3.1.0) documents power by area fraction (table
+  above), so the cell-centre material rule our reproduction finds contradicts the documented power behaviour. That is
+  still our reproduction against the 2021 guide, not a statement of the maintainers' intent; the 4.0 documentation was not
+  seen.
+- *Second `.lyt`-ignored case.* A different strip, power split and discretisation gives the same result (uniform with
+  against without the layout: 5.522 K; non-uniform: byte-identical). Still no report found in the 4.0 paper, the guide
+  or the issue tracker.
+- *Issue #3 is prior for the both-sinks symptom, not its cause.* We reproduce a constant offset (+223050 K and
+  +390300 K in two cases) with top plus bottom sinks in non-uniform mode, which is issue #3's symptom; the issue gives no
+  diagnosis. Our diagnosis (bottom-sink conductance missing from the non-uniform matrix diagonal while its ambient
+  source is added to the right-hand side; report §9.34) was not found in the issue. We do not claim the symptom as new.
+- *The no-top-sink segfault is not reported.* 3D-ICE crashes in non-uniform mode whenever there is no top heat sink
+  (NULL `TopSink` dereference, `thermal_data.c:153`). We found no report of it on the tracker; that is weak evidence
+  (the tracker has two open issues and was read through a summariser). Verdict: NOVEL as a report, low-medium confidence.
+  Plan: comment on #3 for the offset and file the crash separately.
 
 ## Finding 3. Fixed-placement benchmarks linearly solvable; layout randomisation breaks it
 
@@ -117,6 +140,13 @@ on chip thermal data. Unchanged from the earlier check: our public README still 
 | ATSim3.5D vs Icepak/HotSpot; 3D-ICE 4.0 vs HotSpot, COMSOL, PACT | Thermal simulators compared as accuracy benchmarks. | snippet / abstract |
 | HotSpot 3.0 grid-model bug revealed by block-vs-grid disagreement ([HotSpot versions page](https://lava.cs.virginia.edu/hotspot/versions.htm)) | A thermal-simulator bug exposed by internal cross-model disagreement. | snippet, page not opened |
 
+Follow-up 2026-10-07 (HotSpot grid orientation). Read through a summariser: the HotSpot HOWTO and FAQ state no row order or y
+convention for grid output, and none of the 15 issues on the HotSpot tracker concerns orientation. The distributed plotting
+script `scripts/grid_thermal_map.pl` indexes grid cells by `int(idx/cols)` but draws floorplan blocks with y reversed
+(`tot_y - y - h`), which is consistent with row 0 being the top; this is circumstantial and was not checked against the
+PostScript axis direction. Our own regression test (commit 58d4280) is the firm evidence. Not done: a survey of third-party
+wrappers. Verdict for the row-0-is-top fact: undocumented in the places searched, low-medium confidence.
+
 **Verdict: PARTIALLY ANTICIPATED, and the method itself is ANTICIPATED.** Differential testing and code-to-code
 comparison are standard. Within chip thermal, the HotSpot version history is a precedent of a bug found by model
 disagreement. What remains ours is the packaged instance: an independent exact-area-fraction FV reference, refinement-based
@@ -133,6 +163,17 @@ archived real data (23/24 and 24/24). Call it a tool and an application, never a
 | Jakeman, Barba, Martins & O'Leary-Roseberry (2026), "Verification and validation for trustworthy scientific machine learning", [IOP](https://iopscience.iop.org/article/10.1088/2632-2153/ae59ec) | 16 recommendations incl. documenting data fidelity and processing; no tool. | found |
 | Northcutt et al. (2021), [arXiv:2103.14749](https://arxiv.org/abs/2103.14749) | Label-error detection in general ML benchmarks. Not PDE-aware. | found |
 
+Follow-up 2026-10-07 additions:
+
+| Work | Overlap | Provenance |
+|---|---|---|
+| ChannelFlow-Tools, [arXiv:2509.15236](https://arxiv.org/abs/2509.15236) | The nearest simulation-dataset audit found. A per-scene data-integrity audit over 450 simulations of generated 3D channel-flow data with five criteria: completeness and stability, mass conservation (flux imbalance <= 2% across streamwise sections, median 0.28%), time-average convergence, geometry-flow pairing (obstacle location and size inferred from geometry and from flow must match) and a momentum-balance diagnostic. It is generator-side and custom to that pipeline, not offered as a reusable linter, and it fits no operator residual. Its pairing check is conceptually close to our orientation and pairing checks; its mass-flux check is an integral conservation test, not a fitted operator residual. Snippet first, then HTML read through a summariser. | read (summarised) |
+| Wang (2026), "When Does AI for PDEs Yield Scientific Evidence?", [arXiv:2608.22504](https://arxiv.org/abs/2608.22504) | Extends PDEBench and PDEInvBench with evidence-support evaluation of model outputs. Model-output side, not a dataset linter. Abstract and introduction read locally. A figure of "104 contracts/controls, 24,360 PDEBench rows" came from a search snippet and was not found in the extracted text, so it is not cited. | read (abstract, intro) |
+| FabGuard, "Model Input Verification of Large Scale Simulations", [arXiv:2409.05768](https://arxiv.org/abs/2409.05768) | Pandera-based validation of simulation input files for agent-based simulations (e.g. Flee; 12,000 files in 140 s). Not PDE fields, no residuals. Unrelated to fieldlint beyond the general idea of input validation. | read (abstract, skim) |
+| Cleanlab Datalab, Google Data Linter, DataLinter, PYRA | Generic tabular or label linters, not PDE-aware. | snippet |
+
+No linter was found in PDEBench, The Well, PDEArena or APEBench; the searches returned nothing and their repositories were not fetched.
+
 **Verdict: NOVEL for the specific tool, with a weak-evidence caveat.** Everything found is model-side or a general
 data-quality framework. None checks orientation, maximum principle, input/label pairing, or operator residuals on
 simulator-generated datasets. The search tool does not index GitHub or PyPI well, so an unpublished repository could
@@ -147,6 +188,14 @@ own held-out set only.
 | [github.com/Day333/ThermalBench](https://github.com/Day333/ThermalBench) | Issue tracker shows no issues. README documents tensor `(B, X, Y, Z, P)` and says S1 data are released but its unified evaluation script is still in progress. | found |
 | Web search for erratum or orientation-bug reports | None. | found |
 
+Follow-up 2026-10-07 (origin of the transpose). Read through a summariser: the released loader `data_provider/data_loader.py`
+applies the same full axis reversal to inputs and targets (`(0,4,3,2,1)` and `(0,3,2,1)`), so the loader does not create a
+power-versus-temperature transpose; if our measurement is right it is already in the stored `.mat` files, that is, in the
+generation step. `docs/DATASETS.md` points to the ATPlace2.5D public package (github.com/PKU-IDEA/ATPlace_pub); its
+`Thermal.py` only writes HotSpot input files and runs HotSpot, and its layout kernel is described as encrypted. The code that
+rasterises to 64 x 64 and parses the grid output was not found in either repository, so the cause is unresolved. HotSpot's
+row-0-is-top would give a flip, not the measured transpose, so it does not explain it alone (inference).
+
 **Verdict: NOVEL (no report found).** Evidence is a negative on a small tracker as of 2026-10-07. Report it upstream:
 it is a clean, verifiable finding and costs little.
 
@@ -158,8 +207,11 @@ it is a clean, verifiable finding and costs little.
 | 2 | `.lyt` partial-cell inconsistency | NOVEL (as a report; soften "internal inconsistency") | 3D-ICE 4.0, arXiv:2512.05823 |
 | 3 | Ridge solves fixed-placement; layout randomisation breaks it | PARTIALLY ANTICIPATED | McGreivy & Hakim, arXiv:2407.07218 |
 | 4 | Differential testing with an independent discretisation | PARTIALLY ANTICIPATED (method anticipated) | Code-to-code comparison; Chen, Feng & Tse 2002 |
-| 5 | PDE-dataset linter | NOVEL (limited search reach) | Shikhman, arXiv:2606.18200 (model-side) |
+| 5 | PDE-dataset linter | NOVEL (limited search reach) | ChannelFlow-Tools, arXiv:2509.15236 (generator-side audit); Shikhman, arXiv:2606.18200 (model-side) |
 | 6 | IC-ThermBench transpose | NOVEL (no report found) | none; ThermalBench tracker empty |
+
+The 2026-10-07 follow-up changed no verdict. Cheapest next steps that remain: comment on 3D-ICE issue #3 and report the
+no-top-sink crash and the `.lyt` finding upstream; find the IC-ThermBench generation code.
 
 Defensible claim set: a measured, mechanistic, pre-registered demonstration (Finding 1 test, Finding 2 bug, Finding 3
 numbers), plus two open tools. Not defensible: any claim that surrogates learning solver artefacts, linear-baseline
