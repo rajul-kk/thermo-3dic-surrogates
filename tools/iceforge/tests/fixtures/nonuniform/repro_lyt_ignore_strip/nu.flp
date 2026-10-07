@@ -1,0 +1,10 @@
+P :
+   position 0, 0 ;
+   dimension 6000, 10000 ;
+   discretization 10, 10 ;
+   power values 3.0 ;
+Q :
+   position 6000, 0 ;
+   dimension 4000, 10000 ;
+   discretization 8, 10 ;
+   power values 7.0 ;

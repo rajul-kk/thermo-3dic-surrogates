@@ -1,0 +1,33 @@
+material SI :
+   thermal conductivity     1.4800e-04 ;
+   volumetric heat capacity 1.628e-12 ;
+
+top heat sink :
+   heat transfer coefficient 2.0000e-08 ;
+   temperature 300.00 ;
+
+dimensions :
+   chip length 1000.0 , width  1000.0 ;
+   cell length 1000.0 , width  1000.0 ;
+   non-uniform true ;
+
+layer L :
+   height 20.0 ;
+   material SI ;
+
+layer SRC :
+   height 20.0 ;
+   material SI ;
+
+die D :
+   source SRC ;
+
+stack :
+   die  TD D floorplan "f1.flp" discretization 1 1 ;
+
+solver:
+   steady ;
+   initial temperature 300.0 ;
+
+output:
+   Tmap (TD, "t.txt", final) ;

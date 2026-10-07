@@ -1,0 +1,35 @@
+material SI :
+   thermal conductivity     1.4800e-04 ;
+   volumetric heat capacity 1.628e-12 ;
+
+top heat sink :
+   heat transfer coefficient 2.0000e-08 ;
+   temperature 300.00 ;
+
+dimensions :
+   chip length 10000.0 , width  10000.0 ;
+   cell length 1000.0 , width  1000.0 ;
+   non-uniform true ;
+
+layer SUB :
+   height 20.0 ;
+   material SI ;
+
+layer SRC :
+   height 50.0 ;
+   material SI ;
+
+die D :
+   source SRC ;
+
+stack :
+   die   TOPD  D  floorplan "die.flp" discretization 10 10 ;
+   layer BOT  SUB discretization 20 20 ;
+
+solver:
+   steady ;
+   initial temperature 300.0 ;
+   numofcores 1 ;
+
+output:
+   Tmap (TOPD, "nu_top_t.txt", final) ;
