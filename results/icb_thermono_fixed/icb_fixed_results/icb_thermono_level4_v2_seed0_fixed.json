@@ -1,0 +1,52 @@
+{
+ "args": {
+  "scope": "level4",
+  "transfer": "level5",
+  "data_root": "/kaggle/input/datasets/rajulkabir/ic-thermbench-s2-s5/datasets",
+  "epochs": 150,
+  "ch": 32,
+  "blocks": 4,
+  "modes": 32,
+  "batch": 32,
+  "lr": 0.002,
+  "w_top": 0.0,
+  "patience": 20,
+  "min_epochs": 0,
+  "th_scale": 20.0,
+  "geo_arch": "mlp",
+  "geo_attn": false,
+  "local_k": 1,
+  "multiscale": 0,
+  "seed": 0,
+  "limit": null,
+  "device": "cuda",
+  "out": "/kaggle/working/icb_fixed_results/icb_thermono_level4_v2_seed0_fixed.json",
+  "fix_orientation": true
+ },
+ "n_params": 4235845,
+ "epochs_run": 150,
+ "val_rmse_best": 3.264864772509783,
+ "minutes": 68.56483208735784,
+ "level4": {
+  "rmse": 3.214444503769353,
+  "r2": 0.9786115707783974,
+  "r2_per_sample": 0.7824829269062322,
+  "max_absolute_error": 8.200967041015625,
+  "mean_absolute_error": 2.780279123827815,
+  "mape_percent": 0.758929936387764,
+  "pape_percent": 2.2428005781604905,
+  "max_temperature_error": 3.579638956705729,
+  "topk50_temperature_difference": 3.624697281494134
+ },
+ "level5": {
+  "rmse": 6.7846415531764706,
+  "r2": 0.9137224992497094,
+  "r2_per_sample": -0.5759570152322262,
+  "max_absolute_error": 13.344514678955077,
+  "mean_absolute_error": 6.2881009670645,
+  "mape_percent": 1.7918243980083963,
+  "pape_percent": 3.70813084893981,
+  "max_temperature_error": 10.09361030883789,
+  "topk50_temperature_difference": 10.201198608764678
+ }
+}

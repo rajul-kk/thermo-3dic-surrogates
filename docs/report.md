@@ -3717,13 +3717,22 @@ backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 me
   cannot serve as a third solver: it supports only single-die geometry1, where the backbone is
   already exact (§9.25).
 
-### 9.29 ThermoNO on an outside benchmark: weak in-distribution, 2.3× the best published model zero-shot (2026-09-26)
+### 9.29 ThermoNO on an outside benchmark: weak in-distribution, 2.1× the best published model zero-shot (fixed orientation, 3 seeds; 2026-09-26)
 
-> **Caveat (2026-10-05, §9.33).** All numbers in this section were produced with the as-stored (transposed
-> inputs) IC-ThermBench orientation. A small-data rerun with corrected orientation (§9.31, 108 samples, one seed)
-> moved ThermoNO's S4 RMSE from 13.64 to 11.46 K and its S5 RMSE from 14.02 to 13.59 K. The full-data runs below
-> have **not** been rerun with corrected orientation, so the 6.83 / 6.70 K S5 figures and the 2.3× claim are
-> untested for this effect (inferred from the small run: likely to improve, not measured).
+> **Orientation correction (2026-10-07, §9.33).** The tables below were produced with the as-stored
+> (transposed-input) IC-ThermBench orientation. The full protocol was rerun with `--fix-orientation` (same
+> split, metrics, seeds and hyper-parameters; `results/icb_thermono_fixed/`,
+> `notebooks/kaggle_icb_thermono_fixed.ipynb`). Fixed-orientation numbers: v2 S4 3.15 ± 0.07 K (3 seeds; was
+> 4.40), v2 S5 zero-shot 7.30 ± 0.51 K (6.78, 7.31, 7.81; was 6.70 ± 0.37), v2 S2 1.76 K and v4 S2 1.77 K
+> (was 1.88, 1.92), v1 S2/S3/S4/S5 3.45 / 3.54 / 4.02 / 6.38 K. The fix improves in-distribution error (S4
+> −28%), but the three-seed v2 S5 error rises by 0.6 K, so the zero-shot advantage over the best published
+> model is 2.1× rather than 2.3×. The in-distribution conclusion is unchanged (3.4–4.9× behind Therm-FM). With
+> v2 training ThermoNO now edges the fixed ridge-per-geom baseline on S2 (1.76 vs 1.945), is level with it on S4
+> (3.15 vs 3.196, inside about one seed-sd), and still loses on S3 (3.54 vs 2.48, v1 run only). Caveats: the
+> fixed v2 S4 runs all hit the 150-epoch cap (the as-stored ones early-stopped at epochs 121–134), so they may
+> be under-trained. S5 got worse on all three seeds by 0.4–0.8 K, about 1 SD at n=3, so this shows neither
+> help nor harm from the fix. The within-layout-group 0.52 K linear-fit figure below was not rerun under the
+> fixed orientation. The text and tables below are the as-stored results unless marked fixed.
 
 IC-ThermBench (§9.13) is a single-layer 64×64 grid, so neither the layered backbone (§9.25) nor
 LT-FNO's layer coupling (§9.27) applies. LT-FNO reduces to a 2D FNO there and was not run.
@@ -3752,8 +3761,8 @@ then diverged as the one-cycle schedule reached its peak learning rate. Early st
 epoch-24 checkpoint. S3 trained smoothly to epoch 83 and still reached only 3.9 K. So part of the
 gap is optimisation, but the model has also not shown it can reach sub-kelvin accuracy here.
 
-**Zero-shot on S5 it is 2.3× better than the best published model** (6.83 vs 15.51 K RMSE;
-R² 0.91). This is the benchmark's headline OOD scope. Five unseen package systems, where every
+**Zero-shot on S5 it is 2.3× better than the best published model as stored** (6.83 vs 15.51 K RMSE;
+R² 0.91; 2.1× with the orientation fixed, 7.30 K, see the fixed table below). This is the benchmark's headline OOD scope. Five unseen package systems, where every
 published model degrades 16× or more and our linear fits blow up. To find where the gain comes
 from, we scored three geometry-blind predictors on S5, each built from the S4 training fields:
 
@@ -3781,6 +3790,20 @@ patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
 | S2 | 3.85 | **1.88** (seed 0; stopped at the 150-epoch cap, still improving) | 1.50 | 0.443 | 1.943 |
 | S4 | 5.34 | **4.40 ± 0.06** (4.38, 4.49, 4.35) | 4.37 | 0.933 | 3.203 |
 | **S5 zero-shot** | 6.83 | **6.70 ± 0.37** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
+
+**Fixed orientation, v2 (2026-10-07).** Rerun with `--fix-orientation`; test RMSE in K:
+
+| scope | as stored | **fixed** | Therm-FM | ridge-per-geom (fixed) |
+|---|---|---|---|---|
+| S2 (v2) | 1.88 | **1.76** | 0.443 | 1.945 |
+| S4 (v2, 3 seeds) | 4.40 ± 0.06 | **3.15 ± 0.07** | 0.933 | 3.196 |
+| S5 zero-shot (v2, 3 seeds) | 6.70 ± 0.37 | **7.30 ± 0.51** (6.78, 7.31, 7.81) | 15.51 | unstable |
+
+The fixed v2 S4 runs all ran to the 150-epoch cap (as stored: early-stopped at epochs 121–134), so they
+may be under-trained. All three fixed seeds still beat Therm-FM on S5 (2.3×, 2.1×, 2.0×), and the mean is
+2.2× below the 16.06 K no-training power-scaling rule. S5 was worse than as stored on every seed (by 0.4–0.8 K),
+about one SD at n=3, so the fix is not shown to help or hurt S5. ThermoNO is 3.4–4.9× behind Therm-FM in
+distribution (S2 4.0×, S3 4.9× with the v1 run only, S4 3.4×).
 
 - **The S5 result is seed-stable.** All three seeds beat Therm-FM by 2.1–2.4× (R² 0.91–0.93).
 - **In distribution, stable training halves the S2 error**, and it was still falling when the
@@ -3819,7 +3842,7 @@ held off until epoch 240 (`--min-epochs 240`), so the one-cycle schedule anneals
 
 **This revises the step-limited reading above.** At 2,000 CPU steps on one layout group the model
 was still improving, but on the full data with a completed schedule it plateaus near 1.9 K, while
-a plain linear fit within a single layout group reaches 0.52 K. The remaining gap is architectural.
+a plain linear fit within a single layout group reaches 0.52 K (neither figure revisited here; with the orientation fixed, v4 plateaus near 1.77 K, and the 0.52 K fit was not rerun). The remaining gap is architectural.
 ThermoNO adapts one global DCT operator to each layout only through per-cell multiplicative gates.
 That cannot represent 20 layouts × hundreds of chiplet footprints, each with its own Green's
 function, to sub-kelvin accuracy. Closing it needs a different way of conditioning the operator on
@@ -3828,7 +3851,7 @@ geometry, not more training. Untested candidates:
   (hypernetwork-style), instead of per-cell gates on fixed weights;
 - a per-layout linear backbone fitted out-of-fold, with ThermoNO as its correction (the §9.26 recipe).
 
-**Limits.** The S2 runs are one seed each. S5 zero-shot (6.70 ± 0.37 K, three seeds) is the
+**Limits.** The S2 runs are one seed each. S5 zero-shot (6.70 ± 0.37 K as stored, 7.30 ± 0.51 K fixed, three seeds) is the
 result that stands. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
@@ -3881,9 +3904,9 @@ against the direct solve:
 > channels (power, grid, k) transposed in-plane relative to the output temperature. This project's loader
 > mirrored theirs, so every number in the *as-stored* rows below came from mismatched input/output pairs.
 > The fixed-orientation rows are added to the table, and the Reading is revised below them. The same
-> mismatch also underlies the IC-ThermBench numbers of §9.13 and §9.29. §9.13 was rerun in full on
-> 2026-10-07 (fixed-orientation table in §9.13; the conclusion is unchanged). §9.29 is handled in its own
-> notes.
+> mismatch also underlies §9.13 and §9.29; both were rerun in full on 2026-10-07 (§9.13: conclusion unchanged;
+> §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 K, 2.1× better than Therm-FM;
+> see §9.29).
 
 `src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
 (layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
@@ -3936,6 +3959,9 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   The earlier statement that "most of that is the built-in linearity" is therefore weaker: some of the
   S5 gain is now attributable to something the models learned from 108 samples. One seed each, so
   this is indicative, not a measured effect size.
+- Caution: the 108-sample runs suggested the fix improves S5 (14.02 → 13.59 K, one seed). At full data with
+  three seeds it did not (6.70 → 7.30 K, worse on every seed), so that S5 direction should not be generalised.
+  The S4 direction (improves) did replicate (13.64 → 11.46 K small; 4.40 → 3.15 K full).
 - The orientation fix helped ThermoNO's in-distribution error most (S4 13.64 → 11.46 K, −16%) and
   the learned-conductance solver's S5 transfer most (13.88 → 13.26 K; R² 0.58 → 0.68). It barely moved the
   solver's S4 error (20.83 → 20.69 K, which is still capped at 100 epochs and far from useful).
@@ -4613,9 +4639,14 @@ v1 file is untouched).
   shares the area-fraction idea with the reference, so it is not independent of the reference's modelling choice,
   only of its discretisation and code. Its three-way agreement is shown on four repro cases and geometry1, not on
   the archived real data.
-- A possible y-flip in `src/simulators/hotspot_simulator.py` (it indexes `y = (row + 0.5) / rows`, while HotSpot's
-  grid row 0 is the top of the die) was noted while building the HotSpot path and has not been checked against
-  this repository's HotSpot cross-validation data.
+- The y-flip in `src/simulators/hotspot_simulator.py` is confirmed and fixed in commit 58d4280: HotSpot's grid
+  row 0 is the top of the die and the wrapper did not flip rows (regression test
+  `tests/test_hotspot_orientation.py`). No saved spatial result used this wrapper. The only report result from it
+  (the geometry1 cross-validation, ~15% disagreement) is a scalar peak/mean comparison, so it is unaffected.
+  Two open items, not investigated: (a) the wrapper builds HotSpot's floorplan only from `power_blocks`, so if
+  the blocks do not tile the die, HotSpot's grid spans their bounding box, not the die; (b) in the orientation
+  test the field was nearly 0 K outside the hot block and ~24 K inside, possibly due to the wrapper's
+  lumped-sink settings.
 - The docker backend was verified by hand on the repro fixtures, not in an automated test.
 - `diff` is checked on the repro, geometry1 and geometry5, and on the 48 archived geometry4-6 solves above (r = 2
   and nz = 2, with one r = 4 spot check). At r = 1 on geometry5 the reference's own r vs 2r change is 0.05 K, so
