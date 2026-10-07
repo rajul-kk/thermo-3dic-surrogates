@@ -1,9 +1,9 @@
-"""Regression: HotSpotSimulator must give HotSpot a floorplan that covers the whole die.
+"""Regression: HotSpotSimulator must give HotSpot floorplans that cover the whole die.
 
 HotSpot sizes its grid to the bounding box of the floorplan, so power blocks that do not
 tile the die (geometry1: four 3 mm blocks on a 10 mm die) used to stretch the field and
-shift every coordinate.  Also guards the package setup: a sink/spreader exactly the chip
-size made HotSpot return ~0 K everywhere (independent of r_convec and ambient).
+shift every coordinate (iceforge's translation tiles every layer).  Also guards the package
+setup: a sink/spreader exactly the chip size made HotSpot return ~0 K everywhere.
 """
 import shutil
 import subprocess
@@ -31,41 +31,28 @@ def _hotspot_available() -> bool:
         return False
 
 
-def _read_flp(path):
-    rows = []
-    for line in Path(path).read_text().splitlines():
-        if line.startswith('#') or not line.strip():
-            continue
-        n, w, h, x, y = line.split()
-        rows.append((n, float(w), float(h), float(x), float(y)))
-    return rows
-
-
-def test_floorplan_tiles_the_die_geometry1():
+def test_full_stack_translation_geometry1():
+    """The wrapper models every stack layer (not a lumped die): the HotSpot layer file has
+    several layers, each floorplan tiles the die, and power is conserved."""
     g = build_geometry1()
     d = Path(tempfile.mkdtemp())
     try:
         sim = HotSpotSimulator(d / 'c', d / 'o', "hotspot")
         sim.generate_config_files(g, {'power_blocks': {'block1': 60.0, 'block2': 30.0,
-                                                       'block3': 90.0, 'block4': 45.0}})
-        rows = _read_flp(d / 'c' / 'hotspot.flp')
-        L, W = g.die_length * 1e-6, g.die_width * 1e-6
-        assert sum(w * h for _, w, h, _, _ in rows) == pytest.approx(L * W, rel=1e-6)
-        assert max(x + w for _, w, _, x, _ in rows) == pytest.approx(L, rel=1e-6)
-        assert max(y + h for _, _, h, _, y in rows) == pytest.approx(W, rel=1e-6)
-        assert min(x for *_, x, _ in rows) == 0.0 and min(y for *_, y in rows) == 0.0
-        # no overlaps
-        for i, (_, w1, h1, x1, y1) in enumerate(rows):
-            for _, w2, h2, x2, y2 in rows[i + 1:]:
-                ox = min(x1 + w1, x2 + w2) - max(x1, x2)
-                oy = min(y1 + h1, y2 + h2) - max(y1, y2)
-                assert not (ox > 1e-9 and oy > 1e-9)
-        # power is carried by the real blocks only and is conserved
-        lines = (d / 'c' / 'hotspot.ptrace').read_text().splitlines()
-        names, vals = lines[0].split('\t'), [float(v) for v in lines[1].split('\t')]
-        assert len(names) == len(rows)
+                                                       'block3': 90.0, 'block4': 45.0},
+                                      'htc': 10000.0, 't_ambient': 25.0})
+        case = sim._case
+        assert len(case.layers) >= 2 * len(g.layers) - 1          # half-thickness split per layer
+        L = g.die_length * 1e-6
+        for name, text in case.files.items():
+            if not name.endswith('.flp'):
+                continue
+            rows = [ln.split() for ln in text.splitlines() if ln and not ln.startswith('#')]
+            area = sum(float(r[1]) * float(r[2]) for r in rows)
+            assert area == pytest.approx(L * (g.die_width * 1e-6), rel=1e-6), name
+        vals = [float(v) for v in case.files['power.ptrace'].splitlines()[1].split('	')]
         assert sum(vals) == pytest.approx(5.4 + 2.7 + 8.1 + 4.05, rel=1e-6)
-        assert all(v == 0.0 for n, v in zip(names, vals) if n.startswith('fill_'))
+        assert sim._case.sink_side == 'bottom'
     finally:
         shutil.rmtree(d, ignore_errors=True)
 

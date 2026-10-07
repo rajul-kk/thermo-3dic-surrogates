@@ -33,11 +33,11 @@ def test_corner_block_peaks_at_small_y():
     layers = [Layer('base', 'silicon', 500, 150, 1.6e6),
               Layer('die', 'silicon', 100, 150, 1.6e6, is_active=True)]
     # Blocks tile the die so HotSpot's floorplan bounding box is the full die.
-    blocks = [PowerBlock('hot', 0, 0, 3000, 2000),
-              PowerBlock('a', 3000, 0, 7000, 10000),
-              PowerBlock('b', 0, 2000, 3000, 8000)]
+    blocks = [PowerBlock('hot', 0, 0, 3000, 2000, layer_name='die'),
+              PowerBlock('a', 3000, 0, 7000, 10000, layer_name='die'),
+              PowerBlock('b', 0, 2000, 3000, 8000, layer_name='die')]
     g = Geometry('orient', '2d_stack', layers, blocks, die_width=10000, die_length=10000,
-                 mesh_resolution=(24, 16, 4))
+                 mesh_resolution=(20, 20, 4))
     d = Path(tempfile.mkdtemp())
     try:
         sim = HotSpotSimulator(d / 'c', d / 'o', HOTSPOT_WSL)

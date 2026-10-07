@@ -508,7 +508,7 @@ def main():
             executable=args.hotspot_executable
         )
         logger.info(f"HotSpot simulator: {args.hotspot_executable}")
-        logger.info("Note: HotSpot supports geometry1 (single-die) only")
+        logger.info("Note: HotSpot models the full single-die stack (square chip); multi-die 3D stacks are not supported")
 
     # Generate scenarios for all requested geometries
     logger.info("\nGenerating scenario parameters...")
