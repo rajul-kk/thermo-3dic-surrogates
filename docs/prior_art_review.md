@@ -73,6 +73,23 @@ Safer wording: "the GDS extraction in the 4.0 paper uses area-overlap equivalent
 reader (our reproduction, `warpage/scripts/edge_artifact_3dice.sh`) assigns material by cell centre". The reproduction
 is ours; the maintainers' intent is unknown. It has not been reported upstream, which would be the cheap way to settle it.
 
+**Update (2026-10-07): independent confirmation and a second, related observation.**
+- *HotSpot confirms the artefact.* On the misaligned die-edge repro the peak rise is 14.562 K for 3D-ICE, 11.067 K for
+  our independent finite-volume reference and 11.060 K for HotSpot (independent discretisation, `-detailed_3D` per-tile
+  resistivity; report §9.34). Two independent solvers agree with each other and not with the `.lyt` route. Both use an
+  area-fraction rule, so this shows that 3D-ICE's cell-centre assignment departs from area-fraction treatments, not
+  what the maintainers intend.
+- *Non-uniform mode ignores the `.lyt`.* In 3D-ICE 4.0 non-uniform mode (`non-uniform true ;` plus `discretization`)
+  the layout file has no effect: a case with an SRC layer of GAP plus an SI rectangle in the `.lyt` gives a rise of
+  12.849 K, identical to an all-GAP control (max |diff| = 0.0), against 7.507 K for the conforming fixture. We
+  reproduced this directly. No warning is printed.
+- *Prior report: not found, as an inference.* We did not find the `.lyt`-ignored behaviour in the 3D-ICE 4.0 paper
+  (arXiv:2512.05823) or in the documentation we could read, and the issue tracker's non-uniform report (#3, abnormal
+  temperatures with top and bottom heat sinks) is a different symptom. Absence from the sources we searched is not proof
+  that it is unreported or undocumented; the user guide was not read for this rule. Verdict for this observation:
+  NOVEL as a report, weak evidence, same standing as the main finding. A bottom-heat-sink segfault in non-uniform mode
+  was seen once and is unverified; it is not claimed.
+
 ## Finding 3. Fixed-placement benchmarks linearly solvable; layout randomisation breaks it
 
 | Work | Overlap | Provenance |
