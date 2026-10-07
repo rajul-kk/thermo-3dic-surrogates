@@ -1378,7 +1378,8 @@ that are more useful than the claim would have been:
 > kNN by ≤ 1.7%, so the conclusion "the linear baseline loses on every scope" stands unchanged (§9.31).
 > The S4→S5 ridge instability (§9.13c) shrinks from ~1,700-2,000 K to ~53-59 K but persists: ridge is
 > still about 2x worse than the mean predictor. The as-stored rows are kept as originally reported. The transpose is
-> already in the stored files (the public loader reverses the axes of inputs and outputs alike; see §9.31).
+> already in the stored files (the public loader reverses the axes of inputs and outputs alike; see §9.31). That the
+> mismatch is a plain transpose, and not a flip or rotation, was measured by testing all 8 dihedral transforms (§9.33).
 
 IC-ThermBench (arXiv:2608.23977) evaluates eight baselines — U-Net, FNO, U-FNO, SAU-FNO,
 DeepOHeat, Therm-FM T/B/L — and **not one is non-neural**. This section supplies the
@@ -3917,8 +3918,9 @@ against the direct solve:
 > see §9.29). Origin of the transpose: the public ThermalBench loader applies the same axis reversal to inputs and
 > outputs, so the transpose is already in the stored files and the loader is not the cause. The generation code (the
 > ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
-> parse grid output. HotSpot's row-0-is-top convention would produce a flip, not a transpose, so it does not by itself
-> explain the measured transpose. The cause is unresolved.
+> parse grid output. HotSpot's row-0-is-top convention would produce a flip, not a transpose; the measured result (§9.33: all 8
+> dihedral transforms tested, plain transpose wins on every split, pure flips fit worst) confirms the stored files are
+> a transpose and a flip alone cannot explain it. The cause is unresolved.
 
 `src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
 (layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
@@ -4402,6 +4404,26 @@ unpowered). HS_OC and IND_* have 4–25% unpowered cells, so the test is informa
 - This project's loader mirrored theirs, so every IC-ThermBench number in this report came from
   mismatched pairs (§9.13, §9.29, §9.31). §9.31 has the fixed-orientation rerun: ridge-type baselines change
   by ≤ 0.34%, ThermoNO (108 samples) S4 13.64 → 11.46 K, learned-conductance solver S5 13.88 → 13.26 K.
+- **Is it a transpose, or some other flip or rotation?** Measured, not inferred
+  (`scripts/icb_orientation_dihedral.py`, `results/icb_orientation/dihedral.json`; same first 400 samples per
+  scope, F008 on 200). We applied all 8 dihedral transforms of the square grid (identity, transpose, flip x, flip y,
+  rot 90 / 180 / 270, anti-transpose) to the power (and k) channels and scored each against the stored temperature
+  by mean per-sample correlation, max-principle violations (L005) and the median R² of F008's fitted local
+  operator. The plain transpose is best on every split on all three statistics, with no ties (no sample is symmetric).
+
+| scope | corr: transpose / best other (stored) | L005 violations: transpose / fewest of the other 7 | F008 median R²: transpose / best other |
+|---|---|---|---|
+| S2 | 0.784 / 0.412 | 0 / 91 | 0.716 / 0.139 |
+| S3 | 0.755 / 0.327 | 0 / 107 | 0.513 / 0.114 |
+| S4 | 0.766 / 0.342 | 0 / 113 | 0.530 / 0.093 |
+| S5 | 0.696 / 0.403 | 0 / 154 | 0.223 / 0.036 |
+
+  "Best other" is the highest of the seven other orientations for correlation (always the stored one) and for F008
+  (the stored one, or a 90 degree rotation). Transpose leads the best other on correlation by 0.37 / 0.43 / 0.42 / 0.29.
+  Excluding the stored orientation, the margin over the best remaining one (a 90 degree rotation) is 0.53 / 0.46 /
+  0.48 / 0.35. A pure flip (x or y) scores worst of all (correlation 0.18-0.20, 113-151 violations), so the
+  stored files are not a flip of the true layout. S5's transposed F008 R² (0.22) is much lower than S2-S4 (0.51-0.72);
+  we did not investigate why (it still beats every other orientation by 6x).
 - What is not known: the effect on the published U-Net / FNO / Therm-FM numbers (not retrained), and which of
   their tensors is the odd one out (we compare inputs against outputs only).
 

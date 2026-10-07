@@ -194,7 +194,7 @@ power-versus-temperature transpose; if our measurement is right it is already in
 generation step. `docs/DATASETS.md` points to the ATPlace2.5D public package (github.com/PKU-IDEA/ATPlace_pub); its
 `Thermal.py` only writes HotSpot input files and runs HotSpot, and its layout kernel is described as encrypted. The code that
 rasterises to 64 x 64 and parses the grid output was not found in either repository, so the cause is unresolved. HotSpot's
-row-0-is-top would give a flip, not the measured transpose, so it does not explain it alone (inference).
+row-0-is-top would give a flip, not a transpose; we tested all 8 dihedral transforms (report.md §9.33) and the plain transpose wins on S2-S5 while pure flips fit worst, so a flip alone does not explain it (measured).
 
 **Verdict: NOVEL (no report found).** Evidence is a negative on a small tracker as of 2026-10-07. Report it upstream:
 it is a clean, verifiable finding and costs little.
