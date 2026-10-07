@@ -252,10 +252,13 @@ repository.
 - **iceforge** (`tools/iceforge/`): lints 3D-ICE inputs before a solve, snaps edges to the cell grid, runs 3D-ICE
   (native, WSL or docker), and `diff` compares it with an independent finite-volume reference. On 24 archived
   real geometry4–6 solves, `diff` flags 23 / 24 pre-snap cases (DISAGREE) and passes 24 / 24 snapped ones; the one
-  miss is a 0.04 K case that `iceforge check` catches statically (§9.34).
+  miss is a 0.04 K case that `iceforge check` catches statically (§9.34). HotSpot can be added as a third solver
+  (misaligned repro: 3D-ICE 14.562 K, reference 11.067 K, HotSpot 11.060 K), and non-uniform 3D-ICE 4.0 grids are
+  supported; there 3D-ICE silently ignores the `.lyt` layout (§9.34).
 - **fieldlint** (`tools/fieldlint/`): lints steady-diffusion PDE datasets (orientation, maximum principle,
-  duplicates, units, energy balance, operator residual, sample pairing). Its frozen thresholds failed on the held-out
-  PDEBench Darcy set; a second round is in progress (§9.34).
+  duplicates, units, energy balance, operator residual, sample pairing). Its frozen v1 thresholds failed on the
+  held-out PDEBench Darcy set; v2 skips out-of-scope data, and on one native-grid Darcy set detects 6 / 6
+  whole-dataset faults with thin margin (clean operator R² 0.31). It applies to native-grid data only (§9.34).
 
 ```bash
 pip install -e "tools/iceforge[diff]" && iceforge check model.stk      # then: iceforge snap / run / diff model.stk

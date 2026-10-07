@@ -3980,6 +3980,9 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   emulators can *filter* solver error in rollouts. Our result is the converse, for a deterministic, spatially
   coherent artefact (ThermoNO reproduces it, see the projection test below), and is supported by a paired causal
   test. We found nothing on a paired label-swap projection test.
+- HotSpot, an independent discretisation with per-tile resistivity, reproduces the reference and not 3D-ICE on the
+  misaligned repro (rise 11.060 K against 11.067 K reference and 14.562 K for 3D-ICE), so the artefact is
+  confirmed by a second solver (§9.34).
 
 **Extent.**
 - It affects all 135 layout-randomised geometry4–6 solves. Fixed-placement data is clean.
@@ -4460,6 +4463,64 @@ reference flags 159 cells against 119 at r = 2, the extra 40 in the neighbouring
 distance 0 from a die edge. The own rule says diffuse and the union rule die-edge, as at r = 2. So r = 2 is, if
 anything, conservative on this case; it is one case, not a general statement.
 
+**HotSpot as a third solver (2026-10-07).** `diff --with-hotspot` translates the stack to HotSpot's grid model
+(steady state, built with SuperLU; iceforge self-tests every HotSpot it is pointed at and refuses a build that
+fails). HotSpot has its own discretisation, so it is a second solver independent of 3D-ICE besides the reference.
+Layouts translate through `-detailed_3D on`: each layout layer becomes a tiling of the chip with a per-tile
+resistivity, and a grid cell shared by several tiles gets the occupancy-weighted parallel conductance. That is an
+area-fraction rule, not 3D-ICE's cell-centre rule. Modelling facts that were measured and shape the translation
+include `DET_FILM_FACTOR = 1.5` (the film coefficient is divided by 1.5 in detailed mode, which adds an extra
+film/2 in series per cell; checked on a homogeneous control: 0.05 K of 10.9 K) and the grid's row 0 being the top
+of the die. Because HotSpot's boundary and vertical model mostly rescale and offset the rise, `diff` removes the best
+affine map (`HotSpot ~ s x reference + o`) before judging and prints both the raw and the fit residuals. Features
+HotSpot cannot take (microchannels, pluggable heat sinks, transient, non-uniform grids, top plus bottom sink, no
+sink, non-square chips, anisotropic k, overlapping rectangles) are refused with a message, not approximated. The
+exit code of `diff` is still decided by 3D-ICE against the reference only.
+
+Rises in K above ambient (HotSpot at 64 x 64; `tools/iceforge/README.md` has the full table, including
+max |dT| against the reference and against 3D-ICE):
+
+| case | 3D-ICE | reference | HotSpot | HotSpot sides with |
+|---|---|---|---|---|
+| repro misaligned | 14.562 | 11.067 | 11.060 | the reference |
+| repro aligned | 11.130 | 11.044 | 11.037 | all three agree |
+| repro nolayout | 11.027 | 10.970 | 10.930 | all three agree |
+| repro snapped | 11.118 | 11.047 | 11.040 | all three agree |
+| geometry1 (12 layers, r = 1, nz = 3) | 12.420 | 12.393 | 12.350 | all three agree |
+| geometry1 sink-end layer | 4.196 | 4.196 | 4.200 | all three agree |
+
+On the misaligned die-edge repro, HotSpot (max |dT| 0.058 K against the reference, 7.375 K against 3D-ICE)
+independently confirms the §9.32 artefact: two solvers with different discretisations agree with each other and
+disagree with 3D-ICE's `.lyt` route. The reference and HotSpot do share the area-fraction idea, so this is
+agreement between two area-fraction treatments against one cell-centre treatment; it does not show that
+area-fraction is what the 3D-ICE authors intend. The 124 iceforge tests pass, including the HotSpot ones; they
+need a SuperLU HotSpot and are skipped otherwise.
+
+**Non-uniform grids (2026-10-07).** iceforge now reads 3D-ICE 4.0's non-uniform mode (`non-uniform true ;` plus
+`discretization` entries). `model.non_uniform_cells` derives the mesh (checked against the `xyaxis_*.txt` files
+3D-ICE writes; a mismatch raises P003), `run` stores per-cell temperatures with their rectangles, `check` applies
+the new rules N001-N004, and `diff` compares per 3D-ICE cell against the reference area-averaged exactly over each
+cell's rectangle. N001: a layout is used but ignored. N002: the floorplan elements do not cover the die. N003:
+bottom heat sink. N004 (warning): an element with several rectangles, of which only the first is meshed, or a
+fractional discretization. HotSpot is refused on non-uniform grids.
+
+Finding: **in non-uniform mode 3D-ICE 4.0 silently ignores the `.lyt` layout.** Verified by direct reproduction: a
+case whose SRC layer is GAP plus an SI rectangle given in the `.lyt` gives a rise of 12.849 K, identical to an
+all-GAP control (max |diff| = 0.0), whereas the conforming fixture gives 7.507 K. The layout therefore has no
+effect on the solve, and no warning is printed (N001 is our lint). We did not find this in the 3D-ICE 4.0 paper
+(arXiv:2512.05823) or its documentation; that is an inference from a search that could not be exhaustive
+(`docs/prior_art_review.md`). Two related observations: floorplan elements that do not cover the die leave a void
+with no cells, silently (N002, measured), and a bottom heat sink in non-uniform mode segfaults the emulator
+(N003). **The segfault is UNVERIFIED:** it was observed once and has not been reproduced. The 3D-ICE issue tracker
+has a report of abnormal temperatures with top and bottom heat sinks in non-uniform mode
+(`prior_art_review.md`); that is a different symptom and we have not tied it to ours.
+
+On the non-uniform fixture (reference r = 4/8, tolerance 2%): with every cell 500 x 500 um 3D-ICE agrees (max |dT|
+0.10 K of a 7.5 K rise); with die element B at 600 x 1000 um cells beside A at 500 x 500 and a 500 x 500 layer, 60 of
+260 die cells and 120 of 400 layer cells are off by up to 0.87 K (11%), all at cells that do not line up with the
+other mesh, while the peak rise is off by only 0.002 K. The shipped steady example agrees to 0.036 K. There is no
+vertical-rule explanation on a non-uniform mesh, so keep stack-end layers thin or raise `--tol`.
+
 **fieldlint** (`tools/fieldlint/`, numpy only). A generalisation of the dataset linter of §9.23 and §9.33 to
 steady diffusion-type PDE datasets, with file adapters (npz, npy, MATLAB, HDF5, 3D-ICE) and presets for
 IC-ThermBench, Therm-FM and this project's data. Rules F001-F007: integrity, maximum principle, orientation,
@@ -4506,22 +4567,65 @@ Darcy), and no detection or false-positive rates had been measured.
 - HS_SC (Therm-FM): the negative plain correlation (-0.31 stored, +0.37 after flipping y) is still unexplained.
   F008 rules out a transposition (R^2 0.006 against 0.19 stored) but cannot separate the flips (0.19 stored
   against 0.20-0.21), a difference inside the noise of a model that explains under a quarter of the variance.
-- Round 2 is in progress and not yet reported: automatic choice of face-mean convention, a scope gate for
-  1D / time-dependent data, refreezing the thresholds, and a fresh held-out set. Until it is reported, the v1
-  failure above stands as the held-out result.
+
+**fieldlint round 2 (v2) and round 2b (2026-10-07).** The v1 failure above stands as measured; v2 changes the
+code and was frozen again (2026-10-07T02:15, `bench/results/frozen_thresholds_v2.json`, with the code SHA-256; the
+v1 file is untouched).
+- F008/F009 now pick the face conductivity mean (harmonic, arithmetic or geometric) per dataset (`auto`). On 32
+  samples each is scored by the median R^2 of the best orientation, not the stored one, so a mis-oriented input
+  cannot decide it. It picks arithmetic on both PDEBench Darcy files (R^2 1.00 and 0.99, against 0.19 and 0.17
+  harmonic).
+- A scope gate skips F002, F003, F008 and F009 as "out of scope" when the field is effectively 1D (an in-plane
+  axis under 8 cells) or the dataset is flagged `time_dependent`. This removes the Burgers false alarms of v1: all
+  rules skip on both Burgers files, with and without the flag. Diffusion-reaction still gives no finding.
+- The thresholds equal v1's; the v2 file only adds the new options (`op_face_mean`, `op_face_samples`,
+  `min_inplane_cells`). The held-out stage refuses to run if the hashed code has changed.
+- F009's applicability gate is unchanged (skip, not warn): a wrong pairing and an inapplicable operator model both
+  give a diagonal indistinguishable from the off-diagonal scores.
+- Tuning (20 datasets: the 18 above plus both PDEBench Darcy files, which v1 had already seen, so the tuning rates
+  remain optimistic): clean false positives 1 / 20 for any rule, again F004 on the genuine identical fields of
+  IC-ThermBench S2. F008 detects transpose 13 / 17, flip_x 16 / 20, flip_y 16 / 20, roll 1, 2, 3 cells 13, 15, 16
+  of 20 (4 skips each). Any rule: transpose 17 / 17, flip_x 20 / 20, flip_y 18 / 20, index shift 16 / 20, unit slip
+  15 / 18, cross-split duplicates 20 / 20.
+- First fresh held-out, the FNO-paper Darcy release (Zenodo 12784353, 128 x 128, 1000 samples): F008 and F009
+  skipped, median R^2 0.03 with any face mean. That file is processed (binary coefficient, rescaled u, resampled
+  from the 421 grid the PDE was solved on), and a post-hoc probe with three face means and two linear
+  coefficients gave R^2 <= 0.033, so it is not a convention F008 could fit. **Uninformative** about F008's
+  detection rate; 0 / 1 false positives, but nothing ran.
+- Round 2b, second fresh held-out on the native grid: Li et al.'s `piececonst_r421_N1024_smooth1` on its 421 x 421
+  solver grid (Hugging Face `LDA1020/codepde-data`, `darcy/piececonst_r421_N1024_smooth1_sample100.hdf5`, 100
+  samples, sha256 `7032793a...`). Frozen v2 thresholds, hash-checked. Result on this one dataset: false positives
+  0 / 1; F008 detects 6 / 6 whole-dataset faults (transpose, flip_x, flip_y, roll 1, 2, 3). It skips on the
+  20%-contaminated variants and on the index shift, and F009 skips on every fault. **The evidence is thin:** the
+  clean-data operator R^2 is 0.31, just above the 0.3 gate (0.02 transposed or flipped), so the original solver's
+  discretisation is matched only loosely, and partial contamination drops it below the gate. The claim we make is
+  limited to this: F008 detects whole-dataset orientation faults on one unseen native-grid set.
+- Scope: F008/F009 apply only to data stored on the solver's native grid, with a known or fitted face convention,
+  while the operator explains a median R^2 of at least 0.3. The first fresh file violates the first condition.
+- HS_SC (Therm-FM) is still unexplained.
 
 **Limitations.**
-- iceforge skips the off-grid rules and Tmap parsing on non-uniform grids, and `diff` refuses them, and also
-  refuses microchannel layers, pluggable heat sinks, transient solves and models with no power.
-- HotSpot is not yet a third solver in `diff`.
+- On non-uniform grids iceforge skips the regular-grid rules S001-S004 (a floorplan edge is a cell edge by
+  construction; layouts are not read) and `diff` runs per cell. `diff` refuses microchannel layers, pluggable
+  heat sinks, transient solves and models with no power. The non-uniform findings rest on one conforming fixture
+  and one layout control; the bottom-sink segfault is unverified.
+- HotSpot as a third solver (`--with-hotspot`) refuses the features listed above and needs a SuperLU build. It
+  shares the area-fraction idea with the reference, so it is not independent of the reference's modelling choice,
+  only of its discretisation and code. Its three-way agreement is shown on four repro cases and geometry1, not on
+  the archived real data.
+- A possible y-flip in `src/simulators/hotspot_simulator.py` (it indexes `y = (row + 0.5) / rows`, while HotSpot's
+  grid row 0 is the top of the die) was noted while building the HotSpot path and has not been checked against
+  this repository's HotSpot cross-validation data.
 - The docker backend was verified by hand on the repro fixtures, not in an automated test.
 - `diff` is checked on the repro, geometry1 and geometry5, and on the 48 archived geometry4-6 solves above (r = 2
   and nz = 2, with one r = 4 spot check). At r = 1 on geometry5 the reference's own r vs 2r change is 0.05 K, so
   use the default r = 4 for a real check; r = 2 can miss mild artefacts (geometry4 train_021).
 - fieldlint F003 (orientation) was refined once, to a band-passed vote, after it gave a false positive on the
   Therm-FM HS_SC sets. It has been tuned on two dataset families (IC-ThermBench, Therm-FM). The held-out check
-  on PDEBench Darcy failed for F008/F009 as frozen (above), so generalisation is not established; round 2 uses
-  a fresh held-out set.
+  on PDEBench Darcy failed for F008/F009 as frozen (above). After round 2, one fresh set was uninformative and
+  one native-grid set (whose clean operator R^2 is 0.31, barely above the gate) gave 6 / 6 whole-dataset faults
+  detected and no false positive; generalisation is not established, and fieldlint applies to native-grid data
+  only.
 - fieldlint covers steady, non-negative-source diffusion problems only. F006 is a screening heuristic.
 
 **Prior-art note (2026-10-07, `docs/prior_art_review.md`).** Differential testing and code-to-code comparison of

@@ -363,9 +363,18 @@ resolution of `diff` at r = 2 but is caught statically by `iceforge check`; an r
 0.33–0.42 as stored, 0.70–0.78 transposed), and the Therm-FM sets and our 3D-ICE data lint clean. Rules F008/F009
 (operator residual, pairing) and a fault-injection benchmark were added, but the frozen v1 thresholds **failed**
 on the held-out PDEBench Darcy set (the operator model explained R² 0.16–0.19, below the gate, so the rules
-skipped); an arithmetic face-mean fix works on Darcy but is post-hoc, Burgers gives false alarms from F002/F003,
-and a round 2 with a fresh held-out set is in progress and not yet reported. Limits: non-uniform grids are
-skipped, HotSpot is not yet in `diff`, and the docker backend was verified by hand.
+skipped) and Burgers gave false alarms from F002/F003. Round 2 (face mean fitted per dataset, a scope gate that
+skips 1D and time-dependent data; thresholds equal v1) removes the Burgers alarms (tuning: 1 of 20 false
+positives, the real duplicates in IC-ThermBench S2). A resampled FNO-Darcy set was uninformative (R² 0.03). On
+the native-grid Li et al. Darcy set (421 × 421, 100 samples) F008 detects 6 of 6 whole-dataset faults with 0 of 1
+false positives, but the clean operator R² is only 0.31 (gate 0.3), so this is thin evidence; partial faults and
+F009 skip, the HS_SC anomaly is still unexplained, and fieldlint applies to native-grid data only.
+`iceforge diff` can add HotSpot as a third solver. On the misaligned repro the peak rise is 14.562 K for 3D-ICE,
+11.067 K for the reference and 11.060 K for HotSpot, so a second independent discretisation confirms the die-edge
+artefact. iceforge also reads 3D-ICE 4.0 non-uniform grids (lint N001–N004, per-cell diff). There 3D-ICE silently
+ignores the `.lyt` layout: a case with a layout rectangle gives 12.849 K, identical to an all-GAP control, against
+7.507 K for the conforming fixture. A bottom heat sink segfaulted in non-uniform mode once; that is unverified.
+The docker backend was verified by hand.
 
 ## 5. Threats to validity
 
