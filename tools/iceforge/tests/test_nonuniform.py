@@ -126,11 +126,104 @@ def test_floorplan_that_does_not_cover_the_die_is_flagged(fixtures, tmp_path):
     assert len(f) == 1 and f[0].detail["covered_fraction"] == pytest.approx(0.4)
 
 
-def test_bottom_heat_sink_is_flagged(fixtures, tmp_path):
+def test_bottom_only_heat_sink_is_flagged(fixtures, tmp_path):
     stk = _copy(fixtures, tmp_path, "conforming", recorded=False)
     s = open(stk).read().replace("top heat sink", "bottom heat sink")
     open(stk, "w").write(s)
-    assert "N003" in _codes(check_stack(parse_stk(stk)))
+    f = [x for x in check_stack(parse_stk(stk)) if x.code == "N003"]
+    assert len(f) == 1 and f[0].severity == "error" and "top heat sink" in f[0].message
+    assert "N005" not in _codes(check_stack(parse_stk(stk)))
+
+
+def test_no_heat_sink_is_flagged(fixtures):
+    f = check_stack(parse_stk(os.path.join(fixtures, NU, "repro_topsink_null", "crash_no_sink.stk")))
+    assert "N003" in _codes(f) and "N005" not in _codes(f)
+
+
+def test_top_only_heat_sink_is_clean(fixtures):
+    f = check_stack(parse_stk(os.path.join(fixtures, NU, "repro_topsink_null", "ok_top_only.stk")))
+    assert not ({"N003", "N005"} & set(_codes(f)))
+
+
+def test_top_and_bottom_heat_sinks_are_flagged_as_the_offset_bug(fixtures):
+    base = os.path.join(fixtures, NU, "repro_topsink_null")
+    for p in (("matrix", "nu_both.stk"), ("issue3", "i_nu_both.stk")):
+        f = check_stack(parse_stk(os.path.join(base, *p)))
+        assert "N005" in _codes(f) and "N003" not in _codes(f)
+        assert [x for x in f if x.code == "N005"][0].severity == "error"
+    # the same stacks on a uniform grid are fine
+    f = check_stack(parse_stk(os.path.join(base, "matrix", "u_both.stk")))
+    assert not ({"N003", "N005"} & set(_codes(f)))
+
+
+def test_layout_ignored_on_the_strip_repro(fixtures):
+    f = check_stack(parse_stk(os.path.join(fixtures, NU, "repro_lyt_ignore_strip", "nu_lyt.stk")))
+    n1 = [x for x in f if x.code == "N001"]
+    assert len(n1) == 1 and n1[0].severity == "error"
+    f = check_stack(parse_stk(os.path.join(fixtures, NU, "repro_lyt_ignore_strip", "nu_gap.stk")))
+    assert "N001" not in _codes(f)
+
+
+# ------------------------------------------------------------------ the real solver on the repro fixtures
+# These pin the CURRENT (buggy) 3D-ICE 4.0 behaviour that the rules above describe.  If one of them fails after a
+# 3D-ICE upgrade, the bug may be fixed: re-check the rule and update the rule table / README.
+
+def _solve(fixtures, tmp_path, sub, stk):
+    from iceforge import backends
+    dst = tmp_path / sub
+    shutil.copytree(os.path.join(fixtures, NU, sub), dst)
+    r = backends.run_emulator(backends.detect("auto"), str(dst / stk), timeout=300)
+    return r.returncode, dst
+
+
+def _numbers(path):
+    out = []
+    for line in open(path):
+        for tok in line.split():
+            try:
+                out.append(float(tok))
+            except ValueError:
+                pass
+    return np.array(out)
+
+
+@pytest.mark.solver
+@pytest.mark.parametrize("stk", ["crash_bottom_only.stk", "crash_no_sink.stk"])
+def test_solver_segfaults_without_a_top_sink(fixtures, tmp_path, stk):
+    rc, _ = _solve(fixtures, tmp_path, "repro_topsink_null", stk)
+    assert rc in (139, 11, -11), "3D-ICE no longer segfaults without a top heat sink: revisit N003"
+
+
+@pytest.mark.solver
+def test_solver_top_only_runs(fixtures, tmp_path):
+    rc, _ = _solve(fixtures, tmp_path, "repro_topsink_null", "ok_top_only.stk")
+    assert rc == 0
+
+
+@pytest.mark.solver
+def test_solver_non_uniform_with_both_sinks_adds_a_constant_offset(fixtures, tmp_path):
+    rc, d = _solve(fixtures, tmp_path / "a", "repro_topsink_null", "matrix/nu_both.stk")
+    assert rc == 0
+    rc, d2 = _solve(fixtures, tmp_path / "b", "repro_topsink_null", "matrix/nu_top.stk")
+    assert rc == 0
+    both = _numbers(d / "matrix" / "nu_both_t.txt")
+    top = _numbers(d2 / "matrix" / "nu_top_t.txt")
+    off = both - top
+    assert off.mean() > 1000.0, "no offset any more: upstream #3 may be fixed, revisit N005"
+    assert np.ptp(off) < 1e-3 * off.mean()          # a constant: the field shape is intact
+
+
+@pytest.mark.solver
+def test_solver_ignores_the_layout_in_non_uniform_mode(fixtures, tmp_path):
+    rc1, d = _solve(fixtures, tmp_path / "a", "repro_lyt_ignore_strip", "nu_lyt.stk")
+    rc2, d2 = _solve(fixtures, tmp_path / "b", "repro_lyt_ignore_strip", "nu_gap.stk")
+    assert rc1 == rc2 == 0
+    assert np.array_equal(_numbers(d / "nu_lyt_t.txt"), _numbers(d2 / "nu_gap_t.txt")),         "Tmaps now differ: 3D-ICE honours the layout, revisit N001"
+    # while on a uniform grid the same layout matters (5.5 K)
+    rc3, d3 = _solve(fixtures, tmp_path / "c", "repro_lyt_ignore_strip", "u_lyt.stk")
+    rc4, d4 = _solve(fixtures, tmp_path / "d", "repro_lyt_ignore_strip", "u_gap.stk")
+    assert rc3 == rc4 == 0
+    assert np.abs(_numbers(d3 / "u_lyt_t.txt") - _numbers(d4 / "u_gap_t.txt")).max() > 1.0
 
 
 def test_non_integer_discretization_is_flagged(fixtures, tmp_path):

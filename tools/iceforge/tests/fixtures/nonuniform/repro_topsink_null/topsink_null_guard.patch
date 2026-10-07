@@ -1,0 +1,22 @@
+diff --git a/sources/thermal_data.c b/sources/thermal_data.c
+index ade56ca..385bed9 100644
+--- a/sources/thermal_data.c
++++ b/sources/thermal_data.c
+@@ -150,7 +150,7 @@ void update_number_of_cells (Dimensions_t *dimensions, StackElementList_t *stack
+         // Total cell number in all the layers the die has
+     }
+ 
+-    if(stack_elements_list->First->Data.TopSink->SinkModel == TDICE_HEATSINK_TOP_PLUGGABLE)
++    if(stack_elements_list->First->Data.TopSink && stack_elements_list->First->Data.TopSink->SinkModel == TDICE_HEATSINK_TOP_PLUGGABLE)
+     {
+             cell_num_non_uniform += dimensions->Grid.NRows * dimensions->Grid.NColumns;
+     }
+@@ -669,7 +669,7 @@ void get_cell_position(ChipDimension_t (*position_info)[4], CellIndex_t *layer_c
+     // print conductance for each cell and total z-conductance for each layer
+     print_conductance_map_non_uniform(layer_cell_record, stack_elements_list, dimensions);
+     
+-    if(stack_elements_list->First->Data.TopSink->SinkModel == TDICE_HEATSINK_TOP_PLUGGABLE)
++    if(stack_elements_list->First->Data.TopSink && stack_elements_list->First->Data.TopSink->SinkModel == TDICE_HEATSINK_TOP_PLUGGABLE)
+     {
+         CellIndex_t discr_x = dimensions->Grid.NColumns;
+         CellIndex_t discr_y = dimensions->Grid.NRows;

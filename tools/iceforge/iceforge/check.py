@@ -254,13 +254,13 @@ def _check_non_uniform(st: Stack, F: List[Finding]) -> None:
 
     The mesh is not a grid: each die is cut along its floorplan elements and every cell is one element
     sub-cell, so a floorplan edge is a cell edge by construction (S001/S002 cannot happen) and a layout is not
-    read at all (S003/S004 are replaced by N001).  What can go wrong instead is N001-N004."""
+    read at all (S003/S004 are replaced by N001).  What can go wrong instead is N001-N005."""
     d = st.dims
     cells_of = {se.instance: non_uniform_cells(st, se) for se in st.stack}
     n_cells = {k: len(v) for k, v in cells_of.items() if v is not None}
     F.append(Finding('I001', 'info',
                      "non-uniform grid: the mesh follows the floorplan elements, not a regular grid; "
-                     "uniform-grid rules S001-S004 do not apply (see N001-N004). Cells per stack element: "
+                     "uniform-grid rules S001-S004 do not apply (see N001-N005). Cells per stack element: "
                      + ', '.join(f"{k} {v}" for k, v in n_cells.items()), file=st.path,
                      detail=dict(cells=n_cells)))
     # N001: layouts are ignored
@@ -296,12 +296,22 @@ def _check_non_uniform(st: Stack, F: List[Finding]) -> None:
                 f"{d.chip_w:g} um chip; in a non-uniform model the uncovered {100 * (1 - area / chip):.1f} % "
                 f"has no thermal cells at all (a void, no heat flows through it)", file=se.floorplan_path,
                 detail=dict(stack_element=se.instance, covered_fraction=area / chip)))
-    # N003: bottom heat sink segfaults 3D-ICE 4.0
-    if any(h.side == 'bottom' for h in st.heatsinks):
+    # N003: no top heat sink segfaults 3D-ICE 4.0 (NULL TopSink in update_number_of_cells)
+    sides = {h.side for h in st.heatsinks}
+    if 'top' not in sides:
         F.append(Finding(
             'N003', 'error',
-            "bottom heat sink with a non-uniform grid crashes 3D-ICE 4.0 (segmentation fault while preparing "
-            "thermal data in the tested build; the shipped non-uniform example uses a top heat sink)", file=st.path))
+            "non-uniform grid without a top heat sink segfaults 3D-ICE 4.0 (exit 139, no message: unguarded "
+            "TopSink dereference in thermal_data.c update_number_of_cells); a bottom-only or sink-less stack "
+            "crashes. Declare a top heat sink (a negligible heat transfer coefficient is enough) or use a uniform grid",
+            file=st.path, detail=dict(sinks=sorted(sides))))
+    # N005: top + bottom sink: constant offset on every cell (esl-epfl/3d-ice issue #3)
+    if 'top' in sides and 'bottom' in sides:
+        F.append(Finding(
+            'N005', 'error',
+            "non-uniform grid with both a top and a bottom heat sink: 3D-ICE 4.0 silently adds a huge constant to "
+            "every temperature (exit 0, field shape intact; upstream issue esl-epfl/3d-ice#3). Use a uniform grid "
+            "or a single top heat sink", file=st.path))
     # N004: only the first rectangle of an element is meshed; fractional discretisation is truncated
     for p, fp in st.floorplans.items():
         for e in fp.elements:

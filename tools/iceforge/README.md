@@ -54,13 +54,14 @@ Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coeffic
 | S009 | warning | total floorplan power <= 0 |
 | N001 | error | non-uniform grid: a layout is used but 3D-ICE 4.0 ignores it (see Non-uniform grids) |
 | N002 | error | non-uniform grid: the floorplan elements do not cover the die; the rest has no cells (a void) |
-| N003 | error | non-uniform grid with a bottom heat sink: 3D-ICE 4.0 segfaults |
+| N003 | error | non-uniform grid without a top heat sink (bottom-only or none): 3D-ICE 4.0 segfaults (exit 139) |
 | N004 | warning | non-uniform grid: element with several rectangles (only the first is meshed) or fractional discretization |
+| N005 | error | non-uniform grid with both top and bottom heat sinks: 3D-ICE 4.0 adds a huge constant offset to every temperature (upstream #3) |
 
 "Gap material" means the layer's own material when it is much less conductive (below half the largest k
 used by the layout), the usual footprint-layout convention. Layouts over a uniform-conductivity base (for
 example TSV density maps) are not treated as gaps. With `non-uniform true` the regular-grid rules S001-S004 do not
-apply and are replaced by N001-N004 (below); I001 lists the cells per stack element.
+apply and are replaced by N001-N005 (below); I001 lists the cells per stack element.
 
 ### Snap
 
@@ -242,11 +243,11 @@ with x fastest; a plain layer is the whole chip cut into `discretization` cells;
 Experiments (3D-ICE 4.0, this machine):
 - layouts are ignored: identical Tmap with and without a `.lyt` (N001);
 - floorplan elements that do not cover the die leave a void with no cells, silently (N002);
-- a `bottom heat sink` segfaults the emulator (N003); the shipped example uses a top sink;
+- no `top heat sink` (bottom-only or none) segfaults the emulator (N003, NULL `TopSink` in `thermal_data.c`); top + bottom sinks give a constant offset on every cell (N005, upstream issue #3); the shipped example uses a top sink only;
 - a Tmap is ONE line of N values plus `xyaxis_<instance>.txt` (x, y, length, width per cell, two decimals).
 
 iceforge: `model.non_uniform_cells(st, stack_element)` derives the cells; `run` stores `T` (N,) and `cells` (N, 4) in the
-`.npz` (checked against the xyaxis file, P003 on a mismatch); `check` applies N001-N004 (S001-S004 cannot occur: a
+`.npz` (checked against the xyaxis file, P003 on a mismatch); `check` applies N001-N005 (S001-S004 cannot occur: a
 floorplan edge is a cell edge by construction, and layouts are not read); `diff` compares **per 3D-ICE cell**: the
 reference is area-averaged exactly over each cell's rectangle (no interpolation), flagged with the usual rule, and
 classified by mesh mismatch (`mesh-edge`: another stack element's cell edge cuts the cell, or its edge cuts a cell of
