@@ -1377,7 +1377,8 @@ that are more useful than the claim would have been:
 > split, λ grids and metrics; only `--fix-orientation` differs). The ridge variants change by ≤ 0.34% and
 > kNN by ≤ 1.7%, so the conclusion "the linear baseline loses on every scope" stands unchanged (§9.31).
 > The S4→S5 ridge instability (§9.13c) shrinks from ~1,700-2,000 K to ~53-59 K but persists: ridge is
-> still about 2x worse than the mean predictor. The as-stored rows are kept as originally reported.
+> still about 2x worse than the mean predictor. The as-stored rows are kept as originally reported. The transpose is
+> already in the stored files (the public loader reverses the axes of inputs and outputs alike; see §9.31).
 
 IC-ThermBench (arXiv:2608.23977) evaluates eight baselines — U-Net, FNO, U-FNO, SAU-FNO,
 DeepOHeat, Therm-FM T/B/L — and **not one is non-neural**. This section supplies the
@@ -1918,7 +1919,10 @@ Transient simulation would add a further nonlinear axis; the present dataset is 
 only.
 
 **Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation.
-HotSpot cross-validation covers geometry1 only and disagrees by ~15%. *(Updated 2026-09-24,
+The earlier HotSpot cross-validation (geometry1 only, "disagrees by ~15%") is withdrawn: it came from a wrapper with
+several bugs (§9.34, Limitations), and the ~15% figure could not be reproduced because no record of how it was made
+was found. With the rewritten wrapper HotSpot agrees with 3D-ICE to -0.7% on peak rise (0.13 K RMSE) on geometry1 and
+-0.9% (0.16 K RMSE) on geometry3. *(Updated 2026-09-24,
 §9.23–9.24: an independent finite-volume solver now reproduces 3D-ICE to ≤1.14% on 18 paired
 cases across all six geometries, and grid refinement changes the
 dataset by ≤1.45%. The numerical solution is verified; agreement with silicon or a
@@ -3731,8 +3735,12 @@ backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 me
 > (3.15 vs 3.196, inside about one seed-sd), and still loses on S3 (3.54 vs 2.48, v1 run only). Caveats: the
 > fixed v2 S4 runs all hit the 150-epoch cap (the as-stored ones early-stopped at epochs 121–134), so they may
 > be under-trained. S5 got worse on all three seeds by 0.4–0.8 K, about 1 SD at n=3, so this shows neither
-> help nor harm from the fix. The within-layout-group 0.52 K linear-fit figure below was not rerun under the
-> fixed orientation. The text and tables below are the as-stored results unless marked fixed.
+> help nor harm from the fix. The within-layout-group 0.52 K linear-fit figure below: its originating script was not
+> found and the 815-sample group could not be reconstructed. A general linear map is invariant to a fixed permutation of
+> the input pixels, so the orientation bug cannot change such a fit (a reconstructed group gives 1.3104 K in both
+> orientations; `results/icb_orientation/group_linear_fit.json`), but the 0.52 K figure itself is not reproduced. The
+> 300-epoch fixed S4 rerun is prepared (`notebooks/_icb_fixed300_build/`) but not run: the Kaggle weekly GPU quota was
+> reached, so the 150-epoch-cap caveat stays open. The text and tables below are the as-stored results unless marked fixed.
 
 IC-ThermBench (§9.13) is a single-layer 64×64 grid, so neither the layered backbone (§9.25) nor
 LT-FNO's layer coupling (§9.27) applies. LT-FNO reduces to a 2D FNO there and was not run.
@@ -3842,7 +3850,7 @@ held off until epoch 240 (`--min-epochs 240`), so the one-cycle schedule anneals
 
 **This revises the step-limited reading above.** At 2,000 CPU steps on one layout group the model
 was still improving, but on the full data with a completed schedule it plateaus near 1.9 K, while
-a plain linear fit within a single layout group reaches 0.52 K (neither figure revisited here; with the orientation fixed, v4 plateaus near 1.77 K, and the 0.52 K fit was not rerun). The remaining gap is architectural.
+a plain linear fit within a single layout group reaches 0.52 K (neither figure revisited here; with the orientation fixed, v4 plateaus near 1.77 K; the 0.52 K fit's script was not found and its group could not be reconstructed, see the §9.29 note). The remaining gap is architectural.
 ThermoNO adapts one global DCT operator to each layout only through per-cell multiplicative gates.
 That cannot represent 20 layouts × hundreds of chiplet footprints, each with its own Green's
 function, to sub-kelvin accuracy. Closing it needs a different way of conditioning the operator on
@@ -3906,7 +3914,11 @@ against the direct solve:
 > The fixed-orientation rows are added to the table, and the Reading is revised below them. The same
 > mismatch also underlies §9.13 and §9.29; both were rerun in full on 2026-10-07 (§9.13: conclusion unchanged;
 > §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 K, 2.1× better than Therm-FM;
-> see §9.29).
+> see §9.29). Origin of the transpose: the public ThermalBench loader applies the same axis reversal to inputs and
+> outputs, so the transpose is already in the stored files and the loader is not the cause. The generation code (the
+> ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
+> parse grid output. HotSpot's row-0-is-top convention would produce a flip, not a transpose, so it does not by itself
+> explain the measured transpose. The cause is unresolved.
 
 `src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
 (layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
@@ -4525,10 +4537,10 @@ need a SuperLU HotSpot and are skipped otherwise.
 **Non-uniform grids (2026-10-07).** iceforge now reads 3D-ICE 4.0's non-uniform mode (`non-uniform true ;` plus
 `discretization` entries). `model.non_uniform_cells` derives the mesh (checked against the `xyaxis_*.txt` files
 3D-ICE writes; a mismatch raises P003), `run` stores per-cell temperatures with their rectangles, `check` applies
-the new rules N001-N004, and `diff` compares per 3D-ICE cell against the reference area-averaged exactly over each
-cell's rectangle. N001: a layout is used but ignored. N002: the floorplan elements do not cover the die. N003:
-bottom heat sink. N004 (warning): an element with several rectangles, of which only the first is meshed, or a
-fractional discretization. HotSpot is refused on non-uniform grids.
+the new rules N001-N005, and `diff` compares per 3D-ICE cell against the reference area-averaged exactly over each
+cell's rectangle. N001: a layout is used but ignored. N002: the floorplan elements do not cover the die. N003: no top
+heat sink (segfault). N004 (warning): an element with several rectangles, of which only the first is meshed, or a
+fractional discretization. N005: top and bottom sinks (constant offset). HotSpot is refused on non-uniform grids.
 
 Finding: **in non-uniform mode 3D-ICE 4.0 silently ignores the `.lyt` layout.** Verified by direct reproduction: a
 case whose SRC layer is GAP plus an SI rectangle given in the `.lyt` gives a rise of 12.849 K, identical to an
@@ -4536,10 +4548,37 @@ all-GAP control (max |diff| = 0.0), whereas the conforming fixture gives 7.507 K
 effect on the solve, and no warning is printed (N001 is our lint). We did not find this in the 3D-ICE 4.0 paper
 (arXiv:2512.05823) or its documentation; that is an inference from a search that could not be exhaustive
 (`docs/prior_art_review.md`). Two related observations: floorplan elements that do not cover the die leave a void
-with no cells, silently (N002, measured), and a bottom heat sink in non-uniform mode segfaults the emulator
-(N003). **The segfault is UNVERIFIED:** it was observed once and has not been reproduced. The 3D-ICE issue tracker
-has a report of abnormal temperatures with top and bottom heat sinks in non-uniform mode
-(`prior_art_review.md`); that is a different symptom and we have not tied it to ours.
+with no cells, silently (N002, measured). A second, independent case confirms the layout is ignored
+(`tests/fixtures/nonuniform/repro_lyt_ignore_strip/`: a 10 x 10 mm chip, SRC layer GAP plus an SI strip in the `.lyt`):
+on the uniform grid the layout changes the result by 5.522 K (max |dT|, with against without it); in non-uniform mode
+the two outputs are byte-identical.
+
+**Two heat-sink defects in non-uniform mode (verified 2026-10-07; fixtures `repro_topsink_null/`).**
+- *Segfault with no top heat sink.* 3D-ICE 4.0 crashes (exit 139) in non-uniform mode whenever the stack has no
+  `top heat sink`. A bottom-only sink is the usual way to get there; a stack with no sink at all crashes the same way.
+  Both are valid input: the bottom-sink block follows the parser grammar, and the uniform-mode bottom-sink test shipped
+  with 3D-ICE runs. The cause is an unguarded `First->Data.TopSink->SinkModel` dereference of a NULL pointer at
+  `thermal_data.c:153` (`update_number_of_cells`; AddressSanitizer backtrace in `asan_backtrace.txt`). With a top sink
+  the same stack runs. Workaround: declare a top heat sink (a negligible HTC suffices) or use uniform mode.
+- *Constant offset with top plus bottom sinks.* No crash and no warning, but every temperature is shifted by a constant:
+  +223050 K on the 10 x 10 mm two-element-die matrix case (uniform 303.8 K, non-uniform 223057.5 K) and +390300 K on a
+  two-die rebuild of the example in upstream issue #3 (Tmax 320.0 K uniform and with a top sink only, 390620.0 K
+  non-uniform with both). This is the symptom of esl-epfl/3d-ice issue #3 ("Bugs that may exist", 2026-05-18), which
+  reports abnormal temperatures without a diagnosis. We did not have the issue's own files, only its description, so the
+  second case is a rebuild, not the reporter's input.
+- *Our diagnosis (read from the source, tested by patch).* (i) In the non-uniform system matrix the ambient conductance
+  is added to the diagonal only for layers connected to ambient through the top sink; there is no case for the bottom
+  (PCB-connected) layer, so the bottom sink's conductance never enters the matrix. (ii) The source vector does add
+  `T_ambient` times the bottom sink conductance to the right-hand side. A source with no matching sink gives a singular
+  or garbage system for bottom-only and a constant offset for both sinks, of the order of T_amb x g_bottom / g_top,
+  which matches the order of magnitude of the +223050 K. (iii) The non-uniform bottom conductance omits the series
+  ambient HTC that the uniform code and the top-sink code include. A two-part scratch patch (a NULL guard, then the
+  missing diagonal term and the corrected conductance) removes the crash and makes non-uniform equal uniform to 0.000 K
+  (below the 3-decimal Tmap resolution) in the top-only, bottom-only and both-sink cases on an identical mesh. Scope:
+  steady state, layer 0 only; the transient terms were not touched. It is a diagnosis aid, not an upstream-quality fix,
+  and was not submitted.
+- iceforge now has N003 for "non-uniform grid without a top heat sink" (it fires on the segfault) and a new N005 for
+  "non-uniform grid with top and bottom sinks" (the offset). 133 iceforge tests pass.
 
 On the non-uniform fixture (reference r = 4/8, tolerance 2%): with every cell 500 x 500 um 3D-ICE agrees (max |dT|
 0.10 K of a 7.5 K rise); with die element B at 600 x 1000 um cells beside A at 500 x 500 and a 500 x 500 layer, 60 of
@@ -4634,19 +4673,32 @@ v1 file is untouched).
 - On non-uniform grids iceforge skips the regular-grid rules S001-S004 (a floorplan edge is a cell edge by
   construction; layouts are not read) and `diff` runs per cell. `diff` refuses microchannel layers, pluggable
   heat sinks, transient solves and models with no power. The non-uniform findings rest on one conforming fixture
-  and one layout control; the bottom-sink segfault is unverified.
+  and two layout controls. The heat-sink defects are verified by reproduction, but the diagnosis rests on one scratch
+  patch, steady state only.
 - HotSpot as a third solver (`--with-hotspot`) refuses the features listed above and needs a SuperLU build. It
   shares the area-fraction idea with the reference, so it is not independent of the reference's modelling choice,
   only of its discretisation and code. Its three-way agreement is shown on four repro cases and geometry1, not on
   the archived real data.
 - The y-flip in `src/simulators/hotspot_simulator.py` is confirmed and fixed in commit 58d4280: HotSpot's grid
   row 0 is the top of the die and the wrapper did not flip rows (regression test
-  `tests/test_hotspot_orientation.py`). No saved spatial result used this wrapper. The only report result from it
-  (the geometry1 cross-validation, ~15% disagreement) is a scalar peak/mean comparison, so it is unaffected.
-  Two open items, not investigated: (a) the wrapper builds HotSpot's floorplan only from `power_blocks`, so if
-  the blocks do not tile the die, HotSpot's grid spans their bounding box, not the die; (b) in the orientation
-  test the field was nearly 0 K outside the hot block and ~24 K inside, possibly due to the wrapper's
-  lumped-sink settings.
+  `tests/test_hotspot_orientation.py`). No saved spatial result used this wrapper.
+- Besides the y-flip the old wrapper had two more bugs and one modelling error, all fixed in commit ca33de8. (1) Its
+  floorplan spanned only the power blocks' bounding box, so when the blocks did not tile the die HotSpot's grid was
+  stretched over the box, not the die (geometry1, geometry3, 2.5D). (2) The spreader and sink were sized exactly to the
+  chip, which degenerates HotSpot's package model: it returned about 0 K regardless of `r_convec` and ambient. (3)
+  `r_convec` lumped the layers above the die, which are dead ends with the bottom heat sink. The fixes were zero-power
+  filler blocks over the uncovered die, sink and spreader oversized by 1.0005, and lumping only layers below the die.
+  Even then the wrapper lumped the Cu base and spreader as vertical resistances, and was +33% (geometry1) and +53%
+  (geometry3) on peak rise against 3D-ICE (commit 3b6e67e). The report's only result from the old wrapper, the
+  geometry1 "~15% disagreement", could not be reproduced (no record of how it was made was found) and is withdrawn. We
+  did not locate a source for the error before these fixes, so none is quoted.
+- Commit 3b6e67e replaced the lumped model: the wrapper now writes the ICESimulator `stack.stk`, translates it with
+  iceforge's full-stack 3D-ICE-to-HotSpot translation (one grid layer pair per stack layer, `.lcf`) and reads the die
+  layer back. Peak rise against 3D-ICE is -0.7% on geometry1 and -0.9% on geometry3, mean about 0.0%, RMSE 0.13 K
+  (geometry1) and 0.16 K (geometry3), and correlation 0.9998 on geometry1 (`tests/test_hotspot_vs_3dice.py` covers
+  geometry1). It inherits iceforge's refusals (non-square chips, stacks with both heat sinks, and the other features
+  listed above). This is agreement on two geometries only; other geometries are untested, and HotSpot's boundary model
+  differs from 3D-ICE's, so it is not equivalence.
 - The docker backend was verified by hand on the repro fixtures, not in an automated test.
 - `diff` is checked on the repro, geometry1 and geometry5, and on the 48 archived geometry4-6 solves above (r = 2
   and nz = 2, with one r = 4 spot check). At r = 1 on geometry5 the reference's own r vs 2r change is 0.05 K, so

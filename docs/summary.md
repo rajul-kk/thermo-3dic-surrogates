@@ -371,9 +371,16 @@ false positives, but the clean operator R² is only 0.31 (gate 0.3), so this is 
 F009 skip, the HS_SC anomaly is still unexplained, and fieldlint applies to native-grid data only.
 `iceforge diff` can add HotSpot as a third solver. On the misaligned repro the peak rise is 14.562 K for 3D-ICE,
 11.067 K for the reference and 11.060 K for HotSpot, so a second independent discretisation confirms the die-edge
-artefact. iceforge also reads 3D-ICE 4.0 non-uniform grids (lint N001–N004, per-cell diff). There 3D-ICE silently
+artefact. iceforge also reads 3D-ICE 4.0 non-uniform grids (lint N001–N005, per-cell diff). There 3D-ICE silently
 ignores the `.lyt` layout: a case with a layout rectangle gives 12.849 K, identical to an all-GAP control, against
-7.507 K for the conforming fixture. A bottom heat sink segfaulted in non-uniform mode once; that is unverified.
+7.507 K for the conforming fixture, and a second case (uniform 5.522 K with against without the layout, non-uniform
+identical) agrees. Non-uniform mode also segfaults whenever the stack has no top heat sink (NULL dereference at
+`thermal_data.c:153`), and with top plus bottom sinks adds a constant to every temperature (+223050 K and +390300 K in
+two cases), the symptom of upstream issue #3. Our diagnosis is a missing bottom-sink term in the non-uniform matrix; a
+scratch patch makes non-uniform equal uniform to 0.000 K in steady state, as a diagnosis aid only.
+The HotSpot wrapper in `src/` had several bugs and its earlier "~15% disagreement" with 3D-ICE is withdrawn (not
+reproducible); rebuilt on iceforge's translation it agrees with 3D-ICE to -0.7% (geometry1) and -0.9% (geometry3) on
+peak rise.
 The docker backend was verified by hand.
 
 ## 5. Threats to validity

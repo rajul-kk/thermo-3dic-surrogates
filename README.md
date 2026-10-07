@@ -254,7 +254,10 @@ repository.
   real geometry4–6 solves, `diff` flags 23 / 24 pre-snap cases (DISAGREE) and passes 24 / 24 snapped ones; the one
   miss is a 0.04 K case that `iceforge check` catches statically (§9.34). HotSpot can be added as a third solver
   (misaligned repro: 3D-ICE 14.562 K, reference 11.067 K, HotSpot 11.060 K), and non-uniform 3D-ICE 4.0 grids are
-  supported; there 3D-ICE silently ignores the `.lyt` layout (§9.34).
+  supported; there 3D-ICE silently ignores the `.lyt` layout, segfaults without a top heat sink, and adds a constant
+  offset with top plus bottom sinks (upstream issue #3's symptom) (§9.34). The `src/` HotSpot wrapper was rebuilt on
+  iceforge's translation (peak rise -0.7% / -0.9% against 3D-ICE on geometry1 / geometry3); the old "~15%" figure is
+  withdrawn.
 - **fieldlint** (`tools/fieldlint/`): lints steady-diffusion PDE datasets (orientation, maximum principle,
   duplicates, units, energy balance, operator residual, sample pairing). Its frozen v1 thresholds failed on the
   held-out PDEBench Darcy set; v2 skips out-of-scope data, and on one native-grid Darcy set detects 6 / 6
