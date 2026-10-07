@@ -176,7 +176,10 @@ class HotSpotSimulator(ThermalSimulator):
         zz = np.full_like(xx, self._die_z_center)
 
         coords = np.stack([xx.ravel(), yy.ravel(), zz.ravel()], axis=1).astype(np.float32)
-        temperature = np.array(temps_flat, dtype=np.float32)
+        # HotSpot's grid file lists row 0 at the TOP of the die (largest y); our
+        # y_c above increases with the row index, so flip the rows to match.
+        temperature = np.array(temps_flat, dtype=np.float32).reshape(
+            self.GRID_ROWS, self.GRID_COLS)[::-1].ravel()
 
         return {'coords': coords, 'temperature': temperature}
 
