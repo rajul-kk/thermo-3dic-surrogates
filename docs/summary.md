@@ -157,8 +157,8 @@ table.
 
 **Correction (2026-10-05, §9.33).** The public IC-ThermBench files store the spatial inputs (power, grid, k)
 transposed in-plane relative to the temperature, and our loader mirrored that. Re-fitting S2–S4 with corrected
-orientation changes the ridge baselines by ≤ 0.34%, so the result above stands. The S5 numbers of §9.29 and
-§9.31 have not been fully rerun; at 108 training samples, corrected orientation lowered ThermoNO's S4 RMSE from
+orientation changes the ridge baselines by ≤ 0.34%, so the result above stands. §9.29 was rerun in full on fixed inputs (2026-10-07): ThermoNO S4 3.15 K, S5 zero-shot 7.30 ± 0.51 K (3 seeds),
+2.1× better than Therm-FM rather than 2.3×; S5 was not helped by the fix. The S5 numbers of §9.31 have not been fully rerun; at 108 training samples, corrected orientation lowered ThermoNO's S4 RMSE from
 13.64 to 11.46 K and the learned-conductance solver's S5 RMSE from 13.88 to 13.26 K (one seed).
 
 ### 4.4 The benchmark is fixable, and the first fix attempted did not work (§9.15, §9.15b)
