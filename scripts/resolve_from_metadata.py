@@ -1,7 +1,9 @@
 """Re-solve a saved dataset under the current ICE wrapper, reusing each file's own scenario.
 Geometry, placement, block powers, HTC, ambient and k-overrides come from each file's metadata,
-so no random draw has to be reproduced. Only for data with no feedback loop (leakage/throttle) and no
-TSV maps. Per-cell power maps (fixed-placement geometry1-6) are read back from the stored power array.
+so no random draw has to be reproduced. Only for data with no feedback loop (leakage/throttle).
+Per-cell power maps (fixed-placement geometry1-6) and TSV density maps (geometry2a/5/6)
+are read back from the stored power and tsv_frac arrays. The TSV layout is 32x32 tiles that fall mid-cell, which the iceforge
+guard refuses (S003); re-solving TSV data therefore needs ICEFORGE_GUARD=0, which reproduces how the files were made.
 Writes to a new directory for validation first.
 Usage: python scripts/resolve_from_metadata.py data/3d-ice-layout-geometry4 [--out <dir>] [--snap]
 --snap moves every chiplet to the nearest 3D-ICE cell boundary first (src/core/placement.py::snap_offsets), which
@@ -17,10 +19,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.core.geometry_builders import get_geometry_by_name
-from src.core.mesh import generate_power_density_field
+from src.core.mesh import generate_power_density_field, generate_tsv_field
 from src.core.placement import place_chiplets, snap_offsets
 from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE, last_run_provenance
-from scripts.resolve_maps import check_power_maps, recover_power_maps
+from scripts.resolve_maps import check_power_maps, recover_power_maps, recover_tsv_maps
 
 ICE_EXE = DEFAULT_ICE_EXECUTABLE
 MICROCHANNEL_GEOMETRY = 'geometry6_microchannel'      # built by scripts/gen_microchannel_pilot.py, not a named geometry
@@ -43,6 +45,15 @@ def stored_power_maps(arrays, geom, blocks):
     maps = recover_power_maps(coords, stored, geom)
     check_power_maps(maps, geom, blocks)
     return maps
+
+
+def stored_tsv_maps(arrays, geom, stem):
+    """{} when the file has no TSV density field; otherwise the per-layer maps behind its tsv_frac array.
+    They are 32x32 tile grids, independent of the node grid, so they carry to a new mesh as well as the stored one."""
+    frac = arrays.get('tsv_frac')
+    if frac is None or not np.abs(frac).max() > 0:
+        return {}
+    return recover_tsv_maps(arrays['coords'].astype(np.float64), frac, geom, stem)
 
 
 def extra_scenario_keys(m, stem):
@@ -99,14 +110,16 @@ def main(argv=None):
         if power_maps:
             scen['power_map_by_layer'] = power_maps
             m['resolved_power_map_recovered'] = True
+        tsv_maps = stored_tsv_maps(arrays, geom, f.stem)
+        if tsv_maps:
+            scen['tsv_map_by_layer'] = tsv_maps
+            m['resolved_tsv_map_recovered'] = True
         with tempfile.TemporaryDirectory() as td:
             cfg, res = Path(td) / 'c', Path(td) / 'o'
             cfg.mkdir(); res.mkdir()
             parsed = ICESimulator(cfg, res, ICE_EXE).simulate(geom, scen, f.stem)
         coords = parsed['coords'].astype(np.float64)
         temp = parsed['temperature'].astype(np.float64)
-        if 'tsv_frac' in arrays and np.abs(arrays['tsv_frac']).max() > 0:
-            raise ValueError(f'{f}: nonzero tsv_frac cannot be carried to a new grid')
         # the grid may differ from the saved one (geometry4/5 meshes were corrected), so
         # every per-point array is rebuilt on 3D-ICE's own nodes
         power = generate_power_density_field(coords, geom, blocks, power_map_by_layer=power_maps or None)
@@ -117,7 +130,7 @@ def main(argv=None):
         if 'power_nominal' in arrays:
             arrays['power_nominal'] = arrays['power']
         if 'tsv_frac' in arrays:
-            arrays['tsv_frac'] = np.zeros(len(coords), np.float32)
+            arrays['tsv_frac'] = generate_tsv_field(coords, geom, tsv_maps).astype(np.float32)
         m['num_points'] = len(coords)
         m['mesh_resolution'] = tuple(geom.mesh_resolution)
         m['norm_coords_min'], m['norm_coords_max'] = coords.min(0).tolist(), coords.max(0).tolist()

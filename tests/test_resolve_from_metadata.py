@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import scripts.resolve_from_metadata as rfm
-from src.core.geometry_builders import build_geometry1
+from src.core.geometry_builders import build_geometry1, build_geometry2a
 from src.core.mesh import generate_coords_and_indices
 from src.export.npz_exporter import NPZExporter
 from src.scenario.generator import ScenarioGenerator
@@ -38,8 +38,19 @@ def fake_sim(monkeypatch):
     return seen_state
 
 
-def _write_file(tmp_path, geometry, name, params, *, temp_value=330.0):
-    coords, _ = generate_coords_and_indices(geometry, uniform_z=False)
+def _coarse_coords(geometry):
+    """One node per cell centre in every layer's mid-plane (the full mesh would be slow to build in a test)."""
+    nx, ny = int(geometry.mesh_resolution[0]), int(geometry.mesh_resolution[1])
+    x = (np.arange(ny) + 0.5) * geometry.die_width / ny
+    y = (np.arange(nx) + 0.5) * geometry.die_length / nx
+    xx, yy = np.meshgrid(x, y)
+    return np.concatenate([np.column_stack([xx.ravel(), yy.ravel(), np.full(xx.size, 0.5 * (l.z_bottom + l.z_top))])
+                           for l in geometry.layers])
+
+
+def _write_file(tmp_path, geometry, name, params, *, temp_value=330.0, coords=None):
+    if coords is None:
+        coords, _ = generate_coords_and_indices(geometry, uniform_z=False)
     temp = np.full(len(coords), temp_value, dtype=np.float32)
     src = tmp_path / 'src' / geometry.name
     src.mkdir(parents=True, exist_ok=True)
@@ -138,3 +149,58 @@ def test_shipped_geometry4_power_is_reproduced():
         rebuilt = rfm.generate_power_density_field(arrays['coords'].astype(np.float64), geom, blocks,
                                                    power_map_by_layer=maps)
         assert np.array_equal(rebuilt.astype(np.float32), arrays['power'])
+
+
+def _tsv_params(geometry, index=4):
+    gen = ScenarioGenerator()
+    scenarios = gen.generate_all_scenarios(geometry)
+    gen.attach_tsv_maps(scenarios, geometry)
+    gen.attach_power_maps(scenarios, geometry, kind='mixed')
+    return scenarios[index].to_dict()
+
+
+def test_tsv_maps_are_carried_and_regenerated_from_the_seed(fake_sim, tmp_path):
+    g = build_geometry2a()
+    params = _tsv_params(g)                                   # scenario index 4 -> file geometry2a_train_005
+    f, coords, temp = _write_file(tmp_path, g, 'geometry2a_train_005', params, coords=_coarse_coords(g))
+    stored = np.load(f, allow_pickle=True)
+    assert stored['tsv_frac'].max() > 0
+    arrays, m = _run(fake_sim, f, coords, temp, tmp_path)
+    (call,) = fake_sim['seen']
+    got = call['scenario']['tsv_map_by_layer']
+    assert set(got) == set(params['tsv_map_by_layer']) == {'die2_tsv', 'die1_tsv'}
+    for name, phi in params['tsv_map_by_layer'].items():
+        assert np.array_equal(got[name], phi)                 # the generator's own float64 map, not the float32 readback
+    assert np.array_equal(arrays['tsv_frac'], stored['tsv_frac'])
+    assert np.array_equal(arrays['power'], stored['power'])
+    assert m['resolved_tsv_map_recovered'] is True
+
+
+def test_tsv_maps_fall_back_to_the_stored_array_without_a_seed(fake_sim, tmp_path):
+    g = build_geometry2a()
+    params = _tsv_params(g)
+    f, coords, temp = _write_file(tmp_path, g, 'custom_name', params, coords=_coarse_coords(g))
+    arrays, _ = _run(fake_sim, f, coords, temp, tmp_path)
+    got = fake_sim['seen'][0]['scenario']['tsv_map_by_layer']
+    for name, phi in params['tsv_map_by_layer'].items():
+        np.testing.assert_allclose(got[name], phi, rtol=1e-6)
+        assert not np.array_equal(got[name], phi)             # float32 readback, not the seeded map
+    assert np.array_equal(arrays['tsv_frac'], np.load(f, allow_pickle=True)['tsv_frac'])
+
+
+def test_tsv_seed_follows_the_generators_numbering():
+    from scripts.resolve_maps import tsv_seed
+    assert tsv_seed('geometry5_train_001') == (0, 0)
+    assert tsv_seed('geometry5_train_015') == (0, 14)
+    assert tsv_seed('geometry5_test_001') == (0, 15)
+    assert tsv_seed('geometry5_train_016') == (900000, 0)
+    assert tsv_seed('geometry5_train_023') == (900000, 7)
+    assert tsv_seed('weird') is None
+
+
+def test_files_without_tsv_maps_are_left_alone(fake_sim, tmp_path):
+    g = build_geometry1()
+    f, coords, temp = _write_file(tmp_path, g, 'geometry1_test_001', _block_params(g))
+    arrays, m = _run(fake_sim, f, coords, temp, tmp_path)
+    assert 'tsv_map_by_layer' not in fake_sim['seen'][0]['scenario']
+    assert not arrays['tsv_frac'].any() and 'resolved_tsv_map_recovered' not in m
