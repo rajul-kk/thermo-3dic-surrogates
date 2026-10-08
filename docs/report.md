@@ -4706,17 +4706,17 @@ v1 file is untouched).
 - The y-flip in `src/simulators/hotspot_simulator.py` is confirmed and fixed in commit 58d4280: HotSpot's grid
   row 0 is the top of the die and the wrapper did not flip rows (regression test
   `tests/test_hotspot_orientation.py`). No saved spatial result used this wrapper.
-- Besides the y-flip the old wrapper had two more bugs and one modelling error, all fixed in commit ca33de8. (1) Its
+- Besides the y-flip the old wrapper had two more bugs and one modelling error, all fixed in commit fa2509c. (1) Its
   floorplan spanned only the power blocks' bounding box, so when the blocks did not tile the die HotSpot's grid was
   stretched over the box, not the die (geometry1, geometry3, 2.5D). (2) The spreader and sink were sized exactly to the
   chip, which degenerates HotSpot's package model: it returned about 0 K regardless of `r_convec` and ambient. (3)
   `r_convec` lumped the layers above the die, which are dead ends with the bottom heat sink. The fixes were zero-power
   filler blocks over the uncovered die, sink and spreader oversized by 1.0005, and lumping only layers below the die.
   Even then the wrapper lumped the Cu base and spreader as vertical resistances, and was +33% (geometry1) and +53%
-  (geometry3) on peak rise against 3D-ICE (commit 3b6e67e). The report's only result from the old wrapper, the
+  (geometry3) on peak rise against 3D-ICE (commit 53fafc6). The report's only result from the old wrapper, the
   geometry1 "~15% disagreement", could not be reproduced (no record of how it was made was found) and is withdrawn. We
   did not locate a source for the error before these fixes, so none is quoted.
-- Commit 3b6e67e replaced the lumped model: the wrapper now writes the ICESimulator `stack.stk`, translates it with
+- Commit 53fafc6 replaced the lumped model: the wrapper now writes the ICESimulator `stack.stk`, translates it with
   iceforge's full-stack 3D-ICE-to-HotSpot translation (one grid layer pair per stack layer, `.lcf`) and reads the die
   layer back. Peak rise against 3D-ICE is -0.7% on geometry1 and -0.9% on geometry3, mean about 0.0%, RMSE 0.13 K
   (geometry1) and 0.16 K (geometry3), and correlation 0.9998 on geometry1 (`tests/test_hotspot_vs_3dice.py` covers
