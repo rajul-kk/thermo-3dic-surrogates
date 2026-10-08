@@ -754,8 +754,11 @@ backend discovery probes only `~/3d-ice-4.0`.
   provenance rests on scripts and build timestamps (`results/3dice_version_check/summary.md`).
 - **Other builds on this machine.** `~/3d-ice` (39ed2a7) and `~/3d-ice-tag40` are old builds kept for the version
   comparison. **`~/3d-ice-guard` is a patched scratch build for diagnosis only and must never be used to produce data.**
-- The Docker images (`Dockerfile`, `tools/iceforge/Dockerfile`) clone upstream HEAD without recording the commit, so
-  inside the container the commit reads `unknown` and the pin refuses to run unless `THERMO_ALLOW_ANY_3DICE=1` is set.
+- The main `Dockerfile` fetches the pinned commit (`ARG ICE_COMMIT`), fails the build if `git rev-parse HEAD` differs,
+  keeps the shallow `.git` and `git` in the runtime image so the pin check can read the commit, and sets
+  `THERMO_ICE_EXECUTABLE`. The two local build patches (above) are not applied there; whether the unpatched build compiles in the container is untested.
+  `tools/iceforge/Dockerfile` still clones upstream HEAD without recording the commit, so there the commit reads
+  `unknown` and the pin refuses to run unless `THERMO_ALLOW_ANY_3DICE=1` is set.
 
 ### Build (from scratch)
 
