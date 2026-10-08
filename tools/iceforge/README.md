@@ -105,8 +105,8 @@ and prints each move. Dies in one layer may not overlap or leave the chip. Witho
 
 `run` executes 3D-ICE with the working directory set to the stk's directory (so relative paths in the
 model resolve as 3D-ICE expects). Backend `auto` tries `$ICE_EXECUTABLE` (a path, or `wsl /path`), a
-native `3D-ICE-Emulator` on PATH (non-Windows), WSL (`~/3d-ice-4.0/bin/...`, `~/3d-ice/bin/...`), then the
-docker image `iceforge:latest`.
+native `3D-ICE-Emulator` on PATH (non-Windows), WSL (`~/3d-ice-4.0/bin/...` only), then the docker image
+`iceforge:latest`. Before a solve the install tree's git commit is looked up and the run is refused unless it is the pinned 4953952 (override `THERMO_ALLOW_ANY_3DICE=1`); `ice_commit` and `ice_executable` go into the run report and each output npz.
 
 For each `Tmap` directive, `<outdir>/<name>.npz` holds `T` shaped `(length_index, width_index)` in kelvin,
 `x_um` (cell-centre coordinates along the length), `y_um` (along the width), `units`, and `t_ref`; a

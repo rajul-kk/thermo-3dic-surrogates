@@ -522,6 +522,8 @@ geometry2b/2c. The numbers below are current as of that last regeneration.
 
 **Dataset (275 simulations, all real 3D-ICE 4.0):**
 
+*Solver provenance.* The 3D-ICE defects reported in this paper were reproduced identically on tag 4.0, on commit 39ed2a7 and on upstream HEAD 4953952 (`results/3dice_version_check/`). The shipped data were generated with 4953952 (`~/3d-ice-4.0`) according to the generation scripts and build timestamps; the `.npz` files written before 2026-10-08 carry no per-file record of the executable, and files generated since record `ice_commit` and `ice_executable` in their metadata (the runners refuse any other build).
+
 | Geometry | n | z-nodes | pts/file | median ΔT | max ΔT | median T | peak T |
 |---|---|---|---|---|---|---|---|
 | geometry1 | 45 | 10 | 100,000 | 19.14 K | 63.96 K | 50.0 °C | 125.9 °C |

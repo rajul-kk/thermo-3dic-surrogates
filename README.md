@@ -164,7 +164,7 @@ Requires Python 3.8+, PyTorch, NumPy, SciPy, PyYAML, Matplotlib. See [`docs/inst
 
 ```bash
 python src/main.py --all-geometries --simulator 3d-ice \
-    --ice-executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator" \
+    --ice-executable "wsl /home/user/3d-ice-4.0/bin/3D-ICE-Emulator" \
     --output data/3d-ice --verbose
 ```
 

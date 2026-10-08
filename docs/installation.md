@@ -209,9 +209,9 @@ flex --version
 #### Compile 3D-ICE Inside WSL
 
 ```bash
-# Clone the repository
-git clone https://github.com/esl-epfl/3d-ice.git ~/3d-ice
-cd ~/3d-ice
+# Clone the repository at the PINNED commit (see "Pinned 3D-ICE version" below for the two local build patches)
+git clone https://github.com/esl-epfl/3d-ice.git ~/3d-ice-4.0
+cd ~/3d-ice-4.0 && git checkout 4953952
 
 # Build (takes 2-5 minutes)
 make
@@ -232,7 +232,7 @@ make SUPERLU=local
 Windows can call WSL binaries directly:
 
 ```powershell
-wsl ~/3d-ice/bin/3D-ICE-Emulator
+wsl ~/3d-ice-4.0/bin/3D-ICE-Emulator
 # Should print version/usage info
 ```
 
@@ -242,7 +242,7 @@ When running `src/main.py` from Windows PowerShell, pass the WSL path via `--ice
 
 ```powershell
 python src/main.py --geometry geometry1 --simulator 3d-ice `
-    --ice-executable "wsl ~/3d-ice/bin/3D-ICE-Emulator" `
+    --ice-executable "wsl ~/3d-ice-4.0/bin/3D-ICE-Emulator" `
     --output data/ice_test --verbose
 ```
 
@@ -252,13 +252,13 @@ to the WSL home directory (e.g., `/home/yourname`).
 **Test connectivity only (no simulation):**
 
 ```powershell
-python scripts/test_ice_connection.py --executable "wsl ~/3d-ice/bin/3D-ICE-Emulator"
+python scripts/test_ice_connection.py --executable "wsl ~/3d-ice-4.0/bin/3D-ICE-Emulator"
 ```
 
 **Full smoke test (generates config + runs geometry1 scenario 1):**
 
 ```powershell
-python scripts/test_ice_connection.py --executable "wsl ~/3d-ice/bin/3D-ICE-Emulator" --run
+python scripts/test_ice_connection.py --executable "wsl ~/3d-ice-4.0/bin/3D-ICE-Emulator" --run
 ```
 
 #### WSL2 Troubleshooting
@@ -271,7 +271,7 @@ python scripts/test_ice_connection.py --executable "wsl ~/3d-ice/bin/3D-ICE-Emul
 - Or: `make SUPERLU=local`
 
 **Issue**: `./bin/3D-ICE-Emulator: Permission denied`
-- Run: `chmod +x ~/3d-ice/bin/3D-ICE-Emulator`
+- Run: `chmod +x ~/3d-ice-4.0/bin/3D-ICE-Emulator`
 
 **Issue**: Long WSL startup time delays each scenario (~2-3 s per call)
 - This is normal for WSL cold start. Subsequent calls in the same session are faster.
@@ -495,7 +495,7 @@ source venv/bin/activate
 
 # Run single geometry with 3D-ICE (generates 1 scenario)
 python src/main.py --simulator 3d-ice --geometry geometry1 \
-    --ice-executable "wsl /home/user/3d-ice/bin/3D-ICE-Emulator" --output data/3d-ice_test
+    --ice-executable "wsl /home/user/3d-ice-4.0/bin/3D-ICE-Emulator" --output data/3d-ice_test
 
 # Expected: Creates data/3d-ice_test/geometry1/geometry1_train_001.npz
 # Expected duration: 10-30 seconds per scenario
@@ -737,14 +737,32 @@ This benchmark system builds on:
 
 ---
 
-## 3D-ICE 4.0 (added 2026-08-04)
+## Pinned 3D-ICE version (decision 2026-10-08)
 
-Built at `/home/rajul/3d-ice-4.0`; the 3.0.0 install at `/home/rajul/3d-ice` is left
-in place so existing results stay reproducible.
+**All data and all tools use upstream `esl-epfl/3d-ice` commit `4953952` (2026-07-02, upstream HEAD; = tag 4.0 plus
+later commits), built at WSL `~/3d-ice-4.0` (`/home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator`).** The single default lives
+in `src/simulators/ice_simulator.py` (`DEFAULT_ICE_EXECUTABLE`, overridable with `THERMO_ICE_EXECUTABLE`); iceforge's
+backend discovery probes only `~/3d-ice-4.0`.
+
+- **Enforced.** `ICESimulator.run_simulation` and `iceforge run` resolve the commit of the executable
+  (`git -C <install root> rev-parse HEAD`, via WSL where needed, cached per process) and refuse to run unless it starts
+  with `4953952`. If git cannot be run the commit is `unknown` and the run is refused too.
+- **Override.** `THERMO_ALLOW_ANY_3DICE=1` allows any build (the commit is still recorded). Use it only for experiments
+  whose output will not enter a dataset.
+- **Recorded.** Every `.npz` written after a 3D-ICE solve carries `ice_commit` and `ice_executable` in its metadata
+  (iceforge npz files carry them as top-level arrays). Files generated before 2026-10-08 have no such record; their
+  provenance rests on scripts and build timestamps (`results/3dice_version_check/summary.md`).
+- **Other builds on this machine.** `~/3d-ice` (39ed2a7) and `~/3d-ice-tag40` are old builds kept for the version
+  comparison. **`~/3d-ice-guard` is a patched scratch build for diagnosis only and must never be used to produce data.**
+- The Docker images (`Dockerfile`, `tools/iceforge/Dockerfile`) clone upstream HEAD without recording the commit, so
+  inside the container the commit reads `unknown` and the pin refuses to run unless `THERMO_ALLOW_ANY_3DICE=1` is set.
+
+### Build (from scratch)
 
 ```bash
-git clone --depth 1 https://github.com/esl-epfl/3d-ice.git 3d-ice-4.0
+git clone https://github.com/esl-epfl/3d-ice.git 3d-ice-4.0
 cd 3d-ice-4.0
+git checkout 4953952 && git rev-parse HEAD     # must print 4953952...
 cp -r ../3d-ice/superlu_mt-4.0.0 .        # reuse the already-built SuperLU MT
 sed -i 's/-Wall -Wextra -Werror/-Wall -Wextra/' sources/Makefile
 sed -i 's/-Werror//g' makefile.def

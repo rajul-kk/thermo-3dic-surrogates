@@ -452,15 +452,15 @@ Key metadata fields: `scenario_name`, `geometry`, `htc`, `t_ambient_celsius`,
 ```bash
 # Geometry 2a/2b/2c (hybrid bonding updated):
 python src/main.py --simulator 3d-ice --geometry geometry2a --extra-train 10 \
-  --ice-executable "wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator" --output data/3d-ice
+  --ice-executable "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator" --output data/3d-ice
 
 # Geometry 5 (Tier 0+1 + hybrid bond + TIM sweep + RDL fraction, 55 scenarios):
 python src/main.py --simulator 3d-ice --geometry geometry5 --extra-train 35 \
-  --ice-executable "wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator" --output data/3d-ice
+  --ice-executable "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator" --output data/3d-ice
 
 # Geometry 6 (6 HBM stacks, 42x14mm, 55 scenarios):
 python src/main.py --simulator 3d-ice --geometry geometry6 --extra-train 35 \
-  --ice-executable "wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator" --output data/3d-ice
+  --ice-executable "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator" --output data/3d-ice
 ```
 
 Skip-if-exists logic is active: any interrupted run can be safely restarted with the
