@@ -18,17 +18,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.core.geometry_builders import get_geometry_by_name
 from src.core.mesh import generate_power_density_field
 from src.core.placement import place_chiplets, snap_offsets
-from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE, last_run_provenance
 
 ICE_EXE = DEFAULT_ICE_EXECUTABLE
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('src', type=Path)
     ap.add_argument('--out', type=Path, default=None)
     ap.add_argument('--snap', action='store_true', help='snap chiplet offsets to the 3D-ICE cell grid first')
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     src = args.src
     out = args.out or src.with_name(src.name + '-v5')
     files = sorted(src.rglob('*.npz'))
@@ -86,6 +86,7 @@ def main():
         m['norm_coords_min'], m['norm_coords_max'] = coords.min(0).tolist(), coords.max(0).tolist()
         m['norm_power_mean'], m['norm_power_std'] = float(power.mean()), float(power.std())
         m['resolved_v5_active_split'] = True
+        m.update(last_run_provenance())          # ice_commit / ice_executable, as verified by the solve just run
         m['norm_temp_min'], m['norm_temp_max'] = float(temp.min()), float(temp.max())
         arrays['metadata'] = np.array([m], dtype=object)
         target.parent.mkdir(parents=True, exist_ok=True)
