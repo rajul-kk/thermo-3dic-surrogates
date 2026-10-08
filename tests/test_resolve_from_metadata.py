@@ -127,6 +127,17 @@ def test_block_scalar_data_gets_no_power_maps(fake_sim, tmp_path):
     assert 'resolved_power_map_recovered' not in m
 
 
+def test_stale_block_scalar_power_is_not_mistaken_for_a_map(tmp_path):
+    g = build_geometry1()
+    f, coords, temp = _write_file(tmp_path, g, 'geometry1_test_001', _block_params(g))
+    d = np.load(f, allow_pickle=True)
+    arrays = {k: d[k] for k in d.files}
+    arrays['power'] = arrays['power'] * 1.5                    # differs from the rebuild, but still piecewise constant
+    m = arrays['metadata'].item()
+    blocks = {b.name: m[f'block_power_{b.name}'] for b in g.power_blocks}
+    assert rfm.stored_power_maps(arrays, g, blocks) == {}
+
+
 def test_power_maps_inconsistent_with_block_metadata_are_refused(fake_sim, tmp_path):
     g = build_geometry1()
     params = _mapped_params(g)

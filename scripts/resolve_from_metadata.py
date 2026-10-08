@@ -42,6 +42,8 @@ def stored_power_maps(arrays, geom, blocks):
     coords, stored = arrays['coords'].astype(np.float64), arrays['power'].astype(np.float64)
     if np.abs(generate_power_density_field(coords, geom, blocks) - stored).max() <= 1e-5 * max(stored.max(), 1e-300):
         return {}
+    if len(np.unique(stored[stored > 0])) <= 4 * len(blocks) + 8:        # still piecewise constant per block: no map
+        return {}
     maps = recover_power_maps(coords, stored, geom)
     check_power_maps(maps, geom, blocks)
     return maps
