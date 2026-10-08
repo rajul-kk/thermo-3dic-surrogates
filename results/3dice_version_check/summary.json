@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-08",
+  "versions": {
+    "A": {"path": "~/3d-ice", "commit": "39ed2a7", "describe": "4.0-5-g39ed2a7", "built": "2026-05-29"},
+    "B": {"path": "~/3d-ice-4.0", "commit": "4953952", "upstream_head_2026-10-08": "4953952", "built": "2026-08-04, rebuilt 2026-08-18"},
+    "C": {"path": "~/3d-ice-tag40", "tag": "4.0", "commit": "e0bb6850c5e446363e26936586d625270c87f224", "built": "2026-10-08"}
+  },
+  "a_to_b_solver_changes": ["4953952 sources/thermal_data.c: openblas_set_num_threads(1)"],
+  "a_to_b_touches_lyt_nonuniform_or_heatsink": false,
+  "results": {
+    "1_lyt_die_edge": {"misaligned_tmax_K": {"A": 314.562, "B": 314.562, "C": 314.562}, "aligned_tmax_K": {"A": 311.130, "B": 311.130, "C": 311.130}, "snapped_tmax_K": 311.118, "nolayout_tmax_K": 311.027, "verdict": {"A": "reproduced", "B": "reproduced", "C": "reproduced"}},
+    "2_nonuniform_ignores_lyt": {"uniform_max_abs_diff_K": {"A": 5.522, "B": 5.522, "C": 5.522}, "nonuniform_max_abs_diff_K": {"A": 0, "B": 0, "C": 0}, "verdict": {"A": "reproduced", "B": "reproduced", "C": "reproduced"}},
+    "3_nonuniform_no_top_sink_segfault": {"exit_codes": {"crash_bottom_only": {"A": 139, "B": 139, "C": 139}, "crash_no_sink": {"A": 139, "B": 139, "C": 139}, "matrix/nu_bottom": {"A": 139, "B": 139, "C": 139}, "issue3/i_nu_bottom": {"A": 139, "B": 139, "C": 139}, "ok_top_only": {"A": 0, "B": 0, "C": 0}}, "verdict": {"A": "reproduced", "B": "reproduced", "C": "reproduced"}},
+    "4_nonuniform_both_sinks_offset": {"nu_both_tmax_K": {"A": 223057.507, "B": 223057.507, "C": 223057.507}, "u_both_tmax_K": 303.766, "i_nu_both_top_tmax_K": 390620.015, "verdict": {"A": "reproduced", "B": "reproduced", "C": "reproduced"}}
+  },
+  "feature_absent_cases": [],
+  "not_reproduced_cases": [],
+  "data_provenance": {"shipped_datasets": "B (~/3d-ice-4.0, 4953952) from regen_v4_final 2026-08-05 onward; pre-2026-08-04 runs (archived) used A", "die_edge_analysis": "B", "per_file_executable_recorded_in_npz": false}
+}
