@@ -1,0 +1,405 @@
+[
+ {
+  "dataset": "D fixed-placement geometry1",
+  "file": "geometry1_test_001.npz",
+  "pattern": "uniform",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 16.930993652343773,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "D fixed-placement geometry1",
+  "file": "geometry1_train_040.npz",
+  "pattern": "checkerboard",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 113.56099853515627,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "D fixed-placement geometry3",
+  "file": "geometry3_test_001.npz",
+  "pattern": "uniform",
+  "same_shape": true,
+  "n": 110000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 8.844995117187523,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "D fixed-placement geometry3",
+  "file": "geometry3_train_040.npz",
+  "pattern": "checkerboard",
+  "same_shape": true,
+  "n": 110000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.001007080078125,
+  "mean_dT": 1.9975142045454545e-07,
+  "rise": 71.0410095214844,
+  "max_rel": 1.417603838836829e-05,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "D fixed-placement geometry4",
+  "file": "geometry4_test_001.npz",
+  "pattern": "uniform",
+  "same_shape": true,
+  "n": 56000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.001007080078125,
+  "mean_dT": 3.7547520228794645e-07,
+  "rise": 7.709985351562523,
+  "max_rel": 0.00013062023236151842,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "D fixed-placement geometry4",
+  "file": "geometry4_train_040.npz",
+  "pattern": "split_chiplet_b_hot",
+  "same_shape": true,
+  "n": 56000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 46.9009948730469,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "G microchannel pilot",
+  "file": "geometry6_microchannel_train_000.npz",
+  "pattern": "uniform",
+  "same_shape": true,
+  "n": 103488,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 1.8850036621093977,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "G microchannel pilot",
+  "file": "geometry6_microchannel_train_011.npz",
+  "pattern": "uniform",
+  "same_shape": true,
+  "n": 103488,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 2.3709960937500227,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "F leakage pilot geometry1",
+  "file": "geometry1_test_017.npz",
+  "pattern": "hotspot",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 4309.95009765625,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   8,
+   8
+  ],
+  "leakage_multiplier": [
+   66.66933969921782,
+   66.66933969921782
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "F leakage pilot geometry1",
+  "file": "geometry1_train_003.npz",
+  "pattern": "checkerboard",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 20.844995117187523,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   7,
+   7
+  ],
+  "leakage_multiplier": [
+   0.7545283940167105,
+   0.7545283940167105
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "F leakage pilot geometry1",
+  "file": "geometry1_train_030.npz",
+  "pattern": "gradient",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 447.652001953125,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   2,
+   2
+  ],
+  "leakage_multiplier": [
+   5.290462415795291,
+   5.290462415795291
+  ],
+  "throttle_iterations": [
+   1,
+   1
+  ],
+  "throttle_derate_factor": [
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "dataset": "F throttle pilot geometry1",
+  "file": "geometry1_test_002.npz",
+  "pattern": "hotspot",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 54.2390075683594,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   2,
+   2
+  ],
+  "throttle_derate_factor": [
+   0.8390105879934205,
+   0.8390105879934205
+  ]
+ },
+ {
+  "dataset": "F throttle pilot geometry1",
+  "file": "geometry1_train_005.npz",
+  "pattern": "dual_hotspot",
+  "same_shape": true,
+  "n": 100000,
+  "coords_equal": true,
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "stored_ice_commit": null,
+  "max_dT": 0.0,
+  "mean_dT": 0.0,
+  "rise": 47.69100341796877,
+  "max_rel": 0.0,
+  "power_max_abs_diff": 0.0,
+  "leakage_iterations": [
+   1,
+   1
+  ],
+  "leakage_multiplier": [
+   1.0,
+   1.0
+  ],
+  "throttle_iterations": [
+   2,
+   2
+  ],
+  "throttle_derate_factor": [
+   0.7185895096628285,
+   0.7185895096628285
+  ]
+ }
+]
