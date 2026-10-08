@@ -1,0 +1,83 @@
+{
+ "date": "2026-10-08",
+ "pinned_ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+ "executable": "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator",
+ "command": "ICEFORGE_GUARD=0 python scripts/resolve_from_metadata.py <src> --out <out>",
+ "guard_note": "ICEFORGE_GUARD=0 required: the archived layouts are deliberately unsnapped and the iceforge guard (S001/S003) refuses to solve them.",
+ "caveat": "Shows stored fields equal what build B produces; does not identify the build that originally produced them (A, B, C behave identically on the tested defects).",
+ "all_bit_identical": true,
+ "files": [
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry4",
+   "file": "geometry4_test_041",
+   "peak_C": 107.6,
+   "max_dT": 0.0,
+   "mean_dT": 0.0,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry4",
+   "file": "geometry4_train_018",
+   "peak_C": 37.8,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry4",
+   "file": "geometry4_train_040",
+   "peak_C": 96.7,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry5",
+   "file": "geometry5_test_041",
+   "peak_C": 109.0,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry5",
+   "file": "geometry5_train_018",
+   "peak_C": 41.1,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry5",
+   "file": "geometry5_train_040",
+   "peak_C": 83.9,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry6",
+   "file": "geometry6_test_041",
+   "peak_C": 114.2,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry6",
+   "file": "geometry6_train_018",
+   "peak_C": 43.4,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  },
+  {
+   "dataset": "data/_archive_pre_snap_20260930/3d-ice-layout-geometry6",
+   "file": "geometry6_train_040",
+   "peak_C": 91.6,
+   "max_dT": 0.0,
+   "mean_dT": null,
+   "status": "compared"
+  }
+ ]
+}

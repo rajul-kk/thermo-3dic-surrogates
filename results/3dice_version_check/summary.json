@@ -15,5 +15,5 @@
   },
   "feature_absent_cases": [],
   "not_reproduced_cases": [],
-  "data_provenance": {"shipped_datasets": "B (~/3d-ice-4.0, 4953952) from regen_v4_final 2026-08-05 onward; pre-2026-08-04 runs (archived) used A", "die_edge_analysis": "B", "per_file_executable_recorded_in_npz": false}
+  "data_provenance": {"shipped_datasets": "build not recorded per file; 30 sampled shipped files and 9 archived pre-snap g4-g6 files re-solve bit-identically under B (4953952); generation scripts from regen_v4_final 2026-08-05 point to B; F2 (2026-10-06 realdata run build) and F3 (2026-09-30 snap re-solve script uncommitted) remain; not rebuildable: fixed-placement g1/3/4, g2a/5/6, leakage, throttle, microchannel, moving-geometry4 unsnapped", "die_edge_analysis": "B", "per_file_executable_recorded_in_npz": false}
 }
