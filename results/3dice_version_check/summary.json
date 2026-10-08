@@ -15,5 +15,31 @@
   },
   "feature_absent_cases": [],
   "not_reproduced_cases": [],
-  "data_provenance": {"shipped_datasets": "build not recorded per file; 30 sampled shipped files and 9 archived pre-snap g4-g6 files re-solve bit-identically under B (4953952); generation scripts from regen_v4_final 2026-08-05 point to B; F2 (2026-10-06 realdata run build) and F3 (2026-09-30 snap re-solve script uncommitted) remain; not rebuildable: fixed-placement g1/3/4, g2a/5/6, leakage, throttle, microchannel, moving-geometry4 unsnapped", "die_edge_analysis": "B", "per_file_executable_recorded_in_npz": false}
+  "data_provenance": {
+    "shipped_datasets": "build not recorded per file; generation scripts from regen_v4_final 2026-08-05 point to B",
+    "evidence": {
+      "distinct_files_verified": 56,
+      "distinct_datasets_verified": 24,
+      "bit_identical_files": 54,
+      "one_print_quantum_files": 2,
+      "max_abs_dT_nonzero_K": 1.007e-3,
+      "re_solve_comparisons": 64,
+      "note": "8 snapped files appear in both resolve_sample and snap_reproduction and are counted once; the 6 invalid_rebuild rows of resolve_sample are excluded",
+      "groups": [
+        {"group": "15 live datasets, first/last file", "files": 30, "result": "all bit-identical", "record": "resolve_sample.md"},
+        {"group": "archived pre-snap layout geometry4-6 (ICEFORGE_GUARD=0)", "files": 9, "result": "all bit-identical", "record": "resolve_archive_pre_snap.md"},
+        {"group": "--snap reproduction: layout geometry4-6 and moving-geometry4-snap (33e2f11)", "files": 12, "result": "all bit-identical incl. metadata", "record": "snap_reproduction.md"},
+        {"group": "fixed-placement geometry1/3/4", "files": 6, "result": "4 bit-identical; 2 differ by 1.007e-3 K (one print quantum)", "record": "resolve_rebuilt.md"},
+        {"group": "microchannel pilot", "files": 2, "result": "bit-identical", "record": "resolve_rebuilt.md"},
+        {"group": "leakage pilot geometry1", "files": 3, "result": "bit-identical; iterations equal", "record": "resolve_rebuilt.md"},
+        {"group": "throttle pilot geometry1", "files": 2, "result": "bit-identical; iterations equal", "record": "resolve_rebuilt.md"}
+      ],
+      "caveat": "stored data equal what 4953952 produces; this does not identify the build that originally made them"
+    },
+    "flags": {"F1": "closed", "F3": "closed", "F2": "pending user guard-off run"},
+    "pending_user_guard_off_run": {"script": "guard_off_checks.py", "F2": "re-run 2026-10-06 realdata diff under the pin", "C": "data/3d-ice-moving-geometry4 unsnapped re-solve", "E": "TSV-map fixed-placement geometry2a/5/6 re-solve (tsv_frac and power already bit-identical in pure Python for 140 files)"},
+    "new_outputs_carry_ice_commit": true,
+    "die_edge_analysis": "B",
+    "per_file_executable_recorded_in_npz": "only for files written since 2026-10-08 (ice_commit, ice_executable)"
+  }
 }
