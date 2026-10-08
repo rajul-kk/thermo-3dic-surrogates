@@ -1,7 +1,8 @@
 """Re-solve a saved dataset under the current ICE wrapper, reusing each file's own scenario.
 Geometry, placement, block powers, HTC, ambient and k-overrides come from each file's metadata,
-so no random draw has to be reproduced. Only for block-scalar data with no feedback loop
-(leakage/throttle) and no TSV or power maps. Writes to a new directory for validation first.
+so no random draw has to be reproduced. Only for data with no feedback loop (leakage/throttle) and no
+TSV maps. Per-cell power maps (fixed-placement geometry1-6) are read back from the stored power array.
+Writes to a new directory for validation first.
 Usage: python scripts/resolve_from_metadata.py data/3d-ice-layout-geometry4 [--out <dir>] [--snap]
 --snap moves every chiplet to the nearest 3D-ICE cell boundary first (src/core/placement.py::snap_offsets), which
 removes the die-edge heated-insulator artefact of off-grid placements (2026-09-30); block metadata is rewritten to match.
@@ -19,6 +20,7 @@ from src.core.geometry_builders import get_geometry_by_name
 from src.core.mesh import generate_power_density_field
 from src.core.placement import place_chiplets, snap_offsets
 from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE, last_run_provenance
+from scripts.resolve_maps import check_power_maps, recover_power_maps
 
 ICE_EXE = DEFAULT_ICE_EXECUTABLE
 MICROCHANNEL_GEOMETRY = 'geometry6_microchannel'      # built by scripts/gen_microchannel_pilot.py, not a named geometry
@@ -29,6 +31,18 @@ def load_geometry(name):
         from scripts.gen_microchannel_pilot import build_microchannel_geometry6
         return build_microchannel_geometry6()
     return get_geometry_by_name(name)
+
+
+def stored_power_maps(arrays, geom, blocks):
+    """{} when the saved power is the plain block decomposition; otherwise the per-cell maps it was sampled from.
+    The maps are not stored, but the power array is a sampling of them (tile-constant), so they are read back from
+    it and checked against the block_power_* metadata."""
+    coords, stored = arrays['coords'].astype(np.float64), arrays['power'].astype(np.float64)
+    if np.abs(generate_power_density_field(coords, geom, blocks) - stored).max() <= 1e-5 * max(stored.max(), 1e-300):
+        return {}
+    maps = recover_power_maps(coords, stored, geom)
+    check_power_maps(maps, geom, blocks)
+    return maps
 
 
 def extra_scenario_keys(m, stem):
@@ -79,6 +93,12 @@ def main(argv=None):
         scen = {'power_blocks': blocks, 'htc': float(m['htc']), 't_ambient': float(m['t_ambient_celsius']),
                 'layer_k_overrides': ast.literal_eval(m.get('layer_k_overrides', '{}') or '{}'),
                 **extra_scenario_keys(m, f.stem)}
+        power_maps = stored_power_maps(arrays, geom, blocks)
+        if power_maps and offs:
+            raise ValueError(f'{f}: power maps together with a randomised placement are not supported')
+        if power_maps:
+            scen['power_map_by_layer'] = power_maps
+            m['resolved_power_map_recovered'] = True
         with tempfile.TemporaryDirectory() as td:
             cfg, res = Path(td) / 'c', Path(td) / 'o'
             cfg.mkdir(); res.mkdir()
@@ -89,7 +109,7 @@ def main(argv=None):
             raise ValueError(f'{f}: nonzero tsv_frac cannot be carried to a new grid')
         # the grid may differ from the saved one (geometry4/5 meshes were corrected), so
         # every per-point array is rebuilt on 3D-ICE's own nodes
-        power = generate_power_density_field(coords, geom, blocks)
+        power = generate_power_density_field(coords, geom, blocks, power_map_by_layer=power_maps or None)
         arrays['coords'] = coords.astype(np.float32)
         arrays['temp'] = temp.astype(np.float32)
         arrays['power'] = power.astype(np.float32)

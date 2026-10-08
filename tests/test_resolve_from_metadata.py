@@ -14,6 +14,7 @@ import scripts.resolve_from_metadata as rfm
 from src.core.geometry_builders import build_geometry1
 from src.core.mesh import generate_coords_and_indices
 from src.export.npz_exporter import NPZExporter
+from src.scenario.generator import ScenarioGenerator
 from src.simulators import ice_simulator
 
 PINNED = '4953952a1ef6d38807ff307212a6f15e5b2ef935'
@@ -82,3 +83,58 @@ def test_microchannel_geometry_is_rebuilt_with_its_cooling(fake_sim, tmp_path):
 
 def test_other_geometries_get_no_extra_scenario_keys():
     assert rfm.extra_scenario_keys({'geometry': 'geometry1'}, 'geometry1_train_007') == {}
+
+
+def _mapped_params(geometry, index=3):
+    """A geometry's scenario with the per-cell power maps the main generator attaches (kind 'mixed')."""
+    gen = ScenarioGenerator()
+    scenarios = gen.generate_all_scenarios(geometry)
+    gen.attach_power_maps(scenarios, geometry, kind='mixed')
+    return scenarios[index].to_dict()
+
+
+def test_power_maps_are_recovered_and_power_is_unchanged(fake_sim, tmp_path):
+    g = build_geometry1()
+    params = _mapped_params(g)
+    f, coords, temp = _write_file(tmp_path, g, 'geometry1_train_004', params)
+    stored = np.load(f, allow_pickle=True)['power']
+    assert len(np.unique(stored)) > 1000                      # genuinely sub-block structure
+    arrays, m = _run(fake_sim, f, coords, temp, tmp_path)
+    (call,) = fake_sim['seen']
+    got = call['scenario']['power_map_by_layer']
+    assert set(got) == {'die'}
+    np.testing.assert_allclose(got['die'], params['power_map_by_layer']['die'], rtol=1e-6)    # float32 storage
+    assert np.array_equal(arrays['power'], stored)             # rebuilt power equals the stored power bit for bit
+    assert m['resolved_power_map_recovered'] is True
+
+
+def test_block_scalar_data_gets_no_power_maps(fake_sim, tmp_path):
+    g = build_geometry1()
+    f, coords, temp = _write_file(tmp_path, g, 'geometry1_test_001', _block_params(g))
+    _, m = _run(fake_sim, f, coords, temp, tmp_path)
+    assert 'power_map_by_layer' not in fake_sim['seen'][0]['scenario']
+    assert 'resolved_power_map_recovered' not in m
+
+
+def test_power_maps_inconsistent_with_block_metadata_are_refused(fake_sim, tmp_path):
+    g = build_geometry1()
+    params = _mapped_params(g)
+    params['power_blocks'] = {k: v * 2 for k, v in params['power_blocks'].items()}   # metadata no longer matches the map
+    f, coords, temp = _write_file(tmp_path, g, 'geometry1_train_004', params)
+    # the exporter samples the maps, so the stored power is still the map; only block_power_* is doubled
+    with pytest.raises(ValueError, match='recovered map holds'):
+        _run(fake_sim, f, coords, temp, tmp_path)
+
+
+@pytest.mark.skipif(not Path('data/3d-ice/geometry4').exists(), reason='shipped data not present')
+def test_shipped_geometry4_power_is_reproduced():
+    for f in sorted(Path('data/3d-ice/geometry4').glob('*.npz'))[::9]:
+        d = np.load(f, allow_pickle=True)
+        arrays = {k: d[k] for k in d.files}
+        m = arrays['metadata'].item()
+        geom = rfm.load_geometry(m['geometry'])
+        blocks = {b.name: float(m[f'block_power_{b.name}']) for b in geom.power_blocks}
+        maps = rfm.stored_power_maps(arrays, geom, blocks)
+        rebuilt = rfm.generate_power_density_field(arrays['coords'].astype(np.float64), geom, blocks,
+                                                   power_map_by_layer=maps)
+        assert np.array_equal(rebuilt.astype(np.float32), arrays['power'])
