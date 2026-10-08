@@ -28,10 +28,10 @@ from scripts.layout_cv import per_scenario_stats                          # noqa
 from scripts.thermono_train import build, tensors                         # noqa: E402
 from src.fno.thermono import ThermoNO                                     # noqa: E402
 from src.hybrid import layered_backbone as lb                             # noqa: E402
-from src.simulators.ice_simulator import ICESimulator                     # noqa: E402
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE                     # noqa: E402
 from src.validation import fv_solver as fv                                # noqa: E402
 
-ICE_EXE = 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
+ICE_EXE = DEFAULT_ICE_EXECUTABLE
 PCG_ITERS = (10, 20, 30, 50)
 
 

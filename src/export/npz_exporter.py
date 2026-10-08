@@ -135,6 +135,13 @@ class NPZExporter:
             metadata[f'block_y_{block.name}'] = float(block.y)
 
         offsets = scenario_params.get('chiplet_offsets')
+        # 3D-ICE build provenance: scenario_params may carry it explicitly, else take the build that ran the
+        # most recent solve in this process (src/simulators/ice_simulator.py). Absent for mock/HotSpot data.
+        from ..simulators.ice_simulator import last_run_provenance
+        for key, val in {**last_run_provenance(),
+                         **{k: scenario_params[k] for k in ('ice_commit', 'ice_executable')
+                            if k in scenario_params}}.items():
+            metadata[key] = str(val)
         metadata['placement_randomized'] = bool(offsets)
         if offsets:
             # Raw offsets for auditing/reproduction; positions above are what models use.

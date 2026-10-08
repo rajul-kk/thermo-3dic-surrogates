@@ -14,10 +14,10 @@ import pytest
 
 from src.core.geometry_builders import build_geometry1
 from src.simulators.hotspot_simulator import HotSpotSimulator
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 
 HOTSPOT_WSL = "wsl /home/rajul/HotSpot_slu/hotspot"
-ICE_WSL = "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator"
+ICE_WSL = DEFAULT_ICE_EXECUTABLE
 
 
 def _wsl_has(path: str) -> bool:

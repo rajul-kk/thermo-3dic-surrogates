@@ -11,7 +11,7 @@ from src.core.geometry_builders import (
     build_geometry2a,
     build_geometry3, build_geometry4, build_geometry5,
 )
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.export.npz_exporter import NPZExporter
 from src.core.mesh import generate_power_density_field
 
@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-ICE_EXECUTABLE = "wsl /home/rajul/3d-ice/bin/3D-ICE-Emulator"
+ICE_EXECUTABLE = DEFAULT_ICE_EXECUTABLE
 
 # expected point count for each geometry (3D-ICE Tmap grid: 1 z per layer)
 EXPECTED_PTS = {

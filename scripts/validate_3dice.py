@@ -17,10 +17,10 @@ from src.core.geometry_builders import get_geometry_by_name
 from src.core.placement import place_chiplets
 from src.scenario.generator import ScenarioGenerator
 from src.scenario.tsv_maps import generate_tsv_density_map
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.validation import fv_solver as fv
 
-ICE_EXE = 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
+ICE_EXE = DEFAULT_ICE_EXECUTABLE
 GEOMS = ['geometry1', 'geometry2a', 'geometry3', 'geometry4', 'geometry5', 'geometry6']
 LEVELS = [(1, 1), (1, 2), (1, 4), (2, 2), (2, 4)]      # (lateral refine, z multiplier)
 MAX_CELLS = 2_500_000

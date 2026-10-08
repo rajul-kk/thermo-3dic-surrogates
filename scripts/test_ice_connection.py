@@ -118,9 +118,9 @@ def run_smoke_test(executable: str, tmp_dir: Path) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Test 3D-ICE executable connectivity")
     parser.add_argument(
-        '--executable', default='3D-ICE-Emulator',
+        '--executable', default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator',
         help='Path to 3D-ICE-Emulator binary. '
-             'For WSL: "wsl /home/user/3d-ice/bin/3D-ICE-Emulator"'
+             'For WSL: "wsl /home/user/3d-ice-4.0/bin/3D-ICE-Emulator"'
     )
     parser.add_argument(
         '--run', action='store_true',
@@ -148,9 +148,9 @@ def main():
         print("  2. Install Ubuntu from Microsoft Store")
         print("  3. Inside Ubuntu:")
         print("       sudo apt update && sudo apt install -y gcc make bison flex libsuperlu-dev")
-        print("       git clone https://github.com/esl-epfl/3d-ice.git ~/3d-ice")
-        print("       cd ~/3d-ice && make")
-        print("  4. Re-run with: --executable \"wsl ~/3d-ice/bin/3D-ICE-Emulator\"")
+        print("       git clone https://github.com/esl-epfl/3d-ice.git ~/3d-ice-4.0  (see docs/installation.md, pinned 4953952)")
+        print("       cd ~/3d-ice-4.0 && make")
+        print("  4. Re-run with: --executable \"wsl ~/3d-ice-4.0/bin/3D-ICE-Emulator\"")
         sys.exit(1)
 
     print("  [OK] Executable reachable")

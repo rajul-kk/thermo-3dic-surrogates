@@ -18,9 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.core.geometry_builders import get_geometry_by_name
 from src.core.mesh import generate_power_density_field
 from src.core.placement import place_chiplets, snap_offsets
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 
-ICE_EXE = 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
+ICE_EXE = DEFAULT_ICE_EXECUTABLE
 
 
 def main():

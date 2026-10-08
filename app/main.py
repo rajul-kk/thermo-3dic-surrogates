@@ -20,10 +20,11 @@ from app.job_queue import Job, JobQueue
 from app.models import FloorplanRequest, JobRequest, JobResponse, OptimiseRequest
 from src.core.placement import grid_steps
 from src.solver import thermal
+from src.simulators.ice_simulator import DEFAULT_ICE_EXECUTABLE
 
 ICE_EXECUTABLE = os.environ.get(
     'ICE_EXECUTABLE',
-    'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator',     # the build the benchmark data was made with
+    DEFAULT_ICE_EXECUTABLE,     # pinned build, src/simulators/ice_simulator.py
 )
 OUTPUT_BASE = Path('data/app')
 MAX_MESH_AXIS = 500

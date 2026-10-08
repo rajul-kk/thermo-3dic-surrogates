@@ -19,13 +19,13 @@ sys.path.insert(0, str(ROOT / 'tools' / 'iceforge'))
 os.environ['ICEFORGE_GUARD'] = '0'          # the guard would refuse the unsnapped stacks, which is the point here
 from src.core.geometry_builders import get_geometry_by_name
 from src.core.placement import place_chiplets, snap_offsets
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from iceforge.check import check_stack
 from iceforge.model import parse_stk
 from iceforge.diff import run_diff, strip_private
 
 SUFFIX = ''
-ICE_EXE = 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
+ICE_EXE = DEFAULT_ICE_EXECUTABLE
 ARCH = ROOT / 'data' / '_archive_pre_snap_20260930'
 CORR = ROOT / 'data'
 OUT = ROOT / 'results' / 'iceforge_realdata'

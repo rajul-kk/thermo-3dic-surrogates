@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 EMU = "3D-ICE-Emulator"
-WSL_CANDIDATES = ("3d-ice-4.0/bin/" + EMU, "3d-ice/bin/" + EMU)   # relative to $HOME
+WSL_CANDIDATES = ("3d-ice-4.0/bin/" + EMU,)     # relative to $HOME; the pinned build only (not ~/3d-ice, ~/3d-ice-guard)
+PINNED_COMMIT = "4953952"                        # upstream esl-epfl/3d-ice HEAD of 2026-07-02 (= 4.0 + later commits)
+ALLOW_ANY_ENV = "THERMO_ALLOW_ANY_3DICE"
 DOCKER_IMAGE = "iceforge:latest"
 DOCKER_EXE = "/opt/3d-ice/bin/" + EMU
 IS_WINDOWS = os.name == "nt"
@@ -102,7 +104,7 @@ def probe_docker() -> Optional[Backend]:
 def from_exe(exe: str) -> Backend:
     """Interpret an explicit executable string (--exe or ICE_EXECUTABLE)."""
     exe = exe.strip()
-    if exe.lower().startswith("wsl "):               # repo convention: "wsl /home/u/3d-ice/bin/3D-ICE-Emulator"
+    if exe.lower().startswith("wsl "):               # repo convention: "wsl /home/u/3d-ice-4.0/bin/3D-ICE-Emulator"
         return Backend("wsl", exe[4:].strip())
     if exe.startswith("/") and IS_WINDOWS:
         return Backend("wsl", exe)
@@ -130,6 +132,49 @@ def detect(kind: str = "auto", exe: Optional[str] = None) -> Backend:
     if not b:
         raise BackendError(f"backend '{kind}' is not available; see `iceforge doctor`")
     return b
+
+
+_COMMIT_CACHE: Dict[str, str] = {}
+
+
+def ice_commit(b: Backend) -> str:
+    """`git rev-parse HEAD` of the install tree (<root>/bin/3D-ICE-Emulator), cached per process.
+    'unknown' when git or the tree is unavailable (e.g. a docker image without the source)."""
+    key = f"{b.kind}:{b.exe}:{b.detail}"
+    if key not in _COMMIT_CACHE:
+        h = "unknown"
+        try:
+            exe = b.exe
+            if b.kind == "native":
+                exe = os.path.realpath(shutil.which(exe) or exe)
+            root = os.path.dirname(os.path.dirname(exe)) if b.kind == "native" else exe.rsplit("/", 2)[0]
+            if b.kind == "docker":
+                cmd = ["docker", "run", "--rm", "--entrypoint", "git", b.detail or DOCKER_IMAGE,
+                       "-C", root, "rev-parse", "HEAD"]
+            else:
+                cmd = ["git", "-C", root, "rev-parse", "HEAD"]
+                if b.kind == "wsl":
+                    cmd = ["wsl", "-e"] + cmd
+            r = _run(cmd, timeout=60)
+            out = r.stdout.strip()
+            if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{7,40}", out):
+                h = out
+        except Exception:
+            pass
+        _COMMIT_CACHE[key] = h
+    return _COMMIT_CACHE[key]
+
+
+def verify_pinned(b: Backend) -> Dict[str, str]:
+    """{'ice_commit', 'ice_executable'} for the backend, or BackendError unless it is the pinned build
+    (override: THERMO_ALLOW_ANY_3DICE=1; the commit is still recorded)."""
+    c = ice_commit(b)
+    if not c.startswith(PINNED_COMMIT) and os.environ.get(ALLOW_ANY_ENV, "") != "1":
+        raise BackendError(
+            f"3D-ICE build {b} is at commit {c!r}, but the pinned build is {PINNED_COMMIT} (~/3d-ice-4.0; "
+            f"see docs/installation.md). Pass --exe /path/to/pinned/bin/{EMU}, or set {ALLOW_ANY_ENV}=1 to run "
+            f"anyway. 'unknown' means git could not be run on the install tree.")
+    return {"ice_commit": c, "ice_executable": str(b)}
 
 
 def command_for(b: Backend, stk_path: str) -> (List[str], str):
@@ -211,6 +256,7 @@ def emulator_version(b: Backend) -> str:
             r = _run((["wsl", "-e"] + cmd) if b.kind == "wsl" else cmd)
             if r.returncode == 0 and r.stdout.strip():
                 parts.append("git " + r.stdout.strip())
+            parts.append("HEAD " + ice_commit(b)[:7] + (" (pinned)" if ice_commit(b).startswith(PINNED_COMMIT) else " (NOT the pinned build)"))
         except Exception:
             pass
     return "; ".join(parts)

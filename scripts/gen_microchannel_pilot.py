@@ -10,7 +10,7 @@ from src.core.geometry import Geometry, Layer
 from src.core.geometry_builders import build_geometry6
 from src.core.material import MaterialLibrary
 from src.scenario.generator import ScenarioGenerator
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.main import process_scenario
@@ -47,7 +47,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--n', type=int, default=12, help='Number of pilot scenarios')
     ap.add_argument('--output', type=Path, default=Path('data/3d-ice-microchannel-pilot'))
-    ap.add_argument('--ice-executable', default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
+    ap.add_argument('--ice-executable', default=DEFAULT_ICE_EXECUTABLE)
     args = ap.parse_args()
 
     geom = build_microchannel_geometry6()

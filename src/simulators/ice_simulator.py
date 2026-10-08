@@ -2,8 +2,10 @@
 
 import logging
 import os
+import re
 import subprocess
 import shlex
+import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 import numpy as np
@@ -12,6 +14,71 @@ from ..core.geometry import Geometry, Layer, PowerBlock
 
 logger = logging.getLogger(__name__)
 
+# The ONE place the project's 3D-ICE build is named. Decision 2026-10-08: everything uses upstream HEAD
+# 4953952 (2026-07-02, = tag 4.0 + later commits), built at WSL ~/3d-ice-4.0 with two local patches
+# (docs/installation.md). Scripts import DEFAULT_ICE_EXECUTABLE rather than spelling the path out.
+# ~/3d-ice (39ed2a7), ~/3d-ice-tag40 are old builds; ~/3d-ice-guard is a patched scratch build for
+# diagnosis -- none of them may produce data.
+DEFAULT_ICE_EXECUTABLE = os.environ.get(
+    'THERMO_ICE_EXECUTABLE', 'wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
+PINNED_ICE_COMMIT = '4953952'
+ALLOW_ANY_ENV = 'THERMO_ALLOW_ANY_3DICE'
+
+_COMMIT_CACHE: Dict[str, str] = {}        # executable string -> full commit hash or 'unknown' (per process)
+_LAST_RUN: Dict[str, str] = {}            # provenance of the most recent solve in this process
+
+
+def _lookup_ice_commit(executable: str) -> str:
+    """`git rev-parse HEAD` in the install tree of the executable (<root>/bin/3D-ICE-Emulator).
+
+    Goes through WSL for a `wsl /path` executable. Returns 'unknown' when git or the tree is unavailable."""
+    try:
+        parts = shlex.split(executable)
+        use_wsl = bool(parts) and parts[0] == 'wsl'
+        exe = parts[-1] if parts else ''
+        if not exe:
+            return 'unknown'
+        pre = ['wsl', '-e'] if use_wsl else []
+        if use_wsl and exe.startswith('~'):
+            home = subprocess.run(pre + ['printenv', 'HOME'], capture_output=True, text=True, timeout=30).stdout.strip()
+            exe = home + exe[1:]
+        if use_wsl:
+            root = exe.rsplit('/', 2)[0]
+        else:
+            root = str(Path(shutil.which(exe) or exe).resolve().parent.parent)
+        r = subprocess.run(pre + ['git', '-C', root, 'rev-parse', 'HEAD'],
+                           capture_output=True, text=True, timeout=30)
+        h = r.stdout.strip()
+        return h if r.returncode == 0 and re.fullmatch(r'[0-9a-f]{7,40}', h) else 'unknown'
+    except Exception:
+        return 'unknown'
+
+
+def ice_commit(executable: str) -> str:
+    """3D-ICE commit of `executable`, looked up once per process."""
+    if executable not in _COMMIT_CACHE:
+        _COMMIT_CACHE[executable] = _lookup_ice_commit(executable)
+    return _COMMIT_CACHE[executable]
+
+
+def verify_ice_executable(executable: str) -> Dict[str, str]:
+    """Return {'ice_commit', 'ice_executable'} or raise RuntimeError if the build is not the pinned one.
+
+    THERMO_ALLOW_ANY_3DICE=1 allows any build (the commit is still recorded)."""
+    commit = ice_commit(executable)
+    if not commit.startswith(PINNED_ICE_COMMIT) and os.environ.get(ALLOW_ANY_ENV, '') != '1':
+        raise RuntimeError(
+            f"3D-ICE build {executable!r} is at commit {commit!r}, but this project is pinned to "
+            f"{PINNED_ICE_COMMIT} (~/3d-ice-4.0; see docs/installation.md). Use {DEFAULT_ICE_EXECUTABLE!r}, "
+            f"or set {ALLOW_ANY_ENV}=1 to run anyway (the commit is recorded in the dataset metadata). "
+            f"If the commit is 'unknown', git could not be run on the install tree.")
+    return {'ice_commit': commit, 'ice_executable': executable}
+
+
+def last_run_provenance() -> Dict[str, str]:
+    """ice_commit / ice_executable of the most recent 3D-ICE solve in this process ({} if none)."""
+    return dict(_LAST_RUN)
+
 # iceforge rules that make a solve silently wrong (heated insulator, layout/power mismatch).
 _GUARD_ERRORS = {'S001', 'S003', 'S004', 'S005'}
 
@@ -19,7 +86,7 @@ _GUARD_ERRORS = {'S001', 'S003', 'S004', 'S005'}
 class ICESimulator(ThermalSimulator):
     """Wrapper for 3D-ICE thermal simulator."""
 
-    def __init__(self, config_dir: Path, output_dir: Path, executable: str = "3D-ICE-Emulator"):
+    def __init__(self, config_dir: Path, output_dir: Path, executable: str = DEFAULT_ICE_EXECUTABLE):
         super().__init__(config_dir, output_dir, executable)
 
     def generate_config_files(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
@@ -28,7 +95,7 @@ class ICESimulator(ThermalSimulator):
         if not exe_parts:
             raise RuntimeError(
                 "3D-ICE executable not configured. "
-                "Pass --ice-executable \"wsl /home/<user>/3d-ice/bin/3D-ICE-Emulator\""
+                "Pass --ice-executable \"wsl /home/<user>/3d-ice-4.0/bin/3D-ICE-Emulator\""
             )
         self._use_wsl = exe_parts[0] == 'wsl'
 
@@ -670,6 +737,7 @@ class ICESimulator(ThermalSimulator):
                 pass
 
         exe_parts = shlex.split(self.executable)
+        _LAST_RUN.update(verify_ice_executable(self.executable))      # refuses an unpinned build
         use_wsl   = exe_parts[0] == 'wsl'
         stk_arg   = self._to_wsl_path(stk_file.resolve()) if use_wsl else str(stk_file)
         cmd       = exe_parts + [stk_arg]
@@ -714,7 +782,7 @@ class ICESimulator(ThermalSimulator):
         except FileNotFoundError:
             raise RuntimeError(
                 f"3D-ICE executable not found: {exe_parts[0]}\n"
-                f"For WSL: use --ice-executable \"wsl /home/<user>/3d-ice/bin/3D-ICE-Emulator\""
+                f"For WSL: use --ice-executable \"wsl /home/<user>/3d-ice-4.0/bin/3D-ICE-Emulator\""
             )
 
     def parse_results(self, result_path: Path) -> Dict[str, np.ndarray]:

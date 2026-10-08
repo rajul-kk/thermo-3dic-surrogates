@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.geometry_builders import get_geometry_by_name
 from src.scenario.generator import ScenarioGenerator
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.main import process_scenario
@@ -44,7 +44,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--output', type=Path, default=Path('data/3d-ice-interface-pilot'))
     ap.add_argument('--ice-executable',
-                    default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
+                    default=DEFAULT_ICE_EXECUTABLE)
     ap.add_argument('--pattern', default='uniform',
                     help='Power pattern held fixed across the whole sweep')
     ap.add_argument('--power', choices=['lowest', 'highest', 'median'], default='highest',

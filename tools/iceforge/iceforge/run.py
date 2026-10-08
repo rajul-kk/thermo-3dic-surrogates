@@ -160,7 +160,7 @@ def write_npz_nu(outdir: str, name: str, st: Stack, T: np.ndarray, cells: np.nda
     np.savez(path, T=T, cells=cells, x_um=cells[:, 0] + 0.5 * cells[:, 2], y_um=cells[:, 1] + 0.5 * cells[:, 3],
              units=np.array('K'), grid=np.array('non-uniform'),
              axes=np.array('T[cell]; cells[cell] = x, y, length, width in um, 3D-ICE cell order'),
-             t_ref=np.array(np.nan if t_ref is None else t_ref))
+             t_ref=np.array(np.nan if t_ref is None else t_ref), **_prov_arrays())
     side = dict(name=name, instance=instance, units='K', source_tmap=src, stk=st.path, grid='non-uniform',
                 n_cells=int(T.size), cells_columns=['x_um', 'y_um', 'length_um', 'width_um'],
                 chip_um=[st.dims.chip_l, st.dims.chip_w], t_max=float(T.max()), t_min=float(T.min()),
@@ -210,7 +210,7 @@ def write_npz(outdir: str, name: str, st: Stack, T: np.ndarray, src: str, instan
     path = os.path.join(outdir, name + '.npz')
     np.savez(path, T=T, x_um=x, y_um=y, units=np.array('K'),
              axes=np.array('T[length_index, width_index]; x_um along chip length, y_um along chip width'),
-             t_ref=np.array(np.nan if t_ref is None else t_ref))
+             t_ref=np.array(np.nan if t_ref is None else t_ref), **_prov_arrays())
     side = dict(name=name, instance=instance, units='K', source_tmap=src, stk=st.path,
                 shape=list(T.shape), axes=['length', 'width'],
                 orientation="T[length_index, width_index]; file rows ran along chip width",
@@ -253,6 +253,13 @@ def collect_outputs(st: Stack, outdir: str) -> List[TmapResult]:
     return results
 
 
+_PROV = {}          # ice_commit / ice_executable of the build used by the current run_model call
+
+
+def _prov_arrays():
+    return {k: np.array(v) for k, v in _PROV.items()}
+
+
 def run_model(stk_path: str, backend: str = 'auto', exe: Optional[str] = None, outdir: Optional[str] = None,
               do_check: bool = True, timeout: Optional[float] = None, log=print):
     """Returns (exit_code, report dict)."""
@@ -274,6 +281,14 @@ def run_model(stk_path: str, backend: str = 'auto', exe: Optional[str] = None, o
         log(f"run: {e}")
         report['status'] = 'no-backend'
         return 2, report
+    try:
+        _PROV.clear()
+        _PROV.update(backends.verify_pinned(b))
+    except backends.BackendError as e:
+        log(f"run: {e}")
+        report['status'] = 'unpinned-build'
+        return 2, report
+    report.update(_PROV)
     report['backend'] = str(b)
     log(f"run: backend {b}")
     t0 = time.time()
