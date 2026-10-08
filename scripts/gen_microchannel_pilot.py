@@ -43,6 +43,23 @@ def build_microchannel_geometry6() -> Geometry:
     )
 
 
+def microchannel_cooling(i: int) -> dict:
+    """Scenario keys that switch pilot scenario `i` (0-based file index) to microchannel cooling."""
+    return {
+        'cooling_mode': 'microchannel_2rm',
+        'microchannel': {
+            'channel_height_um': 200.0,
+            'channel_length_um': 100.0,
+            'wall_length_um': 100.0,
+            'wall_material': 'copper',
+            'flow_rate_ml_min': FLOW_RATES_ML_MIN[i % len(FLOW_RATES_ML_MIN)],
+            'coolant_htc_top_wm2k': 25000.0,
+            'coolant_htc_bottom_wm2k': 15000.0,
+            'coolant_vhc_jm3k': 4.18e6,
+        },
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--n', type=int, default=12, help='Number of pilot scenarios')
@@ -62,17 +79,7 @@ def main():
     ok, failed = 0, []
     for i, sc in enumerate(scenarios):
         sc_dict = sc.to_dict()
-        sc_dict['cooling_mode'] = 'microchannel_2rm'
-        sc_dict['microchannel'] = {
-            'channel_height_um': 200.0,
-            'channel_length_um': 100.0,
-            'wall_length_um': 100.0,
-            'wall_material': 'copper',
-            'flow_rate_ml_min': FLOW_RATES_ML_MIN[i % len(FLOW_RATES_ML_MIN)],
-            'coolant_htc_top_wm2k': 25000.0,
-            'coolant_htc_bottom_wm2k': 15000.0,
-            'coolant_vhc_jm3k': 4.18e6,
-        }
+        sc_dict.update(microchannel_cooling(i))
         scenario_name = f"{GEOM_NAME}_{sc.scenario_type}_{i:03d}"
 
         import tempfile

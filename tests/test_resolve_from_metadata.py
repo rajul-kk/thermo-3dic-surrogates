@@ -67,3 +67,18 @@ def test_output_metadata_records_the_verified_build(fake_sim, tmp_path):
     assert m['ice_executable'] == rfm.ICE_EXE
     assert m['resolved_v5_active_split'] is True
     assert np.array_equal(arrays['power'], np.load(f, allow_pickle=True)['power'])      # block-scalar data: unchanged
+
+
+def test_microchannel_geometry_is_rebuilt_with_its_cooling(fake_sim, tmp_path):
+    g = rfm.load_geometry(rfm.MICROCHANNEL_GEOMETRY)
+    assert g.name == 'geometry6_microchannel' and g.layers[0].name == 'cp_base'
+    f, coords, temp = _write_file(tmp_path, g, 'geometry6_microchannel_train_007', _block_params(g))
+    _run(fake_sim, f, coords, temp, tmp_path)
+    (call,) = fake_sim['seen']
+    assert call['geometry'].coolant_layer_name == 'heat_sink'
+    assert call['scenario']['cooling_mode'] == 'microchannel_2rm'
+    assert call['scenario']['microchannel']['flow_rate_ml_min'] == 120.0          # index 7 % 6 = 1
+
+
+def test_other_geometries_get_no_extra_scenario_keys():
+    assert rfm.extra_scenario_keys({'geometry': 'geometry1'}, 'geometry1_train_007') == {}

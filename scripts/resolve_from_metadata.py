@@ -21,6 +21,22 @@ from src.core.placement import place_chiplets, snap_offsets
 from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE, last_run_provenance
 
 ICE_EXE = DEFAULT_ICE_EXECUTABLE
+MICROCHANNEL_GEOMETRY = 'geometry6_microchannel'      # built by scripts/gen_microchannel_pilot.py, not a named geometry
+
+
+def load_geometry(name):
+    if name == MICROCHANNEL_GEOMETRY:
+        from scripts.gen_microchannel_pilot import build_microchannel_geometry6
+        return build_microchannel_geometry6()
+    return get_geometry_by_name(name)
+
+
+def extra_scenario_keys(m, stem):
+    """Scenario keys the metadata does not carry but the generator set (microchannel cooling and its flow rate)."""
+    if m['geometry'] != MICROCHANNEL_GEOMETRY:
+        return {}
+    from scripts.gen_microchannel_pilot import microchannel_cooling
+    return microchannel_cooling(int(stem.rsplit('_', 1)[1]))      # the file index is the generator's loop index
 
 
 def main(argv=None):
@@ -44,7 +60,7 @@ def main(argv=None):
         offs = {k[len('placement_dx_'):]: (float(m[k]), float(m['placement_dy_' + k[len('placement_dx_'):]]))
                 for k in m if k.startswith('placement_dx_')}
         offs = {('' if k == 'blocks' else k): v for k, v in offs.items()}   # exporter writes '' as 'blocks'
-        base = get_geometry_by_name(m['geometry'])
+        base = load_geometry(m['geometry'])
         if args.snap and offs:
             snapped = snap_offsets(base, offs, margin_um=0.0)
             if snapped is None:
@@ -61,7 +77,8 @@ def main(argv=None):
             m[f'block_x_{b.name}'], m[f'block_y_{b.name}'] = float(b.x), float(b.y)
         blocks = {b.name: float(m.get(f'block_power_{b.name}', 0.0)) for b in geom.power_blocks}
         scen = {'power_blocks': blocks, 'htc': float(m['htc']), 't_ambient': float(m['t_ambient_celsius']),
-                'layer_k_overrides': ast.literal_eval(m.get('layer_k_overrides', '{}') or '{}')}
+                'layer_k_overrides': ast.literal_eval(m.get('layer_k_overrides', '{}') or '{}'),
+                **extra_scenario_keys(m, f.stem)}
         with tempfile.TemporaryDirectory() as td:
             cfg, res = Path(td) / 'c', Path(td) / 'o'
             cfg.mkdir(); res.mkdir()
