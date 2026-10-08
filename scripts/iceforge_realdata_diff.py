@@ -1,6 +1,6 @@
 """Run `iceforge diff` on REAL archived layout-randomised scenarios (g4-g6), pre-snap vs snapped offsets.
 Stack built with the same ICESimulator path as scripts/resolve_from_metadata.py. Nothing under data/ is modified.
-Usage: python scripts/iceforge_realdata_diff.py [--n 8] [--geoms 4 5 6] [--r 4] [--only g4:3:orig]
+Usage: python scripts/iceforge_realdata_diff.py [--n 8] [--geoms 4 5 6] [--r 4] [--only g4:3:orig] [--out DIR]
 """
 import argparse
 import ast
@@ -19,12 +19,13 @@ sys.path.insert(0, str(ROOT / 'tools' / 'iceforge'))
 os.environ['ICEFORGE_GUARD'] = '0'          # the guard would refuse the unsnapped stacks, which is the point here
 from src.core.geometry_builders import get_geometry_by_name
 from src.core.placement import place_chiplets, snap_offsets
-from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE, verify_ice_executable
 from iceforge.check import check_stack
 from iceforge.model import parse_stk
 from iceforge.diff import run_diff, strip_private
 
 SUFFIX = ''
+PROV = {}
 ICE_EXE = DEFAULT_ICE_EXECUTABLE
 ARCH = ROOT / 'data' / '_archive_pre_snap_20260930'
 CORR = ROOT / 'data'
@@ -110,7 +111,7 @@ def build_and_diff(f, arm, r, nz=None):
                n_flagged=nfl, n_flagged_die_edge=ned, n_flagged_edge_adjacent=nadj,
                frac_edge_or_adjacent=(ned + nadj) / nfl if nfl else None,
                frac_die_edge_only=ned / nfl if nfl else None,
-               seconds=round(sec, 1), **info)
+               seconds=round(sec, 1), **PROV, **info)
     out['summary_row'] = row
     (OUT / 'cases' / f'{f.stem}_{arm}{SUFFIX}.json').write_text(json.dumps(out, indent=1, default=float))
     shutil.rmtree(wd, ignore_errors=True)
@@ -131,9 +132,14 @@ def main():
     ap.add_argument('--nz', type=int, default=None, help='reference sub-layers per layer (default: <=25 um each)')
     ap.add_argument('--only', default=None, help='gN:index:arm, quick test')
     ap.add_argument('--suffix', default='', help='case file suffix (spot checks)')
+    ap.add_argument('--out', default=None, help='output directory (default results/iceforge_realdata)')
     a = ap.parse_args()
-    global SUFFIX
+    global SUFFIX, OUT
     SUFFIX = a.suffix
+    if a.out:
+        OUT = Path(a.out)
+    PROV.update(verify_ice_executable(ICE_EXE))      # refuses any build other than the pinned commit
+    print('3D-ICE build:', PROV, flush=True)
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'cases').mkdir(exist_ok=True)
     rows = []
@@ -149,6 +155,7 @@ def main():
                 else:     # stale (pre-2026-10-06 classification) or missing: recompute and overwrite
                     row = build_and_diff(f, arm, a.r, a.nz)
                 row.update(sanity(f, arm, row))
+                row.update(PROV)        # also stamps cached rows
                 row['case_index'] = i
                 fe = row['frac_edge_or_adjacent']
                 print(f"g{g} {i} {f.stem} {arm}: {row['verdict']} ice {row['ice_peak_rise_K']:.3f} ref {row['ref_peak_rise_K']:.3f} "
