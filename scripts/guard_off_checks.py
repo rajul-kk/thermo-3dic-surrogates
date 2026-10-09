@@ -84,7 +84,9 @@ def main():
         resolve_and_compare(f"E_g{g}", pick_first_last(D, g))
     # F2: realdata diff re-run
     rd = os.path.join(S, "realdata_rerun")
-    run(["scripts/iceforge_realdata_diff.py", "--out", rd])
+    # --r 2 --nz 2 match the recorded 2026-10-06 run (results/iceforge_realdata); the script's old
+    # default r=4 needs ~5 GiB per solve and ran out of memory on the 2026-10-09 first attempt.
+    run(["scripts/iceforge_realdata_diff.py", "--r", "2", "--nz", "2", "--out", rd])
     run(["scripts/compare_realdata_runs.py", "results/iceforge_realdata", rd])
     log("DONE")
 

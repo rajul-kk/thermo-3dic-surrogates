@@ -1,6 +1,6 @@
 """Run `iceforge diff` on REAL archived layout-randomised scenarios (g4-g6), pre-snap vs snapped offsets.
 Stack built with the same ICESimulator path as scripts/resolve_from_metadata.py. Nothing under data/ is modified.
-Usage: python scripts/iceforge_realdata_diff.py [--n 8] [--geoms 4 5 6] [--r 4] [--only g4:3:orig] [--out DIR]
+Usage: python scripts/iceforge_realdata_diff.py [--n 8] [--geoms 4 5 6] [--r 2] [--nz 2] [--only g4:3:orig] [--out DIR]
 """
 import argparse
 import ast
@@ -128,7 +128,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--n', type=int, default=8)
     ap.add_argument('--geoms', type=int, nargs='+', default=[4, 5, 6])
-    ap.add_argument('--r', type=int, default=4)
+    ap.add_argument('--r', type=int, default=2, help='coarse refinement (recorded results use r=2, nz=2; the r=4 spot check is --r 4 --suffix _r4)')
     ap.add_argument('--nz', type=int, default=None, help='reference sub-layers per layer (default: <=25 um each)')
     ap.add_argument('--only', default=None, help='gN:index:arm, quick test')
     ap.add_argument('--suffix', default='', help='case file suffix (spot checks)')

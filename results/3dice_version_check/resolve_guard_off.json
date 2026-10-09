@@ -1,0 +1,108 @@
+{
+ "date": "2026-10-09",
+ "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+ "guard": "ICEFORGE_GUARD=0, run by the user",
+ "files": [
+  {
+   "group": "C",
+   "dataset": "moving-geometry4",
+   "file": "geometry4_test_041",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "C",
+   "dataset": "moving-geometry4",
+   "file": "geometry4_train_018",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "C",
+   "dataset": "moving-geometry4",
+   "file": "geometry4_train_040",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "E",
+   "dataset": "geometry2a",
+   "file": "test_001",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "E",
+   "dataset": "geometry2a",
+   "file": "train_025",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "E",
+   "dataset": "geometry5",
+   "file": "test_001",
+   "max_abs_dT_K": 0,
+   "mean_abs_dT_K": 0,
+   "max_rel": 0
+  },
+  {
+   "group": "E",
+   "dataset": "geometry5",
+   "file": "train_050",
+   "max_abs_dT_K": 0.001007,
+   "mean_abs_dT_K": 3.332e-07,
+   "max_rel": 4.592e-05
+  },
+  {
+   "group": "E",
+   "dataset": "geometry6",
+   "file": "test_001",
+   "max_abs_dT_K": 0.001007,
+   "mean_abs_dT_K": 1.347e-07,
+   "max_rel": 0.0001503
+  },
+  {
+   "group": "E",
+   "dataset": "geometry6",
+   "file": "train_050",
+   "max_abs_dT_K": 0.001007,
+   "mean_abs_dT_K": 4.816e-07,
+   "max_rel": 2.525e-05
+  }
+ ],
+ "C": {
+  "files": 3,
+  "datasets": 1,
+  "bit_identical": 3,
+  "one_print_quantum": 0
+ },
+ "E": {
+  "files": 6,
+  "datasets": 3,
+  "bit_identical": 3,
+  "one_print_quantum": 3,
+  "max_abs_dT_nonzero_K": 0.001007
+ },
+ "F2": {
+  "args": "--r 2 --nz 2",
+  "cases": 48,
+  "json_numbers": 72972,
+  "json_max_abs_diff": 1.297e-10,
+  "field_arrays": 1280,
+  "field_max_abs_diff": 1.228e-11,
+  "shape_key_mismatches": 0,
+  "verdict_changes": 0,
+  "non_numeric_differences": 48,
+  "non_numeric_cause": "hotspot sub-dict added to old case files by cc67239; re-run did not request HotSpot",
+  "not_rerun": "geometry4_test_041_orig_r4.json (old r=4 spot check)",
+  "status": "closed",
+  "failed_first_attempt": "default --r 4, MemoryError, no results"
+ },
+ "caveat": "stored data equal what 4953952 produces; this does not identify the build that originally made them"
+}
