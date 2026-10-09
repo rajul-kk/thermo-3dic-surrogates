@@ -1,6 +1,6 @@
 {
   "name": "v3_dpde_poisson_denorm",
-  "_comment": "Same file as v3_dpde_poisson with the documented standardisation undone: x_raw = x * (2*std) + mean with mean/std from poisson_hf/metadata.json (x_norm = (x - mean)/std * 0.5, README: zero mean, 0.5 std). Source: mean 0, std 0.2919494; u: mean 9.67226952e-06, std 0.00417478.",
+  "_comment": "Same file as v3_dpde_poisson with the documented standardisation undone: x_raw = x * (2*std) + mean with mean/std from poisson_hf/metadata.json (x_norm = (x - mean)/std * 0.5, README: zero mean, 0.5 std). Source: mean 0, std 0.2919494; u: mean 9.67226952e-06, std 0.00417478. SIGN CONVENTION: the generator (DiffusionPDE dataset_generation/static/generate_poisson.m lines 66-76; scripts/generate_poisson.py lines 28-30) solves Laplace(phi) = f, so fieldlint's source s in -div(k grad u) = s is -a: the source affine carries the minus sign.",
   "format": "npz",
   "units": "",
   "ambient": 0.0,
@@ -18,7 +18,7 @@
     "layout": "NCHW",
     "channel": 0,
     "affine": [
-      0.5838988,
+      -0.5838988,
       0.0
     ]
   },

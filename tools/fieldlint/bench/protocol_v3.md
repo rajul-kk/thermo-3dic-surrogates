@@ -1,8 +1,7 @@
 # fieldlint round 3 (v3): pre-registered held-out measurement
 
-**STATUS: DRAFT, not yet frozen.** Written 2026-10-09 by the Phase-1 (acquisition and protocol) agent. Nothing in this document has
-been used to run a rule on a v3 dataset. The lead reviews it, edits it, and freezes it by committing a "FROZEN" line (section 12) before
-Phase 2 starts. After that line exists, the only permitted edits are the entries in section 12 (deviation log).
+**STATUS: FROZEN (see section 12).** Written 2026-10-09 by the Phase-1 (acquisition and protocol) agent; reviewed and edited by the lead the same day. Nothing in this document has
+been used to run a rule on a v3 dataset. It was frozen by the commit described in section 12; after that commit the only permitted edits are the entries in section 12 (deviation log).
 
 The data cards (datasets, mapping, documentation, per-dataset predictions) are in `datasets_v3.md` in this directory and are part of
 this pre-registration.
@@ -71,6 +70,15 @@ scope declaration (`time_dependent: true`) and without it.
 The registry is closed. A dataset that failed to download or load by freeze time is listed as such in `datasets_v3.md` and is **not** replaced
 after freeze; a dataset that cannot be loaded in Phase 2 stays in the table as "not run" and counts as not satisfying whichever criteria it appears in.
 
+**Sought but not obtainable** (not replaced; nothing here was run):
+
+* lu-group/deeponet-fno Darcy (rectangular, triangular, notch): Yale SharePoint answers HTTP 403 to a non-interactive client; no bypass attempted.
+* HSL / TFRD heat-source-layout temperature fields (Chen et al., arXiv 2103.11177, 2108.08298): full data on Baidu netdisk (account needed); the GitHub repositories hold 10-16 samples per configuration, below the 200-sample minimum; generating the data was excluded.
+* Irregular-mesh electrostatics and magnetostatics sets (Lotzsch et al., arXiv 2206.14092): out of scope because fieldlint is grid-based.
+* TCAD (semiconductor device simulation) and groundwater (MODFLOW-type) grid datasets: no public release found.
+* PDEgym Helmholtz (`camlab-ethz/Helmholtz`): the repository lists no files.
+* The Darcy files of the UCSD/LLNL set: obtained, but they hold permeability and flux only (no solution field), so not mappable.
+
 Datasets are subsets by sample count only: the first N samples in file order (N <= 1000; selected before looking at any statistics).
 
 ## 5. Fault set (identical to v2)
@@ -117,7 +125,16 @@ the citation is written into the results before the finding is looked at again:
 Everything else is a **false positive**, including a finding that later turns out to be "real" through an analysis done after the run (that analysis is reported, labelled post hoc, and may be written up as a discovery, but does not change the false-positive count).
 Findings that depend on a standardisation documented in the dataset's own README (the **diagnostic** role) are not adjudicated; they are reported with the role label.
 
-Pre-stated expectation of what (b) will apply to: CNO Darcy (P1) - see `datasets_v3.md`.
+**Severity class of every TRUE finding** (assigned when it is adjudicated, from the documentation alone):
+
+* **benign**: a sign or scale convention that does not affect what a model learns (for example the stored sign of u, a documented standardisation);
+* **material**: a fault that changes what a model learns: orientation, pairing, duplicates across splits, wrong units, non-finite values.
+
+Discovery counts are reported per class. A benign finding is never counted as a headline discovery, and no sentence of the report may present one as such.
+
+**Sign conventions are fixed before the runs, from code and documentation only.** The mapping of each dataset to fieldlint's convention -div(k grad u) = s (u relative to the boundary level) was decided from the generating and loading code (citations in `datasets_v3.md`) and not from any rule output: DiffusionPDE Poisson solves Laplace(u) = a, so the presets set source = -a; CNO Darcy: no code or paper negates the stored output, so it is kept as released and P1 applies, with severity benign if confirmed.
+
+Pre-stated expectation of what (b) will apply to: CNO Darcy (P1, benign) - see `datasets_v3.md`.
 
 ## 8. Exact commands and the run-once rule
 
@@ -147,7 +164,7 @@ protocol, but it is reported as a wrong prediction. The summary the lead should 
 
 * F008 is expected to be applicable (clean median R^2 >= 0.3) on the native-grid Poisson-type sets (PDEgym Poisson-Gauss, ELADO Poisson, CNO Poisson) and expected to be skipped, or marginal, on the sets generated through the FNO Darcy scripts (CNO Darcy, DiffusionPDE Darcy), which interpolate between cell-centred and nodal grids; F002 and F003 skip where the source is uniform or sign-changing.
 * On sets with a uniform source, only F008 can detect a transposed / flipped input, so a skip of F008 there is a miss of the any-rule detection. The expected any-rule detection is therefore below 100% on the Darcy-type sets and near 100% where F003 or F008 apply.
-* Two predicted problems are stated in advance: (1) the DiffusionPDE Poisson convention `Laplace(u) = a` gives a negative correlation between source and u, which can make F003 prefer a wrong orientation (a false positive of the type seen on Therm-FM HS_SC); (2) F005 is expected to flag the sign of CNO Darcy's output (a documented-equation violation, adjudicated TRUE by P1) and the negative `k` of the as-released standardised DiffusionPDE Darcy (diagnostic role).
+* The DiffusionPDE Poisson convention `Laplace(u) = a` is handled by the mapping (source = -a), so no sign-related F003 problem is predicted. One predicted problem is stated in advance: F005 is expected to flag the sign of CNO Darcy's output (a documented-equation violation, adjudicated TRUE by P1, severity benign) and the negative `k` of the as-released standardised DiffusionPDE Darcy (diagnostic role).
 
 ## 10. Criteria for a "paper-worthy" verdict (draft numbers for the lead to approve or change)
 
@@ -156,8 +173,8 @@ Let N be the number of **inscope** datasets that loaded and ran, and let "applic
 | id | criterion | draft threshold | why this number |
 |---|---|---|---|
 | **C1** | clean-adjusted any-rule detection (section 6, item 6) of whole-dataset `transpose`, `flip_x`, `flip_y` pooled over the in-scope applicable trials | **>= 80%** (point estimate), and the exact one-sided 95% Clopper-Pearson lower bound is reported | the v2 tuning sets gave 17/17, 20/20 and 18/20 (92-100%), the tuning rates are optimistic, and one native-grid held-out gave 3/3; 80% asks for most of that to survive on unseen generators while allowing the Darcy-type sets to be missed. With N = 7 registered in-scope sets and 3 faults (21 trials) the exact one-sided 95% lower bound is 0.62 at 17/21 and 0.87 at 21/21 (computed with `report_v3.clopper_lower`), a weak result that the paper would have to state |
-| **C2** | clean false positives on in-scope datasets after adjudication | **at most 1 per 10 datasets**: the count of false-positive datasets <= floor(N/10), i.e. **0 for N < 10** | v2 had 1/20 on tuning (true duplicates, would be a TRUE finding under section 7) and 0/1 held-out; a tool whose output is read as a warning must be quiet on clean data. The lead may prefer "<= 1 in total", which is looser for N < 20 |
-| **C3** | no false alarm on any control run **with the README's scope declaration** (time-dependent controls with `time_dependent: true`); the unflagged runs are reported but not binding | **0** false alarms among F002, F003, F005, F008, F009 | v2 controls: Burgers 1D gave false alarms in v1 and none in v2; diffusion-reaction none. The README tells users to set the flag. A stricter reading (also the unflagged runs) is stated as C3-strict and reported; if the lead prefers it as binding, change it before freezing |
+| **C2** | clean false positives on in-scope datasets after adjudication | **at most 1 per 10 datasets**: the count of false-positive datasets <= floor(N/10), i.e. **0 for N < 10** (the lead chose the strict reading, review 2026-10-09; it is binding) | v2 had 1/20 on tuning (true duplicates, would be a TRUE finding under section 7) and 0/1 held-out; a tool whose output is read as a warning must be quiet on clean data. |
+| **C3** | no false alarm on any control run **with the README's scope declaration** (time-dependent controls with `time_dependent: true`); the unflagged runs are reported but not binding | **0** false alarms among F002, F003, F005, F008, F009 | v2 controls: Burgers 1D gave false alarms in v1 and none in v2; diffusion-reaction none. The README tells users to set the flag. C3-strict (also the unflagged runs) is reported and is **not binding** (lead decision, review 2026-10-09) |
 | **C4** | F008 applicable (clean `status != skipped`) on in-scope datasets classed **native grid** in `datasets_v3.md` (5 registered: PDEgym Poisson-Gauss, CNO Poisson, ELADO A1, UCSD Poisson, DiffusionPDE Poisson denormalised) | **>= 50%** of them, i.e. at least 3 of 5 | F008 is the only rule that sees k-only datasets; v2 had it applicable on 1/1 native and 0/1 processed grids |
 
 Verdicts, decided mechanically from the results and not by the author:
@@ -168,6 +185,8 @@ Verdicts, decided mechanically from the results and not by the author:
 
 Not criteria, but reported with exact confidence intervals: per-rule detection for all faults, the roll and index-shift faults (v2 showed they are mostly invisible), the 20%-contaminated variants, cross-split duplicates (F004), the number of TRUE faults found on clean data under section 7 (a discovery is a separate claim and needs the independent confirmation of section 7).
 
+**Scope caveat that goes with any verdict.** All in-scope sets are generic Poisson/Darcy benchmark families: Poisson-type generators (PDEgym, CNO, DiffusionPDE, ELADO, UCSD/LLNL) and FNO-Darcy-type generators (CNO, DiffusionPDE). The study therefore tests generalisation across generators, resolutions (32 to 512 per side) and releases, **not across distinct application fields**: no electrostatics, groundwater or heat-application dataset with a grid release was obtainable (section 4 lists what was sought).
+
 Independence caveat that goes with any verdict: the Darcy-type sets (CNO, DiffusionPDE, and the earlier PDEBench / FNO sets of v2) share the FNO generating scripts; the Poisson-type sets
 share the `-Laplace u = f` operator. Results are reported per generator family as well as pooled; the pooled number is not a sample of "PDE datasets in general".
 
@@ -177,7 +196,8 @@ Any analysis not specified in sections 5-8 (re-mapping, other face-mean conventi
 
 ## 12. Freeze and deviation log
 
-* Frozen by: *(lead)*  on: *(date)*  at commit: *(hash)*  - **NOT YET FROZEN.**
+* Frozen by: lead (review 2026-10-09), on 2026-10-09 at 17:38 +0800, at **the commit that adds this line** (its hash is recorded in the git log; the commit message begins "fieldlint v3: FREEZE").
+* Edits made at the lead's review before freezing: sign-convention mapping (DiffusionPDE Poisson source = -a; CNO Darcy kept as released) with citations; severity classes in section 7; C2 strict binding; C3 binding on flagged runs; scope caveat; list of unobtainable candidates.
 * Deviations after freeze (run re-launched after a crash, dataset that could not be run, etc.): *none yet.*
 
 ## Appendix: references for the frozen-version statement
