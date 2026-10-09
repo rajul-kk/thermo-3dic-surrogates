@@ -1,0 +1,16 @@
+{
+  "name": "v3_cno_navier_stokes",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope). CNO RPB NavierStokes_64x64_IN.h5, first 1000 samples (shear layer): input = initial vorticity-like field, output = final field. Incompressible Navier-Stokes, periodic. Time-dependent. A user's most plausible reading for a diffusion linter: source = input, u = output.",
+  "u": {
+    "key": "output",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "input",
+    "layout": "NHW"
+  }
+}

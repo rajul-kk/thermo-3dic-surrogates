@@ -1,0 +1,19 @@
+{
+  "name": "v3_ucsd_convdiff",
+  "_comment": "CONTROL (out of scope: advection present). UCSD/LLNL MTNN dataset, convdiff_data/ConvDiff1.npz extracted unchanged: 10000 steady convection-diffusion problems on the unit square (same keys as Poisson4.npz; the convective velocity is not stored or documented). Mapped exactly like the Poisson sibling.",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "u": {
+    "key": "U",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "F",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "Kappa",
+    "layout": "NHW"
+  }
+}

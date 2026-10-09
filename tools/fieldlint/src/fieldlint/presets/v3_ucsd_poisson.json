@@ -1,0 +1,19 @@
+{
+  "name": "v3_ucsd_poisson",
+  "_comment": "UCSD/LLNL MTNN dataset (Ponce, Li, Mao, Fairbanks 2022, DOI 10.6075/J0HM58MK), poisson_data/Poisson4.npz extracted unchanged from the tar (10000 steady 'pure diffusion' problems on the unit square, FEniCS FEM): Kappa = heat conductivity (N, 32, 32), F = heat source (N, 32, 32), U = numerical solution (N, 32, 32), X/Y = mesh coordinates (32, 32; X varies along the last axis), FluxX/FluxY = heat flux fields. Boundary conditions are not documented in the README (U has minimum 0.0). No ambient is declared.",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "u": {
+    "key": "U",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "F",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "Kappa",
+    "layout": "NHW"
+  }
+}

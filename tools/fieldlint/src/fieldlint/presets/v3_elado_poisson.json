@@ -1,0 +1,17 @@
+{
+  "name": "v3_elado_poisson",
+  "format": "h5",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "ELADO (Ehebrecht et al. 2026, arXiv 2606.20771; Zenodo 20738464) Poisson set, HDF5 decompressed byte for byte from the .zst. x = coefficient a (N, H, W), y = solution u (N, H, W); -div(a grad u) = 1 on the unit square, u = 0 on the boundary, P1 finite elements (dolfinx), coefficient and solution on the (N_cells+1)^2 vertex grid (scripts.tar.zst: poisson_dirichlet.py).",
+  "u": {
+    "key": "y",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "x",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

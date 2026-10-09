@@ -1,0 +1,22 @@
+{
+  "name": "v3_pdegym_wave_gauss",
+  "_comment": "CONTROL (out of scope). PDEgym Wave-Gauss (camlab-ethz/Wave-Gauss, Herde et al. 2024 / Poseidon): first 256 trajectories of solution_0.nc read by HTTP range requests and the matching first 256 rows of c_0.nc, stored losslessly by bench/convert_v3.py. solution (N, 16, 128, 128) float32 (the README says 15 time steps; the file has 16 = t0..t15), c (N, 128, 128) float32 = spatially varying wave speed. Wave equation u_tt = c^2 Laplace(u), time-dependent. A user's most plausible reading for a diffusion linter: source = u at the first time, u = u at the last time, k = c.",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "u": {
+    "key": "solution",
+    "layout": "NCHW",
+    "channel": 15
+  },
+  "source": {
+    "key": "solution",
+    "layout": "NCHW",
+    "channel": 0
+  },
+  "k": {
+    "key": "c",
+    "layout": "NHW"
+  }
+}

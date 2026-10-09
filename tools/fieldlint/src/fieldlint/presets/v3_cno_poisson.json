@@ -1,0 +1,16 @@
+{
+  "name": "v3_cno_poisson",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CNO Representative PDE Benchmarks (Zenodo 10406879, data.zip), PoissonData_64x64_IN.h5, first 1000 of 2048 samples stacked losslessly by bench/convert_v3.py: input = source f, output = u. -Laplace(u) = f on (0,1)^2, u = 0 on the boundary; f = sum of K = 16 sine modes with random coefficients (sign-changing), u the exact series solution sampled on a 64 x 64 grid (Raonic et al. 2023, SM C.3.1). Raw (the loader normalises with min/max constants stored in the file, not applied here). float64.",
+  "u": {
+    "key": "output",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "input",
+    "layout": "NHW"
+  }
+}

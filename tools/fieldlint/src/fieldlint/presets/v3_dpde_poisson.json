@@ -1,0 +1,18 @@
+{
+  "name": "v3_dpde_poisson",
+  "_comment": "jcy20/DiffusionPDE-normalized poisson_hf, first 1000 rows (one Arrow shard) converted losslessly to npz: data (N, 2, 128, 128) float64, channel 0 = a (the source, a Gaussian random field), channel 1 = u (DiffusionPDE, Appendix B.1: nabla^2 u = a, u = 0 on the boundary, second-order finite differences on 128 x 128). AS RELEASED: both channels are standardised to zero mean and std 0.5 (README of the HF dataset; stats in metadata.json). Not undone here: this is the as-released variant.",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "u": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 1
+  },
+  "source": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 0
+  },
+  "splits": "none"
+}
