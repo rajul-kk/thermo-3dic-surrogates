@@ -99,7 +99,7 @@
   "shape_key_mismatches": 0,
   "verdict_changes": 0,
   "non_numeric_differences": 48,
-  "non_numeric_cause": "hotspot sub-dict added to old case files by cc67239; re-run did not request HotSpot",
+  "non_numeric_cause": "re-run files carry hotspot=null, a placeholder key written by the post-cc67239 code when HotSpot is not requested; the 2026-10-06 stored files predate it and lack the key (verified for all 48 pairs)",
   "not_rerun": "geometry4_test_041_orig_r4.json (old r=4 spot check)",
   "status": "closed",
   "failed_first_attempt": "default --r 4, MemoryError, no results"

@@ -36,7 +36,7 @@
         {"group": "unsnapped moving-geometry4 (C; ICEFORGE_GUARD=0)", "files": 3, "result": "all bit-identical", "record": "resolve_guard_off.md"},
         {"group": "TSV fixed-placement geometry2a/5/6 (E; ICEFORGE_GUARD=0)", "files": 6, "result": "3 bit-identical; 3 differ by 1.007e-3 K (one print quantum)", "record": "resolve_guard_off.md"}
       ],
-      "realdata_rerun_F2": {"note": "re-run of a diff, not a stored-dataset check; not in the file counts", "cases": 48, "args": "--r 2 --nz 2", "json_numbers": 72972, "json_max_abs_diff": 1.297e-10, "field_arrays": 1280, "field_max_abs_diff": 1.228e-11, "verdict_changes": 0, "non_numeric_differences": 48, "cause": "hotspot sub-dicts added to old case files by cc67239; the re-run did not request HotSpot", "record": "resolve_guard_off.md"},
+      "realdata_rerun_F2": {"note": "re-run of a diff, not a stored-dataset check; not in the file counts", "cases": 48, "args": "--r 2 --nz 2", "json_numbers": 72972, "json_max_abs_diff": 1.297e-10, "field_arrays": 1280, "field_max_abs_diff": 1.228e-11, "verdict_changes": 0, "non_numeric_differences": 48, "cause": "re-run files carry hotspot=null, a placeholder key written by the post-cc67239 code when HotSpot is not requested; the stored 2026-10-06 files predate it and lack the key (verified for all 48 pairs)", "record": "resolve_guard_off.md"},
       "caveat": "stored data equal what 4953952 produces; this does not identify the build that originally made them"
     },
     "flags": {"F1": "closed", "F2": "closed 2026-10-09", "F3": "closed"},

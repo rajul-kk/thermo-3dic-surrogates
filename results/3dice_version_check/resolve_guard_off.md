@@ -31,10 +31,10 @@ Peak temperatures printed by the re-solve equal the stored peaks to 0.1 C in all
 | JSON numbers | 72,972 | 1.297e-10 (geometry4_train_034_orig, `layers[1]/flagged[29]/T_emulated`) |
 | field arrays (`*_fields.npz`) | 1,280 | 1.228e-11 (geometry5_train_021_orig, `inst_12_dT`); 0 shape or key mismatches |
 | verdict changes | 0 | |
-| other non-numeric differences | 48 | all `<case>.json/hotspot` reported "missing" |
+| other non-numeric differences | 48 | all `<case>.json/hotspot` reported "missing" (key absent in the stored file, `null` in the re-run) |
 
-The 48 "missing" entries are the `hotspot` sub-dict that the HotSpot third-solver run (commit cc67239, 2026-10-07) added to the case files after the original run; the re-run did not request HotSpot. Checked on `geometry4_test_041_orig.json`: the stored `results/iceforge_realdata/cases` file has `hotspot: null` and the re-run file has the `hotspot` key, and the other top-level keys are identical. `geometry4_test_041_orig_r4.json` is the old r=4 spot check and was not re-run (listed as present in one directory only).
+The 48 "missing" entries are a `hotspot` key that the code from the HotSpot third-solver commit (cc67239, 2026-10-07) writes to every case file, as `null` when HotSpot is not requested; the 2026-10-06 run predates that code, so its stored files have no such key, and the re-run did not request HotSpot. Checked over all 48 case pairs: all 48 stored files lack `hotspot`, and all 48 re-run files have `hotspot` equal to `null`. `geometry4_test_041_orig_r4.json` is the old r=4 spot check and was not re-run (listed as present in one directory only).
 
-**F2 closed: the 2026-10-06 realdata results reproduce under the pinned build** (differences at the 1e-10 level, no verdict changes). `results/iceforge_realdata/` is kept as is, because its files carry the HotSpot fields the re-run lacks.
+**F2 closed: the 2026-10-06 realdata results reproduce under the pinned build** (differences at the 1e-10 level, no verdict changes). `results/iceforge_realdata/` is kept as is, as the original record of the 2026-10-06 run; the re-run differs only by the empty `hotspot` placeholder key.
 
 Caveat: this shows the stored data equal what 4953952 produces, not which build originally made them.
