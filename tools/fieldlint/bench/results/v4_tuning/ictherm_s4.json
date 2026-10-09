@@ -1,0 +1,1470 @@
+{
+ "meta": {
+  "started": "2026-10-09T19:11:42+0800",
+  "seconds": 64,
+  "python": "3.10.0",
+  "numpy": "2.2.6",
+  "code_sha256": {
+   "rules.py": "e1cf3fe6507197949b645e67313134e33eac0f44010a591968a963aff63b438e",
+   "adapters.py": "b97ff565e20d4c15af9ed55b93c205fc6894f68a66c86c3d9aeb6c8617d5b3cb",
+   "model.py": "7b889a8461b4444cc45aa190f9aab4a3dc6063f6dc7e2fd22d4cd62daafb3ed6",
+   "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
+   "3dice.json": "7dc571120bb40796b44b1288d15cba00cad121c42b8afefa80911ac274ee8d50",
+   "darcy.json": "9cc3f91039f6005b269037e325341fe97d64fa80ccf1441b10591fbf558e0d57",
+   "fno_darcy.json": "fc10ff4200ad46843d165cfa59fe113d34ff40a3b52f8ff95c8be128cf705427",
+   "fno_darcy_native.json": "d0b6a7ad22a41025601ffd239f31f94f9101b3dbeafb751cb7f4d3188a500c63",
+   "ictherm.json": "54c0e63bc16bd755f045fbcc94fa138f453f24fdd308b1413ba348430e239624",
+   "thermfm.json": "62e2601e8439c2e784475b3f24f90bee2e638aff9b3beaf3ea6b65e88fccfae5",
+   "v3_cno_allen_cahn.json": "82232c72002905bf687e4d4767f50e8356429275f0ad18dde3e30b042df1f55f",
+   "v3_cno_cont_transport.json": "ec5b844def9673fcd3464f8dcd27b1e3dfcafba72a88cfefbae641d6fb08e444",
+   "v3_cno_darcy.json": "7568f485f4e6d1b770a01f7ac297232eb06761bdf945381edbb882c45995839e",
+   "v3_cno_disc_transport.json": "acf7777b9fcef92deca2d94affbfeed3eae4a4875fc41ff27124881df8490c76",
+   "v3_cno_navier_stokes.json": "f5d3ff78f516df8acd189cbb5b41e1fc12bfe46c6a565385ca1c995de7cf7ed5",
+   "v3_cno_poisson.json": "bf0e428c0dd3d7643a5e840b3c1cdb5b64fa395232c88fbdf303f945759ce4b4",
+   "v3_cno_wave.json": "757d9078cd44f3e748555249ab8b68d2b6fbcc2e3aeac0c9a20e22d4e08873d9",
+   "v3_dpde_darcy.json": "9e62607f4b84dd184df8847abd05996ef8bd9055dcaa1531fc8d78e86d1f8c76",
+   "v3_dpde_darcy_denorm.json": "39eb2f03bb00775e4e85f9f456f6a73f13e8b2867f701e46d3d9a090ee37c828",
+   "v3_dpde_helmholtz.json": "c5e1e21607a02c2a1435ed1066835d04851ee95ecd13fe0d5cef5dc9722bfed3",
+   "v3_dpde_poisson.json": "93e889d6d5193ce2a6722e166ae77504c908fd402817ceb636ef9bfc32346cfa",
+   "v3_dpde_poisson_denorm.json": "082c6d7f1df9e5378db99f52f824dac9da7496e73933549981b0f4929685e55e",
+   "v3_elado_helmholtz.json": "a756739e8b77357a6eedb6040dc4b2cbe98d4b4332c7140593ffaa46158ec6de",
+   "v3_elado_poisson.json": "0cfee9bcf43bf98919bde8b96312bd494cb5cdeca709252c63fac0512d99e44d",
+   "v3_pdegym_wave_gauss.json": "883ac9728f90fe7b0aa20fd16304ea95ce0f479ea3750117a3dee7114dba8bcd",
+   "v3_poisson_gauss.json": "9a6a6c1416d0b9c890e6616299e064a646243bad35480fded2249d9771302f9b",
+   "v3_ucsd_convdiff.json": "c0f183c13b40eca4d302ec81c88343120c3108be396f52e861faca50178a03ed",
+   "v3_ucsd_poisson.json": "549073b668c195ace3c907c7ea475023a200c300eceb8cee9f2e12e7b498b49a"
+  },
+  "options": {
+   "max_samples": 400,
+   "source_rel_threshold": 1e-06,
+   "max_principle_rel_tol": 0.001,
+   "max_principle_abs_tol": 0.0,
+   "neighbourhood": 1,
+   "neighbourhood_z": 0,
+   "smooth_sigma": 2.0,
+   "orientation_margin": 0.1,
+   "op_margin": 0.05,
+   "op_r2_applicable": 0.3,
+   "op_shifts": 3,
+   "op_min_samples": 3,
+   "op_face_mean": "auto",
+   "op_face_samples": 32,
+   "adv_samples": 32,
+   "adv_gain": 0.2,
+   "adv_margin": 0.05,
+   "defer_margin": 0.1,
+   "min_inplane_cells": 8,
+   "pair_samples": 32,
+   "pair_tie": 0.1,
+   "pair_r2_applicable": 0.3,
+   "pair_warn": 0.25,
+   "pair_error": 0.5,
+   "dup_rtol": 1e-05,
+   "linear_max_samples": 1500,
+   "linear_max_features": 1024,
+   "linear_seed": 0,
+   "energy_tol": 0.01,
+   "max_temperature_k": 1500.0
+  }
+ },
+ "role": "tuning",
+ "records": [
+  {
+   "name": "ictherm_s4",
+   "group": "tuning",
+   "n": 400,
+   "units": "K",
+   "clean": {
+    "F001": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "400 samples checked; no problems",
+     "metrics": {
+      "checked": 400,
+      "load_failures": 0
+     }
+    },
+    "F002": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "0/400 samples (0.0%) have their maximum away from every source",
+     "metrics": {
+      "checked": 400,
+      "violating": 0,
+      "fraction": 0.0,
+      "vacuous_or_no_heating": 0,
+      "skipped_negative_source": 0
+     }
+    },
+    "F003": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "corr(smoothed source, u): stored 0.77, transpose 0.35, flip_x 0.28, flip_y 0.30, flip_xy 0.13; alternative better in 0% of 400 samples",
+     "metrics": {
+      "checked": 400,
+      "fraction_alternative_better": 0.005,
+      "fraction_raw_only_preference": 0.01,
+      "margin": 0.1,
+      "sigma_cells": 2.0
+     }
+    },
+    "F004": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+     "metrics": {
+      "checked": 400,
+      "duplicate_samples": 0,
+      "cross_split": 0,
+      "within_split": 0,
+      "splits_labelled": true,
+      "inputs_repeated_across_splits": 0
+     }
+    },
+    "F005": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+     "metrics": {
+      "checked": 400,
+      "u_min": 300.5299987792969,
+      "u_max": 496.3999938964844,
+      "units": "K",
+      "constant_fields": 0
+     }
+    },
+    "F008": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.62, transpose 0.08, flip_x 0.10, flip_y 0.10, flip_xy 0.07; alternative better in 4% of 400 samples",
+     "metrics": {
+      "checked": 400,
+      "median_r2_stored": 0.6197939069212084,
+      "median_r2_best_orientation": 0.6197939069212084,
+      "margin": 0.05,
+      "fraction_alternative_better": 0.04,
+      "face_mean": "arithmetic"
+     }
+    },
+    "F009": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "2/32 rows (6%) match another sample's u better than their own",
+     "metrics": {
+      "face_mean": "arithmetic",
+      "rows": 32,
+      "wrong_rows": 2,
+      "fraction_wrong": 0.0625,
+      "median_diag_r2": 0.5979970443971978,
+      "median_row_max_r2": 0.5979970443971978,
+      "most_common_offset_of_best_partner": null,
+      "tie": 0.1
+     }
+    }
+   },
+   "faults": {
+    "transpose": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "66/400 samples (16.5%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 66,
+       "fraction": 0.165,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.35, transpose 0.77, flip_x 0.21, flip_y 0.21, flip_xy 0.27; alternative better in 88% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.885,
+       "fraction_raw_only_preference": 0.01,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.08, transpose 0.62, flip_x 0.03, flip_y 0.03, flip_xy 0.07; alternative better in 97% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.08293095483596613,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.9675,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.24 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "flip_x": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "78/400 samples (19.5%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 78,
+       "fraction": 0.195,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.28, transpose 0.21, flip_x 0.77, flip_y 0.13, flip_xy 0.30; alternative better in 86% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.86,
+       "fraction_raw_only_preference": 0.0025,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.10, transpose 0.03, flip_x 0.62, flip_y 0.07, flip_xy 0.10; alternative better in 98% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.09969630768526133,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.975,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.25 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "flip_y": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "76/400 samples (19.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 76,
+       "fraction": 0.19,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.30, transpose 0.21, flip_x 0.13, flip_y 0.77, flip_xy 0.28; alternative better in 86% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.86,
+       "fraction_raw_only_preference": 0.0025,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.10, transpose 0.03, flip_x 0.07, flip_y 0.62, flip_xy 0.10; alternative better in 98% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.09626771594836153,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.98,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.22 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "roll1": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.76, transpose 0.35, flip_x 0.28, flip_y 0.29, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0025,
+       "fraction_raw_only_preference": 0.015,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.55, transpose 0.08, flip_x 0.10, flip_y 0.09, flip_xy 0.06; alternative better in 52% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.5537958867924362,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.5175,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "3/32 rows (9%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 3,
+       "fraction_wrong": 0.09375,
+       "median_diag_r2": 0.5264357410100173,
+       "median_row_max_r2": 0.533154695165027,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "roll2": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.73, transpose 0.34, flip_x 0.28, flip_y 0.28, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.005,
+       "fraction_raw_only_preference": 0.0175,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.49, transpose 0.08, flip_x 0.09, flip_y 0.09, flip_xy 0.06; alternative better in 77% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.49386307301308724,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.77,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "2/32 rows (6%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 2,
+       "fraction_wrong": 0.0625,
+       "median_diag_r2": 0.4761973009698361,
+       "median_row_max_r2": 0.48514008348799914,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "roll3": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.70, transpose 0.33, flip_x 0.28, flip_y 0.26, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.005,
+       "fraction_raw_only_preference": 0.015,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.44, transpose 0.08, flip_x 0.09, flip_y 0.08, flip_xy 0.06; alternative better in 92% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.442079511087252,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.92,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "2/32 rows (6%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 2,
+       "fraction_wrong": 0.0625,
+       "median_diag_r2": 0.44539106920866955,
+       "median_row_max_r2": 0.4609053650539209,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "shift_index": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "83/400 samples (20.8%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 83,
+       "fraction": 0.2075,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.21, transpose 0.19, flip_x 0.22, flip_y 0.18, flip_xy 0.20; alternative better in 38% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.3825,
+       "fraction_raw_only_preference": 0.145,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.04 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.04146987093110671,
+       "median_r2_best_orientation": 0.04146987093110671,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.5125,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.28 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "unit_slip": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.77, transpose 0.35, flip_x 0.28, flip_y 0.30, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.005,
+       "fraction_raw_only_preference": 0.01,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [27.38, 223.2] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 27.379998779296898,
+       "u_max": 223.2499938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.62, transpose 0.08, flip_x 0.10, flip_y 0.10, flip_xy 0.07; alternative better in 4% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.6197939069212084,
+       "median_r2_best_orientation": 0.6197939069212084,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.04,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "2/32 rows (6%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 2,
+       "fraction_wrong": 0.0625,
+       "median_diag_r2": 0.5979970443971975,
+       "median_row_max_r2": 0.5979970443971975,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "cross_dup": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.77, transpose 0.35, flip_x 0.28, flip_y 0.30, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.005,
+       "fraction_raw_only_preference": 0.0075,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "400 samples compared: 40 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 40,
+       "cross_split": 40,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 40
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [304.7, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 304.70001220703125,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.62, transpose 0.09, flip_x 0.09, flip_y 0.10, flip_xy 0.07; alternative better in 4% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.6209215182204897,
+       "median_r2_best_orientation": 0.6209215182204897,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.04,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "3/32 rows (9%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 3,
+       "fraction_wrong": 0.09375,
+       "median_diag_r2": 0.5979970443971978,
+       "median_row_max_r2": 0.5979970443971978,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "transpose@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "11/400 samples (2.8%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 11,
+       "fraction": 0.0275,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.68, transpose 0.43, flip_x 0.28, flip_y 0.26, flip_xy 0.15; alternative better in 19% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.19,
+       "fraction_raw_only_preference": 0.015,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.50, transpose 0.14, flip_x 0.07, flip_y 0.08, flip_xy 0.07; alternative better in 24% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.49831291056810456,
+       "median_r2_best_orientation": 0.49831291056810456,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.235,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "5/32 rows (16%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 5,
+       "fraction_wrong": 0.15625,
+       "median_diag_r2": 0.4853757271644901,
+       "median_row_max_r2": 0.4962128960221241,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "flip_x@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "15/400 samples (3.8%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 15,
+       "fraction": 0.0375,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.65, transpose 0.31, flip_x 0.39, flip_y 0.25, flip_xy 0.17; alternative better in 18% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.1825,
+       "fraction_raw_only_preference": 0.0125,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.51, transpose 0.06, flip_x 0.16, flip_y 0.09, flip_xy 0.08; alternative better in 23% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.5128137518411722,
+       "median_r2_best_orientation": 0.5128137518411722,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.23,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "7/32 rows (22%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 7,
+       "fraction_wrong": 0.21875,
+       "median_diag_r2": 0.45686014755616466,
+       "median_row_max_r2": 0.4962128960221241,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "flip_y@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "17/400 samples (4.2%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 17,
+       "fraction": 0.0425,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.68, transpose 0.32, flip_x 0.26, flip_y 0.39, flip_xy 0.14; alternative better in 18% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.1775,
+       "fraction_raw_only_preference": 0.0125,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.51, transpose 0.06, flip_x 0.09, flip_y 0.15, flip_xy 0.07; alternative better in 24% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.5128137518411722,
+       "median_r2_best_orientation": 0.5128137518411722,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.2425,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "5/32 rows (16%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 5,
+       "fraction_wrong": 0.15625,
+       "median_diag_r2": 0.45686014755616466,
+       "median_row_max_r2": 0.5053196898602781,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "roll1@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "0/400 samples (0.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 0,
+       "fraction": 0.0,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.77, transpose 0.35, flip_x 0.28, flip_y 0.29, flip_xy 0.13; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.005,
+       "fraction_raw_only_preference": 0.0125,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [300.5, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 300.5299987792969,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.61, transpose 0.08, flip_x 0.09, flip_y 0.10, flip_xy 0.07; alternative better in 14% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.6061814417299685,
+       "median_r2_best_orientation": 0.6061814417299685,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.135,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "2/32 rows (6%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 2,
+       "fraction_wrong": 0.0625,
+       "median_diag_r2": 0.5693187492498337,
+       "median_row_max_r2": 0.5740995410673382,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    },
+    "shift_index@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "16/400 samples (4.0%) have their maximum away from every source",
+      "metrics": {
+       "checked": 400,
+       "violating": 16,
+       "fraction": 0.04,
+       "vacuous_or_no_heating": 0,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.65, transpose 0.31, flip_x 0.28, flip_y 0.26, flip_xy 0.14; alternative better in 8% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0775,
+       "fraction_raw_only_preference": 0.04,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "400 samples compared: 0 cross-split, 71 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 71,
+       "cross_split": 0,
+       "within_split": 71,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [304.7, 496.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 304.70001220703125,
+       "u_max": 496.3999938964844,
+       "units": "K",
+       "constant_fields": 0
+      }
+     },
+     "F008": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "face mean arithmetic; median R2 of s ~ aL(u)+b(u-c): stored 0.50, transpose 0.07, flip_x 0.08, flip_y 0.08, flip_xy 0.06; alternative better in 13% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.49831291056810456,
+       "median_r2_best_orientation": 0.49831291056810456,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.1325,
+       "face_mean": "arithmetic"
+      }
+     },
+     "F009": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "8/32 rows (25%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "arithmetic",
+       "rows": 32,
+       "wrong_rows": 8,
+       "fraction_wrong": 0.25,
+       "median_diag_r2": 0.49454669866553036,
+       "median_row_max_r2": 0.5232750377711317,
+       "most_common_offset_of_best_partner": null,
+       "tie": 0.1
+      }
+     }
+    }
+   }
+  }
+ ]
+}
