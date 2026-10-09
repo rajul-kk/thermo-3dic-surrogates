@@ -235,6 +235,24 @@ margin so thin that partial contamination drops it below the applicability gate.
 while the operator explains a median R^2 of at least 0.3. The first fresh held-out file (the NeuralOperator 128 x 128 release, resampled from the 421 grid
 with rescaled fields) violates the first condition, which is why that test was uninformative; the native file above does not.
 
+## Round 3 (v3): pre-registered held-out measurement
+
+Frozen v2 rules and thresholds, unchanged (hash check against `bench/results/frozen_thresholds_v2.json` passed in every run). Protocol `bench/protocol_v3.md` and data cards
+`bench/datasets_v3.md` were frozen (commit f118382) before any rule was run on the new data; each of 18 runs was made once (`bench/run_v3.py`); results `bench/results/v3/`, tables `bench/results/bench_results_v3.md`.
+Seven in-scope sets (PDEgym Poisson-Gauss, CNO Poisson and Darcy, DiffusionPDE Poisson and Darcy denormalised with source = -a for Poisson, ELADO Poisson A1_test, UCSD/LLNL MTNN Poisson; all generic Poisson/Darcy families, not distinct application fields),
+two as-released diagnostics, and nine out-of-scope controls.
+
+| criterion | result |
+|---|---|
+| C1: clean-adjusted any-rule detection of whole-dataset transpose / flip_x / flip_y, in scope (draft threshold 80%) | 18/21 = 0.86 (exact 95% CI 0.64-0.97); 21/21 without the clean adjustment |
+| C2: clean false positives after adjudication (threshold 0 of 7) | 0 of 7 (two sets had findings before adjudication, all confirmed: CNO Darcy has 11 bit-identical duplicate pairs and a stored output of the opposite sign to its documented equation; DiffusionPDE Darcy has a few small negative values) |
+| C3: no false alarm on controls, with the `time_dependent` declaration set for time-dependent data, steady controls as is | **fails**: DiffusionPDE Helmholtz (F003 error) and UCSD convection-diffusion (F003 and F008 errors) |
+| C4: F008 applicable on at least half of the native-grid sets | 5/5 (median operator R^2 0.9999-1.0000) |
+
+Mechanical verdict of the protocol: not paper-worthy as measured (C3 fails). F008 explained the clean fields almost exactly on all five native sets (and detected every whole-dataset transpose and flip there);
+on the two Darcy-lineage sets it skipped on CNO Darcy (R^2 0.24) and ran at R^2 0.60 on DiffusionPDE Darcy. With the scope declaration set, every time-dependent control was declined by F002/F003/F008/F009; without it,
+five of the six time-dependent controls drew false alarms. F004 found bit-identical duplicate samples in two CNO files (Darcy: 11 pairs; ContTranslation, a control: sample i equals sample i + 512).
+
 ## Limitations
 
 * Scope is steady, non-negative-source diffusion-type problems. Time-dependent, advective or sink-dominated problems
