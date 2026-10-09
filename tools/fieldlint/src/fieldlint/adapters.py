@@ -10,6 +10,7 @@ Config (dict from JSON/YAML, a preset, or CLI flags):
       "k":      {"key": "kmap",  "layout": "NHW", "optional": true},
       "dirichlet_mask": {...}, "flux_out": {"key": "q", "layout": "N"},
       "time_dependent": false,           # true for trajectory snapshots: the steady-state rules report 'out of scope'
+      "operator": "",                    # "diffusion" (skip the advection probe) | "advective" | "other" (rules report 'out of scope'); empty = detected automatically
       "splits": "none" | "from_filename" | {"rule": "ictherm"} | {"train": [0, 0.8], "test": [0.8, 1]}
     }
 
@@ -243,6 +244,10 @@ def open_dataset(root, cfg: Dict[str, Any]) -> Dataset:
         raise AdapterError(f'no such path: {root}')
     ds = _open_dataset(root, cfg)
     ds.time_dependent = bool(cfg.get('time_dependent', False))
+    op = str(cfg.get('operator') or '').lower()
+    if op not in ('', 'diffusion', 'advective', 'other'):
+        raise AdapterError(f"operator must be 'diffusion', 'advective' or 'other', got {cfg.get('operator')!r}")
+    ds.operator = op
     return ds
 
 

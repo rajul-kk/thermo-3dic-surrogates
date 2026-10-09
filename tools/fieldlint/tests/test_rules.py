@@ -444,3 +444,61 @@ def test_scope_gate_1d_and_time_dependent(valid):
         assert r.status == 'skipped' and 'time-dependent' in r.summary, rule.__name__
     ds.time_dependent = False
     assert _f003(ds, OPT).status == 'ok'
+
+
+# ── v4: F003 defers to F008, advection probe ─────────────────────────────────────
+from fieldlint.rules import advection_probe, f008_operator_residual, f009_pairing, operator_skip  # noqa: E402
+
+
+def test_advection_probe_declines_convection_diffusion(convdiff_like):
+    src, u = convdiff_like
+    ds = dataset_from_arrays(u, src, ambient=300.0)
+    pr = advection_probe(ds, OPT)
+    assert pr['advective'] and pr['r2_stored_drift'] > 0.95 and pr['median_gain'] >= OPT.adv_gain
+    assert pr['r2_stored_drift'] > pr['r2_best_alt'] + OPT.adv_margin
+    for rule in (f002_max_principle, f003_orientation, f008_operator_residual, f009_pairing):
+        r = rule(ds, OPT)
+        assert r.status == 'skipped' and 'advective' in r.summary and not r.findings
+
+
+def test_advection_probe_does_not_rescue_flipped_diffusion(valid):
+    src, u = valid
+    assert not advection_probe(dataset_from_arrays(u, src, ambient=300.0), OPT)['advective']          # clean diffusion
+    for name, f in (('transpose', lambda a: np.swapaxes(a, -1, -2)), ('flip_x', lambda a: a[..., ::-1]), ('flip_y', lambda a: a[..., ::-1, :])):
+        ds = dataset_from_arrays(u, np.ascontiguousarray(f(src)), ambient=300.0)
+        pr = advection_probe(ds, OPT)
+        assert not pr['advective'], name                      # the drift terms cannot beat the correctly oriented plain fit
+        assert pr['r2_stored_drift'] < pr['r2_best_alt']
+        assert f008_operator_residual(ds, OPT).status == 'flagged'
+        assert f003_orientation(ds, OPT).status == 'flagged'
+
+
+def test_advection_probe_does_not_rescue_flipped_convection_diffusion_inputs_are_not_hidden_by_declaration(convdiff_like):
+    # a dataset declared `operator: diffusion` bypasses the probe, so the diffusion rules run (and, on convection-diffusion data, may complain)
+    src, u = convdiff_like
+    ds = dataset_from_arrays(u, src, ambient=300.0)
+    ds.operator = 'diffusion'
+    assert operator_skip(ds, OPT) is None and f008_operator_residual(ds, OPT).status != 'skipped'
+    ds2 = dataset_from_arrays(u, src, ambient=300.0)
+    ds2.operator = 'advective'
+    assert 'declared operator' in f003_orientation(ds2, OPT).summary and f003_orientation(ds2, OPT).status == 'skipped'
+
+
+def test_f003_defers_to_f008_when_f008_confirms_stored(helmholtz_like):
+    src, u = helmholtz_like
+    ds = dataset_from_arrays(u, src, ambient=300.0)
+    r = f003_orientation(ds, OPT)
+    assert r.metrics['fraction_alternative_better'] >= 0.5 and r.metrics['mean_corr']['stored'] < r.metrics['mean_corr']['flip_xy']
+    assert r.status == 'ok' and sev(r) == ['info'] and 'F008 confirms the stored orientation' in r.findings[0].message
+    assert r.metrics['deferred_to_f008']['stored'] > 0.99
+
+
+def test_f003_stays_standalone_when_f008_skips_or_agrees(valid):
+    src, u = valid
+    flipped = dataset_from_arrays(u, np.ascontiguousarray(src[..., ::-1]), ambient=300.0)
+    assert sev(f003_orientation(flipped, OPT)) == ['error']                       # F008 agrees: no deferral
+    # F008 skipped (noise defeats the second-derivative fit, the smoothed correlation survives): F003 alone decides
+    noisy = u + np.random.default_rng(5).normal(0, 1.0, u.shape)
+    ds = dataset_from_arrays(noisy, np.ascontiguousarray(src[..., ::-1]), ambient=300.0)
+    assert f008_operator_residual(ds, OPT).status == 'skipped'
+    assert sev(f003_orientation(ds, OPT)) == ['error']

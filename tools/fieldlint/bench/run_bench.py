@@ -117,6 +117,7 @@ def wrap(ds: Dataset, transform, name=None) -> Dataset:
     out = Dataset(ds.n, loader, name or ds.name, ds.units, ds.field_shapes)
     out._keep = getattr(ds, '_keep', None)
     out.time_dependent = ds.time_dependent
+    out.operator = getattr(ds, 'operator', '')
     return out
 
 

@@ -58,6 +58,10 @@ class Options:
     op_min_samples: int = 3
     op_face_mean: str = 'auto'              # face conductivity: 'auto' (fitted per dataset), 'harmonic', 'arithmetic' or 'geometric'
     op_face_samples: int = 32               # samples used to choose the face mean when 'auto'
+    adv_samples: int = 32                   # advection probe: samples scored
+    adv_gain: float = 0.20                  # advective when first-derivative terms raise the stored-orientation median R^2 by this much ...
+    adv_margin: float = 0.05                # ... and the drift fit beats every re-oriented plain fit by this much
+    defer_margin: float = 0.10              # F003 defers to F008 when F008's stored orientation beats every alternative by this much
     min_inplane_cells: int = 8              # scope gate: skip rules F002/F003/F008/F009 when an in-plane axis is shorter
     pair_samples: int = 32                  # F009: number of samples scored pairwise (M x M matrix)
     pair_tie: float = 0.10                  # F009: the diagonal counts as best when within this R^2 of the row maximum
@@ -145,9 +149,13 @@ def scope_skip(ds, opt: Options) -> Optional[str]:
     """Reason why the steady 2D diffusion rules do not apply to this dataset, or None.
 
     Out of scope: datasets flagged time_dependent (trajectory snapshots, not steady solutions) and fields that are effectively
-    1D (an in-plane axis shorter than `min_inplane_cells`, e.g. a 1 x N line or a 3 x N strip)."""
+    1D (an in-plane axis shorter than `min_inplane_cells`, e.g. a 1 x N line or a 3 x N strip), and datasets declared
+    `operator: advective` or `other`. The automatic advection probe is a separate, costlier gate: operator_skip."""
     if getattr(ds, 'time_dependent', False):
         return 'out of scope: the dataset is flagged time-dependent (snapshots of a trajectory), not a steady solution'
+    op = getattr(ds, 'operator', '')
+    if op in ('advective', 'other'):
+        return f"out of scope: the dataset is declared operator '{op}' (not steady diffusion)"
     shp = None
     if ds.field_shapes:
         shp = (ds.field_shapes() or {}).get('u')
@@ -226,13 +234,13 @@ def f002_max_principle(ds, opt: Options) -> RuleResult:
     dirichlet_mask. The excess is (max u) - (max u over the allowed zone), tested against a tolerance relative to the
     field's range. Reports the fraction of violating samples.
 
-    Does NOT apply: time-dependent datasets and effectively 1D fields (skipped as out of scope, see scope_skip); problems with sinks (s < 0, e.g. Peltier cooling or radiation modelled as a source) - samples with
+    Does NOT apply: time-dependent datasets, effectively 1D fields and datasets the advection probe or an `operator` declaration marks as advective (skipped as out of scope, see operator_skip); problems with sinks (s < 0, e.g. Peltier cooling or radiation modelled as a source) - samples with
     negative source are skipped; time-dependent or advection-dominated fields; fields where every cell is powered (the
     check is vacuous and reported as such); datasets whose source is a coarse proxy of the true heating (e.g. a
     block-averaged power map on a finer grid) - raise `neighbourhood`.
     """
     res = RuleResult('F002', 'max-principle')
-    why = scope_skip(ds, opt)
+    why = operator_skip(ds, opt)
     if why:
         res.status, res.summary = 'skipped', why
         return res
@@ -292,6 +300,27 @@ def f002_max_principle(ds, opt: Options) -> RuleResult:
 
 
 # ── F003 ─────────────────────────────────────────────────────────────────────────
+def _f008_confirms_stored(ds, opt: Options) -> Optional[Dict[str, float]]:
+    """F008's verdict for F003: {'stored', 'best_alt'} median operator R^2 when F008 ran on this data, did not flag it, and its
+    stored orientation beats the best of the orientations F003 tests (transpose, flips) by at least `defer_margin`; else None.
+    Why F003 defers: the operator residual uses the whole equation (k, reaction and diffusion terms), while the correlation of
+    a smoothed source with u is only a monotone proxy for it. Where a field is not a plain 'hot where powered' map (Helmholtz:
+    oscillating u, a term k^2 u) the proxy can be negative in the correct orientation while the operator fit is exact; when
+    the two disagree the operator fit, which scores the stored orientation against its alternatives on the same footing, is
+    the better witness. Not used when F008 skips, flags, or is ambiguous (then F003 stands alone)."""
+    r = f008_operator_residual(ds, opt)
+    if r.status != 'ok':
+        return None
+    med = r.metrics.get('median_r2') or {}
+    alts = {k_: v for k_, v in med.items() if k_ in ('transpose', 'flip_x', 'flip_y', 'flip_xy')}
+    if 'stored' not in med or not alts:
+        return None
+    best = max(alts.values())
+    if med['stored'] - best >= opt.defer_margin:
+        return {'stored': med['stored'], 'best_alt': best}
+    return None
+
+
 def f003_orientation(ds, opt: Options) -> RuleResult:
     """F003 orientation / alignment of source versus u.
 
@@ -304,16 +333,21 @@ def f003_orientation(ds, opt: Options) -> RuleResult:
     4x wider Gaussian, which removes large flat regions and keeps the hot spots) by half that margin. The rule fires when
     the votes cover most samples (>= 50% error, >= 10% warning).
 
-    Does NOT apply: time-dependent datasets and effectively 1D fields (skipped as out of scope, see scope_skip); sources that are symmetric under the tested operation (e.g. a single centred hot spot, symmetric
+    Does NOT apply: time-dependent datasets, effectively 1D fields and advective datasets (skipped as out of scope, see operator_skip); sources that are symmetric under the tested operation (e.g. a single centred hot spot, symmetric
     layouts) give no discrimination and no alarm; non-square grids cannot be tested for transposition (only flips); u
     fields dominated by boundary or k effects rather than by the source (strongly layered k, large convective gradient)
     can show low correlation in every orientation - then the rule stays quiet rather than guessing. When the plain
     correlation prefers another orientation but the band-passed one does not (the source map is dominated by wide
     low-contrast regions, as in some Therm-FM sets) the rule does not fire and reports an info note instead. The k field
     is not tested, but it is normally exported together with the source and shares its orientation.
+
+    Deferral to F008 (v4): when the rule would fire but F008 ran on the same data, did not flag it, and its median operator
+    R^2 in the stored orientation beats the best of transpose / flips by `defer_margin`, the finding is downgraded to info
+    ("F008 confirms the stored orientation"). The smoothed-source correlation is a monotone proxy that fails for fields that
+    are not 'hot where powered' (Helmholtz); the operator fit uses the whole equation. F003 stays standalone when F008 skips.
     """
     res = RuleResult('F003', 'orientation')
-    why = scope_skip(ds, opt)
+    why = operator_skip(ds, opt)
     if why:
         res.status, res.summary = 'skipped', why
         return res
@@ -360,7 +394,14 @@ def f003_orientation(ds, opt: Options) -> RuleResult:
                    'fraction_raw_only_preference': raw_only / n, 'better_by_variant': better,
                    'margin': opt.orientation_margin, 'sigma_cells': opt.smooth_sigma}
     res.summary = 'corr(smoothed source, u): ' + ', '.join(f'{k} {v:.2f}' for k, v in mean.items()) +                   f'; alternative better in {100 * frac:.0f}% of {n} samples'
-    if frac >= 0.1:
+    confirmed = _f008_confirms_stored(ds, opt) if frac >= 0.1 else None
+    if confirmed is not None:
+        res.metrics['deferred_to_f008'] = confirmed
+        res.findings.append(Finding('F003', 'info', f"the smoothed-source correlation favours another orientation in {100 * frac:.0f}% of "
+                            f"{n} samples (mean corr {mean['stored']:.2f} as stored), but F008 confirms the stored orientation "
+                            f"(median operator R2 {confirmed['stored']:.2f} as stored, {confirmed['best_alt']:.2f} for the best of "
+                            f"transpose / flips): no orientation fault is claimed", res.metrics))
+    elif frac >= 0.1:
         res.status = 'flagged'
         top = max(better, key=better.get)
         res.findings.append(Finding('F003', 'error' if frac >= 0.5 else 'warning',
@@ -851,6 +892,136 @@ def choose_face_mean(ds, opt: Options):
     return face, med
 
 
+# ── advection probe and the combined scope gate ──────────────────────────────────
+def _drift_terms(u: np.ndarray, spacing):
+    """(du/dx, du/dy) by central differences on the interior cells of a 2D field (same shape as lateral_operator's output)."""
+    dy = dx = 1.0
+    if spacing is not None:
+        dy, dx = (1.0 if v is None else float(v) for v in spacing[-2:])
+    return (u[1:-1, 2:] - u[1:-1, :-2]) / (2 * dx), (u[2:, 1:-1] - u[:-2, 1:-1]) / (2 * dy)
+
+
+def _op_fit_drift(s: np.ndarray, L: np.ndarray, u: np.ndarray, ux: np.ndarray, uy: np.ndarray, mode: str):
+    """(SSE, SST) of the fit of F008 with two extra regressors, the first derivatives of u (a uniform drift v . grad u).
+    'var': s ~ a L + b u + vx u_x + vy u_y + d; 'uni': s ~ a L + vx u_x + vy u_y. Same SST as _op_fit."""
+    s, L, u, ux, uy = (a.ravel() for a in (s, L, u, ux, uy))
+    if mode == 'uni':
+        A, y = np.stack([L, ux, uy], 1), s
+        sst = float((s ** 2).sum())
+    else:
+        A, y = np.stack([L - L.mean(), u - u.mean(), ux - ux.mean(), uy - uy.mean()], 1), s - s.mean()
+        sst = float(y @ y)
+    coef = np.linalg.lstsq(A, y, rcond=None)[0]
+    return float(((y - A @ coef) ** 2).sum()), sst
+
+
+def operator_r2_drift(src: np.ndarray, k: Optional[np.ndarray], u: np.ndarray, spacing=None, modes=None,
+                      face: str = 'harmonic') -> Optional[float]:
+    """R^2 of  s ~ a(-div k grad u) + b(u - c) + vx du/dx + vy du/dy  (F008's model plus a uniform drift, one (vx, vy) per
+    z-layer), pooled over the layers like operator_r2. Stored orientation only."""
+    S, U, K = _layers(src), _layers(u), _layers(k)
+    modes = modes or _layer_modes(S, K)
+    dy = dx = 1.0
+    if spacing is not None:
+        dy, dx = (1.0 if v is None else float(v) for v in spacing[-2:])
+    sse = sst = 0.0
+    used = 0
+    for z, mode in enumerate(modes):
+        if mode is None or min(U.shape[-2:]) < 3:
+            continue
+        L = lateral_operator(U[z], None if K is None else K[z], dy, dx, face)
+        ux, uy = _drift_terms(U[z], spacing)
+        e, t = _op_fit_drift(S[z][1:-1, 1:-1], L, U[z][1:-1, 1:-1], ux, uy, mode)
+        sse, sst, used = sse + e, sst + t, used + 1
+    if used == 0 or sst <= 0:
+        return None
+    return 1.0 - sse / sst
+
+
+def advection_probe(ds, opt: Options) -> Optional[Dict[str, Any]]:
+    """Is the stored data better explained by diffusion plus a uniform drift than by diffusion alone?
+
+    Physics: advection adds a first-derivative term v . grad u to -div(k grad u) = s (convection-diffusion), which shifts
+    the solution downstream of the source. F003 and F008 then see a displaced field: a diffusion fit in some flipped
+    orientation can look better than the stored one although nothing is misaligned. The probe refits F008's model in the
+    stored orientation with two extra regressors, u_x and u_y (one drift vector per sample and z-layer), on `adv_samples`
+    evenly spaced samples. The data are called advective when (a) the drift terms raise the median stored-orientation R^2 by
+    at least `adv_gain` and (b) the drifted stored fit is at least `adv_margin` better than the best re-oriented plain fit
+    (median over samples; flips, transpose and shifts). Condition (b) is what separates advection from a fault: a field
+    whose inputs are flipped or shifted is not rescued by a uniform drift in its stored orientation (the correct orientation
+    still explains it better), while for an advective field the correct reading is the stored one and the flips are artefacts.
+    Returns None when the model cannot be scored (no source or k varies); the result is cached on the dataset."""
+    key = ('adv', tuple(sorted(asdict(opt).items())))
+    cache = getattr(ds, '_adv_cache', None)
+    if cache is not None and cache[0] == key:
+        return cache[1]
+    face, _ = choose_face_mean(ds, opt)
+    base, drift, alts = [], [], {}
+    for _i, s in ds.samples(opt.adv_samples):
+        p = _prep_sample(s)
+        if p is None or p[2].ndim not in (2, 3) or min(p[2].shape[-2:]) < 3:
+            continue
+        modes = _layer_modes(_layers(p[0]), _layers(p[1]))
+        if not any(modes):
+            continue
+        r2 = _sample_scores(p, s.spacing, opt, face, modes)
+        rd = operator_r2_drift(p[0], p[1], p[2], s.spacing, modes, face)
+        if 'stored' not in r2 or rd is None:
+            continue
+        base.append(r2['stored'])
+        drift.append(rd)
+        for nm, r in r2.items():
+            if nm != 'stored':
+                alts.setdefault(nm, []).append(r)
+    out = None
+    if len(base) >= opt.op_min_samples:
+        med_alt = {nm: float(np.median(v)) for nm, v in alts.items()}
+        best_alt = max(med_alt, key=med_alt.get) if med_alt else None
+        gain = float(np.median(np.array(drift) - np.array(base)))
+        out = {'samples': len(base), 'r2_stored': float(np.median(base)), 'r2_stored_drift': float(np.median(drift)),
+               'median_gain': gain, 'best_alt': best_alt, 'r2_best_alt': med_alt[best_alt] if best_alt else None}
+        out['advective'] = bool(gain >= opt.adv_gain and out['r2_stored_drift'] >= (out['r2_best_alt'] or -1.0) + opt.adv_margin)
+    try:
+        ds._adv_cache = (key, out)
+    except AttributeError:
+        pass
+    return out
+
+
+def operator_skip(ds, opt: Options) -> Optional[str]:
+    """scope_skip plus the advection probe: the reason F002/F003/F008/F009 do not apply, or None. A dataset declared
+    `operator: diffusion` bypasses the probe."""
+    why = scope_skip(ds, opt)
+    if why or getattr(ds, 'operator', '') == 'diffusion':
+        return why
+    pr = advection_probe(ds, opt)
+    if pr is not None and pr['advective']:
+        return (f"out of scope: advective (first-derivative terms explain the residual: median R2 {pr['r2_stored']:.2f} -> "
+                f"{pr['r2_stored_drift']:.2f} in the stored orientation with a uniform drift, against {pr['r2_best_alt']:.2f} "
+                f"for the best re-oriented diffusion fit)")
+    return None
+
+
+def _cached_on_dataset(fn):
+    """Cache a rule's result on the dataset (keyed by the options), so F003 can read F008's verdict without refitting."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(ds, opt):
+        key = (fn.__name__, tuple(sorted(asdict(opt).items())))
+        cache = getattr(ds, '_rule_cache', None)
+        if cache is not None and key in cache:
+            return cache[key]
+        res = fn(ds, opt)
+        try:
+            ds._rule_cache = {**(cache or {}), key: res}
+        except AttributeError:
+            pass
+        return res
+    return wrapper
+
+
+@_cached_on_dataset
 def f008_operator_residual(ds, opt: Options) -> RuleResult:
     """F008 operator-residual consistency.
 
@@ -876,11 +1047,11 @@ def f008_operator_residual(ds, opt: Options) -> RuleResult:
     conductivity is a convention: a dataset generated with a different one (PDEBench Darcy uses the arithmetic mean) is
     reproduced only to the extent the two conventions agree, which for a 10x contrast in k is poorly. The face mean is
     therefore a fitted choice (`op_face_mean = 'auto'`: harmonic, arithmetic or geometric, one per dataset, see
-    choose_face_mean) and is reported. Out of scope (skipped): time-dependent datasets and effectively 1D fields (an in-plane
+    choose_face_mean) and is reported. Out of scope (skipped): time-dependent datasets, advective datasets (see advection_probe) and effectively 1D fields (an in-plane
     axis shorter than `min_inplane_cells`).
     """
     res = RuleResult('F008', 'operator-residual')
-    why = scope_skip(ds, opt)
+    why = operator_skip(ds, opt)
     if why:
         res.status, res.summary = 'skipped', why
         return res
@@ -977,7 +1148,7 @@ def f009_pairing(ds, opt: Options) -> RuleResult:
     puts the best match off the diagonal. A row is 'wrong' when some other column beats the diagonal by more than
     `pair_tie` in R^2. Fires as a warning when >= `pair_warn` and as an error when >= `pair_error` of the rows are wrong.
 
-    Does NOT apply (skipped with the reason): the out-of-scope cases of F008 (time-dependent, effectively 1D); the cases F008 skips (no varying source or k, fields the operator model does not
+    Does NOT apply (skipped with the reason): the out-of-scope cases of F008 (time-dependent, advective, effectively 1D); the cases F008 skips (no varying source or k, fields the operator model does not
     describe: the median best-column R^2 is below `pair_r2_applicable`); fewer than 4 usable samples. Datasets whose inputs
     are identical across samples (only boundary conditions vary) have no pairing information and give many ties, which count as
     correct. Samples must have the same grid. A fault that touches only a minority of the samples (< `pair_warn` of the rows)
@@ -986,7 +1157,7 @@ def f009_pairing(ds, opt: Options) -> RuleResult:
     the two cannot be told apart from the score matrix alone and the rule does not guess.
     """
     res = RuleResult('F009', 'pairing')
-    why = scope_skip(ds, opt)
+    why = operator_skip(ds, opt)
     if why:
         res.status, res.summary = 'skipped', why
         return res

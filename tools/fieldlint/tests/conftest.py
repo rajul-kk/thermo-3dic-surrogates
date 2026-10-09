@@ -77,3 +77,38 @@ def darcy_like():
             y, x = rng.integers(0, n - h), rng.integers(0, n - w)
             k[m, y:y + h, x:x + w] = 0.1
     return k, solve_k(k, 1.0)
+
+
+def drift_matrix(n, vx, vy):
+    """Central-difference vx d/dx + vy d/dy on an n x n grid with u = 0 just outside."""
+    idx = np.arange(n * n).reshape(n, n)
+    D = np.zeros((n * n, n * n))
+    for y in range(n):
+        for x in range(n):
+            i = idx[y, x]
+            for (yy, xx), w in (((y, x + 1), 0.5 * vx), ((y, x - 1), -0.5 * vx), ((y + 1, x), 0.5 * vy), ((y - 1, x), -0.5 * vy)):
+                if 0 <= yy < n and 0 <= xx < n:
+                    D[i, idx[yy, xx]] += w
+    return D
+
+
+def solve_operator(A, src, scale=20.0):
+    n = src.shape[-1]
+    u = np.linalg.solve(A, src.reshape(len(src), -1).T).T.reshape(src.shape)
+    return AMBIENT + u * (scale / np.abs(u).max())
+
+
+@pytest.fixture(scope='session')
+def convdiff_like():
+    """(source, temperature) of  -lap u + v . grad u = s  with v = (1.2, 0.7) grid units, u = 0 just outside; N=48, 24 x 24."""
+    rng = np.random.default_rng(0)
+    src = random_blocks(rng, 48, 24)
+    return src, solve_operator(poisson_matrix(24) + drift_matrix(24, 1.2, 0.7), src)
+
+
+@pytest.fixture(scope='session')
+def helmholtz_like():
+    """(source, temperature) of  -lap u - 0.1 u = s: u oscillates, smoothed source and u are uncorrelated as stored."""
+    rng = np.random.default_rng(0)
+    src = random_blocks(rng, 48, 24)
+    return src, solve_operator(poisson_matrix(24) - 0.1 * np.eye(24 * 24), src)
