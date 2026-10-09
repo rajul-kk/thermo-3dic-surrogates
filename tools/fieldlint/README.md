@@ -268,6 +268,20 @@ Two changes, both motivated by the physics of the two failures, not by fitting t
 
 Code changes alter the SHA-256 that `frozen_thresholds_v2.json` records, so the v2 / v3 harness refuses to re-run on this code; their stored results stand.
 
+## Round 4 (v4) held-out
+
+Frozen v4 rules (`bench/results/frozen_thresholds_v4.json`, hash check passed at every run). Protocol `bench/protocol_v4.md` and data cards `bench/datasets_v4.md` frozen (commit 187662b) before any run; 13 result files (14 runs), each made once (`bench/run_v4_heldout.py`), no crash; results `bench/results/v4_heldout/`, tables `bench/results/bench_results_v4_heldout.md`.
+Nine in-scope sets (ConDiff Poisson, Gaussian-0.1, Gaussian-1.0, cubic-0.4, exponential-2.0; ELADO B1_test; PDEBench Darcy beta 0.1, 10, 100, same generator as tuning), one diagnostic (ConDiff Gaussian-0.1 without k), three controls (PDEgym Helmholtz, ELADO C1 Helmholtz, PDEgym Wave-Layer flagged and unflagged). No fresh advective control was obtainable.
+
+| criterion | result |
+|---|---|
+| C1: clean-adjusted any-rule detection of whole-dataset transpose / flip_x / flip_y (threshold 80%) | 27/27 = 1.00 (exact 95% CI 0.87-1.00; one-sided lower bound 0.89) |
+| C2: clean false positives after adjudication (threshold 0 of 9) | 0 of 9 (no rule flagged any clean in-scope copy) |
+| C3: no false alarm on binding controls | **fails**: F005 warning on PDEgym Helmholtz and on Wave-Layer with `time_dependent: true`; ELADO C1 declined everywhere |
+| C4: F008 applicable on native sets (6 binding) | 6/6 (median operator R^2 0.884-1.000); 9/9 with PDEBench Darcy counted native |
+
+Mechanical verdict of the protocol: not paper-worthy as measured (C3 fails). The F003 deferral and the advection probe did not trigger on any run. Unflagged Wave-Layer drew F002 (error), F003 and F005 (warnings).
+
 ## Limitations
 
 * Scope is steady, non-negative-source diffusion-type problems. Time-dependent, advective or sink-dominated problems

@@ -202,13 +202,16 @@ def main(argv=None):
     L.append('')
 
     # F003 -> F008 deferral and advection probe: where do the summaries mention them (clean runs, every dataset)
-    L += ['## F003 deferral and advection probe: summaries that mention them (clean runs)', '']
+    L += ['## F003 deferral and advection probe: summaries that report them (clean runs and every faulted copy)', '']
+    n_hit = 0
     for k, (role, r) in runs.items():
         for c in ('F002', 'F003', 'F008', 'F009'):
-            s = r['clean'][c]['summary']
-            if 'confirms the stored orientation' in s or 'advective' in s.lower() or 'first-derivative' in s:
-                L.append(f'* {k} [{role}] {c}: {s}')
-    L.append('')
+            for tag, res in [('clean', r['clean'])] + [(f, v) for f, v in r['faults'].items() if 'skipped' not in v]:
+                s = res[c]['summary']
+                if 'confirms the stored orientation' in s or 'out of scope: advective' in s:
+                    L.append(f'* {k} [{role}] {c} ({tag}): {s}')
+                    n_hit += 1
+    L += [f'number of summaries reporting the deferral or the advection probe: {n_hit}', '']
     L += ['C2 is judged by hand after adjudication (count the in-scope datasets above that remain false positives).', '',
           'Verdict rule (protocol section 10): all of C1-C4 -> PAPER-WORTHY; C1 and C3 but not C2/C4 -> PARTIAL; C1 or C3 fail -> NOT PAPER-WORTHY.']
     print('\n'.join(L))

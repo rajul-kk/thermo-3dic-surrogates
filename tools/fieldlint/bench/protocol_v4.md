@@ -195,7 +195,7 @@ Any analysis not specified in sections 5-8 (re-mapping, other face-mean conventi
 
 * Frozen by: lead pre-approval 2026-10-09 + agent (Phase C), on 2026-10-09 at 23:53 +0800, at **the commit that adds this line** (its hash is in the git log; the commit message begins "fieldlint v4: FREEZE held-out protocol"). The freeze commit contains this protocol, `run_v4_heldout.py` and `report_v4.py` and precedes every held-out run.
 * Conditions of the pre-approval, all met in this document: criteria C1-C4 and their thresholds unchanged; clean-adjusted scoring, section-7 adjudication and run-once rule unchanged; v4 hash check at every run; staged presets passed as configs (not moved into `src/`, no `operator:`); N written explicitly (9); native list written explicitly (6); limitations of section 4 stated.
-* Deviations after freeze (run re-launched after a crash, dataset that could not be run, etc.): *none yet.*
+* Deviations after freeze (run re-launched after a crash, dataset that could not be run, etc.): no run was re-launched and no dataset dropped. After the 13 runs, `report_v4.py` was edited (it is a reader; no stored number or criterion changed): the string match that counts "advection probe / deferral triggered" was tightened from the word 'advective' (which also occurs in the generic R^2-gate message) to the exact probe text 'out of scope: advective', and extended to faulted copies. Post-hoc diagnostics (labelled POST HOC in the results file): the F005 finding texts were printed with `fieldlint --rules F005` on the two Helmholtz / Wave-Layer controls.
 
 ## Appendix: references for the frozen-version statement
 
