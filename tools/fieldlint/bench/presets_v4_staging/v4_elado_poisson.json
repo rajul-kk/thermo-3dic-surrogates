@@ -1,0 +1,17 @@
+{
+  "name": "v4_elado_poisson",
+  "format": "h5",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "ELADO (Ehebrecht et al. 2026, arXiv 2606.20771; Zenodo 20738464) Poisson file B1_test.h5 (decompressed byte for byte from the .zst). Same equation as A1: -div(a grad u) = 1, u = 0 on the boundary, P1 finite elements (scripts.tar.zst poisson_dirichlet.py: A_form = inner(a*grad(u), grad(v)) dx, L_form = f v dx with f = 1, so the operator is positive definite and source = +1). x = coefficient a, y = u, as for A1. B1 differs from A1 only in the coefficient spectrum (sigma_s0 0.02, sigma_jump 0.0267; paper Sec. 5.2). Mapping identical to v3_elado_poisson.",
+  "u": {
+    "key": "y",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "x",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

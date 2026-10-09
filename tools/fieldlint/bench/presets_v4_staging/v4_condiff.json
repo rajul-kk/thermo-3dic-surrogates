@@ -1,0 +1,24 @@
+{
+  "name": "v4_condiff",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "spacing": [
+    0.0078125,
+    0.0078125
+  ],
+  "_comment": "PRIMARY mapping. ConDiff (HF condiff/ConDiff, github.com/condiff-dataset/ConDiff condiff.py), 200-sample test file, converted by bench/convert_v4.py condiff:<name>. -div(k grad u) = f on (0,1)^2, u = 0 on the boundary, f ~ N(0,1) per cell, k = exp(GRF); cell-centred finite volume, n = 128 cells per side. SIGN: fd_mtx2 (condiff.py lines 121-160) is positive definite (positive diagonal ac, negative off-diagonals) and diffusion() lines 26-29 solves A x = b with b = rhs, so source = rhs and u = x, no negation. LAYOUT: x and rhs are flat vectors built with flatten('F') (lines 151-155); convert_v4.py re-indexes them with order F (u[i,j] = x[i + 128 j]) so that u, source and k_cell share the generator's (i, j) axes. k_cell is DERIVED, NOT LOSSLESS: the mean of the four corner nodes of the stored 129 x 129 k, i.e. ac/4 of fd_mtx2 (lines 145-148), the solver's own cell coefficient.",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "k_cell",
+    "layout": "NHW"
+  }
+}

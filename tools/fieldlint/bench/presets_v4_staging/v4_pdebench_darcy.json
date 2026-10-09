@@ -1,0 +1,31 @@
+{
+  "name": "v4_pdebench_darcy",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "spacing": [
+    0.0078125,
+    0.0078125
+  ],
+  "_comment": "PDEBench 2D Darcy (DaRUS 10.18419/DARUS-2986), beta 0.1 / 10 / 100, same generator as the beta 1.0 / 0.01 files used for tuning, FRESH files. Converted by convert_v4.py darcy:<beta>: X (N,16384) = nu (coefficient a), Y (N,16384) = tensor (u), each a flattened 128 x 128 field. -div(a grad u) = beta, u = 0 on the boundary (PDEBench paper App. D.4 eq. 13-14); beta is read from the file name. Identical to the existing `darcy` preset except the name.",
+  "u": {
+    "key": "Y",
+    "layout": "NHW",
+    "reshape": [
+      128,
+      128
+    ]
+  },
+  "k": {
+    "key": "X",
+    "layout": "NHW",
+    "reshape": [
+      128,
+      128
+    ]
+  },
+  "source_uniform": {
+    "filename_regex": "beta([0-9]+(?:[.][0-9]+)?)"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "v4_pdegym_wave_layer",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope, time-dependent). PDEgym Wave-Layer (camlab-ethz/Wave-Layer; Poseidon arXiv 2405.19101 App. B.2.11): u_tt - c(x)^2 Laplace u = 0, absorbing boundaries, FD at 128^2, T = 1, u0 = sum of Gaussians, c piecewise constant in 3-6 vertically layered regions with c_i ~ U[2000,5000]. First 256 trajectories of solution_0.nc (stored (N, 21, 128, 128) float32; the dataset README says 15 time steps, Poseidon App. B.2.11 says 21 snapshots, the file has 21) and the first 256 rows of c_0.nc, range-read by convert_v4.py wave_layer. A user's most plausible reading for a diffusion linter, as for v3_pdegym_wave_gauss: source = u at the first time, u = u at the last time, k = c.",
+  "u": {
+    "key": "solution",
+    "layout": "NCHW",
+    "channel": 20
+  },
+  "source": {
+    "key": "solution",
+    "layout": "NCHW",
+    "channel": 0
+  },
+  "k": {
+    "key": "c",
+    "layout": "NHW"
+  }
+}

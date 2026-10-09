@@ -1,0 +1,17 @@
+{
+  "name": "v4_elado_helmholtz",
+  "format": "h5",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope). ELADO Helmholtz file C1_test.h5 (family C1, paper Eq. 10, a_i = 1, k in [6,14], 255 x 255 mesh, 256 coefficient axis): x = wavenumber field, y = u or |u| (storage not stated in the paper; the quantity of interest is |u|), source a Gaussian excitation that is not stored. Mapped exactly like v3_elado_helmholtz (x -> k, y -> u, uniform source 1).",
+  "u": {
+    "key": "y",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "x",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}
