@@ -277,7 +277,7 @@ Nine in-scope sets (ConDiff Poisson, Gaussian-0.1, Gaussian-1.0, cubic-0.4, expo
 |---|---|
 | C1: clean-adjusted any-rule detection of whole-dataset transpose / flip_x / flip_y (threshold 80%) | 27/27 = 1.00 (exact 95% CI 0.87-1.00; one-sided lower bound 0.89) |
 | C2: clean false positives after adjudication (threshold 0 of 9) | 0 of 9 (no rule flagged any clean in-scope copy) |
-| C3: no false alarm on binding controls | **fails**: F005 warning on PDEgym Helmholtz and on Wave-Layer with `time_dependent: true`; ELADO C1 declined everywhere |
+| C3: no false alarm on binding controls | **fails**: F005 warning on PDEgym Helmholtz and on Wave-Layer with `time_dependent: true`; ELADO C1 drew no false alarm (F001, F004, F005 ok; F002, F003, F008, F009 skipped) |
 | C4: F008 applicable on native sets (6 binding) | 6/6 (median operator R^2 0.884-1.000); 9/9 with PDEBench Darcy counted native |
 
 Mechanical verdict of the protocol: not paper-worthy as measured (C3 fails). The F003 deferral and the advection probe did not trigger on any run. Unflagged Wave-Layer drew F002 (error), F003 and F005 (warnings).
@@ -305,3 +305,10 @@ Fault-injection benchmark: `python tools/fieldlint/bench/run_bench.py --stage ex
 Synthetic tests solve a small 2D Poisson problem with numpy to produce physically valid samples, then transpose or flip the
 inputs, inject an off-source maximum, and duplicate samples across splits. Real-data tests (marked `realdata`) read
 IC-ThermBench, Therm-FM and 3D-ICE files read-only and skip when absent; set `FIELDLINT_DATA_ROOT` to the `data/` directory.
+
+## Status
+
+* **Detection on fresh data:** v4 held-out C1 27/27 (one-sided 95% lower bound 0.89), C2 0/9, C4 6/6 native sets.
+* **Out-of-scope data:** both pre-registered rounds failed C3. v3 failed on F003/F008 for steady Helmholtz and convection-diffusion; v4 failed on F005 for a steady Helmholtz and a declared time-dependent wave set.
+* So fieldlint reliably detects orientation faults in in-scope data, but does not yet reliably decline out-of-scope data, and users must declare scope.
+* The advection probe has no held-out test.

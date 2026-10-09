@@ -147,6 +147,13 @@ Diagnostic (as released; not adjudicated, not counted): `dpde_darcy_asreleased` 
 
 POST HOC (descriptive, not part of any criterion): the CNO Darcy duplicates fall across the CNO loader's own default splits (`CNOBenchmarks.py` `DarcyDataset`: train indices 0-255, validation 256-383, test 384-511): of the 11 pairs, 9 are train/validation or train/test and 2 are validation/validation. For ContTranslation the loader uses train 0-511 and validation 512-767, so every train sample i < 256 has its copy i+512 in the validation set.
 
+POST HOC verification on raw files (2026-10-09; descriptive, changes no pre-registered number above):
+
+* `Darcy_64x64_IN.h5` (sha256 e460c2d9...): 11 bit-identical pairs, so 501 distinct of 512 samples. Pairs: (27,493), (59,379), (79,283), (82,304), (87,309), (98,351), (203,398), (209,412), (246,346), (269,349), (296,381). Under the split that `TrainCNO.py` uses (training_samples=256, `CNO2d_classic/TrainCNO.py` line 26): train 0-255, validation 256-383, test 384-511. Then 6 pairs are train/validation, 3 are train/test and 2 are validation/validation.
+* `ContTranslation_64x64_IN.h5` (sha256 1c116871...): 512 pairs (i, i+512), so only 512 distinct of 1024 samples. The split statement in the POST HOC paragraph above used the ContTranslation class default (training_samples=512); `TrainCNO.py` passes 256. Under 256: train 0-255, validation 512-767, test 768-1023, giving 256 train/validation pairs and 256 pairs between test (768-1023) and indices 256-511, which no split uses. Under the class default (512): 256 train/validation pairs and 256 train/test pairs.
+* Prior reports: none found in the Zenodo record 10406879 description, the README, or the 11 GitHub issues.
+* Loader quirk: the `DarcyDataset` class default (512) requests samples 512-639, which do not exist in this 512-sample file.
+
 ## 5. Predictions (datasets_v3.md) against the outcome
 
 Right: PDEgym Poisson-Gauss F002/F003/F008 applicable and clean; CNO Poisson F002 skipped, F003 ok, F008 applicable; CNO Darcy F002/F003/F008/F009 skipped, F005 flagged (as a warning), clean-adjusted detection 0/3; DiffusionPDE Poisson (with source = -a) F002 skipped, F003 ok, F008 applicable at R^2 1.00; DiffusionPDE Darcy as released F005 error; ELADO F002/F003 skipped, F008 applicable (arithmetic, R^2 1.00); UCSD F003 ok, F008 applicable, roll faults detected; all time-dependent controls declined with the flag; ELADO Helmholtz declined; `dpde_helmholtz` F003 alarm (pre-registered risk, materialised); unflagged transports F003 warnings (pre-registered possibility); Wave-Gauss unflagged F002/F003 alarms (possibility).
