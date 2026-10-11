@@ -1,5 +1,6 @@
 """3D-ICE thermal simulator wrapper."""
 
+import json
 import logging
 import os
 import re
@@ -28,6 +29,24 @@ _COMMIT_CACHE: Dict[str, str] = {}        # executable string -> full commit has
 _LAST_RUN: Dict[str, str] = {}            # provenance of the most recent solve in this process
 
 
+def _threedice_wheel_commit(root: str, pre: list) -> str:
+    """Commit recorded in <root>/_build_info.json when root is the `threedice` wheel's package directory
+    (tools/threedice; no .git there, and `git rev-parse` could name the repository the virtualenv sits in). '' otherwise."""
+    if root.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1] != 'threedice':
+        return ''
+    try:
+        if pre:
+            text = subprocess.run(pre + ['cat', root + '/_build_info.json'], capture_output=True, text=True,
+                                  timeout=30).stdout
+        else:
+            text = (Path(root) / '_build_info.json').read_text()
+        info = json.loads(text)
+        c = info.get('ice_commit', '')
+        return c if info.get('package') == 'threedice' and re.fullmatch(r'[0-9a-f]{7,40}', c) else ''
+    except Exception:
+        return ''
+
+
 def _lookup_ice_commit(executable: str) -> str:
     """`git rev-parse HEAD` in the install tree of the executable (<root>/bin/3D-ICE-Emulator).
 
@@ -46,6 +65,9 @@ def _lookup_ice_commit(executable: str) -> str:
             root = exe.rsplit('/', 2)[0]
         else:
             root = str(Path(shutil.which(exe) or exe).resolve().parent.parent)
+        wheel = _threedice_wheel_commit(root, pre if use_wsl else [])
+        if wheel:
+            return wheel
         r = subprocess.run(pre + ['git', '-C', root, 'rev-parse', 'HEAD'],
                            capture_output=True, text=True, timeout=30)
         h = r.stdout.strip()

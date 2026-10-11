@@ -33,7 +33,7 @@ Units are 3D-ICE's: lengths in um, conductivity in W/um/K, heat-transfer coeffic
 | `iceforge parse model.stk [--json]` | summary (or JSON) of the stack, materials, grid, dies, floorplans, layouts |
 | `iceforge check model.stk [--json] [--strict]` | pre-solve lint, exit 1 on errors (and on warnings with `--strict`) |
 | `iceforge snap model.stk -o outdir [--mode nearest\|outward]` | write a gridded copy, report every move |
-| `iceforge run model.stk [--backend auto\|native\|wsl\|docker] [--exe PATH] [-o outdir] [--no-check]` | check, solve, parse Tmaps to `.npz`, post-check |
+| `iceforge run model.stk [--backend auto\|pip\|native\|wsl\|docker] [--exe PATH] [-o outdir] [--no-check]` | check, solve, parse Tmaps to `.npz`, post-check |
 | `iceforge build spec.yaml -o outdir [--snap]` | generate grid-aligned `model.stk` + `.flp` + `.lyt` from a small spec (see Build) |
 | `iceforge init [-o spec.yaml] [--json] [--force]` | write an example spec (the repro case) |
 | `iceforge diff model.stk [--r 4] [--nz N] [--tol 0.02] [--ice-npz PATH] [--with-hotspot] [--json] [--plot out.png]` | run 3D-ICE and an independently discretised reference solver, compare per Tmap layer, give a verdict; optionally HotSpot as a third solver (needs `iceforge[diff]`) |
@@ -104,9 +104,11 @@ and prints each move. Dies in one layer may not overlap or leave the chip. Witho
 ### Run and outputs
 
 `run` executes 3D-ICE with the working directory set to the stk's directory (so relative paths in the
-model resolve as 3D-ICE expects). Backend `auto` tries `$ICE_EXECUTABLE` (a path, or `wsl /path`), a
+model resolve as 3D-ICE expects). Backend `auto` tries `$ICE_EXECUTABLE` (a path, or `wsl /path`), the `pip` backend (the
+`threedice` wheel from `tools/threedice`, if `import threedice` works in the Python running iceforge; it is the pinned build
+by construction, so it ranks above a bare `3D-ICE-Emulator` on PATH whose commit is unknown), a
 native `3D-ICE-Emulator` on PATH (non-Windows), WSL (`~/3d-ice-4.0/bin/...` only), then the docker image
-`iceforge:latest`. Before a solve the install tree's git commit is looked up and the run is refused unless it is the pinned 4953952 (override `THERMO_ALLOW_ANY_3DICE=1`); `ice_commit` and `ice_executable` go into the run report and each output npz.
+`iceforge:latest`. Before a solve the install tree's git commit is looked up and the run is refused unless it is the pinned 4953952 (override `THERMO_ALLOW_ANY_3DICE=1`); `ice_commit` and `ice_executable` go into the run report and each output npz. For the `pip` backend (and any executable inside a `threedice/bin/` directory, e.g. `wsl /home/u/venv/lib/python3.12/site-packages/threedice/bin/3D-ICE-Emulator`) there is no `.git`, so the commit is read from `threedice.ice_commit()` / the package's `_build_info.json`.
 
 For each `Tmap` directive, `<outdir>/<name>.npz` holds `T` shaped `(length_index, width_index)` in kelvin,
 `x_um` (cell-centre coordinates along the length), `y_um` (along the width), `units`, and `t_ref`; a

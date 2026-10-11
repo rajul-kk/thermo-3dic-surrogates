@@ -137,6 +137,7 @@ def cmd_doctor(a) -> int:
     env = os.environ.get("ICE_EXECUTABLE")
     probes = {
         "env ICE_EXECUTABLE": (lambda: backends.from_exe(env) if env else None),
+        "pip": backends.probe_pip,
         "native": backends.probe_native,
         "wsl": backends.probe_wsl,
         "docker": backends.probe_docker,
@@ -198,7 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("run", help="check, run 3D-ICE, parse Tmap outputs, post-check")
     s.add_argument("model")
-    s.add_argument("--backend", choices=["auto", "native", "wsl", "docker"], default="auto")
+    s.add_argument("--backend", choices=["auto", "pip", "native", "wsl", "docker"], default="auto")
     s.add_argument("--exe", help="path to 3D-ICE-Emulator (inside WSL for the wsl backend)")
     s.add_argument("-o", "--output", help="output directory (default <model>_iceforge next to the .stk)")
     s.add_argument("--no-check", action="store_true", help="skip the pre-solve check")
@@ -223,7 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--nz", type=int, help="sub-layers per layer (default: <= 25 um each, min 2)")
     s.add_argument("--tol", type=float, default=0.02, help="relative tolerance on max rise (default 0.02)")
     s.add_argument("--ice-npz", help="reuse an existing run: a .npz file, or the output directory of `iceforge run`")
-    s.add_argument("--backend", choices=["auto", "native", "wsl", "docker"], default="auto")
+    s.add_argument("--backend", choices=["auto", "pip", "native", "wsl", "docker"], default="auto")
     s.add_argument("--exe", help="path to 3D-ICE-Emulator")
     s.add_argument("-o", "--output", help="directory for the 3D-ICE run (default: a temp dir)")
     s.add_argument("--method", choices=["auto", "amg", "direct", "cg"], default="auto",

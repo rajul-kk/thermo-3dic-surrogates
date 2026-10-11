@@ -101,3 +101,32 @@ def _wsl_ok():
 def test_real_default_build_is_the_pinned_one():
     info = verify_ice_executable(DEFAULT_ICE_EXECUTABLE)
     assert info["ice_commit"].startswith(PINNED_ICE_COMMIT)
+
+
+# ---- the `threedice` wheel (tools/threedice): no .git, the commit comes from <pkg>/_build_info.json
+
+def _wheel_dir(tmp_path, commit, package="threedice"):
+    import json
+    root = tmp_path / "venv" / "site-packages" / "threedice"
+    (root / "bin").mkdir(parents=True)
+    (root / "bin" / "3D-ICE-Emulator").write_text("")
+    (root / "_build_info.json").write_text(json.dumps({"package": package, "ice_commit": commit}))
+    return (root / "bin" / "3D-ICE-Emulator").as_posix()      # shlex would eat backslashes
+
+
+def test_threedice_wheel_commit_read_from_sidecar_not_git(monkeypatch, tmp_path):
+    exe = _wheel_dir(tmp_path, PINNED_ICE_COMMIT + "b" * 33)
+    monkeypatch.setattr(isim.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("git called")))
+    assert verify_ice_executable(exe)["ice_commit"] == PINNED_ICE_COMMIT + "b" * 33
+
+
+def test_threedice_wheel_with_other_commit_refused(monkeypatch, tmp_path):
+    exe = _wheel_dir(tmp_path, "39ed2a7" + "0" * 33)
+    with pytest.raises(RuntimeError, match="THERMO_ALLOW_ANY_3DICE"):
+        verify_ice_executable(exe)
+
+
+def test_sidecar_of_another_package_is_ignored(monkeypatch, tmp_path):
+    exe = _wheel_dir(tmp_path, PINNED_ICE_COMMIT + "b" * 33, package="other")
+    monkeypatch.setattr(isim.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("git")))
+    assert isim._lookup_ice_commit(exe) == "unknown"

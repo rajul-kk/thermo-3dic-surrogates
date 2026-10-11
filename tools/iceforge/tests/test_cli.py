@@ -50,7 +50,7 @@ def test_run_aborts_on_check_error_without_backend(fixtures, tmp_path):
 def test_doctor_runs(capsys):
     rc = main(["doctor", "--json"])
     d = json.loads(capsys.readouterr().out)
-    assert set(d["backends"]) == {"env ICE_EXECUTABLE", "native", "wsl", "docker"}
+    assert set(d["backends"]) == {"env ICE_EXECUTABLE", "pip", "native", "wsl", "docker"}
     assert rc in (0, 1)
 
 

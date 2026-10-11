@@ -1,6 +1,7 @@
-"""Locating and invoking a 3D-ICE emulator: native, WSL, or docker."""
+"""Locating and invoking a 3D-ICE emulator: pip wheel, native, WSL, or docker."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -21,7 +22,7 @@ IS_WINDOWS = os.name == "nt"
 
 @dataclass
 class Backend:
-    kind: str            # native | wsl | docker
+    kind: str            # pip | native | wsl | docker
     exe: str             # path (inside WSL / container for those kinds)
     detail: str = ""
 
@@ -91,6 +92,16 @@ def probe_native() -> Optional[Backend]:
     return Backend("native", p) if p else None
 
 
+def probe_pip() -> Optional[Backend]:
+    """The `threedice` wheel (pinned 3D-ICE build) importable in the Python that runs iceforge."""
+    try:
+        import threedice
+        exe = threedice.executable()
+    except Exception:
+        return None
+    return Backend("pip", exe, "threedice " + str(getattr(threedice, "__version__", "?")))
+
+
 def probe_docker() -> Optional[Backend]:
     if shutil.which("docker") is None:
         return None
@@ -121,13 +132,13 @@ def detect(kind: str = "auto", exe: Optional[str] = None) -> Backend:
         env = os.environ.get("ICE_EXECUTABLE")
         if env:
             return from_exe(env)
-        for probe in (probe_native, probe_wsl, probe_docker):
+        for probe in (probe_pip, probe_native, probe_wsl, probe_docker):
             b = probe()
             if b:
                 return b
-        raise BackendError("no 3D-ICE backend found (tried ICE_EXECUTABLE, native, WSL, docker); "
+        raise BackendError("no 3D-ICE backend found (tried ICE_EXECUTABLE, pip, native, WSL, docker); "
                            "see `iceforge doctor`")
-    probe = {"native": probe_native, "wsl": probe_wsl, "docker": probe_docker}[kind]
+    probe = {"pip": probe_pip, "native": probe_native, "wsl": probe_wsl, "docker": probe_docker}[kind]
     b = probe()
     if not b:
         raise BackendError(f"backend '{kind}' is not available; see `iceforge doctor`")
@@ -137,6 +148,30 @@ def detect(kind: str = "auto", exe: Optional[str] = None) -> Backend:
 _COMMIT_CACHE: Dict[str, str] = {}
 
 
+def _threedice_sidecar_commit(b: Backend) -> Optional[str]:
+    """Commit recorded in `<root>/_build_info.json` when the executable lives in a `threedice` wheel
+    (<site-packages>/threedice/bin/3D-ICE-Emulator). Such an install has no .git of its own, and a
+    `git rev-parse` there could report whatever repository the virtualenv sits inside, so the file wins."""
+    if b.kind not in ("native", "wsl"):
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.realpath(b.exe) if b.kind == "native" else b.exe))
+    if os.path.basename(root.rstrip("/\\")) != "threedice":
+        return None
+    path = root + "/_build_info.json"
+    try:
+        if b.kind == "wsl":
+            r = _run(["wsl", "-e", "cat", path], timeout=60)
+            text = r.stdout if r.returncode == 0 else ""
+        else:
+            with open(os.path.join(root, "_build_info.json")) as f:
+                text = f.read()
+        info = json.loads(text)
+        c = info.get("ice_commit", "")
+        return c if info.get("package") == "threedice" and re.fullmatch(r"[0-9a-f]{7,40}", c) else None
+    except Exception:
+        return None
+
+
 def ice_commit(b: Backend) -> str:
     """`git rev-parse HEAD` of the install tree (<root>/bin/3D-ICE-Emulator), cached per process.
     'unknown' when git or the tree is unavailable (e.g. a docker image without the source)."""
@@ -144,6 +179,15 @@ def ice_commit(b: Backend) -> str:
     if key not in _COMMIT_CACHE:
         h = "unknown"
         try:
+            if b.kind == "pip":                  # no .git in a wheel: the package records its own commit
+                import threedice
+                c = threedice.ice_commit()
+                _COMMIT_CACHE[key] = c if re.fullmatch(r"[0-9a-f]{7,40}", c) else "unknown"
+                return _COMMIT_CACHE[key]
+            side = _threedice_sidecar_commit(b)
+            if side:
+                _COMMIT_CACHE[key] = side
+                return side
             exe = b.exe
             if b.kind == "native":
                 exe = os.path.realpath(shutil.which(exe) or exe)
@@ -180,7 +224,7 @@ def verify_pinned(b: Backend) -> Dict[str, str]:
 def command_for(b: Backend, stk_path: str) -> (List[str], str):
     """Return (argv, cwd) that runs the emulator on stk_path with cwd = the stk's directory."""
     d, name = os.path.split(os.path.abspath(stk_path))
-    if b.kind == "native":
+    if b.kind in ("native", "pip"):
         return [b.exe, name], d
     if b.kind == "wsl":
         return ["wsl", "--cd", to_wsl_path(d), "-e", b.exe, name], d if os.path.isdir(d) else None
@@ -246,6 +290,9 @@ def emulator_version(b: Backend) -> str:
     except Exception as e:
         return f"unknown ({e})"
     parts.append("smoke test ok" if ran else "smoke test FAILED")
+    if b.kind == "pip":
+        parts.insert(0, b.detail)
+        parts.append("HEAD " + ice_commit(b)[:7] + (" (pinned)" if ice_commit(b).startswith(PINNED_COMMIT) else " (NOT the pinned build)"))
     if b.kind in ("native", "wsl"):
         m = re.search(r"3D-ICE\s+(\d+\.\d+)", _root_text(b, "README.md"))
         if m:
