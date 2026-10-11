@@ -288,4 +288,10 @@ python -m pytest tools/iceforge/tests -q
 
 Tests marked `solver` need a working backend and are skipped otherwise; tests marked `hotspot` need a SuperLU
 HotSpot (`HOTSPOT_EXECUTABLE='wsl /home/u/HotSpot_slu/hotspot'`). Fixtures in
-`tests/fixtures/3dice_examples` are copies of GPL-3.0-or-later example files from the 3D-ICE source tree.
+`tests/fixtures/3dice_examples` are copies of GPL-3.0-or-later example files from the 3D-ICE source tree, and
+`tests/fixtures/nonuniform/repro_topsink_null` holds GPL-3.0-or-later patches against 3D-ICE; both carry their own GPL notice and
+are not part of the MIT-licensed package (see `tests/fixtures/README.txt`).
+
+## Licence
+
+iceforge is MIT-licensed (`LICENSE`). 3D-ICE is GPL-3.0-or-later; iceforge only runs it as a separate program.
