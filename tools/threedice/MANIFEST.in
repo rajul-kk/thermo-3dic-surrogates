@@ -1,0 +1,4 @@
+include README.md NOTICE COPYING upstream.json build_support.py VERIFICATION.md
+recursive-include patches *.patch
+recursive-include tests *.py
+recursive-include .github-workflows-draft *.yml

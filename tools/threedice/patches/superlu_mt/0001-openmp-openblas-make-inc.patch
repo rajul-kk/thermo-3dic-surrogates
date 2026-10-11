@@ -1,0 +1,49 @@
+diff --git a/make.inc b/make.inc
+index 9fd4d1f..672d546 100644
+--- a/make.inc
++++ b/make.inc
+@@ -16,7 +16,7 @@
+ #
+ #  The machine (platform) identifier to append to the library names
+ #
+-PLAT = _PTHREAD
++PLAT = _OPENMP
+ 
+ #  The name of the libraries to be created/linked to
+ #
+@@ -24,11 +24,11 @@ TMGLIB       	= libtmglib$(PLAT).a
+ SUPERLULIB   	= libsuperlu_mt$(PLAT).a
+ #BLASLIB = ../lib/libblas$(PLAT).a
+ MATHLIB		= -lm 
+-MPLIB		= -lpthread
++MPLIB = 
+ 
+ # BLASDEF 	= -DUSE_VENDOR_BLAS
+ # BLASLIB		= /Users/xsli/Dropbox/Codes/SuperLU/superlu_mt.git/CBLAS/libblas.a
+-BLASLIB		= ../lib/libblas$(PLAT).a
++BLASLIB = -lopenblas
+ LIBS		= $(SUPERLULIB) ${BLASLIB}
+ 
+ #
+@@ -42,10 +42,10 @@ RANLIB       = /usr/bin/ranlib
+ ############################################################################
+ #
+ # Definitions used by CPP:
+-PREDEFS      	= -D__PTHREAD  ## -DDEBUGlevel=0 -DPRNTlevel=0
++PREDEFS      	= -D__OPENMP  ## -DDEBUGlevel=0 -DPRNTlevel=0
+ #
+ CC           	= gcc
+-CFLAGS       	= $(PREDEFS) -g -std=c99 -O3
++CFLAGS       	= $(PREDEFS) -g -std=c99 -O3 -fopenmp
+ # Uncomment the following to use 64-bit integer
+ # CFLAGS          += -D_LONGINT
+ 
+@@ -67,7 +67,7 @@ FFLAGS		= -O
+ ############################################################################
+ 
+ LOADER       	= $(CC)
+-LOADOPTS     	= -O #-pthread
++LOADOPTS     = -O -fopenmp
+ 
+ ############################################################################
+ #

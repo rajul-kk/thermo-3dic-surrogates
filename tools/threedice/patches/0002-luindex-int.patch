@@ -1,0 +1,13 @@
+diff --git a/include/types.h b/include/types.h
+index 2d9cc15..b71c791 100644
+--- a/include/types.h
++++ b/include/types.h
+@@ -215,7 +215,7 @@ extern "C"
+     /*! Definition of the type LUIndex_t
+      *
+      * For LU factorization */
+-    typedef long LUIndex_t ;
++    typedef int LUIndex_t ;
+ 
+ 
+ /******************************************************************************/
