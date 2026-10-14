@@ -2430,7 +2430,10 @@ as (their eq. 21):
 > the center of the domain** ... with the **radius r randomly sampled from U(0.3, 0.7)**."
 
 So a fixed centre, fixed heights (2.0 inside, 1.0 outside) and a single randomised scalar are
-*stated by the benchmark's authors*. Our measurements confirm their specification exactly
+*stated by the benchmark's authors*. (Quote re-checked against the text of arXiv v7, 26 Aug 2024, on 2026-10-14. D.7 states the
+centre, the two heights in eq. 21 and the U(0.3, 0.7) radius; it does not say that the family is
+one-parameter or what that implies. So: documented in the appendix; the consequence, that a
+3-component linear fit solves it (R² 0.991), is not reported.) Our measurements confirm their specification exactly
 rather than uncovering anything — which is worth reporting only as evidence the loader reads
 the file correctly:
 
