@@ -219,7 +219,7 @@ This paper makes the following contributions:
    miscalibrated. The intervals are wide (8–40 K), limited by point accuracy, not calibration.
 13. **A learned surrogate can beat physics by learning a simulator artefact (§9.32).** Off-grid die
    edges made 3D-ICE (and our own FV check) put spurious peaks in unpowered cells. ThermoNO learned
-   them and appeared to beat a training-free physics solver on hotspots 2.6–5.4×. On corrected data
+   them and appeared to beat a training-free physics solver on peak-temperature error by 2.6–5.4× (pre-fix data). On corrected data
    that solver is better on every geometry. The lesson for validation: the cross-check must not
    share the reference simulator's discretisation rules.
 
@@ -2408,7 +2408,10 @@ Added 2026-09-12; **substantially narrowed the same day after a prior-art check*
 The first version of this section presented the one-parameter structure as a discovery. It is
 not: **PDEBench documents it explicitly.** What was not previously reported, as far as we can
 establish, is the consequence — that a three-component linear fit reproduces the solutions at
-R² 0.991.
+detrended spatial R² 0.991 (independent PCA-ridge, k = 3, n = 1000, random split, h(0) → h(20)).
+The 0.9999 in the audit table below is a different measure: the audit's detrended linear spatial R²
+with 64 PCA components, n = 300 (240 train, contiguous split; `results/linearity_audit.json`,
+`pca_spatial_r2` 0.99992). The two agree: the same independent fit gives 0.99996 at k = 64 (table below).
 
 | benchmark | eff. DOF | linear spatial R² | persistence R² | verdict |
 |---|---|---|---|---|
@@ -2441,7 +2444,7 @@ over [−2.5, 2.5], confirming the documented specification. **The contribution 
 one-parameter structure but its consequence**, which we have not found reported: a linear
 function of that single radius explains **78.5%** of the target field's variance on its own,
 the target needs **3 principal components for 95%** of variance, and a closed-form linear fit
-reaches R² 0.991.
+reaches detrended spatial R² 0.991 (3 PCA components, n = 1000, random split).
 
 **Verified independently, not just by the audit.** Written from scratch (PCA-ridge, no shared
 code), at n=1000, with a **random** split rather than the audit's contiguous one, to rule out
@@ -2462,7 +2465,7 @@ and n=1000 results agree to three decimal places.
 scalars produces a near-linear solution manifold, and that this makes a benchmark unable to
 distinguish architectures. Our fixed-placement benchmark had ~8 such scalars; this PDEBench
 file has one. A closed-form linear fit with three components reproduces its solutions at
-R² 0.991 with no training and no GPU. The argument of §9.2–§9.3 therefore transfers to a
+detrended spatial R² 0.991 (3 components; 0.9999 with 64) with no training and no GPU. The argument of §9.2–§9.3 therefore transfers to a
 published PDE benchmark — which is the claim, and it is weaker than "we found a defect nobody
 knew about," because the design was documented all along.
 
@@ -2491,7 +2494,7 @@ paper about weak baselines should not itself overclaim novelty.
 | claim as first written | status after the check |
 |---|---|
 | PDEBench shallow water is a one-parameter family | **Prior art, from the benchmark's own authors.** arXiv:2210.07182 App. D.7 eq. 21 specifies a bump "in the center of the domain" with "radius r randomly sampled from U(0.3, 0.7)". Not a discovery. |
-| A linear fit solves it (R² 0.991, 3 components) | **Not found in the literature.** Retained as the contribution of §9.16e. |
+| A linear fit solves it (detrended spatial R² 0.991 with 3 components; 0.9999 with 64) | **Not found in the literature.** Retained as the contribution of §9.16e. |
 | Time-evolution benchmarks omit the persistence baseline | **The baseline is standard prior art in an adjacent field.** WeatherBench (Rasp et al., 2020) uses persistence and climatology as core baselines and states outright: "To be useful, a forecast system needs to beat the weekly climatology and the persistence forecast." Our contribution is narrowed to *importing* it into PDE operator-learning evaluation and measuring that PDEBench Navier–Stokes at a 2-step gap fails it. |
 | Simple methods can match neural operators | **Prior art.** Batlle et al., *Kernel Methods are Competitive for Operator Learning*, J. Comp. Phys. 2023 (arXiv:2304.13202), matches or beats FNO/DeepONet with vanilla kernels on a majority of six benchmarks. Note their **linear** kernel *underperforms* on Darcy (6.74% vs FNO 2.41%), so "a linear model suffices" is not their claim and our shallow-water result does not duplicate it. |
 | Weak baselines are endemic in ML-for-PDEs | Prior art, already cited: McGreivy & Hakim, *Nature Machine Intelligence* 2024. |
@@ -2511,7 +2514,7 @@ situation a prior-art check exists to resolve. The honest position is in
 
 **What survives §9.16 as plausibly unreported**, stated conservatively:
 
-1. The **measured consequence** for PDEBench shallow water (3 components → R² 0.991) of a
+1. The **measured consequence** for PDEBench shallow water (3 components → detrended spatial R² 0.991) of a
    design its authors documented.
 2. **Persistence applied to PDE operator-learning benchmarks**, and the specific finding that
    a linear fit on PDEBench Navier–Stokes at stride 2 (0.9354) *loses* to persistence
@@ -3019,7 +3022,7 @@ field's expense.
 **Scope of what this does and does not show.** It shows that *naive linear concatenation* of
 a geometry signal does not help, and gives a physical reason why not. It does **not** rule out
 that a genuinely nonlinear geometry encoder (an attention/graph mechanism, as PI-GANO and
-Neural Green's Functions arXiv:2511.01924 use, rather than a raw field bolted onto a linear
+Neural Green's Functions (Yoo et al., NeurIPS 2025, arXiv:2511.01924; not the same paper as Neural Green's Operators, arXiv:2406.01857) use, rather than a raw field bolted onto a linear
 fit) could extract useful structure from the same distance information — if anything, this
 result is a reason a *nonlinear* encoder might be necessary for geometry conditioning to pay
 off here, not evidence against trying one. A full neural-operator version of this test was not
@@ -3517,7 +3520,7 @@ of seeds in which ThermoNO beats the backbone:
 | | *wins* | *2/3* | *0/3* | *3/3* | *0/3* | *3/3* |
 
 **Reading, multi-seed.**
-- **Robust (9/9 runs):** ThermoNO cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and puts
+- **Robust (9/9 runs) on pre-fix data, superseded by §9.32:** ThermoNO cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and puts
   the hottest cell 3.5–5× closer to the true one. This is the claim that survives.
 - **Also robust, in the other direction (0/9 runs):** top-1% recall is always lower, by 0.09–0.26.
 - **Geometry-dependent:** on geometry4 ThermoNO also improves the whole field (R², det.MAE halved).
@@ -3730,7 +3733,7 @@ backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 me
 > (transposed-input) IC-ThermBench orientation. The full protocol was rerun with `--fix-orientation` (same
 > split, metrics, seeds and hyper-parameters; `results/icb_thermono_fixed/`,
 > `notebooks/kaggle_icb_thermono_fixed.ipynb`). Fixed-orientation numbers: v2 S4 3.15 ± 0.07 K (3 seeds; was
-> 4.40), v2 S5 zero-shot 7.30 ± 0.51 K (6.78, 7.31, 7.81; was 6.70 ± 0.37), v2 S2 1.76 K and v4 S2 1.77 K
+> 4.40), v2 S5 zero-shot 7.30 ± 0.51 K (6.78, 7.31, 7.81; was 6.70 ± 0.45 as stored), v2 S2 1.76 K and v4 S2 1.77 K
 > (was 1.88, 1.92), v1 S2/S3/S4/S5 3.45 / 3.54 / 4.02 / 6.38 K. The fix improves in-distribution error (S4
 > −28%), but the three-seed v2 S5 error rises by 0.6 K, so the zero-shot advantage over the best published
 > model is 2.1× rather than 2.3×. The in-distribution conclusion is unchanged (3.4–4.9× behind Therm-FM). With
@@ -3764,7 +3767,7 @@ One seed, T4, 4.2M parameters, lr 5e-3 one-cycle, plain MSE
 | S2 | 3.85 | 4.22 | 5.08 | 0.956 | **0.443** | 0.703 | 1.943 |
 | S3 | 3.91 | 3.70 | 4.35 | 0.938 | **0.716** | 0.802 | 2.488 |
 | S4 | 5.34 | 5.61 | 5.41 | 0.954 | **0.933** | 1.216 | 3.203 |
-| **S5 zero-shot** | **6.83** | 10.60 | 10.61 | 0.913 | 15.51 | 19.10 | unstable (~1,700, §9.13c) |
+| **S5 zero-shot** | ~~6.83~~ (v1, one seed, as stored; superseded by the v2 three-seed rows below: 6.70 ± 0.45 as stored, **7.30 ± 0.51 orientation-fixed**) | 10.60 | 10.61 | 0.913 | 15.51 | 19.10 | unstable (~1,700, §9.13c) |
 
 **In distribution it loses badly:** 4–9× worse than Therm-FM, and worse than our own linear
 baseline. Training was unstable. On S2 and S4 the validation RMSE bottomed out near epoch 24 and
@@ -3772,8 +3775,7 @@ then diverged as the one-cycle schedule reached its peak learning rate. Early st
 epoch-24 checkpoint. S3 trained smoothly to epoch 83 and still reached only 3.9 K. So part of the
 gap is optimisation, but the model has also not shown it can reach sub-kelvin accuracy here.
 
-**Zero-shot on S5 it is 2.3× better than the best published model as stored** (6.83 vs 15.51 K RMSE;
-R² 0.91; 2.1× with the orientation fixed, 7.30 K, see the fixed table below). This is the benchmark's headline OOD scope. Five unseen package systems, where every
+**Zero-shot on S5 the headline is 7.30 ± 0.51 K (orientation-fixed, 3 seeds), 2.1× better than the best published model (Therm-FM, 15.51 K); as stored it is 6.70 ± 0.45 K (2.3×).** The v1 single-seed 6.83 K in the table above (R² 0.91) is superseded by these three-seed figures. The 108-sample orientation gain on S5 (§9.31) did not replicate at full data: the fix made S5 worse on all three seeds. This is the benchmark's headline OOD scope. Five unseen package systems, where every
 published model degrades 16× or more and our linear fits blow up. To find where the gain comes
 from, we scored three geometry-blind predictors on S5, each built from the S4 training fields:
 
@@ -3783,7 +3785,7 @@ from, we scored three geometry-blind predictors on S5, each built from the S4 tr
 | T_amb + mean S4 rise field | 29.00 | −0.08 |
 | **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** | 0.49 |
 | Therm-FM, U-Net (published) | 15.51, 19.10 | — |
-| ThermoNO | **6.83** | 0.91 |
+| ThermoNO (v1, one seed, as stored; superseded, v2 fixed 7.30 ± 0.51 K) | 6.83 | 0.91 |
 
 - Using the ambient channel as an offset explains nothing (29.64 → 29.00).
 - Scaling the rise with total power, a one-parameter, geometry-blind rule, matches the best
@@ -3800,7 +3802,7 @@ patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
 |---|---|---|---|---|---|
 | S2 | 3.85 | **1.88** (seed 0; stopped at the 150-epoch cap, still improving) | 1.50 | 0.443 | 1.943 |
 | S4 | 5.34 | **4.40 ± 0.06** (4.38, 4.49, 4.35) | 4.37 | 0.933 | 3.203 |
-| **S5 zero-shot** | 6.83 | **6.70 ± 0.37** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
+| **S5 zero-shot** | 6.83 (superseded) | **6.70 ± 0.45** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
 
 **Fixed orientation, v2 (2026-10-07).** Rerun with `--fix-orientation`; test RMSE in K:
 
@@ -3808,7 +3810,7 @@ patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
 |---|---|---|---|---|
 | S2 (v2) | 1.88 | **1.76** | 0.443 | 1.945 |
 | S4 (v2, 3 seeds) | 4.40 ± 0.06 | **3.15 ± 0.07** | 0.933 | 3.196 |
-| S5 zero-shot (v2, 3 seeds) | 6.70 ± 0.37 | **7.30 ± 0.51** (6.78, 7.31, 7.81) | 15.51 | unstable |
+| S5 zero-shot (v2, 3 seeds) | 6.70 ± 0.45 | **7.30 ± 0.51** (6.78, 7.31, 7.81) | 15.51 | unstable |
 
 The fixed v2 S4 runs all ran to the 150-epoch cap (as stored: early-stopped at epochs 121–134), so they
 may be under-trained. All three fixed seeds still beat Therm-FM on S5 (2.3×, 2.1×, 2.0×), and the mean is
@@ -3862,7 +3864,7 @@ geometry, not more training. Untested candidates:
   (hypernetwork-style), instead of per-cell gates on fixed weights;
 - a per-layout linear backbone fitted out-of-fold, with ThermoNO as its correction (the §9.26 recipe).
 
-**Limits.** The S2 runs are one seed each. S5 zero-shot (6.70 ± 0.37 K as stored, 7.30 ± 0.51 K fixed, three seeds) is the
+**Limits.** The S2 runs are one seed each. S5 zero-shot (7.30 ± 0.51 K orientation-fixed, 6.70 ± 0.45 K as stored, three seeds; the v1 6.83 K is superseded) is the
 result that stands. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
@@ -3916,7 +3918,7 @@ against the direct solve:
 > mirrored theirs, so every number in the *as-stored* rows below came from mismatched input/output pairs.
 > The fixed-orientation rows are added to the table, and the Reading is revised below them. The same
 > mismatch also underlies §9.13 and §9.29; both were rerun in full on 2026-10-07 (§9.13: conclusion unchanged;
-> §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 K, 2.1× better than Therm-FM;
+> §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 ± 0.51 K (as stored 6.70 ± 0.45 K), 2.1× better than Therm-FM; the 108-sample S5 gain from the fix did not replicate at full data;
 > see §9.29). Origin of the transpose: the public ThermalBench loader applies the same axis reversal to inputs and
 > outputs, so the transpose is already in the stored files and the loader is not the cause. The generation code (the
 > ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
@@ -3976,7 +3978,7 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   S5 gain is now attributable to something the models learned from 108 samples. One seed each, so
   this is indicative, not a measured effect size.
 - Caution: the 108-sample runs suggested the fix improves S5 (14.02 → 13.59 K, one seed). At full data with
-  three seeds it did not (6.70 → 7.30 K, worse on every seed), so that S5 direction should not be generalised.
+  three seeds it did not replicate (6.70 → 7.30 K, worse on every seed), so that S5 direction should not be generalised.
   The S4 direction (improves) did replicate (13.64 → 11.46 K small; 4.40 → 3.15 K full).
 - The orientation fix helped ThermoNO's in-distribution error most (S4 13.64 → 11.46 K, −16%) and
   the learned-conductance solver's S5 transfer most (13.88 → 13.26 K; R² 0.58 → 0.68). It barely moved the
@@ -4027,7 +4029,7 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   confirmed by a second solver (§9.34).
 
 **Extent.**
-- It affects all 135 layout-randomised geometry4–6 solves. Fixed-placement data is clean.
+- It affects all 135 layout-randomised solves of geometry4–6 (45 each; the other 135 of the 270 layout-randomised solves are geometry1, 2a and 3). Fixed-placement data is clean.
 - In the old data, the hottest cell was an *unpowered* edge cell in 28 / 36 / 35 of 45 samples
   (g4 / g5 / g6).
 - The peak was inflated by a median 0.5 / 2.1 / 4.1 K, and by up to 14 K (41% of the rise).
@@ -4103,7 +4105,7 @@ newer, since it would otherwise have trained on the old fields.
 
 - The training-free backbone now finds the exact hottest cell on geometry5/6, and is within one cell
   on geometry4. Its peak-temperature error is 0.06–0.15 K.
-- ThermoNO's earlier 2.6–5.4× hotspot advantage came from learning the artefact.
+- ThermoNO's earlier 2.6–5.4× peak-temperature-error advantage (pre-fix data) came from learning the artefact.
 - ThermoNO is now better only on geometry4's bulk field (det.MAE 0.161 ± 0.049 vs 0.313 K; every seed
   is better, 0.13–0.22 K). On geometry4 it is worse than the backbone at hotspot location, peak
   temperature and recall in all 3 seeds. On geometry5/6 it is worse than the backbone on every
