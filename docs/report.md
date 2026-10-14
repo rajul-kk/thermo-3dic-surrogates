@@ -3907,7 +3907,8 @@ against the direct solve:
   §9.25's "the backbone beats every trained model" therefore has a boundary: layers with strong
   in-plane contrast. §9.30's classical route does not.
 - Where learning can still earn its place: (i) when the operator is unknown, as on IC-ThermBench,
-  where no stack or solver is released (§9.29); (ii) physics outside the FV model, e.g.
+  where we found no released stack or solver (Appendix B.2 of the IC-ThermBench paper states the layer files are
+  released; we did not find them in the repository, its v1.0.0 release or the Zenodo snapshot, checked 2026-10-14; §9.31); (ii) physics outside the FV model, e.g.
   leakage–temperature feedback or microchannel convection; (iii) latency far below the ~0.5 s
   CPU cost, although the same PCG on a GPU would narrow that too.
 
@@ -3920,8 +3921,11 @@ against the direct solve:
 > mismatch also underlies §9.13 and §9.29; both were rerun in full on 2026-10-07 (§9.13: conclusion unchanged;
 > §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 ± 0.51 K (as stored 6.70 ± 0.45 K), 2.1× better than Therm-FM; the 108-sample S5 gain from the fix did not replicate at full data;
 > see §9.29). Origin of the transpose: the public ThermalBench loader applies the same axis reversal to inputs and
-> outputs, so the transpose is already in the stored files and the loader is not the cause. The generation code (the
-> ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
+> outputs, so the transpose is already in the stored files and the loader is not the cause. Appendix B.2 of the IC-ThermBench paper states that
+> "the exact executable, configuration files, layer files, units, and conversion scripts are released with the benchmark
+> artifact"; we did not find them in the repository, its v1.0.0 release or the Zenodo software snapshot (checked
+> 2026-10-14; the S1-S5 data and checkpoints are on Google Drive, and we did not inspect their contents for such files).
+> The generation code we could trace (the ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
 > parse grid output. HotSpot's row-0-is-top convention would produce a flip, not a transpose; the measured result (§9.33: all 8
 > dihedral transforms tested, plain transpose wins on every split, pure flips fit worst) confirms the stored files are
 > a transpose and a flip alone cannot explain it. The cause is unresolved.
