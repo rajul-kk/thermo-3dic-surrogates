@@ -5125,7 +5125,7 @@ function. The physics stays linear, but the solution operator becomes a genuine
 Green's function: for geometry1's ~100k nodes that is a ~1e10-entry object,
 which a per-point linear regression cannot represent, while an FNO compresses it
 to ~1e7 via spectral truncation. This is the regime neural operators exist for
-(Neural Green's Operators, arXiv:2406.01857), and it is reachable without
+(Neural Green's Operators, Melchers et al., arXiv:2406.01857), and it is reachable without
 abandoning one-FNO-per-geometry, because the geometry stays fixed.
 
 Cost: essentially nothing. 3D-ICE solve time is set by the mesh, not the

@@ -917,7 +917,7 @@ found combining all four elements: (i) a correction operator exactly linear in p
 a power-free geometry encoder, (ii) DCT spectral layers with learned z-mixing, (iii) trained as a
 residual on a layer-homogenised DCT/Green's-function chip solver, and (iv) aimed at chiplet
 material heterogeneity. The closest works each cover one or two elements:
-- Neural Green's Functions (i).
+- Neural Green's Functions (Yoo et al., arXiv:2511.01924) and Neural Green's Operators (Melchers et al., arXiv:2406.01857): two different papers; the latter is the one that anticipates element (i) most closely.
 - SPFNO / Hartley NO (ii).
 - Residual-based error-corrector operators ([arXiv:2306.12047](https://arxiv.org/abs/2306.12047)) and ANCHOR ([arXiv:2512.19643](https://arxiv.org/abs/2512.19643)), for residual correction in general.
 - Green's function + neural net for 2D heat conduction ([arXiv:2504.02845](https://arxiv.org/abs/2504.02845)): generic, not chiplet heterogeneity.
