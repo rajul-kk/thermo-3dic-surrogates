@@ -63,7 +63,7 @@ class Options:
     adv_margin: float = 0.05                # ... and the drift fit beats every re-oriented plain fit by this much
     defer_margin: float = 0.10              # F003 defers to F008 when F008's stored orientation beats every alternative by this much
     min_inplane_cells: int = 8              # scope gate: skip rules F002/F003/F008/F009 when an in-plane axis is shorter
-    pair_samples: int = 32                  # F009: number of samples scored pairwise (M x M matrix)
+    pair_samples: int = 64                  # F009 (v5): size of the CONTIGUOUS block of samples (the first pair_samples in file order) scored pairwise (M x M matrix); v4 used 32 evenly spaced samples
     pair_tie: float = 0.10                  # F009: the diagonal counts as best when within this R^2 of the row maximum
     pair_r2_applicable: float = 0.30        # F009: skip when the median row-maximum R^2 is below this
     pair_warn: float = 0.25                 # F009: fraction of rows with a better partner that gives a warning
@@ -78,6 +78,8 @@ class Options:
     energy_tol: float = 1e-2
     # F005
     max_temperature_k: float = 1500.0
+    osc_v: float = 0.05                     # F005 (v5): a sample is 'oscillatory' when its interior undershoots its boundary minimum by this fraction of the range
+    osc_fraction: float = 0.50              # F005 (v5): the below-ambient warning becomes info when this fraction of the checked samples is oscillatory
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────────
@@ -510,6 +512,24 @@ def f004_duplicates(ds, opt: Options) -> RuleResult:
     return res
 
 
+def boundary_undershoot(u: np.ndarray) -> float:
+    """V = (min over the in-plane boundary ring - min over the field) / ptp(u), maximised over z-layers (0 if the field is constant).
+
+    Weak minimum principle: for -div(k grad u) + c(u - ambient) = s with s >= 0, k > 0, c >= 0 the minimum of u is attained on the
+    boundary or is >= ambient, so an interior undershoot (V > 0) below the boundary minimum is impossible for a passive diffusion
+    solution with a non-negative source; Helmholtz and wave snapshots have V of order 0.1-0.7."""
+    u = np.asarray(u, float)
+    rng = float(np.ptp(u))
+    if rng <= 0 or u.ndim < 2:
+        return 0.0
+    layers = u.reshape(-1, *u.shape[-2:])
+    best = 0.0
+    for L in layers:
+        ring = np.concatenate([L[0, :], L[-1, :], L[1:-1, 0], L[1:-1, -1]])
+        best = max(best, (float(ring.min()) - float(L.min())) / rng)
+    return best
+
+
 # ── F005 ─────────────────────────────────────────────────────────────────────────
 def f005_range(ds, opt: Options) -> RuleResult:
     """F005 range and units sanity.
@@ -521,6 +541,13 @@ def f005_range(ds, opt: Options) -> RuleResult:
     1687 K, so beyond ~1500 K is a bug, not a hot chip); u below the ambient level when the source is non-negative; k <= 0;
     an all-zero or negative source.
 
+    v5: the below-ambient check (only) is not applied when the dataset is out of scope by declaration (`scope_skip`: flagged
+    time-dependent, `operator: advective|other`, effectively 1D): a wave or transport snapshot is not a passive relaxation to
+    ambient (an info line says so). It is also replaced by an info line when at least `osc_fraction` of the samples that satisfy its
+    premise (non-negative source, ambient known) violate the weak minimum principle, i.e. have V >= `osc_v` (interior undershoot of
+    the boundary minimum, see `boundary_undershoot`) and are not sign-definite: then the field is not a passive diffusion solution
+    (Helmholtz-like), and the steady-diffusion rules do not apply. Isolated oscillatory samples still warn.
+
     Does NOT apply: non-thermal fields (declare units '' and only the constant / k / source checks run); cryogenic or
     non-silicon problems (raise or lower the limits via Options); a 'K' dataset that is genuinely a small rise is a false
     alarm on the 150 limit - declare units '' for those.
@@ -528,6 +555,9 @@ def f005_range(ds, opt: Options) -> RuleResult:
     res = RuleResult('F005', 'range-units')
     units = (ds.units or '').strip()
     n = const = zero_src = neg_src = bad_k = below_amb = 0
+    scope_why = scope_skip(ds, opt)
+    prem = osc = 0
+    vs: List[float] = []
     lo, hi = np.inf, -np.inf
     ids_const: List[str] = []
     for i, s in ds.samples(opt.max_samples):
@@ -544,8 +574,15 @@ def f005_range(ds, opt: Options) -> RuleResult:
             if np.isfinite(src).all():
                 zero_src += int(not src.any())
                 neg_src += int(src.min() < 0)
-                if s.ambient is not None and src.min() >= 0 and u.min() < s.ambient - max(1e-3 * np.ptp(u), 1e-6):
-                    below_amb += 1
+                if scope_why is None and s.ambient is not None and src.min() >= 0:
+                    prem += 1
+                    tol = max(1e-3 * np.ptp(u), 1e-6)
+                    if u.min() < s.ambient - tol:
+                        below_amb += 1
+                    if u.max() > s.ambient + tol:
+                        v = boundary_undershoot(u)
+                        vs.append(v)
+                        osc += int(v >= opt.osc_v)
         if s.k is not None and np.isfinite(s.k).all() and np.min(s.k) <= 0:
             bad_k += 1
     if n == 0:
@@ -571,7 +608,14 @@ def f005_range(ds, opt: Options) -> RuleResult:
         kmax = opt.max_temperature_k - 273.15
     if kmax is not None and hi > kmax:
         F('warning', f'maximum u {hi:.4g} {units} exceeds {kmax:.0f}: beyond silicon melting, likely a unit or solver bug')
-    if below_amb:
+    wmp_fraction = osc / prem if prem else 0.0
+    if scope_why is not None:
+        F('info', f'below-ambient check not applied: {scope_why}')
+    elif below_amb and wmp_fraction >= opt.osc_fraction:
+        F('info', f'{below_amb} sample(s) have u below the ambient level, but {osc} of {prem} checked samples violate the weak minimum '
+                  f'principle (median V = {float(np.median(vs)):.2f} >= {opt.osc_v:g}): not a passive diffusion solution, so the '
+                  f'below-ambient check and the steady-diffusion rules do not apply', count=below_amb)
+    elif below_amb:
         F('warning', f'{below_amb} sample(s) have u below the ambient level although the source is non-negative '
                      f'(a passive problem cannot cool below ambient)', count=below_amb)
     if zero_src:
@@ -581,7 +625,8 @@ def f005_range(ds, opt: Options) -> RuleResult:
           count=neg_src)
     if bad_k:
         F('error', f'{bad_k} sample(s) have conductivity k <= 0', count=bad_k)
-    res.metrics = {'checked': n, 'u_min': lo, 'u_max': hi, 'units': units or '(unspecified)', 'constant_fields': const}
+    res.metrics = {'checked': n, 'u_min': lo, 'u_max': hi, 'units': units or '(unspecified)', 'constant_fields': const,
+               'wmp_checked': prem, 'wmp_oscillatory': osc, 'wmp_fraction': wmp_fraction}
     res.status = 'flagged' if any(f.severity != 'info' for f in res.findings) else 'ok'
     res.summary = f'u in [{lo:.4g}, {hi:.4g}] ({units or "units unspecified"}); {n} samples; ' + \
                   ('no problems' if not res.findings else f'{len(res.findings)} note(s)')
@@ -1118,7 +1163,10 @@ def pair_scores(ds, opt: Options):
     """(items, M): the usable samples and the matrix M[i, j] = operator-fit R^2 of (inputs_i, u_j), stored orientation."""
     face, _ = choose_face_mean(ds, opt)
     items = []
-    for i, s in ds.samples(opt.pair_samples):
+    for i in range(min(opt.pair_samples, ds.n)):                 # v5: a contiguous block, so a neighbour's u is in the matrix
+        s = ds.get(i)
+        if s is None:
+            continue
         p = _prep_sample(s)
         if p is None or not any(_layer_modes(_layers(p[0]), _layers(p[1]))):
             continue
@@ -1142,7 +1190,7 @@ def pair_scores(ds, opt: Options):
 def f009_pairing(ds, opt: Options) -> RuleResult:
     """F009 sample pairing.
 
-    Why: u_j must be the solution for inputs_j. On M = `pair_samples` evenly spaced samples the operator-fit R^2 of F008
+    Why: u_j must be the solution for inputs_j. On the first M = `pair_samples` (64) consecutive samples (v5; v4 used 32 evenly spaced ones, whose neighbours were never in the matrix, so an index shift of 1 was invisible on large datasets) the operator-fit R^2 of F008
     (stored orientation) is computed for every pair (inputs_i, u_j). When the pairing is right the diagonal (i, i) is the
     best match of row i; a shuffled or off-by-one sample order (inputs from one sample paired with the solution of another)
     puts the best match off the diagonal. A row is 'wrong' when some other column beats the diagonal by more than

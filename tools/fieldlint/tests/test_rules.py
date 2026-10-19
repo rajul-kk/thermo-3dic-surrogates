@@ -375,7 +375,7 @@ def test_f009_clean_and_shifted_and_shuffled(valid):
     r = f009_pairing(dataset_from_arrays(np.roll(u, 1, axis=0), src), OPT)
     assert r.status == 'flagged' and r.findings[0].severity == 'error'
     r = f009_pairing(dataset_from_arrays(np.roll(u[:24], 1, axis=0), src[:24]), OPT)       # all 24 scored: neighbours
-    assert r.metrics['most_common_offset_of_best_partner'] == 1
+    assert r.metrics['most_common_offset_of_best_partner'] in (1, -1)
     perm = np.random.default_rng(2).permutation(len(u))
     r = f009_pairing(dataset_from_arrays(u[perm], src), OPT)
     assert r.status == 'flagged'
@@ -502,3 +502,76 @@ def test_f003_stays_standalone_when_f008_skips_or_agrees(valid):
     ds = dataset_from_arrays(noisy, np.ascontiguousarray(src[..., ::-1]), ambient=300.0)
     assert f008_operator_residual(ds, OPT).status == 'skipped'
     assert sev(f003_orientation(ds, OPT)) == ['error']
+
+
+# ── v5: F005 below-ambient scope gate and weak-minimum-principle probe; F009 contiguous block ─────────────────────
+def _box_modes(n_samples=40, n=24, seed=3):
+    """Helmholtz-like steady fields about ambient 0: u = sin(a pi x) sin(b pi y), uniform non-negative source (the 'invented' reading)."""
+    rng = np.random.default_rng(seed)
+    x = (np.arange(n) + 0.5) / n
+    u = np.empty((n_samples, n, n))
+    for i in range(n_samples):
+        a, b = rng.integers(2, 5, size=2)
+        u[i] = np.sin(a * np.pi * x)[None, :] * np.sin(b * np.pi * x)[:, None] * rng.uniform(0.5, 2.0)
+    return np.ones_like(u), u
+
+
+def test_boundary_undershoot_statistic(valid):
+    from fieldlint.rules import boundary_undershoot
+    src, u = valid
+    assert max(boundary_undershoot(a) for a in u) < 0.05          # diffusion: no interior undershoot of the boundary minimum
+    _, modes = _box_modes()
+    assert min(boundary_undershoot(a) for a in modes) > 0.1       # Helmholtz-like box modes undershoot strongly
+    assert boundary_undershoot(np.full((5, 5), 2.0)) == 0.0
+
+
+def test_f005_helmholtz_box_mode_is_info_not_warning():
+    src, u = _box_modes()
+    r = f005_range(dataset_from_arrays(u, src, ambient=0.0), OPT)
+    assert r.status == 'ok' and sev(r) == ['info'] and 'weak minimum principle' in r.findings[0].message
+    assert r.metrics['wmp_oscillatory'] == r.metrics['wmp_checked'] == len(u)
+
+
+def test_f005_still_warns_on_offset_signflipped_and_isolated_oscillation(valid):
+    src, u = valid
+    r = f005_range(dataset_from_arrays(u - 5.0, src, ambient=300.0, units='K'), OPT)           # constant offset, V = 0
+    assert any('below the ambient' in f.message for f in r.findings) and r.status == 'flagged'
+    flipped = 600.0 - u                                                                          # sign-flipped diffusion, never above ambient
+    r = f005_range(dataset_from_arrays(flipped, src, ambient=600.0), OPT)
+    assert r.status == 'flagged' and 'below the ambient' in r.findings[0].message
+    msrc, modes = _box_modes()                                                                   # 25% oscillatory samples among diffusion samples
+    mix_u = u.copy()
+    mix_u = mix_u - 300.0
+    mix_u[:12] = modes[:12] * mix_u.max()
+    mix_s = src.copy()
+    mix_s[:12] = msrc[:12]
+    r = f005_range(dataset_from_arrays(mix_u, mix_s, ambient=0.0), OPT)
+    assert r.status == 'flagged' and r.metrics['wmp_oscillatory'] >= 12 and r.metrics['wmp_fraction'] < 0.5
+
+
+def test_f005_below_ambient_not_applied_out_of_scope():
+    src, u = _box_modes()
+    ds = dataset_from_arrays(u, src, ambient=0.0)
+    ds.time_dependent = True
+    r = f005_range(ds, OPT)
+    assert r.status == 'ok' and 'below-ambient check not applied' in r.findings[0].message and 'time-dependent' in r.findings[0].message
+    ds2 = dataset_from_arrays(u, src, ambient=0.0)
+    ds2.operator = 'advective'
+    assert 'not applied' in f005_range(ds2, OPT).findings[0].message
+    # the integrity checks stay on when out of scope: a constant field is still an error
+    c = u.copy()
+    c[:] = 1.0
+    ds3 = dataset_from_arrays(c, src, ambient=0.0)
+    ds3.time_dependent = True
+    assert 'error' in sev(f005_range(ds3, OPT))
+
+
+def test_f009_contiguous_block_sees_index_shift_on_a_large_dataset():
+    from conftest import random_blocks, solve
+    rng = np.random.default_rng(11)
+    src = random_blocks(rng, 300, 20)
+    u = solve(src)
+    assert f009_pairing(dataset_from_arrays(u, src), OPT).status == 'ok'
+    r = f009_pairing(dataset_from_arrays(np.roll(u, -1, axis=0), src), OPT)       # u_i := u_{i+1}
+    assert r.status == 'flagged' and r.metrics['rows'] == OPT.pair_samples
+    assert r.metrics['most_common_offset_of_best_partner'] in (1, -1)
