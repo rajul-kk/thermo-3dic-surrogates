@@ -1,0 +1,20 @@
+{
+  "name": "v5_advdiff",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "spacing": [
+    0.015625,
+    0.015625
+  ],
+  "_comment": "SELF-GENERATED advective control (A5, non-binding): bench/gen_v5.py advdiff. -eps Laplace u + v . grad u = s, eps = 0.02, per-sample uniform velocity of magnitude U(1,3) and uniform angle, first-order upwind FV, u = 0 on the boundary, s = Gaussian blobs >= 0. u, source on the 64 x 64 cells. No k.",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  }
+}

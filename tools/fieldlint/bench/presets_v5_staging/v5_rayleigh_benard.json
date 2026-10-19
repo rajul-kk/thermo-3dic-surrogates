@@ -1,0 +1,16 @@
+{
+  "name": "v5_rayleigh_benard",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "_comment": "CONTROL (time-dependent thermal convection; binding with time_dependent: true, unflagged run reported). The Well rayleigh_benard (Dedalus; b_t - kappa Laplace b = -u . grad b, Boussinesq NS; b(z=0) = Lz, b(z=Lz) = 0, horizontally periodic), first 256 trajectories (test files sorted, then valid files sorted). source := buoyancy at the first stored frame, u := buoyancy at the last stored frame (index 199 of 200). No k. Ambient 0 = the cold top plate.",
+  "u": {
+    "key": "b_last",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "b_first",
+    "layout": "NHW"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "v5_acoustic_inclusions",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "_comment": "CONTROL (time-dependent wave; binding with time_dependent: true, unflagged run reported as C3-strict). The Well acoustic_scattering_inclusions (CC-BY-4.0 per the Well collection page; Clawpack): p_t + K div(v) = 0, rho v_t + grad p = 0, K = 4. Test chunks 36 and 37 (200 trajectories). Same logic as v4_pdegym_wave_layer: source := pressure at the first stored frame (flat field plus 1-4 pressure rings, >= 0 by the README), u := pressure at the last stored frame (index 101 of 102), k := speed_of_sound.",
+  "u": {
+    "key": "p_last",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "p_first",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "c",
+    "layout": "NHW"
+  }
+}

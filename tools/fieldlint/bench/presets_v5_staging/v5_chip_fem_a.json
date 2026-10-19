@@ -1,0 +1,24 @@
+{
+  "name": "v5_chip_fem_a",
+  "format": "npz",
+  "units": "K",
+  "splits": "none",
+  "ambient": 300.0,
+  "spacing": [
+    0.015625,
+    0.015625
+  ],
+  "_comment": "SELF-GENERATED thermal set (T6, non-binding): bench/gen_v5.py chip_fem_a. Q1 FEM, -div(k grad r) = q on (0,1)^2, r = 0 on the boundary, T = 300 + 50 r (K). source = power density q (>= 0 rectangles), k = nodal conductivity (piecewise constant rectangles, log-uniform 0.2-10). 65 x 65 node grid, native.",
+  "u": {
+    "key": "T",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "power",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "k",
+    "layout": "NHW"
+  }
+}

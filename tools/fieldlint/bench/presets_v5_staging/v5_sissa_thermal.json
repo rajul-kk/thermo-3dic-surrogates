@@ -1,0 +1,15 @@
+{
+  "name": "v5_sissa_thermal",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "_comment": "DIAGNOSTIC (processed, non-binding). SISSAmathLab/thermal-conduction (HF; no licence stated), splits 2_, 3_, 4_stripes.star (100 samples each, one fixed unstructured quad mesh of 1165 nodes per split), steady nodal temperature and nodal conductivity rasterised to 128 x 128 over [0,15]^2 by scipy griddata (linear for u, nearest for k) in convert_v5.py sissa. The data carry no documented equation or source (README empty); the problem is boundary-driven (Dirichlet nodes, no source), so NO source is mapped. Units and ambient unknown (left unset).",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "k",
+    "layout": "NHW"
+  }
+}

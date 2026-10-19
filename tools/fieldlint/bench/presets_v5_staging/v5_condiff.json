@@ -1,0 +1,24 @@
+{
+  "name": "v5_condiff",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "spacing": [
+    0.0078125,
+    0.0078125
+  ],
+  "_comment": "IN SCOPE (same family as v4_condiff, fresh files). ConDiff (HF condiff/ConDiff, github.com/condiff-dataset/ConDiff condiff.py), 200-sample test file converted by bench/convert_v5.py condiff:<name>. Identical mapping to v4_condiff, decided in datasets_v4.md section 2.1: -div(k grad u) = f, u = 0 on the boundary, f ~ N(0,1) per cell, source = rhs, u = x (no negation), u/source re-indexed with the documented Fortran-order map, k := k_cell (derived, NOT lossless: the mean of the four corner nodes).",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "k_cell",
+    "layout": "NHW"
+  }
+}
