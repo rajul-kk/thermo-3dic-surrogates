@@ -1,5 +1,5 @@
 {
- "frozen_at": "2026-10-19T14:22:27+0800",
+ "frozen_at": "2026-10-19T20:07:15+0800",
  "version": 5,
  "tuned_on": [
   "ictherm_s2",
@@ -76,7 +76,7 @@
   "adv_margin": 0.05,
   "defer_margin": 0.1,
   "min_inplane_cells": 8,
-  "pair_samples": 64,
+  "pair_samples": 32,
   "pair_tie": 0.1,
   "pair_r2_applicable": 0.3,
   "pair_warn": 0.25,
@@ -91,7 +91,7 @@
   "osc_fraction": 0.5
  },
  "code_sha256": {
-  "rules.py": "c4945f5c35f0063daecee8c8571803d857cbc62f57fd19b8c4ae85559a162cd9",
+  "rules.py": "84cbe4964b31cb4a08ec743b09b65784a63215f008b6fef0fbf18146ecc6aa8b",
   "adapters.py": "b97ff565e20d4c15af9ed55b93c205fc6894f68a66c86c3d9aeb6c8617d5b3cb",
   "model.py": "7b889a8461b4444cc45aa190f9aab4a3dc6063f6dc7e2fd22d4cd62daafb3ed6",
   "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
@@ -125,23 +125,20 @@
   "run_v3.py": "8f0f4a8afd3769685ca195826b49d671c295388bff2a91e30da850f79c69339d",
   "run_v4_design.py": "15b6a1f1ed1717473281930aaf7a7e0b87a50c96d3e26ec7c8c1190392ddb6b6",
   "run_v4_heldout.py": "4424353dc5398c7baa2d53d8efb0ed9f30542a2c3c28653e9020ac330f41385f",
-  "run_v5_design.py": "f0b7ddea3b17fa477015efac438c9e4d841e80e2166ba4126a244d4c59a9eb96"
+  "run_v5_design.py": "f15096a388b7773e6dca6c48f0b404f69327bd195df7bac5fe3c02a0b93dbb03"
  },
  "v2_v3_v4_frozen_files_untouched": [
   "frozen_thresholds.json",
   "frozen_thresholds_v2.json",
   "frozen_thresholds_v4.json"
  ],
+ "f009": "UNCHANGED from v4 (pair_samples 32, evenly spaced). A contiguous 64-sample block was tuned first (results/v5_tuning_block_f009/, frozen_thresholds_v5_superseded_block_f009.json) and reverted after it added a clean finding on Therm-FM IND_32C and an error on the ELADO Helmholtz control and collapsed the @20 detection.",
  "new_in_v5": {
   "F005_scope_gate": "below-ambient check not applied when scope_skip() gives a reason (time_dependent, operator advective|other, effectively 1D)",
   "F005_weak_minimum_principle_probe": {
    "osc_v": 0.05,
    "osc_fraction": 0.5,
    "rule": "V = (min over in-plane boundary ring - min u)/ptp(u), max over z-layers; sample oscillatory when V >= osc_v and u.max > ambient + tol; below-ambient warning -> info when oscillatory samples >= osc_fraction of the samples with non-negative source and known ambient"
-  },
-  "F009_contiguous_block": {
-   "pair_samples": 64,
-   "rule": "the first pair_samples consecutive samples are scored pairwise (v4: 32 evenly spaced)"
   }
  },
  "note": "tuned on everything seen, including the v4 held-out sets and the two v4 control failures; no dataset is held out for v5. Earlier frozen files and results are unchanged."

@@ -63,7 +63,7 @@ class Options:
     adv_margin: float = 0.05                # ... and the drift fit beats every re-oriented plain fit by this much
     defer_margin: float = 0.10              # F003 defers to F008 when F008's stored orientation beats every alternative by this much
     min_inplane_cells: int = 8              # scope gate: skip rules F002/F003/F008/F009 when an in-plane axis is shorter
-    pair_samples: int = 64                  # F009 (v5): size of the CONTIGUOUS block of samples (the first pair_samples in file order) scored pairwise (M x M matrix); v4 used 32 evenly spaced samples
+    pair_samples: int = 32                  # F009: number of samples scored pairwise (M x M matrix)
     pair_tie: float = 0.10                  # F009: the diagonal counts as best when within this R^2 of the row maximum
     pair_r2_applicable: float = 0.30        # F009: skip when the median row-maximum R^2 is below this
     pair_warn: float = 0.25                 # F009: fraction of rows with a better partner that gives a warning
@@ -1163,10 +1163,7 @@ def pair_scores(ds, opt: Options):
     """(items, M): the usable samples and the matrix M[i, j] = operator-fit R^2 of (inputs_i, u_j), stored orientation."""
     face, _ = choose_face_mean(ds, opt)
     items = []
-    for i in range(min(opt.pair_samples, ds.n)):                 # v5: a contiguous block, so a neighbour's u is in the matrix
-        s = ds.get(i)
-        if s is None:
-            continue
+    for i, s in ds.samples(opt.pair_samples):
         p = _prep_sample(s)
         if p is None or not any(_layer_modes(_layers(p[0]), _layers(p[1]))):
             continue
@@ -1190,7 +1187,7 @@ def pair_scores(ds, opt: Options):
 def f009_pairing(ds, opt: Options) -> RuleResult:
     """F009 sample pairing.
 
-    Why: u_j must be the solution for inputs_j. On the first M = `pair_samples` (64) consecutive samples (v5; v4 used 32 evenly spaced ones, whose neighbours were never in the matrix, so an index shift of 1 was invisible on large datasets) the operator-fit R^2 of F008
+    Why: u_j must be the solution for inputs_j. On M = `pair_samples` evenly spaced samples the operator-fit R^2 of F008
     (stored orientation) is computed for every pair (inputs_i, u_j). When the pairing is right the diagonal (i, i) is the
     best match of row i; a shuffled or off-by-one sample order (inputs from one sample paired with the solution of another)
     puts the best match off the diagonal. A row is 'wrong' when some other column beats the diagonal by more than

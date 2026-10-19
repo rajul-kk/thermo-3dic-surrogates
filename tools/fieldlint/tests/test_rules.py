@@ -504,7 +504,7 @@ def test_f003_stays_standalone_when_f008_skips_or_agrees(valid):
     assert sev(f003_orientation(ds, OPT)) == ['error']
 
 
-# ── v5: F005 below-ambient scope gate and weak-minimum-principle probe; F009 contiguous block ─────────────────────
+# ── v5: F005 below-ambient scope gate and weak-minimum-principle probe ─────────────────────
 def _box_modes(n_samples=40, n=24, seed=3):
     """Helmholtz-like steady fields about ambient 0: u = sin(a pi x) sin(b pi y), uniform non-negative source (the 'invented' reading)."""
     rng = np.random.default_rng(seed)
@@ -564,14 +564,3 @@ def test_f005_below_ambient_not_applied_out_of_scope():
     ds3 = dataset_from_arrays(c, src, ambient=0.0)
     ds3.time_dependent = True
     assert 'error' in sev(f005_range(ds3, OPT))
-
-
-def test_f009_contiguous_block_sees_index_shift_on_a_large_dataset():
-    from conftest import random_blocks, solve
-    rng = np.random.default_rng(11)
-    src = random_blocks(rng, 300, 20)
-    u = solve(src)
-    assert f009_pairing(dataset_from_arrays(u, src), OPT).status == 'ok'
-    r = f009_pairing(dataset_from_arrays(np.roll(u, -1, axis=0), src), OPT)       # u_i := u_{i+1}
-    assert r.status == 'flagged' and r.metrics['rows'] == OPT.pair_samples
-    assert r.metrics['most_common_offset_of_best_partner'] in (1, -1)

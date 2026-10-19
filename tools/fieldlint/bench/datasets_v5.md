@@ -1,6 +1,6 @@
 # fieldlint v5: data cards for the held-out acquisition (pre-registration part; Phase B, acquisition only)
 
-Written 2026-10-19 during acquisition, from documentation, file headers, shapes, dtypes and the few statistics named in `protocol_v5.md` section 3. **No fieldlint rule was run on any of these data, not even the F001 integrity check**
+Written 2026-10-19 during acquisition (F009 predictions revised the same day after the F009 revert, decision 2b of `protocol_v5.md`; no rule was run), from documentation, file headers, shapes, dtypes and the few statistics named in `protocol_v5.md` section 3. **No fieldlint rule was run on any of these data, not even the F001 integrity check**
 (v4 ran F001 as a loader smoke test; v5 did not). Every "Prediction" is derived from documentation, from the rule definitions in `README.md` (`fieldlint --list-rules`) and, where stated, from the already-seen tuning data of the same family.
 Provenance labels: **[VERIFIED]** = read from the file, an API or a page in this session; **[DOC]** = stated by the dataset's own paper/README/code; **[MY READING]** = my reading of the dataset's documentation, or my design decision; **[UNVERIFIED]** = not confirmed.
 Paths are under `D:\fieldlint_data_v5\` (outside the repository; raw data are not committed).
@@ -34,7 +34,7 @@ Total new data on disk: see section 4 (budget 9-12 GB; the actual total is far b
 * **Mapping, sign convention and index map**: identical to v4 (`v4_condiff`): source = +rhs, u = +x, no negation (positive-definite operator in the code); `x` and `rhs` are flat vectors made with `flatten("F")`, re-indexed with the documented Fortran-order map (a re-indexing, not a repair); k := `k_cell`, the mean of the four corner nodes of the stored 129 x 129 `k` (derived, NOT lossless). The v4 card gives the code citations.
 * **Independence**: same family and solver as the five v4 ConDiff files (which are tuning data now): **low independence**; six fresh files of one generator. They are counted as 6 datasets of one family.
 * **Prediction**: F001 ok. F002 skipped (the source is sign-changing white noise). F003 applicable, weak (uncertain). F004 ok. F005 ok. F007 skipped. **F008/F009 applicable** (prediction raised from "uncertain" in v4 to "expected" because the five v4 ConDiff files, run once by the frozen v4 rules, gave median operator R^2 0.88-1.00; the high-variance files `cubic2.0` and `exponential1.0` are the least certain).
-  Whole-dataset `transpose`/`flip_x`/`flip_y` of `k` and source: detected by F008 where applicable. `shift_index`: detected by F009 in Arm B. Duplicates: detected by F004 (exact copies). The advection probe does not trigger.
+  Whole-dataset `transpose`/`flip_x`/`flip_y` of `k` and source: detected by F008 where applicable. `shift_index`: F009 (the unchanged v4 rule, 32 evenly spaced samples) is expected to miss it on the 200-sample files in Arm A (descriptive, C6); possibly detected with `--head 32`. Duplicates: detected by F004 (exact copies). The advection probe does not trigger.
 
 ### 2.2 Generated chip FEM sets  (in scope by construction, non-binding; T6)
 

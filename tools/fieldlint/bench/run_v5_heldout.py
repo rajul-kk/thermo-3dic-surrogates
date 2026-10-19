@@ -2,7 +2,7 @@
 
 The ONLY code path that may produce v5 held-out results. Re-uses the v2 machinery of run_bench.py unchanged (fault injection for the 14 standard faults,
 summarise(), the hash check) with the FROZEN V5 file (bench/results/frozen_thresholds_v5.json), and adds (a) the v5 dataset registry, (b) the new
-fault kinds of C5 (F004 duplicate doses) and C6 (F009 pairing arms), (c) a run-once guard, (d) provenance fields in every result file.
+fault kinds of C5 (F004 duplicate doses) and C6 (F009 pairing, descriptive), (c) a run-once guard, (d) provenance fields in every result file.
 
   python tools/fieldlint/bench/run_v5_heldout.py --list                       # print the registered runs, run nothing
   python tools/fieldlint/bench/run_v5_heldout.py --run <name>                 # one registered run; refuses if its result file exists
@@ -126,27 +126,12 @@ def inject_v5(base: Dataset, fault: str):
     return rb.with_splits(rb.wrap(base, tf, f'{base.name}+{fault}'))
 
 
-def evenly_spaced_view(ds: Dataset, m: int = LEGACY_M) -> Dataset:
-    """A dataset made of the m evenly spaced samples the v4 F009 scored (ds.indices(m)); emulates the v4 sampling exactly."""
-    idx = ds.indices(m)
-
-    def loader(j):
-        s = ds.get(idx[j])
-        if s is None:
-            raise RuntimeError(ds.errors.get(idx[j], 'sample failed to load'))
-        return s
-    out = Dataset(len(idx), loader, ds.name + '+spaced32', ds.units, ds.field_shapes)
-    out._keep = getattr(ds, '_keep', None)
-    out.time_dependent = ds.time_dependent
-    out.operator = getattr(ds, 'operator', '')
-    return out
-
-
 def f009_arms(ds: Dataset, opt):
-    """F009 on (A) the dataset as given (shipped rule: the first 64 consecutive samples), (B) its head block of 64 (--head 64), (L) legacy v4 sampling."""
+    """F009 (shipped = the v4 rule: 32 evenly spaced samples) on (A) the dataset as given, (H64) its first 64 samples (`--head 64`, where the 32 scored samples
+    are every second one) and (H32) its first 32 samples (`--head 32`: all 32 are consecutive, so a neighbour's u is in the matrix). Descriptive only."""
     return {'A_shipped': rb.summarise(ds, opt, ['F009'])['F009'],
-            'B_head64': rb.summarise(ds.head(HEAD_BLOCK), opt, ['F009'])['F009'],
-            'L_spaced32': rb.summarise(evenly_spaced_view(ds), opt, ['F009'])['F009']}
+            'H64': rb.summarise(ds.head(HEAD_BLOCK), opt, ['F009'])['F009'],
+            'H32': rb.summarise(ds.head(LEGACY_M), opt, ['F009'])['F009']}
 
 
 # ── provenance and running ───────────────────────────────────────────────────────────────────────────────────────

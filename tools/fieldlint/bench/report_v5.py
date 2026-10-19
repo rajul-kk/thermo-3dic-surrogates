@@ -23,7 +23,7 @@ C5_NOISE_REPORT = ['dupnoise_1e-4', 'dupnoise_1e-2']
 C6_FAULTS = ['shift_index', 'shift_index_5', 'permute20', 'shuffle_all']
 # in-scope BINDING sets classed native grid (protocol_v5.md section 4)
 NATIVE = ['condiff_cubic1.0', 'condiff_cubic2.0', 'condiff_exponential0.4', 'condiff_gaussian0.4', 'condiff_cubic0.1', 'condiff_exponential1.0']
-CRIT = {'C1_min_rate': 0.80, 'C2_fp_per_10': 1, 'C4_min_fraction': 0.50, 'C5_exact_min': 0.95, 'C5_noise_min': 0.90, 'C6_shift_min': 0.70}   # = protocol_v5.md section 10
+CRIT = {'C1_min_rate': 0.80, 'C2_fp_per_10': 1, 'C4_min_fraction': 0.50, 'C5_exact_min': 0.95, 'C5_noise_min': 0.90}   # = protocol_v5.md section 10
 
 
 def family(name: str) -> str:
@@ -109,12 +109,6 @@ def c6_cell(rec, fault, arm):
     """(detected clean-adjusted, skipped, clean_flagged) for an F009 arm."""
     x, c = rec['c6'][fault][arm], rec['c6']['clean'][arm]
     return bool(x['detected'] and not c['detected']), x['status'] == 'skipped', bool(c['detected'])
-
-
-def section_inscope(L, recs, title, binding):
-    N = len(recs)
-    L += [f'## {title}', '', f'N = {N}: ' + ', '.join(recs), '']
-    return N
 
 
 def main(argv=None):
@@ -273,13 +267,13 @@ def main(argv=None):
           '(dupnoise_1e-4 and dupnoise_1e-2 are above dup_rtol = 1e-5: a documented non-detection, reported, not a criterion)', '']
     c5_clean_ok = not clean_f4                      # provisional; C5c is adjudicated by hand
 
-    # ── C6 ──
-    L += ['## C6: F009 pairing detection', '',
-          'Arm B (binding): the lint on a head block of 64 consecutive samples of the faulted dataset (`--head 64`). Arm A: the shipped rule on the whole dataset (it scores the first 64 consecutive samples). '
-          'Arm L: legacy v4 sampling (32 evenly spaced samples) emulated exactly. Cell = detected (clean-adjusted) / skipped. F009 is "applicable" on a set when it is not skipped on the clean copy in that arm.', '']
-    for arm, lab in (('B_head64', 'Arm B (binding)'), ('A_shipped', 'Arm A (shipped rule, whole dataset; non-binding)'), ('L_spaced32', 'Arm L (legacy v4 sampling; reported)')):
+    # ── C6 (descriptive only) ──
+    L += ['## C6: F009 pairing (DESCRIPTIVE ONLY, not a criterion, not in the verdict)', '',
+          'F009 is the v4 rule (32 evenly spaced samples). Arms: A = the shipped rule on the whole dataset; H64 = `--head 64` (every second sample is scored); H32 = `--head 32` '
+          '(all 32 consecutive: a neighbour is in the matrix). Cell = detected (clean-adjusted) / skipped / miss. "applicable" = F009 not skipped on the clean copy in that arm.', '']
+    for arm, lab in (('A_shipped', 'Arm A (shipped rule, whole dataset)'), ('H64', 'Arm H64 (--head 64)'), ('H32', 'Arm H32 (--head 32)')):
         L += [f'### {lab}', '', '| dataset | F009 clean | ' + ' | '.join(C6_FAULTS) + ' |', '|---|---|' + '---|' * len(C6_FAULTS)]
-        agg = {f: [0, 0, 0] for f in C6_FAULTS}                      # detected, applicable, total
+        agg = {f: [0, 0] for f in C6_FAULTS}
         clean_flag = 0
         app_sets = 0
         for k, r in ins.items():
@@ -290,21 +284,12 @@ def main(argv=None):
             for f in C6_FAULTS:
                 d, sk, _ = c6_cell(r, f, arm)
                 cells.append('hit' if d else ('skip' if sk else 'miss'))
-                agg[f][2] += 1
                 if cl['status'] != 'skipped':
                     agg[f][1] += 1
                     agg[f][0] += d
             L.append(f'| {k} | {cl["status"]} | ' + ' | '.join(cells) + ' |')
-        L += ['', f'applicable sets (F009 not skipped on clean): {app_sets}/{N}; F009 findings on clean copies: {clean_flag}',
+        L += ['', f'applicable sets: {app_sets}/{N}; F009 findings on clean copies: {clean_flag}',
               'detection over applicable sets: ' + '; '.join(f'{f} {fmt_ci(agg[f][0], agg[f][1])}' for f in C6_FAULTS), '']
-        if arm == 'B_head64':
-            k_, n_ = agg['shift_index'][0], agg['shift_index'][1]
-            c6a = n_ > 0 and k_ / n_ >= CRIT['C6_shift_min']
-            c6b = clean_flag == 0
-            c6 = c6a and c6b
-            L += [f'C6a (Arm B shift_index, clean-adjusted, over applicable sets): {fmt_ci(k_, n_)}; one-sided lower bound {clopper_lower(k_, n_):.2f}; threshold {CRIT["C6_shift_min"]}: **{"PASS" if c6a else "FAIL"}**',
-                  f'C6b (F009 findings on clean copies, Arm B): {clean_flag}; threshold 0: **{"PASS" if c6b else "FAIL"}**',
-                  f'skip rate on clean copies: {N - app_sets}/{N}', '']
     # ── C7 ──
     L += ['## C7: advection probe', '']
     trig = []
@@ -330,8 +315,8 @@ def main(argv=None):
     # ── verdict ──
     L += ['## Mechanical verdict (protocol_v5.md section 10)', '',
           f'C1 {"PASS" if c1 else "FAIL"}; C2 by hand (provisional listing above); C3 {"PASS" if c3 else "FAIL"}; C4 {"PASS" if c4 else "FAIL"}; '
-          f'C5 {"PASS" if (c5a and c5b and c5_clean_ok) else "FAIL"} (a {"PASS" if c5a else "FAIL"}, b {"PASS" if c5b else "FAIL"}, c provisional); C6 {"PASS" if c6 else "FAIL"}; C7a {"PASS" if not trig else "FAIL"}', '',
-          'PAPER-WORTHY: C1-C6 all hold. PARTIAL: C1 and C3 hold but C2, C4, C5 or C6 does not. NOT PAPER-WORTHY: C1 or C3 fails. (C7 is reported, not part of the verdict.)']
+          f'C5 {"PASS" if (c5a and c5b and c5_clean_ok) else "FAIL"} (a {"PASS" if c5a else "FAIL"}, b {"PASS" if c5b else "FAIL"}, c provisional); C6 descriptive; C7a {"PASS" if not trig else "FAIL"}', '',
+          'PAPER-WORTHY: C1-C5 all hold. PARTIAL: C1 and C3 hold but C2, C4 or C5 does not. NOT PAPER-WORTHY: C1 or C3 fails. (C6 and C7 are reported, not part of the verdict.)']
     print('\n'.join(L))
 
 

@@ -1,11 +1,11 @@
 {
  "meta": {
-  "started": "2026-10-19T06:05:36+0800",
-  "seconds": 38,
+  "started": "2026-10-19T17:04:48+0800",
+  "seconds": 65,
   "python": "3.10.0",
   "numpy": "2.2.6",
   "code_sha256": {
-   "rules.py": "c4945f5c35f0063daecee8c8571803d857cbc62f57fd19b8c4ae85559a162cd9",
+   "rules.py": "84cbe4964b31cb4a08ec743b09b65784a63215f008b6fef0fbf18146ecc6aa8b",
    "adapters.py": "b97ff565e20d4c15af9ed55b93c205fc6894f68a66c86c3d9aeb6c8617d5b3cb",
    "model.py": "7b889a8461b4444cc45aa190f9aab4a3dc6063f6dc7e2fd22d4cd62daafb3ed6",
    "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
@@ -54,7 +54,7 @@
    "adv_margin": 0.05,
    "defer_margin": 0.1,
    "min_inplane_cells": 8,
-   "pair_samples": 64,
+   "pair_samples": 32,
    "pair_tie": 0.1,
    "pair_r2_applicable": 0.3,
    "pair_warn": 0.25,
@@ -239,7 +239,7 @@
      "status": "skipped",
      "severity": "none",
      "detected": false,
-     "summary": "not applicable: the best match of each row has median R2 0.18 (< 0.3); the operator model does not describe this field",
+     "summary": "not applicable: the best match of each row has median R2 0.13 (< 0.3); the operator model does not describe this field",
      "metrics": {}
     }
    }

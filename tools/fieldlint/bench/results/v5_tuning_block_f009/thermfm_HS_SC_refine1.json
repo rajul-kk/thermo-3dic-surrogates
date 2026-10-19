@@ -1,0 +1,1454 @@
+{
+ "meta": {
+  "started": "2026-10-19T04:33:07+0800",
+  "seconds": 110,
+  "python": "3.10.0",
+  "numpy": "2.2.6",
+  "code_sha256": {
+   "rules.py": "c4945f5c35f0063daecee8c8571803d857cbc62f57fd19b8c4ae85559a162cd9",
+   "adapters.py": "b97ff565e20d4c15af9ed55b93c205fc6894f68a66c86c3d9aeb6c8617d5b3cb",
+   "model.py": "7b889a8461b4444cc45aa190f9aab4a3dc6063f6dc7e2fd22d4cd62daafb3ed6",
+   "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
+   "3dice.json": "7dc571120bb40796b44b1288d15cba00cad121c42b8afefa80911ac274ee8d50",
+   "darcy.json": "9cc3f91039f6005b269037e325341fe97d64fa80ccf1441b10591fbf558e0d57",
+   "fno_darcy.json": "fc10ff4200ad46843d165cfa59fe113d34ff40a3b52f8ff95c8be128cf705427",
+   "fno_darcy_native.json": "d0b6a7ad22a41025601ffd239f31f94f9101b3dbeafb751cb7f4d3188a500c63",
+   "ictherm.json": "54c0e63bc16bd755f045fbcc94fa138f453f24fdd308b1413ba348430e239624",
+   "thermfm.json": "62e2601e8439c2e784475b3f24f90bee2e638aff9b3beaf3ea6b65e88fccfae5",
+   "v3_cno_allen_cahn.json": "82232c72002905bf687e4d4767f50e8356429275f0ad18dde3e30b042df1f55f",
+   "v3_cno_cont_transport.json": "ec5b844def9673fcd3464f8dcd27b1e3dfcafba72a88cfefbae641d6fb08e444",
+   "v3_cno_darcy.json": "7568f485f4e6d1b770a01f7ac297232eb06761bdf945381edbb882c45995839e",
+   "v3_cno_disc_transport.json": "acf7777b9fcef92deca2d94affbfeed3eae4a4875fc41ff27124881df8490c76",
+   "v3_cno_navier_stokes.json": "f5d3ff78f516df8acd189cbb5b41e1fc12bfe46c6a565385ca1c995de7cf7ed5",
+   "v3_cno_poisson.json": "bf0e428c0dd3d7643a5e840b3c1cdb5b64fa395232c88fbdf303f945759ce4b4",
+   "v3_cno_wave.json": "757d9078cd44f3e748555249ab8b68d2b6fbcc2e3aeac0c9a20e22d4e08873d9",
+   "v3_dpde_darcy.json": "9e62607f4b84dd184df8847abd05996ef8bd9055dcaa1531fc8d78e86d1f8c76",
+   "v3_dpde_darcy_denorm.json": "39eb2f03bb00775e4e85f9f456f6a73f13e8b2867f701e46d3d9a090ee37c828",
+   "v3_dpde_helmholtz.json": "c5e1e21607a02c2a1435ed1066835d04851ee95ecd13fe0d5cef5dc9722bfed3",
+   "v3_dpde_poisson.json": "93e889d6d5193ce2a6722e166ae77504c908fd402817ceb636ef9bfc32346cfa",
+   "v3_dpde_poisson_denorm.json": "082c6d7f1df9e5378db99f52f824dac9da7496e73933549981b0f4929685e55e",
+   "v3_elado_helmholtz.json": "a756739e8b77357a6eedb6040dc4b2cbe98d4b4332c7140593ffaa46158ec6de",
+   "v3_elado_poisson.json": "0cfee9bcf43bf98919bde8b96312bd494cb5cdeca709252c63fac0512d99e44d",
+   "v3_pdegym_wave_gauss.json": "883ac9728f90fe7b0aa20fd16304ea95ce0f479ea3750117a3dee7114dba8bcd",
+   "v3_poisson_gauss.json": "9a6a6c1416d0b9c890e6616299e064a646243bad35480fded2249d9771302f9b",
+   "v3_ucsd_convdiff.json": "c0f183c13b40eca4d302ec81c88343120c3108be396f52e861faca50178a03ed",
+   "v3_ucsd_poisson.json": "549073b668c195ace3c907c7ea475023a200c300eceb8cee9f2e12e7b498b49a"
+  },
+  "options": {
+   "max_samples": 400,
+   "source_rel_threshold": 1e-06,
+   "max_principle_rel_tol": 0.001,
+   "max_principle_abs_tol": 0.0,
+   "neighbourhood": 1,
+   "neighbourhood_z": 0,
+   "smooth_sigma": 2.0,
+   "orientation_margin": 0.1,
+   "op_margin": 0.05,
+   "op_r2_applicable": 0.3,
+   "op_shifts": 3,
+   "op_min_samples": 3,
+   "op_face_mean": "auto",
+   "op_face_samples": 32,
+   "adv_samples": 32,
+   "adv_gain": 0.2,
+   "adv_margin": 0.05,
+   "defer_margin": 0.1,
+   "min_inplane_cells": 8,
+   "pair_samples": 64,
+   "pair_tie": 0.1,
+   "pair_r2_applicable": 0.3,
+   "pair_warn": 0.25,
+   "pair_error": 0.5,
+   "dup_rtol": 1e-05,
+   "linear_max_samples": 1500,
+   "linear_max_features": 1024,
+   "linear_seed": 0,
+   "energy_tol": 0.01,
+   "max_temperature_k": 1500.0,
+   "osc_v": 0.05,
+   "osc_fraction": 0.5
+  }
+ },
+ "role": "tuning",
+ "records": [
+  {
+   "name": "thermfm_HS_SC_refine1",
+   "group": "tuning",
+   "n": 400,
+   "units": "K",
+   "clean": {
+    "F001": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "400 samples checked; no problems",
+     "metrics": {
+      "checked": 400,
+      "load_failures": 0
+     }
+    },
+    "F002": {
+     "status": "skipped",
+     "severity": "none",
+     "detected": false,
+     "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+     "metrics": {
+      "checked": 0,
+      "violating": 0,
+      "fraction": null,
+      "vacuous_or_no_heating": 400,
+      "skipped_negative_source": 0
+     }
+    },
+    "F003": {
+     "status": "ok",
+     "severity": "info",
+     "detected": false,
+     "summary": "corr(smoothed source, u): stored -0.31, transpose 0.05, flip_x -0.36, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+     "metrics": {
+      "checked": 400,
+      "fraction_alternative_better": 0.0,
+      "fraction_raw_only_preference": 1.0,
+      "margin": 0.1,
+      "sigma_cells": 2.0
+     }
+    },
+    "F004": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+     "metrics": {
+      "checked": 400,
+      "duplicate_samples": 0,
+      "cross_split": 0,
+      "within_split": 0,
+      "splits_labelled": true,
+      "inputs_repeated_across_splits": 0
+     }
+    },
+    "F005": {
+     "status": "ok",
+     "severity": "none",
+     "detected": false,
+     "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+     "metrics": {
+      "checked": 400,
+      "u_min": 327.6717580658402,
+      "u_max": 407.3606539067516,
+      "units": "K",
+      "constant_fields": 0,
+      "wmp_checked": 0,
+      "wmp_oscillatory": 0,
+      "wmp_fraction": 0.0
+     }
+    },
+    "F008": {
+     "status": "skipped",
+     "severity": "none",
+     "detected": false,
+     "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+     "metrics": {
+      "checked": 400,
+      "median_r2_stored": 0.18870385955194824,
+      "median_r2_best_orientation": 0.2188485137466492,
+      "margin": 0.05,
+      "fraction_alternative_better": 0.2925,
+      "face_mean": "harmonic"
+     }
+    },
+    "F009": {
+     "status": "skipped",
+     "severity": "none",
+     "detected": false,
+     "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+     "metrics": {}
+    }
+   },
+   "faults": {
+    "transpose": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored 0.05, transpose -0.31, flip_x 0.11, flip_y -0.08, flip_xy 0.01; alternative better in 31% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.31,
+       "fraction_raw_only_preference": 0.0775,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.19 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.005521803764459932,
+       "median_r2_best_orientation": 0.18870385955194824,
+       "margin": 0.05,
+       "fraction_alternative_better": 1.0,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.05 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "flip_x": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "corr(smoothed source, u): stored -0.36, transpose -0.08, flip_x -0.31, flip_y 0.36, flip_xy 0.37; alternative better in 11% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.11,
+       "fraction_raw_only_preference": 0.89,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.25 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.20989893196770965,
+       "median_r2_best_orientation": 0.248975246504837,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.15,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "30/64 rows (47%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "harmonic",
+       "rows": 64,
+       "wrong_rows": 30,
+       "fraction_wrong": 0.46875,
+       "median_diag_r2": 0.2048573310017302,
+       "median_row_max_r2": 0.3044031486708005,
+       "most_common_offset_of_best_partner": -17,
+       "tie": 0.1
+      }
+     }
+    },
+    "flip_y": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored 0.37, transpose 0.11, flip_x 0.36, flip_y -0.31, flip_xy -0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 0.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.208086186215996,
+       "median_r2_best_orientation": 0.21600110546021078,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.0475,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "34/64 rows (53%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "harmonic",
+       "rows": 64,
+       "wrong_rows": 34,
+       "fraction_wrong": 0.53125,
+       "median_diag_r2": 0.20384198860527164,
+       "median_row_max_r2": 0.3055265774898168,
+       "most_common_offset_of_best_partner": 1,
+       "tie": 0.1
+      }
+     }
+    },
+    "roll1": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.32, transpose 0.05, flip_x -0.38, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.23 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.19613291859806248,
+       "median_r2_best_orientation": 0.23383242071196353,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.3475,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.28 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "roll2": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.34, transpose 0.05, flip_x -0.39, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.25 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.20466497351623214,
+       "median_r2_best_orientation": 0.2491633291623549,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.4525,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "31/64 rows (48%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "harmonic",
+       "rows": 64,
+       "wrong_rows": 31,
+       "fraction_wrong": 0.484375,
+       "median_diag_r2": 0.20594602976018428,
+       "median_row_max_r2": 0.302702312183591,
+       "most_common_offset_of_best_partner": 1,
+       "tie": 0.1
+      }
+     }
+    },
+    "roll3": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.35, transpose 0.04, flip_x -0.40, flip_y 0.36, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.26 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.2188485137466492,
+       "median_r2_best_orientation": 0.2645416480709257,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.4875,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "33/64 rows (52%) match another sample's u better than their own",
+      "metrics": {
+       "face_mean": "harmonic",
+       "rows": 64,
+       "wrong_rows": 33,
+       "fraction_wrong": 0.515625,
+       "median_diag_r2": 0.2201620173987855,
+       "median_row_max_r2": 0.3230726574433075,
+       "most_common_offset_of_best_partner": 1,
+       "tie": 0.1
+      }
+     }
+    },
+    "shift_index": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.34, transpose 0.05, flip_x -0.36, flip_y 0.37, flip_xy 0.36; alternative better in 6% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0625,
+       "fraction_raw_only_preference": 0.9375,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.18234654047321464,
+       "median_r2_best_orientation": 0.22099428724845183,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.3775,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "unit_slip": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.31, transpose 0.05, flip_x -0.36, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "u in [54.52, 134.2] (K); 400 samples; 1 note(s)",
+      "metrics": {
+       "checked": 400,
+       "u_min": 54.52175806584023,
+       "u_max": 134.21065390675165,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.18870385955194835,
+       "median_r2_best_orientation": 0.2188485137466492,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.2925,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "cross_dup": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.31, transpose 0.05, flip_x -0.36, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "flagged",
+      "severity": "error",
+      "detected": true,
+      "summary": "400 samples compared: 40 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 40,
+       "cross_split": 40,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 40
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.18840361363195102,
+       "median_r2_best_orientation": 0.2175023371621408,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.3,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "transpose@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.23, transpose -0.03, flip_x -0.27, flip_y 0.28, flip_xy 0.29; alternative better in 5% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.05,
+       "fraction_raw_only_preference": 0.8025,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.20 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.17445545250342204,
+       "median_r2_best_orientation": 0.20087470456278333,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.46,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "flip_x@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.32, transpose 0.02, flip_x -0.35, flip_y 0.37, flip_xy 0.36; alternative better in 2% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0175,
+       "fraction_raw_only_preference": 0.9825,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.21 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.19064091577553155,
+       "median_r2_best_orientation": 0.2094803545923118,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.275,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "flip_y@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.17, transpose 0.06, flip_x -0.21, flip_y 0.22, flip_xy 0.21; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 0.79,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.19370478748588027,
+       "median_r2_best_orientation": 0.215017210636119,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.2525,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "roll1@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.31, transpose 0.05, flip_x -0.37, flip_y 0.37, flip_xy 0.36; alternative better in 0% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.0,
+       "fraction_raw_only_preference": 1.0,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples compared: 0 cross-split, 0 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 0,
+       "cross_split": 0,
+       "within_split": 0,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.19010651574547882,
+       "median_r2_best_orientation": 0.22073825768850835,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.305,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    },
+    "shift_index@20": {
+     "F001": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "400 samples checked; no problems",
+      "metrics": {
+       "checked": 400,
+       "load_failures": 0
+      }
+     },
+     "F002": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "nothing to check (400 vacuous / no-heating, 0 with sinks)",
+      "metrics": {
+       "checked": 0,
+       "violating": 0,
+       "fraction": null,
+       "vacuous_or_no_heating": 400,
+       "skipped_negative_source": 0
+      }
+     },
+     "F003": {
+      "status": "ok",
+      "severity": "info",
+      "detected": false,
+      "summary": "corr(smoothed source, u): stored -0.32, transpose 0.05, flip_x -0.37, flip_y 0.37, flip_xy 0.36; alternative better in 2% of 400 samples",
+      "metrics": {
+       "checked": 400,
+       "fraction_alternative_better": 0.02,
+       "fraction_raw_only_preference": 0.98,
+       "margin": 0.1,
+       "sigma_cells": 2.0
+      }
+     },
+     "F004": {
+      "status": "flagged",
+      "severity": "warning",
+      "detected": true,
+      "summary": "400 samples compared: 0 cross-split, 71 within-split duplicate(s)",
+      "metrics": {
+       "checked": 400,
+       "duplicate_samples": 71,
+       "cross_split": 0,
+       "within_split": 71,
+       "splits_labelled": true,
+       "inputs_repeated_across_splits": 0
+      }
+     },
+     "F005": {
+      "status": "ok",
+      "severity": "none",
+      "detected": false,
+      "summary": "u in [327.7, 407.4] (K); 400 samples; no problems",
+      "metrics": {
+       "checked": 400,
+       "u_min": 327.6717580658402,
+       "u_max": 407.3606539067516,
+       "units": "K",
+       "constant_fields": 0,
+       "wmp_checked": 0,
+       "wmp_oscillatory": 0,
+       "wmp_fraction": 0.0
+      }
+     },
+     "F008": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the operator model explains only median R2 = 0.22 in any orientation (< 0.3); the field is probably time-dependent, advective or strongly coupled between layers",
+      "metrics": {
+       "checked": 400,
+       "median_r2_stored": 0.18611922821025467,
+       "median_r2_best_orientation": 0.2175023371621408,
+       "margin": 0.05,
+       "fraction_alternative_better": 0.325,
+       "face_mean": "harmonic"
+      }
+     },
+     "F009": {
+      "status": "skipped",
+      "severity": "none",
+      "detected": false,
+      "summary": "not applicable: the best match of each row has median R2 0.27 (< 0.3); the operator model does not describe this field",
+      "metrics": {}
+     }
+    }
+   }
+  }
+ ]
+}

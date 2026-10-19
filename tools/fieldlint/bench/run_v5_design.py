@@ -8,8 +8,9 @@ the end of v4 (the 40 v4 tuning runs plus the 13 v4 held-out runs, which are tun
   python tools/fieldlint/bench/run_v5_design.py --compare                     # before (stored v4 results) vs after; lists UNEXPECTED diffs
   python tools/fieldlint/bench/run_v5_design.py --freeze                      # results/frozen_thresholds_v5.json
 
-Allowed differences (decided before the run, plan_v5 section 1.3 + user decision 2026-10-15): F005 on PDEgym Helmholtz and PDEgym Wave-Layer
-(flagged and unflagged), and F009 anywhere (intended change). Anything else is UNEXPECTED and means STOP.
+Allowed differences (decided before the run, plan_v5 section 1.3 + user decisions 2026-10-15 and 2026-10-19): F005 on PDEgym Helmholtz and PDEgym Wave-Layer
+(flagged and unflagged). F009 was first changed to a 64-sample block (that tuning is kept in results/v5_tuning_block_f009/ as a disclosed side analysis) and then
+REVERTED to the v4 evenly spaced sampling (user decision 2026-10-19), so F009 must now equal the stored v4 results exactly. Anything else is UNEXPECTED and means STOP.
 Extended AFTER the run (disclosed in the README): an F005 change that only adds an info line ('below-ambient check not applied') to a run declared time-dependent
 (status ok, no detection) is accepted, because it is the intended by-product of part A (plan_v5 section 1.3: 'every flagged time-dependent control'); it occurred once
 (cno_cont_transport+time_dependent_flag).
@@ -78,7 +79,7 @@ def diffs():
                     if key(rb_[rule]) != key(ra_[rule]):
                         info_only = (rule == 'F005' and not rb_[rule]['detected'] and not ra_[rule]['detected']
                                      and ra_[rule]['severity'] == 'info' and rb_[rule]['severity'] == 'none' and ra_[rule]['status'] == 'ok')
-                        exp = rule == 'F009' or (rule == 'F005' and n.split('+')[0] in ALLOWED_F005) or (info_only and n.endswith('+time_dependent_flag'))
+                        exp = (rule == 'F005' and n.split('+')[0] in ALLOWED_F005) or (info_only and n.endswith('+time_dependent_flag'))
                         out.append((n, c, rule, key(rb_[rule]), key(ra_[rule]), exp))
     return out
 
@@ -88,7 +89,7 @@ def compare():
     unexpected = [x for x in d if not x[5]]
     md = ['# fieldlint v5: tuning before / after (before = stored v4 results, after = v5 code)', '',
           'v5 changes: F005 below-ambient check honours scope_skip and the weak-minimum-principle probe (osc_v 0.05, fraction 0.5); '
-          'F009 scores the first 64 consecutive samples. Tuned on everything seen; NOT held-out numbers.', '',
+          'F009 is unchanged from v4 (the 64-sample block variant was tried and reverted). Tuned on everything seen; NOT held-out numbers.', '',
           f'Records compared: {len(ALL)} runs. Cells changed in status/severity/detected: {len(d)}; UNEXPECTED (not F009, not F005 on '
           f'PDEgym Helmholtz / Wave-Layer): **{len(unexpected)}**.', '']
     if unexpected:
@@ -167,12 +168,11 @@ def freeze():
            'tuned_on': [s[0] for s in ALL], 'options': opt, 'code_sha256': now,
            'bench_code_sha256': {n: here(n) for n in ('run_bench.py', 'run_v3.py', 'run_v4_design.py', 'run_v4_heldout.py', 'run_v5_design.py')},
            'v2_v3_v4_frozen_files_untouched': ['frozen_thresholds.json', 'frozen_thresholds_v2.json', 'frozen_thresholds_v4.json'],
+           'f009': 'UNCHANGED from v4 (pair_samples 32, evenly spaced). A contiguous 64-sample block was tuned first (results/v5_tuning_block_f009/, frozen_thresholds_v5_superseded_block_f009.json) and reverted after it added a clean finding on Therm-FM IND_32C and an error on the ELADO Helmholtz control and collapsed the @20 detection.',
            'new_in_v5': {'F005_scope_gate': 'below-ambient check not applied when scope_skip() gives a reason (time_dependent, operator advective|other, effectively 1D)',
                          'F005_weak_minimum_principle_probe': {
                              'osc_v': opt['osc_v'], 'osc_fraction': opt['osc_fraction'],
-                             'rule': 'V = (min over in-plane boundary ring - min u)/ptp(u), max over z-layers; sample oscillatory when V >= osc_v and u.max > ambient + tol; below-ambient warning -> info when oscillatory samples >= osc_fraction of the samples with non-negative source and known ambient'},
-                         'F009_contiguous_block': {'pair_samples': opt['pair_samples'],
-                                                   'rule': 'the first pair_samples consecutive samples are scored pairwise (v4: 32 evenly spaced)'}},
+                             'rule': 'V = (min over in-plane boundary ring - min u)/ptp(u), max over z-layers; sample oscillatory when V >= osc_v and u.max > ambient + tol; below-ambient warning -> info when oscillatory samples >= osc_fraction of the samples with non-negative source and known ambient'}},
            'note': 'tuned on everything seen, including the v4 held-out sets and the two v4 control failures; no dataset is held out for v5. Earlier frozen files and results are unchanged.'}
     (rb.RESULTS / 'frozen_thresholds_v5.json').write_text(json.dumps(out, indent=1))
     print('frozen v5 at', out['frozen_at'])

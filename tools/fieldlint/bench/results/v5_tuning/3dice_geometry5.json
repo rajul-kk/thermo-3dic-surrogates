@@ -1,11 +1,11 @@
 {
  "meta": {
-  "started": "2026-10-19T04:46:02+0800",
-  "seconds": 83,
+  "started": "2026-10-19T15:18:26+0800",
+  "seconds": 59,
   "python": "3.10.0",
   "numpy": "2.2.6",
   "code_sha256": {
-   "rules.py": "c4945f5c35f0063daecee8c8571803d857cbc62f57fd19b8c4ae85559a162cd9",
+   "rules.py": "84cbe4964b31cb4a08ec743b09b65784a63215f008b6fef0fbf18146ecc6aa8b",
    "adapters.py": "b97ff565e20d4c15af9ed55b93c205fc6894f68a66c86c3d9aeb6c8617d5b3cb",
    "model.py": "7b889a8461b4444cc45aa190f9aab4a3dc6063f6dc7e2fd22d4cd62daafb3ed6",
    "runner.py": "4595e3a6d8d3154afc617ca32104a63bc67d9a97208bc70620f7380678dbccbe",
@@ -54,7 +54,7 @@
    "adv_margin": 0.05,
    "defer_margin": 0.1,
    "min_inplane_cells": 8,
-   "pair_samples": 64,
+   "pair_samples": 32,
    "pair_tie": 0.1,
    "pair_r2_applicable": 0.3,
    "pair_warn": 0.25,
@@ -161,14 +161,14 @@
      "status": "ok",
      "severity": "none",
      "detected": false,
-     "summary": "0/55 rows (0%) match another sample's u better than their own",
+     "summary": "0/32 rows (0%) match another sample's u better than their own",
      "metrics": {
       "face_mean": "harmonic",
-      "rows": 55,
+      "rows": 32,
       "wrong_rows": 0,
       "fraction_wrong": 0.0,
-      "median_diag_r2": 0.5444339187875263,
-      "median_row_max_r2": 0.5444339187875263,
+      "median_diag_r2": 0.5407611144302017,
+      "median_row_max_r2": 0.5407611144302017,
       "most_common_offset_of_best_partner": null,
       "tie": 0.1
      }
@@ -263,15 +263,15 @@
       "status": "flagged",
       "severity": "error",
       "detected": true,
-      "summary": "43/55 rows (78%) match another sample's u better than their own",
+      "summary": "23/32 rows (72%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 43,
-       "fraction_wrong": 0.7818181818181819,
-       "median_diag_r2": 0.14315806893996108,
-       "median_row_max_r2": 0.307997079117992,
-       "most_common_offset_of_best_partner": 2,
+       "rows": 32,
+       "wrong_rows": 23,
+       "fraction_wrong": 0.71875,
+       "median_diag_r2": 0.15256151569950882,
+       "median_row_max_r2": 0.30550304937925676,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
@@ -361,15 +361,15 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "6/55 rows (11%) match another sample's u better than their own",
+      "summary": "2/32 rows (6%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 6,
-       "fraction_wrong": 0.10909090909090909,
-       "median_diag_r2": 0.4019280077295092,
-       "median_row_max_r2": 0.445156266431325,
-       "most_common_offset_of_best_partner": 11,
+       "rows": 32,
+       "wrong_rows": 2,
+       "fraction_wrong": 0.0625,
+       "median_diag_r2": 0.40794109053651656,
+       "median_row_max_r2": 0.4203244928830078,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
@@ -459,14 +459,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.46268703306501224,
-       "median_row_max_r2": 0.4853764175205667,
+       "median_diag_r2": 0.4598991225990997,
+       "median_row_max_r2": 0.47105519312762945,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -557,14 +557,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.4109349830575947,
-       "median_row_max_r2": 0.4109349830575947,
+       "median_diag_r2": 0.40761638904930847,
+       "median_row_max_r2": 0.40761638904930847,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -655,14 +655,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.35888467077459396,
-       "median_row_max_r2": 0.3592468512846444,
+       "median_diag_r2": 0.356139468368453,
+       "median_row_max_r2": 0.36059381913330035,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -753,15 +753,15 @@
       "status": "flagged",
       "severity": "error",
       "detected": true,
-      "summary": "49/55 rows (89%) match another sample's u better than their own",
+      "summary": "22/32 rows (69%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 49,
-       "fraction_wrong": 0.8909090909090909,
-       "median_diag_r2": 0.2162063647390332,
-       "median_row_max_r2": 0.5444339187875263,
-       "most_common_offset_of_best_partner": -1,
+       "rows": 32,
+       "wrong_rows": 22,
+       "fraction_wrong": 0.6875,
+       "median_diag_r2": 0.234568095456701,
+       "median_row_max_r2": 0.4755815834768393,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
@@ -851,14 +851,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.5444339187875262,
-       "median_row_max_r2": 0.5444339187875262,
+       "median_diag_r2": 0.5407611144302016,
+       "median_row_max_r2": 0.5407611144302016,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -949,14 +949,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.5382668005739573,
-       "median_row_max_r2": 0.5406040329404767,
+       "median_diag_r2": 0.5060453002891212,
+       "median_row_max_r2": 0.5060453002891212,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -1050,15 +1050,15 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "7/55 rows (13%) match another sample's u better than their own",
+      "summary": "3/32 rows (9%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 7,
-       "fraction_wrong": 0.12727272727272726,
-       "median_diag_r2": 0.49424024055653315,
-       "median_row_max_r2": 0.49424024055653315,
-       "most_common_offset_of_best_partner": 35,
+       "rows": 32,
+       "wrong_rows": 3,
+       "fraction_wrong": 0.09375,
+       "median_diag_r2": 0.4829685726623142,
+       "median_row_max_r2": 0.4829685726623142,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
@@ -1148,15 +1148,15 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "2/55 rows (4%) match another sample's u better than their own",
+      "summary": "1/32 rows (3%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 2,
-       "fraction_wrong": 0.03636363636363636,
-       "median_diag_r2": 0.49424024055653315,
-       "median_row_max_r2": 0.5382668005739573,
-       "most_common_offset_of_best_partner": 11,
+       "rows": 32,
+       "wrong_rows": 1,
+       "fraction_wrong": 0.03125,
+       "median_diag_r2": 0.4829685726623142,
+       "median_row_max_r2": 0.5156389078895718,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
@@ -1246,14 +1246,14 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "0/55 rows (0%) match another sample's u better than their own",
+      "summary": "0/32 rows (0%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
+       "rows": 32,
        "wrong_rows": 0,
        "fraction_wrong": 0.0,
-       "median_diag_r2": 0.5258825236515126,
-       "median_row_max_r2": 0.5267818530810752,
+       "median_diag_r2": 0.4964540034727039,
+       "median_row_max_r2": 0.5065335158007462,
        "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
@@ -1344,15 +1344,15 @@
       "status": "ok",
       "severity": "none",
       "detected": false,
-      "summary": "9/55 rows (16%) match another sample's u better than their own",
+      "summary": "5/32 rows (16%) match another sample's u better than their own",
       "metrics": {
        "face_mean": "harmonic",
-       "rows": 55,
-       "wrong_rows": 9,
-       "fraction_wrong": 0.16363636363636364,
-       "median_diag_r2": 0.49424024055653315,
-       "median_row_max_r2": 0.5406040329404767,
-       "most_common_offset_of_best_partner": -1,
+       "rows": 32,
+       "wrong_rows": 5,
+       "fraction_wrong": 0.15625,
+       "median_diag_r2": 0.4829685726623142,
+       "median_row_max_r2": 0.5193754069660488,
+       "most_common_offset_of_best_partner": null,
        "tie": 0.1
       }
      }
