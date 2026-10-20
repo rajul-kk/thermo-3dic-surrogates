@@ -3786,7 +3786,7 @@ from, we scored three geometry-blind predictors on S5, each built from the S4 tr
 |---|---|---|
 | mean field (§9.13c) | 29.64 | −0.15 |
 | T_amb + mean S4 rise field | 29.00 | −0.08 |
-| **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** | 0.49 |
+| **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** (sample-bootstrap 95% CI 15.58-16.53; package-cluster 8.80-24.87; per-package 16.5 / 32.1 / 3.7 / 17.8 / 10.2, §9.31) | 0.49 |
 | Therm-FM, U-Net (published) | 15.51, 19.10 | — |
 | ThermoNO (v1, one seed, as stored; superseded, v2 fixed 7.30 ± 0.51 K) | 6.83 | 0.91 |
 
@@ -3873,6 +3873,11 @@ Therm-FM. The claim is narrow: under structural OOD shift, building exact linear
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
 itself a new trivial baseline that S5 should report.
 
+*CI note (2026-10-20, §9.31).* The Therm-FM 15.51 K is a single published number with no CI (and presumably trained on the as-stored,
+transposed inputs), so the 2.1x is a ratio of our three-seed mean to that one number. The one-parameter rule's 16.06 K has a sample-bootstrap
+95% CI of 15.58-16.53 K but a package-cluster CI of 8.80-24.87 K (five packages), so package-level claims about it carry that width.
+ThermoNO per-sample predictions were not saved, so its 7.30 +- 0.51 K has no bootstrap CI and it was not rerun.
+
 ### 9.30 The classical answer: backbone-preconditioned CG beats every learned correction (2026-09-28)
 
 Before designing another operator, we checked the classical route. The backbone of §9.25 is an
@@ -3954,11 +3959,46 @@ match the temperature) are `results/icb_orientation/{thermono,physsolve}_n108_cp
 | ThermoNO (4.24M) | as stored | 13.64 | 14.02 | 0.64 | 31 min |
 | | **fixed** | **11.46** | **13.59** | 0.62 | 15 min |
 | learned-conductance solver (1.95M) | as stored | 20.83 (still improving at the 100-epoch cap) | 13.88 | 0.58 | 176 min |
-| | **fixed** | **20.69** (cap again) | **13.26** | **0.68** | 57 min |
+| | **fixed**, seed 0 | **20.69** (cap again) | **13.26** | **0.68** | 57 min |
+| | fixed, seed 1 (2026-10-20) | 24.43 (early-stopped at epoch 70) | 15.92 | 0.55 | 35 min |
+| | fixed, seed 2 (2026-10-20) | 20.78 (stopped at epoch 92) | 14.84 | 0.60 | 103 min |
+| | **fixed, 3 seeds, mean ± SD** | 21.96 ± 2.13 | **14.67 ± 1.34** | 0.61 ± 0.06 | |
 | *Therm-FM, 10,800 samples (published)* | | *0.93* | *15.51* | — | — |
 | *T_amb + mean rise × total power (one parameter, §9.29)* | | — | *16.06* | 0.49 | — |
 
 CPU times are wall-clock on a shared machine and are not comparable between the as-stored and fixed arms.
+
+**Seeds and confidence intervals (2026-10-20).** The 13.26 K figure was one seed: a CPU run on 108 S4 training samples
+(seed 0 also selects the subset; 256 validation samples), 100 epochs with early stopping from epoch 70 (patience 15), lr 2e-3,
+batch 32, ch 32, `--fix-orientation`, not the 176-minute full-data GPU run. Seeds 1 and 2 were run with the identical command
+on local CPU (`results/icb_physsolve_seeds/`; no Kaggle GPU was used). A rerun of seed 0 reproduced 13.2558 K exactly.
+Seed 1 stopped at epoch 70 and seed 2 at 92, so the seeds saw different training lengths under the same rule.
+The seed-0 number was the best of three: **the three-seed mean is 14.67 ± 1.34 K (SD), not 13.26 K**, and the seed spread (13.26-15.92 K)
+covers Therm-FM's published 15.51 K. The comparison with Therm-FM is against one published number with no CI (and
+presumably trained on the as-stored, transposed inputs), so it cannot be turned into a significance statement; what can
+be said is that the 108-sample solver's mean is not distinguishable from it at this seed count. Against the
+power-scaling rule (16.06 K), the seed-mean model is 1.39 K better (paired sample-bootstrap 95% CI 0.94 to 1.83 K, conditional on these three seeds).
+
+Bootstrap 95% CIs on S5 (5000 samples, 5 packages Case16-Case20 x 1000; 10,000 resamples, `scripts/icb_s5_bootstrap.py`,
+`results/icb_ci/s5_bootstrap.json`). The metric is the benchmark's RMSE, the mean over samples of the per-sample RMSE, and pooled R².
+The sample bootstrap resamples samples. The package-cluster bootstrap resamples the five packages with replacement
+(only five clusters, so it is coarse and its percentile interval is wide by construction); the two-stage variant (packages, then samples
+within) agrees with it to within 0.2 K. Only the sample bootstrap CI is shown for R², the cluster R² intervals are in the JSON.
+
+| S5 predictor | RMSE (K) | sample-bootstrap CI | package-cluster CI | Case16 | Case17 | Case18 | Case19 | Case20 |
+|---|---|---|---|---|---|---|---|---|
+| power-scaling rule (no training) | 16.06 | 15.58-16.53 | 8.80-24.87 | 16.47 | 32.12 | 3.69 | 17.78 | 10.22 |
+| learned-conductance, seed 0 | 13.26 | 12.90-13.61 | 6.90-19.61 | 14.50 | 23.56 | 3.25 | 18.22 | 6.74 |
+| learned-conductance, seed 1 | 15.92 | 15.50-16.34 | 7.78-24.35 | 17.09 | 31.64 | 4.03 | 17.77 | 9.06 |
+| learned-conductance, seed 2 | 14.84 | 14.44-15.23 | 6.48-23.21 | 15.55 | 19.91 | 3.19 | 30.29 | 5.24 |
+
+The sample-level CIs (about ±0.4 K) are much narrower than the seed spread (SD 1.34 K), so seed variance, not test-sample noise, is
+the dominant uncertainty at 108 training samples. Per-package error varies 10-fold (Case18 about 3-4 K, Case17 20-32 K), which is why the
+package-cluster intervals are 6-8x wider than the sample ones: the samples within a package are not independent evidence about new packages.
+Case17 and Case19 dominate every model's error, and the seeds disagree about which of them is worse (seed 2 is best on Case17 and worst on Case19).
+Pooled R²: rule 0.485 (sample CI 0.47-0.50), seeds 0.682 / 0.552 / 0.597.
+ThermoNO's per-seed S5 numbers (7.30 ± 0.51 K, §9.29) have no CI here: its result files hold only aggregate metrics, no per-sample
+predictions or checkpoints are saved locally or in the Kaggle outputs we hold, and it was not rerun.
 
 Ridge and the other baselines (`results/icb_orientation/baselines_{old,fixed}.json`, full S2–S4 training sets,
 same code, only the orientation changed). Test RMSE (K), as stored → fixed:
@@ -3983,7 +4023,8 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   no-training one-parameter rule (16.06 K, §9.29). With the as-stored pairs the gap was 2.0 and 2.2 K.
   The earlier statement that "most of that is the built-in linearity" is therefore weaker: some of the
   S5 gain is now attributable to something the models learned from 108 samples. One seed each, so
-  this is indicative, not a measured effect size.
+  this is indicative, not a measured effect size. **Update 2026-10-20:** with three seeds the learned-conductance solver is 14.67 ± 1.34 K,
+  so the single 13.26 K was the favourable seed; its margin over the rule is 1.4 K (CI 0.9-1.8 K) and over Therm-FM it is not established.
 - Caution: the 108-sample runs suggested the fix improves S5 (14.02 → 13.59 K, one seed). At full data with
   three seeds it did not replicate (6.70 → 7.30 K, worse on every seed), so that S5 direction should not be generalised.
   The S4 direction (improves) did replicate (13.64 → 11.46 K small; 4.40 → 3.15 K full).
@@ -3992,7 +4033,7 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
   solver's S4 error (20.83 → 20.69 K, which is still capped at 100 epochs and far from useful).
 - In distribution, both models remain far from useful (11.5 and 20.7 K RMSE, against Therm-FM's 0.93 K on 100×
   more data).
-- The learned-conductance solver matches ThermoNO on S5 (13.26 vs 13.59 K) with half the parameters. It is
+- The learned-conductance solver matches ThermoNO on S5 (13.26 vs 13.59 K, single seeds; solver 3-seed mean 14.67 K, ThermoNO 108-sample run still one seed) with half the parameters. It is
   about 4× slower per epoch here (57 vs 15 min for the same 100-epoch cap, as a rough guide) and was still
   improving when stopped. It has not shown the better transfer its design aims at with 108 samples.
   The full-data GPU run (`notebooks/kaggle_icb_physsolve.ipynb`) waits on the weekly GPU quota and will
