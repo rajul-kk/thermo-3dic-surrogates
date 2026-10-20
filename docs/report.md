@@ -4041,6 +4041,29 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
 - **"Learns physics quickly" is still not established.** What 108 samples buy is partly the structural
   prior and partly something learned; the split is not measured here.
 
+#### Fair full-data protocol for the solver (pre-registered 2026-10-20, written before any run was launched)
+
+The 108-sample rows above are not a fair comparison with Therm-FM, which trains on the benchmark's full training set. The
+solver was also capped by epochs or stopped early differently per seed. The rerun below fixes both; the protocol is fixed here and will
+not be changed after the results are seen.
+
+- Data: the benchmark's own index split for S2, S3 and S4 (10,800 train, 1,200 validation used for checkpoint selection, 3,000 test, no
+  sub-sampling of either train or validation), `--fix-orientation`. S5 is scored zero-shot from the full-data S4 model.
+- Model: the same configuration as the 108-sample runs (`LearnedConductanceSolver`, ch 32, lr 2e-3 one-cycle, batch 32, AdamW, CG tol 1e-6).
+  Only the training length changes: `--epochs 300 --patience 30 --min-epochs 50`, chosen once and applied to every scope and seed. Reason: the
+  108-sample runs hit the 100-epoch cap or stopped at epoch 70-92; 300 epochs is 3x the old cap and patience 30 is twice the old patience, so
+  a run that ends before epoch 300 has been stopped by the validation curve, not the cap. The minimum of 50 epochs stops early noise ending a run
+  during the one-cycle warm-up. Runs that still reach the 300-epoch cap will be reported as cap-limited.
+- Seeds: 0, 1, 2 for each of S2, S3 and S4 (9 solver runs). Report mean +- SD (sample SD, n = 3).
+- S5 intervals: per-sample statistics are saved (`--save-persample`) and `scripts/icb_s5_bootstrap.py` is reused for sample and
+  package-cluster bootstrap CIs (10,000 resamples), as above.
+- ThermoNO on S3 with `--fix-orientation`, 3 seeds, the v2 configuration of §9.29 (`--epochs 150 --patience 20 --lr 2e-3`), so that every
+  scope has an orientation-fixed ThermoNO number.
+- Compute: Kaggle T4, private kernels, at most 2 concurrent. A timing job (2 epochs of the solver on full S4) is run first. If the projected
+  total exceeds 25 GPU-hours the full set is not launched and a cheaper alternative is proposed instead.
+- Comparators in the final table: Therm-FM (single published values, no CI, presumably trained on the as-stored inputs), ThermoNO fixed,
+  ridge-per-geometry (fixed), and the power-scaling rule (S5 only).
+
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 
 **The bug.**
