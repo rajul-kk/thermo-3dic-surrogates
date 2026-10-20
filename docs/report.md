@@ -4751,6 +4751,89 @@ application, not a new technique. For `fieldlint`, no PDE-dataset linter was fou
 (arXiv:2606.18200, arXiv:2606.17529) or give general frameworks (FlowMLLab, arXiv:2609.27975). The search could not index
 GitHub or PyPI, so this is weak evidence of absence.
 
+### 9.35 IC-ThermBench S2: release completeness and a HotSpot reference-ceiling check (tier C; 2026-10-20)
+
+**Framing.** This is a tier C check, not a competitor. Re-running the benchmark authors' own generator
+configuration would match their labels by construction, so such a number cannot be compared with a learned
+surrogate. Fair comparisons are tiers A/B (§9.29, §9.31). The questions here are (1) is the HotSpot configuration
+that App. B.2 says is released actually in the release, and (2) can the released S2 fields be reproduced from the
+paper's description alone? Scripts: `scripts/icb_hotspot_repro.py`, `scripts/icb_hotspot_repro_diag.py`; results:
+`results/icb_hotspot_repro/{at,t8,diag}.json`.
+
+**1. Drive and repository finding.** App. B.2 states "The exact executable, configuration files, layer files, units,
+and conversion scripts are released with the benchmark artifact", and Sec. 4.3 that "Complete tensor semantics and
+HotSpot configurations are provided with the benchmark release".
+- The S2-S5 Drive archive (README: 4.6 GB; we hold a copy, `data/ic-thermbench/s2_s5_datasets.zip`, which was not
+  re-downloaded for this check, so the live Drive file was not re-listed) has these members: `level{2,3,4}_steady/{input,output}.mat`,
+  `level5_steady/{input,output}.mat` and `manifest.json`, a 473-byte `datasets/README.md`, and
+  `tools/convert_csv_to_mat.py`. There is no `.lcf`, `.flp`, `.ptrace`, `hotspot.config`, layer file or HotSpot binary.
+  The converter turns per-point CSVs (columns `chiplet_power, grid_x, grid_y, [local_thermal_k, ambient_c, h_w_m2k,
+  r_convec_k_per_w], temperature`) into the `.mat` tensors; it does not run HotSpot.
+- The S1 Drive folder (listed with `gdown`, nothing downloaded) holds Therm-FM data only: `thermal_steady.tar.gz`,
+  `thermal_transient.tar.gz`, normalization constants, `checksums.txt`, `README.md`. No generator configuration.
+- The GitHub tree (`Day333/ThermalBench`, 139 files) has no HotSpot, layer or generator file; `docs/DATASETS.md` gives
+  only a lineage reference to the ATPlace2.5D public package.
+- Not checked: the 44 GB checkpoint archive (not downloaded; a model archive, so a config is unlikely there).
+- The closest public material is the upstream ATPlace2.5D package (`PKU-IDEA/ATPlace_pub`: `Thermal.py`, `thermal/hotspot.config`).
+  Its layer table matches Table 8 layer for layer (materials, thicknesses), but it is a different codebase, so it is
+  evidence for the lineage, not the ICB configuration. Its ambient (318.15 K) cannot be what S2 used: the lowest released S2
+  temperature is 302.03 K.
+- Finding: the generator configuration and layer files that App. B.2 says are released are not present in the Drive
+  archives or the repository as inspected. The strongest statement we can make is "not found in these places".
+
+**2. Reproduction attempt.** Ten S2 samples were fixed before running: indices 12000 + 301j, j = 0..9 (last 20 % of the file,
+the benchmark's test block; 301 is coprime to 10, so all ten cases appear, case = index mod 10). HotSpot is
+the WSL build (SuperLU, preflight self-test passed), grid model, `-detailed_3D on`, 64 x 64, steady, the six layers of Table 8.
+Assumptions (all reconstructed; none comes from ICB's own configuration):
+1. The inputs are transposed relative to the output (§9.33); the fix is applied (power map transposed). All 8 dihedral
+   orientations of the power map were run (80 HotSpot runs per variant).
+2. Interposer extent = max(grid_x) x max(grid_y) mm (integers, constant per case: 42x42, 55x52, 39x39, 57x59, 37x37, 49x53, 30x25,
+   26x23, 59x61 and 47x47 for cases 1-10). The 64 x 64 grid then has pitch W/64. `grid_x` is linspace(0, W, 64), so W/63 would also be plausible; not tested.
+3. Chiplet footprints: connected components (4-neighbour) of equal non-zero `chiplet_power`, tiled exactly at cell level; the power is the
+   broadcast value used as the chiplet's total in W. Touching chiplets with equal power would merge (unknowable from the raster).
+   Filler between chiplets is epoxy underfill (res 0.625, cap 2.32e6).
+4. Package, from the upstream config: spreader side W+H, sink side 2(W+H), r_convec 0.01 K/W, spreader and sink 400 W/mK, 20 um
+   k=4 interface, secondary path off. Ambient 298.15 K (inferred; S2 has no ambient channel and the paper gives none for S2).
+5. Two material variants: `t8` = Table 8 numbers verbatim (uniform layers); `at` = the composite C4/TSV/micro-bump
+   materials of the upstream writer. They differ by under 0.4 K RMSE per sample, so the choice does not matter here. The half-granularity rim units of the upstream writer are omitted.
+
+Identity orientation after the transpose fix (variant `at`; `t8` within 0.4 K RMSE on every row; K, 4096 cells):
+
+| index | case | W x H mm | chiplets | P total W | RMSE | max err | peak err | R2 | pattern corr |
+|---|---|---|---|---|---|---|---|---|---|
+| 12000 | 1 | 42x42 | 4 | 455 | 9.60 | 26.3 | +16.0 | 0.29 | 0.940 |
+| 12301 | 2 | 55x52 | 4 | 320 | 21.16 | 48.3 | +48.2 | -8.68 | 0.980 |
+| 12602 | 3 | 39x39 | 6 | 640 | 28.92 | 62.0 | +62.0 | -5.65 | 0.993 |
+| 12903 | 4 | 57x59 | 6 | 505 | 11.73 | 20.4 | -14.0 | 0.54 | 0.926 |
+| 13204 | 5 | 37x37 | 5 | 360 | 28.97 | 43.0 | +8.2 | -1.81 | 0.774 |
+| 13505 | 6 | 49x53 | 17 | 712 | 33.58 | 65.0 | +63.5 | -11.79 | 0.944 |
+| 13806 | 7 | 30x25 | 20 | 180 | 4.62 | 10.4 | +7.4 | 0.60 | 0.934 |
+| 14107 | 8 | 26x23 | 24 | 168 | 6.62 | 13.6 | +2.8 | -1.76 | 0.838 |
+| 14408 | 9 | 59x61 | 35 | 1245 | 69.41 | 122.6 | +121.9 | -15.24 | 0.971 |
+| 14709 | 10 | 47x47 | 40 | 797 | 33.46 | 58.5 | +51.6 | -5.66 | 0.981 |
+
+Mean RMSE 24.8 K (median 25.0 K), against Therm-FM's published S2 RMSE of 0.443 K (§9.29): 1-2 orders of magnitude larger. "Pattern corr" is the
+Pearson correlation over the 4096 cells; it is a shape indicator, not a skill measure.
+- **Orientation.** The transposed-input orientation (identity here) has the lowest RMSE on 9 of 10 samples; mean RMSE over the eight orientations
+  is 24.8 K (identity), 27.6 (transpose), 27.9 (flip cols) and 30.2-32.5 (the other five). On sample 12903 flip-cols is marginally better (11.48 vs 11.73 K).
+  This independently supports §9.33: the released inputs are transposed relative to the outputs.
+- **Footprints.** The spatial pattern is largely right (corr 0.77-0.99), so the recovered layouts and orientation are close to the generator's.
+- **Magnitude is wrong, and not consistently.** With our package the hottest cell is too hot by up to 122 K on the large, high-power cases and too cold by 14 K on case 4.
+
+**3. Diagnostic (calibration against the released labels; NOT a result).** To separate a cooling/boundary mismatch from a geometry mismatch:
+(a) per sample, the best affine map prediction to truth leaves 1.4-10.9 K RMSE (median 2.9 K), but its slope varies 0.34-1.03 and its offset 0-203 K, so the shape is
+right and the scale is not; (b) one global affine map (slope, offset) fitted on 5 of the 10 samples and scored on the other 5 (two folds) gives test RMSE 3.6-33.8 K
+(mean 13.2 K); (c) one package knob (spreader conductivity, 400-40000 W/mK, chosen on 5 samples, scored on the other 5) gives 3.5-36.5 K (mean 15.5 K).
+A sensitivity probe on sample 14408 shows the result is dominated by the spreader's lateral conductance (spreader k x 10: RMSE 69 to 7.5 K), not by r_convec
+(which moves it by at most about 12 K there). No single global scale, offset or spreader value fixes all ten samples, so the effective cooling differs per case.
+The package model (ambient, sink geometry, spreader) is what is wrong or missing, which is exactly what the unreleased configuration would pin down.
+
+**Verdict: not reproduced.** The layout and orientation side reproduces (pattern correlation 0.77-0.99, transpose confirmed), but the temperatures do not
+(mean RMSE 24.8 K, up to 69 K) because the package/boundary configuration is unknown and the release does not contain it. The reproduction cannot be completed
+from the paper and the public artefacts alone.
+What this does not show: that the labels are wrong; they may be exactly reproducible with the authors' configuration.
+Limits: ten samples, a single fold design, W/64 versus W/63 pitch untested, equal-power chiplet merging unmodelled, ambient inferred. The authors were not contacted.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
