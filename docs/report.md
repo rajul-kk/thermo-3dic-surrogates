@@ -4064,6 +4064,11 @@ not be changed after the results are seen.
 - Comparators in the final table: Therm-FM (single published values, no CI, presumably trained on the as-stored inputs), ThermoNO fixed,
   ridge-per-geometry (fixed), and the power-scaling rule (S5 only).
 
+*Timing outcome (2026-10-21).* The 2-epoch timing job (`rajulkabir/icb-fullfair-timing`, T4, full S4, 10,800 samples) took 3.9 min for 2 epochs
+(epoch 0 1.5 min including start-up, epoch 1 2.4 min; val RMSE 24.4 then 16.2 K; 2-epoch test 16.2 K on S4 and 12.7 K S5 zero-shot, not a result). At about 2.4 min per epoch
+(a lower bound; CG iterations may rise as training proceeds), the protocol above needs 9 runs x up to 300 epochs = up to about 108 GPU-hours
+(about 36 GPU-hours even if every run stopped at epoch 100), plus 3.4 h for ThermoNO S3. This exceeds the 25 GPU-hour limit, so under the protocol's compute rule the full set was not launched.
+
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 
 **The bug.**
