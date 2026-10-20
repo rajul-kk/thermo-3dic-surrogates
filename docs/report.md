@@ -4069,6 +4069,16 @@ not be changed after the results are seen.
 (a lower bound; CG iterations may rise as training proceeds), the protocol above needs 9 runs x up to 300 epochs = up to about 108 GPU-hours
 (about 36 GPU-hours even if every run stopped at epoch 100), plus 3.4 h for ThermoNO S3. This exceeds the 25 GPU-hour limit, so under the protocol's compute rule the full set was not launched.
 
+**Protocol amendment A (2026-10-21; made after the timing run and before any training result).** The original plan (9 runs x up to 300 epochs at about 2.4 min
+per epoch on a T4, up to about 108 GPU-hours, about 36 even if every run stopped at epoch 100) exceeded the pre-stated 25 GPU-hour rule, so it was not launched.
+The amended design replaces the data-and-training bullets above; everything else (model configuration, metrics, comparators, reporting) is unchanged:
+- S4 only, full data, the benchmark's own split (10,800 train / 1,200 validation for checkpoint selection / 3,000 test), `--fix-orientation`.
+- Seeds 0, 1, 2; `--epochs 100 --patience 20 --min-epochs 50`, same for every seed. Any run that reaches epoch 100 is reported as cap-limited.
+- S5 zero-shot from each S4 model, with `--save-persample`, then the sample and package-cluster bootstrap CIs of `scripts/icb_s5_bootstrap.py`.
+- S2 and S3 solver entries stay at the existing numbers (108-sample runs and ridge-per-geometry); no full-data solver number is claimed for them.
+- The ThermoNO S3 fixed-orientation rerun is deferred (not run).
+Budget: at most 3 x 100 x 2.4 min, about 12 GPU-hours.
+
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 
 **The bug.**
