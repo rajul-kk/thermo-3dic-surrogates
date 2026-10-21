@@ -4111,6 +4111,53 @@ limit, not a structural one; it now edges ridge-per-geometry (3.20 K) and Thermo
 but still worse than ThermoNO's 7.30 +- 0.51 K, which makes ThermoNO the best S5 model we have. (iii) The solver's seed spread shrank 5x with full data, and the package-cluster CIs
 (4-24 K) remain wide because Case19 dominates; sample-level CIs (about +-0.4 K) understate the uncertainty about new packages.
 
+#### Leave-cases-out (LOCO) test on IC-ThermBench S4: pre-registration (2026-10-22, written before any LOCO result)
+
+Question: does in-distribution skill come from memorising per-case (package/layout) parameters? If so, black-box models should lose far more than
+physics-structured ones when the test cases are absent from training. Code: `scripts/icb_loco.py` (written and smoke-tested for 2 epochs on 64 samples before this text; the held-out
+cases below were fixed in that script before the smoke test and are not changed).
+
+**Case identification.** The S4 release has no manifest (S5 does). `README.md` describes S4 as 15,000 samples, Case1-10 x 1,500. We identify a case by its domain size,
+(max `grid_x`, max `grid_y`) of the sample in the fixed orientation. This gives exactly 10 distinct domains with 1,500 samples each, and the case equals sample index mod 10 for all
+15,000 samples (the script asserts both). We could not map these to the benchmark's own case numbers (no id field), so cases are named by domain size. Within the benchmark split
+each case has 1,080 train / 120 val / 300 test samples.
+
+| domain (x by y) | area | idx mod 10 |
+|---|---|---|
+| 26 x 23 | 598 | 7 |
+| 30 x 25 | 750 | 6 |
+| **37 x 37** | **1369** | 4 |
+| 39 x 39 | 1521 | 2 |
+| 42 x 42 | 1764 | 0 |
+| 47 x 47 | 2209 | 9 |
+| 49 x 53 | 2597 | 5 |
+| **55 x 52** | **2860** | 1 |
+| 57 x 59 | 3363 | 3 |
+| 59 x 61 | 3599 | 8 |
+
+**Held-out cases: 37 x 37 and 55 x 52** (bold). Chosen from the domain-size column alone (no model error on any case had been seen): one small and one large case (3rd and 8th of 10 by area),
+both inside the range of the training domains, so that an unseen case is interpolation in domain size and not extrapolation; the extremes (26x23, 59x61) are avoided for that reason.
+
+**Arms (same test samples in both).** Test = the 300 benchmark-test-split samples of each held-out case (600 samples). *LOCO arm*: training and validation samples drawn only from the 8 other cases.
+*Random arm*: training and validation drawn from all 10 cases (so about 20% of its training samples come from the held-out cases). Both arms: 2,000 training samples drawn at random (seed) from the benchmark train split
+(index < 10,800), 400 validation samples from the benchmark validation split, `--fix-orientation` (all models see the same fixed inputs). Seeds 0, 1, 2 (seed sets the subsets and the initialisation).
+
+**Models** (all trained on the same subsets). (1) Black-box: our own U-Net (`UNetBB` in `scripts/icb_loco.py`: 3-level U-Net, 32 channels, reads power and the geometry maps, regresses T - T_amb directly, not linear in power by construction;
+no third-party ICB code). (2) ThermoNO, the v2 configuration of §9.29 (lr 2e-3). (3) the learned-conductance solver, as §9.31. (4) pooled ridge: linear (dual-form) ridge on the flattened power, log k, grid_x, grid_y maps plus log h, log R_conv and T_amb, standardised,
+lambda chosen on the validation subset from 10^-2..10^6; it is pooled across cases because per-geometry ridge (§9.13) cannot predict a case it has never seen and is not applicable here. (5) the power-scaling rule (T_amb + mean training rise field x total power / mean training power), recomputed from each arm's training subset.
+Neural models: `--epochs 100 --patience 20 --min-epochs 50`, batch 32, AdamW, one-cycle, lr 2e-3, identical for the three. The cap is 100 epochs; any run reaching it is reported as cap-limited. ThermoNO's published v2 used 150 epochs; 100 is used here so that all three neural models have the same cap.
+
+**Metric.** Test RMSE on the held-out-case samples: the mean over samples of the per-sample RMSE (K), reported per held-out case.
+
+**Statistic.** For each model, per case c and seed s, ratio = RMSE_LOCO(c,s) / RMSE_random(c,s) (same seed, same test samples). The model's degradation ratio R is the mean over the 2 cases and 3 seeds. Spread reported: the two per-case ratios (case-level) and the SD across the three seeds of the case-mean ratio (seed-level).
+With 2 cases and 3 seeds there is no meaningful confidence interval; the spread is descriptive and the rule below is applied to the point values R.
+
+**Prediction and decision rule (fixed in advance).** If memorisation drives in-distribution skill, the black-box ratio R_U exceeds the physics-structured ratios R_T (ThermoNO) and R_S (solver).
+Supports memorisation: R_U >= 2 R_T and R_U >= 2 R_S. Does not support it: R_U <= 1.25 R_T and R_U <= 1.25 R_S. Anything else (including mixed outcomes) is inconclusive. Pooled ridge and the power-scaling rule are reported but are not part of the rule.
+
+**Compute projection (from the existing timings).** The solver took 163-295 min per 100 epochs at 10,800 training samples; at 2,000 samples that is about 0.19x the steps, about 30-55 min per run, 6 runs = 3-5.5 GPU-hours.
+ThermoNO (about 68 min per 150 epochs at 10,800) and the U-Net are about 10 min per run, 6 runs each, about 1-1.5 GPU-hours together. Ridge and the rule run on local CPU. Projected total 4-7 GPU-hours, below the 12 GPU-hour limit.
+
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 
 **The bug.**
