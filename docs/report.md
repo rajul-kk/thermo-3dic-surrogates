@@ -4158,6 +4158,29 @@ Supports memorisation: R_U >= 2 R_T and R_U >= 2 R_S. Does not support it: R_U <
 **Compute projection (from the existing timings).** The solver took 163-295 min per 100 epochs at 10,800 training samples; at 2,000 samples that is about 0.19x the steps, about 30-55 min per run, 6 runs = 3-5.5 GPU-hours.
 ThermoNO (about 68 min per 150 epochs at 10,800) and the U-Net are about 10 min per run, 6 runs each, about 1-1.5 GPU-hours together. Ridge and the rule run on local CPU. Projected total 4-7 GPU-hours, below the 12 GPU-hour limit.
 
+**LOCO results (2026-10-22; `results/icb_loco/`, 30 JSONs; Kaggle T4 kernels `icb-loco-a`/`icb-loco-b`, about 3.6 GPU-hours of run time, ridge and rule included).** Protocol exactly as pre-registered. Test RMSE (K) on the 300 test samples of each
+held-out case, mean over 3 seeds; ratio = LOCO / random, mean over seeds (per case) and over cases and seeds (R).
+
+| model | LOCO 37x37 / 55x52 | random 37x37 / 55x52 | ratio 37x37 / 55x52 | **R** | R per seed (0 / 1 / 2) | seed SD of R |
+|---|---|---|---|---|---|---|
+| U-Net (black-box) | 20.61 / 32.99 | 1.27 / 0.58 | 16.3 / 56.8 | **36.5** | 35.0 / 32.9 / 41.7 | 4.6 |
+| ThermoNO | 34.89 / 39.14 | 6.02 / 4.98 | 5.8 / 7.9 | **6.83** | 6.51 / 6.79 / 7.18 | 0.34 |
+| learned-conductance solver | 46.00 / 68.94 | 7.25 / 5.21 | 6.7 / 19.5 | **13.1** | 5.72 / 23.77 / 9.82 | 9.5 |
+| pooled ridge (not in the rule) | 39.00 / 55.16 | 17.45 / 9.51 | 2.2 / 5.8 | 4.03 | 4.07 / 4.25 / 3.75 | 0.25 |
+| power-scaling rule (not in the rule) | 29.82 / 26.49 | 29.93 / 25.87 | 1.00 / 1.03 | 1.01 | 0.99 / 1.01 / 1.03 | 0.02 |
+
+Cap status (100 epochs): U-Net hit the cap in 5 of 6 runs (stopped at epoch 50 in one LOCO run); ThermoNO in none (stopped at epochs 76-86); the solver in 1 of 6 (LOCO seed 0), the others stopped at epochs 50-87.
+Run times: U-Net 31 min, ThermoNO 39 min, solver 146 min, ridge 4 min in total over its 6 runs. `icb-loco-b` ended with status ERROR only because its final summary cell indexed an `epochs_run` key that ridge/rule JSONs do not have; all 24 result files had been written.
+
+**Verdict against the pre-registered rule: supports memorisation.** R_U = 36.5 is 5.3x R_T (6.83) and 2.8x R_S (13.1), so R_U >= 2 R_T and R_U >= 2 R_S both hold.
+
+Caveats that bear on how much this means (stated after the rule was applied; the rule was not changed):
+- The ratio is large mainly because the random-split U-Net is very accurate (1.3 and 0.6 K at 2,000 samples), better than the physics-structured models in the same arm (ThermoNO 6.0 / 5.0 K, solver 7.3 / 5.2 K; the solver is plainly under-trained at this size). Their lower ratios are partly a higher denominator.
+- In absolute terms every trained model fails on the unseen cases: LOCO errors of 21-69 K, worse than the training-free power-scaling rule (26-30 K) for four of the five models (U-Net on 37x37 is the exception). The physics-structured models do not generalise to an unseen case either. They degrade by a smaller factor, not to a good level. The solver's LOCO error (46 and 69 K) is the worst of all.
+- The solver's R has a seed SD of 9.5 (per-seed 5.7 / 23.8 / 9.8); with 2 cases and 3 seeds there is no usable confidence interval, so R_S = 13.1 is imprecise. The conclusion R_U >= 2 R_S holds for each individual seed (35.0 vs 5.7, 32.9 vs 23.8, 41.7 vs 9.8 gives 6.1x, 1.4x and 4.3x; the middle seed is below 2x), so it is the mean, not every seed, that clears the threshold.
+- The held-out domains were unseen in size and layout together; this test cannot separate memorising per-case parameters from simply not extrapolating a domain-size-dependent function from 8 sizes. Only 2 of 10 cases and S4 only.
+- ThermoNO ran 100 epochs here, not the 150 of its v2 configuration.
+
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 
 **The bug.**

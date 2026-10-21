@@ -1,0 +1,39 @@
+{
+ "args": {
+  "model": "rule",
+  "arm": "random",
+  "seed": 2,
+  "data_root": "/kaggle/input/datasets/rajulkabir/ic-thermbench-s2-s5/datasets",
+  "train_n": 2000,
+  "val_n": 400,
+  "epochs": 100,
+  "patience": 20,
+  "min_epochs": 50,
+  "batch": 32,
+  "lr": 0.002,
+  "device": "cuda",
+  "out": "/kaggle/working/icb_full/rule_random_s2.json",
+  "limit": null,
+  "fix_orientation": true
+ },
+ "held_out": [
+  [
+   37,
+   37
+  ],
+  [
+   55,
+   52
+  ]
+ ],
+ "n_train": 2000,
+ "n_val": 400,
+ "n_test": 600,
+ "train_held_out_samples": 392,
+ "rmse_per_case": {
+  "37x37": 30.282117194494216,
+  "55x52": 24.360569093486422
+ },
+ "rmse_mean_cases": 27.32134314399032,
+ "minutes": 0.005227796236673991
+}
