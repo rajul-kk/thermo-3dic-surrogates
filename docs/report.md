@@ -4079,7 +4079,7 @@ The amended design replaces the data-and-training bullets above; everything else
 Budget: at most 3 x 100 x 2.4 min, about 12 GPU-hours.
 
 **Results of the amended fair run (2026-10-21; `results/icb_physsolve_fullfair/`, `results/icb_ci/s5_bootstrap_fullfair.json`).** Learned-conductance solver, S4, full data
-(10,800 training samples), `--fix-orientation`, 100 epochs, three Kaggle T4 runs (163, 277 and 295 min; about 12.9 GPU-hours with the timing job). **All three runs reached
+(10,800 training samples), `--fix-orientation`, 100 epochs, three Kaggle T4 runs (163, 277 and 295 min; about 12.3 GPU-hours with the timing job). **All three runs reached
 the 100-epoch cap, so all are cap-limited**: patience 20 never triggered, and the final validation RMSE was still the best (2.30, 2.81, 2.63 K), so longer training would probably help.
 The numbers are therefore an upper bound on what this model reaches with full data, not a converged result.
 
