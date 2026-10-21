@@ -87,6 +87,7 @@ def main():
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--limit', type=int, default=None, help='smoke test only')
+    ap.add_argument('--fix-orientation', action='store_true', help='accepted for launcher symmetry; fixed orientation is always used')
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     dev = torch.device(args.device)
