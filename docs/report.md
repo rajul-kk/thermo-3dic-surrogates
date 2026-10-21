@@ -4036,8 +4036,7 @@ a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed
 - The learned-conductance solver matches ThermoNO on S5 (13.26 vs 13.59 K, single seeds; solver 3-seed mean 14.67 K, ThermoNO 108-sample run still one seed) with half the parameters. It is
   about 4× slower per epoch here (57 vs 15 min for the same 100-epoch cap, as a rough guide) and was still
   improving when stopped. It has not shown the better transfer its design aims at with 108 samples.
-  The full-data GPU run (`notebooks/kaggle_icb_physsolve.ipynb`) waits on the weekly GPU quota and will
-  need the orientation fix.
+  The full-data run is reported below (amendment A: S4 only).
 - **"Learns physics quickly" is still not established.** What 108 samples buy is partly the structural
   prior and partly something learned; the split is not measured here.
 
@@ -4078,6 +4077,39 @@ The amended design replaces the data-and-training bullets above; everything else
 - S2 and S3 solver entries stay at the existing numbers (108-sample runs and ridge-per-geometry); no full-data solver number is claimed for them.
 - The ThermoNO S3 fixed-orientation rerun is deferred (not run).
 Budget: at most 3 x 100 x 2.4 min, about 12 GPU-hours.
+
+**Results of the amended fair run (2026-10-21; `results/icb_physsolve_fullfair/`, `results/icb_ci/s5_bootstrap_fullfair.json`).** Learned-conductance solver, S4, full data
+(10,800 training samples), `--fix-orientation`, 100 epochs, three Kaggle T4 runs (163, 277 and 295 min; about 12.9 GPU-hours with the timing job). **All three runs reached
+the 100-epoch cap, so all are cap-limited**: patience 20 never triggered, and the final validation RMSE was still the best (2.30, 2.81, 2.63 K), so longer training would probably help.
+The numbers are therefore an upper bound on what this model reaches with full data, not a converged result.
+
+| seed | S4 test RMSE (K) | S4 R² | S5 zero-shot RMSE (K) | S5 sample-bootstrap 95% CI | S5 package-cluster 95% CI | S5 R² | S5 per package (Case16-20) |
+|---|---|---|---|---|---|---|---|
+| 0 | 2.239 | 0.993 | 11.71 | 11.36-12.05 | 4.42-22.89 | 0.730 | 5.9 / 6.2 / 12.3 / 32.1 / 2.1 |
+| 1 | 2.766 | 0.988 | 11.89 | 11.52-12.27 | 4.68-23.61 | 0.692 | 7.2 / 9.0 / 3.6 / 35.1 / 4.5 |
+| 2 | 2.622 | 0.991 | 11.41 | 11.00-11.81 | 3.97-24.38 | 0.681 | 4.9 / 7.8 / 3.5 / 36.9 / 4.0 |
+| **mean ± SD (n = 3)** | **2.54 ± 0.27** | 0.990 | **11.67 ± 0.24** | | | 0.701 ± 0.026 | |
+
+Against the power-scaling rule (16.06 K) the seed-mean is 4.39 K better (paired sample-bootstrap 95% CI 3.82-4.97 K, conditional on these three seeds). Case19 is the error
+driver for all three seeds (32-37 K); the other four packages are 2-12 K. In the 108-sample runs the errors were spread over Case17 and Case19.
+
+Full S2-S5 comparison (test RMSE, K; fixed orientation unless stated):
+
+| scope | Therm-FM (published) | learned-conductance solver, full data | ThermoNO | ridge-per-geometry | power-scaling rule |
+|---|---|---|---|---|---|
+| S2 | 0.443 | not run (amendment A) | 1.76 (v2, 1 seed) | 1.945 | n/a |
+| S3 | 0.716 | not run (amendment A) | 3.54 (v1 only, 1 seed; v2 rerun deferred) | 2.479 | n/a |
+| S4 | 0.933 | 2.54 ± 0.27 (3 seeds, cap-limited) | 3.15 ± 0.07 (3 seeds, v2, cap-limited) | 3.196 | n/a |
+| S5 zero-shot | 15.51 | **11.67 ± 0.24** (3 seeds) | 7.30 ± 0.51 (3 seeds) | unstable (about 1,700 as stored, §9.13c) | 16.06 |
+
+Therm-FM figures are single published values with no CI, presumably trained on the as-stored (transposed) inputs; no significance statement against them is possible.
+No S2 or S3 solver number is claimed. ThermoNO S3 was not rerun with the v2 configuration (deferred), so its S3 entry is the earlier fixed v1 run and is not matched to the S2/S4 entries.
+
+Reading. (i) With the full training set the solver goes from 20.7-24.4 K (108 samples) to 2.54 K on S4, so the 108-sample "far from useful" statement was a data
+limit, not a structural one; it now edges ridge-per-geometry (3.20 K) and ThermoNO (3.15 K) in distribution but stays 2.7x behind Therm-FM (0.93 K), and is cap-limited.
+(ii) Zero-shot on S5 it improves from 14.67 +- 1.34 K to 11.67 +- 0.24 K, 3.8 K better than Therm-FM's published 15.51 K (a comparison against a single number, not tested), 4.4 K better than the rule,
+but still worse than ThermoNO's 7.30 +- 0.51 K, which makes ThermoNO the best S5 model we have. (iii) The solver's seed spread shrank 5x with full data, and the package-cluster CIs
+(4-24 K) remain wide because Case19 dominates; sample-level CIs (about +-0.4 K) understate the uncertainty about new packages.
 
 ### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
 

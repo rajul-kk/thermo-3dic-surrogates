@@ -1,8 +1,9 @@
 """Bootstrap 95% CIs on IC-ThermBench S5 zero-shot, from per-sample sufficient statistics.
 Metric = their RMSE (mean over samples of per-sample RMSE) and pooled R2. Sample bootstrap resamples the 5000
 samples; package-cluster bootstrap resamples the 5 packages (Case16-20) with replacement (very coarse, n=5 clusters),
-and a two-stage variant resamples packages then samples inside them. Usage: python -m scripts.icb_s5_bootstrap"""
+and a two-stage variant resamples packages then samples inside them. Usage: python -m scripts.icb_s5_bootstrap [seed_dir [out_json]]"""
 import json
+import sys
 from pathlib import Path
 import numpy as np
 
@@ -38,7 +39,9 @@ def analyse(sse, sy, syy, n):
 
 res = {}
 res['power_scaling_rule'] = analyse(*load('results/icb_ci/persample_s5_powerscale.npz'))
-seeds = sorted(Path('results/icb_physsolve_seeds').glob('persample_s5_seed*.npz'))
+SEED_DIR = sys.argv[1] if len(sys.argv) > 1 else 'results/icb_physsolve_seeds'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'results/icb_ci/s5_bootstrap.json'
+seeds = sorted(Path(SEED_DIR).glob('persample_s5_seed*.npz'))
 for f in seeds: res[f.stem.replace('persample_s5_', 'learned_conductance_')] = analyse(*load(f))
 if seeds:  # seed-mean rmse with sample bootstrap on the per-sample seed-averaged RMSE, and paired diff vs the rule
     L = [load(f) for f in seeds]; ps = [np.sqrt(l[0] / l[3]) for l in L]; rule = np.sqrt(load('results/icb_ci/persample_s5_powerscale.npz')[0] / 4096)
@@ -46,5 +49,5 @@ if seeds:  # seed-mean rmse with sample bootstrap on the per-sample seed-average
     v = np.array([d[rng.integers(0, len(d), len(d))].mean() for _ in range(B)])
     res['seed_mean_vs_rule'] = {'mean_of_seed_rmse': float(np.mean([p.mean() for p in ps])), 'sd_across_seeds': float(np.std([p.mean() for p in ps], ddof=1)),
                                 'rule_minus_model_rmse': float(d.mean()), 'sample_ci': ci(v)}
-Path('results/icb_ci/s5_bootstrap.json').write_text(json.dumps(res, indent=1))
+Path(OUT).write_text(json.dumps(res, indent=1))
 print(json.dumps(res, indent=1))
