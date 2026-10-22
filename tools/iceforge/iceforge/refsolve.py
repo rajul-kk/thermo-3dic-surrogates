@@ -379,3 +379,239 @@ def solve(model: RefModel, r: int = 4, nz: Optional[int] = None, method: str = '
     info['heat_out'] = out
     T = x.reshape(NZ, nx, ny) + t_ref
     return RefSolution(r, T, slices, xe, ye, nx, ny, t_ref, info)
+
+
+# --------------------------------------------------------------------------- local window (zoom) solve
+#
+# Block -> cell scale bridge (docs/protocol_mesh_convergence.md, amendment M3): solve a fine local window of the chip with
+# the FULL vertical stack, taking its lateral boundary conditions from a coarse solution of the whole chip. Sides of the
+# window that lie on the chip edge stay adiabatic, exactly as in the global model. Heat sinks act on the window's top and
+# bottom faces. This is a one-way downscaling: it assumes the coarse field is accurate at the window boundary.
+
+def _fields(model: RefModel, xe: np.ndarray, ye: np.ndarray, nz: Optional[int]):
+    """Per-sub-layer conductivity, thickness and power on the lateral grid (xe, ye); the same arithmetic as ``solve``."""
+    nx, ny = len(xe) - 1, len(ye) - 1
+    kx_l, ky_l, kz_l, dz_l, P_l, slices = [], [], [], [], [], []
+    z0 = 0
+    for L in model.layers:
+        n = nz if nz else default_nz(L.height)
+        base = _k3(L.base)
+        rem = np.ones((nx, ny))
+        k = [np.zeros((nx, ny)) for _ in range(3)]
+        for m, rects in L.patches:
+            f = np.minimum(area_fractions(xe, ye, rects), rem)
+            rem -= f
+            for c, kc in enumerate(_k3(m)):
+                k[c] += f * kc
+        for c in range(3):
+            k[c] += rem * base[c]
+        p = np.zeros((nx, ny))
+        for rc, dens in L.power_rects:
+            p += dens * rect_overlap_area(xe, ye, rc)
+        for _ in range(n):
+            kx_l.append(k[0]); ky_l.append(k[1]); kz_l.append(k[2])
+            dz_l.append(L.height / n)
+            P_l.append(p / n if L.is_source else np.zeros((nx, ny)))
+        slices.append(slice(z0, z0 + n))
+        z0 += n
+    return (np.array(kx_l), np.array(ky_l), np.array(kz_l), np.array(dz_l)[:, None, None], np.array(P_l), slices)
+
+
+def _iface(t_in, t_out, k_in, k_out):
+    """Temperature of the face between two equal half-cells (flux continuity): (k_in T_in + k_out T_out) / (k_in + k_out)."""
+    return (k_in * t_in + k_out * t_out) / (k_in + k_out)
+
+
+def _window_indices(model: RefModel, window):
+    cl, cw = model.cell_l, model.cell_w
+    nxc, nyc = int(round(model.chip_l / cl)), int(round(model.chip_w / cw))
+    x0, x1, y0, y1 = window
+    q = [x0 / cl, x1 / cl, y0 / cw, y1 / cw]
+    if any(abs(v - round(v)) > 1e-9 for v in q):
+        raise ValueError("window edges must lie on coarse cell edges")
+    ic0, ic1, jc0, jc1 = (int(round(v)) for v in q)
+    if not (0 <= ic0 < ic1 <= nxc and 0 <= jc0 < jc1 <= nyc):
+        raise ValueError("window must lie inside the chip")
+    return nxc, nyc, ic0, ic1, jc0, jc1
+
+
+def face_T_from_solution(model: RefModel, full: RefSolution, window, nz: Optional[int] = None) -> dict:
+    """Interface temperatures (K) on the window's interior lateral faces taken from a domain-wide solution ``full`` computed at the
+    same refinement as the window will use. Feeding these to ``solve_window`` must reproduce ``full`` inside the window to solver
+    tolerance (gate G4); it is also the "exact boundary data" upper bound on what a coarse-driven window can achieve."""
+    nxc, nyc, ic0, ic1, jc0, jc1 = _window_indices(model, window)
+    r = full.r
+    kx, ky, _, _, _, _ = _fields(model, full.xe, full.ye, nz)
+    T = full.T
+    js, is_ = slice(jc0 * r, jc1 * r), slice(ic0 * r, ic1 * r)
+    out = {}
+    if ic0 > 0:
+        i = ic0 * r
+        out['xlo'] = _iface(T[:, i, js], T[:, i - 1, js], kx[:, i, js], kx[:, i - 1, js])
+    if ic1 < nxc:
+        i = ic1 * r
+        out['xhi'] = _iface(T[:, i - 1, js], T[:, i, js], kx[:, i - 1, js], kx[:, i, js])
+    if jc0 > 0:
+        j = jc0 * r
+        out['ylo'] = _iface(T[:, is_, j], T[:, is_, j - 1], ky[:, is_, j], ky[:, is_, j - 1])
+    if jc1 < nyc:
+        j = jc1 * r
+        out['yhi'] = _iface(T[:, is_, j - 1], T[:, is_, j], ky[:, is_, j - 1], ky[:, is_, j])
+    return out
+
+
+def _linsolve(A, bv, method, tol, info):
+    import scipy.sparse.linalg as spla
+    meth = method
+    if method == 'auto':
+        try:
+            import pyamg  # noqa: F401
+            meth = 'amg'
+        except ImportError:
+            meth = 'direct' if A.shape[0] <= 150_000 else 'cg'
+    info.update(method=meth, unknowns=int(A.shape[0]))
+    if meth == 'direct':
+        x = spla.splu(A.tocsc(), permc_spec='MMD_AT_PLUS_A', diag_pivot_thresh=0.0,
+                      options=dict(SymmetricMode=True)).solve(bv)
+    elif meth == 'amg':
+        import pyamg
+        ml = pyamg.smoothed_aggregation_solver(A.tocsr(), max_coarse=500)
+        hist: List[float] = []
+        x = ml.solve(bv, tol=tol, maxiter=2000, accel='cg', residuals=hist)
+        info['amg_iterations'] = len(hist) - 1
+    else:
+        dinv = 1.0 / A.diagonal()
+        M = spla.LinearOperator(A.shape, matvec=lambda v: dinv * v)
+        x, flag = spla.cg(A, bv, rtol=tol, atol=0.0, maxiter=20000, M=M)
+        if flag != 0:
+            raise RuntimeError(f"CG did not converge (flag {flag})")
+    res = np.linalg.norm(A @ x - bv) / max(np.linalg.norm(bv), 1e-300)
+    info['relative_residual'] = float(res)
+    if res > 1e-7:
+        raise RuntimeError(f"linear solve did not converge (relative residual {res:.1e}, method {meth})")
+    return x
+
+
+def solve_window(model: RefModel, window, r: int, nz: Optional[int] = None, coarse: Optional[RefSolution] = None,
+                 bc: str = 'dirichlet', face_T: Optional[dict] = None, method: str = 'auto',
+                 tol: float = 1e-10) -> RefSolution:
+    """Fine solve of a lateral window ``(x0, x1, y0, y1)`` (um, on coarse cell edges) with the full vertical stack.
+
+    Lateral boundary data on window sides that are interior to the chip come from ``coarse`` (= ``solve(model, r=1, nz=nz)``,
+    same vertical discretisation) or, for Dirichlet, from ``face_T`` (dict 'xlo'/'xhi'/'ylo'/'yhi' -> (NZ, n_fine_along) interface
+    temperatures in K, e.g. from ``face_T_from_solution``).
+      * bc='dirichlet': the face temperature is the flux-weighted coarse interface temperature, interpolated linearly along the face.
+      * bc='neumann': the coarse heat flow across each coarse face segment is added to the adjacent fine cells (a sensitivity variant).
+    Sides on the chip edge are adiabatic. The result's grid is the window's (``xe``, ``ye`` are absolute um)."""
+    import scipy.sparse as sp
+    if bc not in ('dirichlet', 'neumann'):
+        raise ValueError("bc must be 'dirichlet' or 'neumann'")
+    nxc, nyc, ic0, ic1, jc0, jc1 = _window_indices(model, window)
+    cl, cw = model.cell_l, model.cell_w
+    sides = {'xlo': ic0 > 0, 'xhi': ic1 < nxc, 'ylo': jc0 > 0, 'yhi': jc1 < nyc}
+    nx, ny = (ic1 - ic0) * r, (jc1 - jc0) * r
+    xe = np.linspace(ic0 * cl, ic1 * cl, nx + 1)
+    ye = np.linspace(jc0 * cw, jc1 * cw, ny + 1)
+    dx, dy = (ic1 - ic0) * cl / nx, (jc1 - jc0) * cw / ny
+    cell_area = dx * dy
+    kx, ky, kz, dz, P, slices = _fields(model, xe, ye, nz)
+    NZ = kx.shape[0]
+    dzv = dz[:, 0, 0][:, None]
+    t_ref = (model.top or model.bottom)[1]
+    interior = any(sides.values())
+    if interior and (bc == 'neumann' or face_T is None):
+        if coarse is None:
+            raise ValueError("an interior window needs the coarse solution (solve(model, r=1, nz=nz))")
+        if coarse.r != 1 or coarse.T.shape[0] != NZ or coarse.nx != nxc or coarse.ny != nyc:
+            raise ValueError("coarse must be solve(model, r=1, nz=nz) with the same vertical discretisation as the window")
+    if bc == 'neumann' and face_T is not None:
+        raise ValueError("face_T is a Dirichlet input")
+
+    idx = np.arange(NZ * nx * ny).reshape(NZ, nx, ny)
+    rows, cols, vals = [], [], []
+    diag = np.zeros((NZ, nx, ny))
+
+    def couple(a_idx, b_idx, G):
+        rows.append(a_idx.ravel()); cols.append(b_idx.ravel()); vals.append(-G.ravel())
+        rows.append(b_idx.ravel()); cols.append(a_idx.ravel()); vals.append(-G.ravel())
+
+    G = (dy * dz) / (0.5 * dx / kx[:, :-1, :] + 0.5 * dx / kx[:, 1:, :])
+    couple(idx[:, :-1, :], idx[:, 1:, :], G)
+    diag[:, :-1, :] += G; diag[:, 1:, :] += G
+    G = (dx * dz) / (0.5 * dy / ky[:, :, :-1] + 0.5 * dy / ky[:, :, 1:])
+    couple(idx[:, :, :-1], idx[:, :, 1:], G)
+    diag[:, :, :-1] += G; diag[:, :, 1:] += G
+    G = cell_area / (0.5 * dz[:-1] / kz[:-1] + 0.5 * dz[1:] / kz[1:])
+    couple(idx[:-1], idx[1:], G)
+    diag[:-1] += G; diag[1:] += G
+
+    b = P.copy()
+    for face, sink in ((0, model.top), (NZ - 1, model.bottom)):
+        if sink is None:
+            continue
+        htc, tamb = sink
+        Ga = cell_area / (0.5 * dz[face] / kz[face] + 1.0 / htc)
+        diag[face] += Ga
+        b[face] += Ga * (tamb - t_ref)
+
+    if interior:
+        if coarse is not None:
+            Tc = coarse.T
+            xec, yec = np.arange(nxc + 1) * cl, np.arange(nyc + 1) * cw
+            kxc, kyc, _, dzc, _, _ = _fields(model, xec, yec, nz)
+            dzcv = dzc[:, 0, 0][:, None]
+        xm, ym = 0.5 * (xe[:-1] + xe[1:]), 0.5 * (ye[:-1] + ye[1:])
+        xc, yc = (np.arange(ic0, ic1) + 0.5) * cl, (np.arange(jc0, jc1) + 0.5) * cw
+
+        def along(prof, pos, ref):      # (NZ, n_coarse) at coarse centres -> (NZ, n_fine) at fine centres
+            return np.stack([np.interp(ref, pos, prof[z]) for z in range(NZ)])
+
+        if bc == 'dirichlet':
+            if face_T is None:
+                js, is_ = slice(jc0, jc1), slice(ic0, ic1)
+                face_T = {}
+                if sides['xlo']:
+                    face_T['xlo'] = along(_iface(Tc[:, ic0, js], Tc[:, ic0 - 1, js], kxc[:, ic0, js], kxc[:, ic0 - 1, js]), yc, ym)
+                if sides['xhi']:
+                    face_T['xhi'] = along(_iface(Tc[:, ic1 - 1, js], Tc[:, ic1, js], kxc[:, ic1 - 1, js], kxc[:, ic1, js]), yc, ym)
+                if sides['ylo']:
+                    face_T['ylo'] = along(_iface(Tc[:, is_, jc0], Tc[:, is_, jc0 - 1], kyc[:, is_, jc0], kyc[:, is_, jc0 - 1]), xc, xm)
+                if sides['yhi']:
+                    face_T['yhi'] = along(_iface(Tc[:, is_, jc1 - 1], Tc[:, is_, jc1], kyc[:, is_, jc1 - 1], kyc[:, is_, jc1]), xc, xm)
+            for side, on in sides.items():
+                if not on:
+                    continue
+                if side not in face_T:
+                    raise ValueError(f"face_T has no entry for the interior side {side}")
+                Tf = np.asarray(face_T[side]) - t_ref
+                if side in ('xlo', 'xhi'):
+                    sl = (slice(None), 0 if side == 'xlo' else -1, slice(None))
+                    Gf = (dy * dzv) / (0.5 * dx / kx[sl])
+                else:
+                    sl = (slice(None), slice(None), 0 if side == 'ylo' else -1)
+                    Gf = (dx * dzv) / (0.5 * dy / ky[sl])
+                if Tf.shape != Gf.shape:
+                    raise ValueError(f"face_T[{side}] has shape {Tf.shape}, expected {Gf.shape}")
+                diag[sl] += Gf
+                b[sl] += Gf * Tf
+        else:
+            js, is_ = slice(jc0, jc1), slice(ic0, ic1)
+            if sides['xlo']:
+                Gc = (cw * dzcv) / (0.5 * cl / kxc[:, ic0 - 1, js] + 0.5 * cl / kxc[:, ic0, js])
+                b[:, 0, :] += np.repeat(Gc * (Tc[:, ic0 - 1, js] - Tc[:, ic0, js]), r, axis=1) / r
+            if sides['xhi']:
+                Gc = (cw * dzcv) / (0.5 * cl / kxc[:, ic1 - 1, js] + 0.5 * cl / kxc[:, ic1, js])
+                b[:, -1, :] += np.repeat(Gc * (Tc[:, ic1, js] - Tc[:, ic1 - 1, js]), r, axis=1) / r
+            if sides['ylo']:
+                Gc = (cl * dzcv) / (0.5 * cw / kyc[:, is_, jc0 - 1] + 0.5 * cw / kyc[:, is_, jc0])
+                b[:, :, 0] += np.repeat(Gc * (Tc[:, is_, jc0 - 1] - Tc[:, is_, jc0]), r, axis=1) / r
+            if sides['yhi']:
+                Gc = (cl * dzcv) / (0.5 * cw / kyc[:, is_, jc1 - 1] + 0.5 * cw / kyc[:, is_, jc1])
+                b[:, :, -1] += np.repeat(Gc * (Tc[:, is_, jc1] - Tc[:, is_, jc1 - 1]), r, axis=1) / r
+
+    rows.append(idx.ravel()); cols.append(idx.ravel()); vals.append(diag.ravel())
+    A = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(idx.size, idx.size))
+    info = dict(nz_total=int(NZ), r=r, nx=nx, ny=ny, window=tuple(window), bc=bc if interior else 'none (whole-chip edges)',
+                interior_sides=[s for s, on in sides.items() if on], power_in=float(P.sum()))
+    x = _linsolve(A, b.ravel(), method, tol, info)
+    return RefSolution(r, x.reshape(NZ, nx, ny) + t_ref, slices, xe, ye, nx, ny, t_ref, info)

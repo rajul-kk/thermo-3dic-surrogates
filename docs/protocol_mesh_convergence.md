@@ -90,5 +90,17 @@ Scenario: geometry1, uniform pattern, HTC 20000, ambient 25 C; peak about 310.05
 therefore changed: build and validate the window solver (G4) against the domain-wide solves that do fit (r=4, nz=4, and r=8, nz=2 if it fits) first;
 M2 for s >= 100 um uses domain-wide solves; M2 for s < 100 um uses the validated window solver, and its results are labelled as such.
 
+## 9. Gate G4 result (2026-10-22): PASS
+`iceforge.refsolve.solve_window` (local fine window, full vertical stack, Dirichlet or Neumann lateral data from a coarse r=1 solve; chip-edge sides
+adiabatic) and `face_T_from_solution`; tests `tools/iceforge/tests/test_window.py` (7 pass; with `test_diff.py` 27 pass).
+- A window covering the whole die reproduces the domain-wide r=2 solve to < 1e-6 K.
+- With exact interface temperatures from the domain-wide solve, four interior/edge windows (including a 4 x 4-coarse-cell window) reproduce it inside
+  the window to < 1e-6 K.
+- Early observation, fixture only (iceforge `repro/aligned`, 250 um coarse cells, peak rise about 11 K, windows centred on the die; NOT the M3 result):
+  max |dT| vs the domain-wide solve for half-widths 1000 / 2500 / 4000 um: Dirichlet 0.057 / 0.184 / 0.033 K, Neumann 0.019 / 0.044 / 0.017 K.
+  The Dirichlet error is not monotone in window size here (the 2500 um boundary sits near a block edge, where the coarse field is least accurate),
+  and Neumann was the more accurate on this fixture. M3 will report both and does not assume monotonicity; P4 and P5 stay as stated and are judged
+  on the geometry1 runs.
+
 **Link to regime A.** The leakage law uses each block's mean temperature; leakage is convex in temperature, so by Jensen's inequality sub-block hot
 spots make the true block leakage larger than the block-mean law gives. The zoom model quantifies this bias; this is [OWN] reasoning, untested.
