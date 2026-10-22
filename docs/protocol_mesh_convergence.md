@@ -69,5 +69,26 @@ latency (batch 1, equal hardware, 3 seeds). Expected: it does NOT beat the local
 reported whichever way it falls; the synthetic hotspot families are not real chip data and the claim is about the method, not about real chips.
 **Gate G4.** The window solver reproduces the full fine solve to solver tolerance when the window covers the whole die (and to 1e-6 relative on the
 peak), and the interpolated-boundary consistency check passes before any sweep.
+## 8. Gate results (2026-10-22; gates G1-G3 run once, before any sweep; log `results/mesh_convergence/gates.log`, untracked)
+Scenario: geometry1, uniform pattern, HTC 20000, ambient 25 C; peak about 310.05 K, i.e. a peak rise of about 11.9 K (single low-power scenario).
+- **G1 (reference solver feasibility): PASS with a limit.** Peak (K) by lateral refinement r (cell = 100 um / r) and sub-layers per layer nz:
+  r=1,nz=2: 310.0458 (5 s, 0.25 GB); r=2,nz=2: 310.0472 (20 s, 0.78 GB); r=2,nz=4: 310.0420 (33 s, 1.5 GB); r=4,nz=4: 310.0424
+  (227 s, 7.7M unknowns, 5.4 GB). **r=8,nz=4 fails: MemoryError** at 30.7M unknowns (8.9 GB resident at failure on this 16 GB machine).
+  So domain-wide refinement reaches 25 um at nz=4; 12.5 um needs nz=2 (15.4M unknowns, untested) or a local window.
+- **G3 (reference vs 3D-ICE at native resolution): PASS.** `iceforge diff` at r=2, nz=2, tol 0.02: AGREE on all 10 Tmap layers (250 s, 2.8 GB).
+- **G2 (3D-ICE at 50 um cells): PASS.** The 200 x 200 solve fits and completes: 85 s versus 12.9 s at native 100 um (6.6x for 4x the cells), peak
+  310.0650 K vs 310.0640 K native (difference 0.001 K).
+- **Early observation (not the M1 result, one scenario):** on this block-power map the lateral change in the reference peak between r=1 and r=4 is
+  at most about 0.005 K (about 0.04% of the 11.9 K rise) and the nz=2 -> 4 change is about 0.005 K, so vertical discretisation is the larger of the two;
+  3D-ICE and the reference differ by about 0.02 K at the peak (the known end-layer convention). Prediction P1 (within 1%) is therefore expected to hold
+  trivially for block-aggregate power; M2/M3 are where discretisation can matter.
+- **Timing correction.** A native 3D-ICE solve took 12.9 s on a quiet machine, against 27-60 s in earlier loaded runs; the regime-A compute estimate
+  (docs/protocol_nonlinear_A.md section 9) should be refreshed at its gate G1 using ~13-15 s per native solve measured on a quiet machine, with the
+  loaded 40-60 s as the pessimistic case.
+**Consequence for M2 (amendment).** M2 asks for hotspots down to s = 10 um, which needs cells <= s/4 = 2.5 um. Domain-wide refinement stops at 12.5 um
+(and only at nz=2), so M2 for s <= 50 um CANNOT use a domain-wide fine solve. It requires the local window solver of M3 (gate G4). The order is
+therefore changed: build and validate the window solver (G4) against the domain-wide solves that do fit (r=4, nz=4, and r=8, nz=2 if it fits) first;
+M2 for s >= 100 um uses domain-wide solves; M2 for s < 100 um uses the validated window solver, and its results are labelled as such.
+
 **Link to regime A.** The leakage law uses each block's mean temperature; leakage is convex in temperature, so by Jensen's inequality sub-block hot
 spots make the true block leakage larger than the block-mean law gives. The zoom model quantifies this bias; this is [OWN] reasoning, untested.
