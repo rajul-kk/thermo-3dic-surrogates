@@ -50,3 +50,24 @@ Reference solves: minutes each (about 7 s per 360k unknowns, 25 s per 1.4M); rou
 ## 6. Stated weaknesses
 Block-aggregate power inputs only; steady state; the reference solver shares the same physics model and boundary conditions as 3D-ICE, so this tests
 discretisation, not model fidelity (no measured chip temperatures exist to validate against). Real BEOL and TSV detail stays homogenised.
+
+## 7. Amendment M3 (2026-10-22, before any run): coarse-to-fine downscaling (block -> cell scale)
+**Why.** Real chips span transistor -> cell -> block -> die -> package. We model die-to-package at 100-250 um. The block -> cell step (10-100 um) can
+be bridged by a one-way "zoom": the local hotspot rise adds on top of the coarse field because silicon spreads heat laterally over about its
+thickness (150 um) [OWN]. The cell -> transistor step is NOT simulated: no public sub-block power data exists, the wiring stack is anisotropic and
+unmodelled, and below the phonon mean free path (hundreds of nm in silicon, [UNV] recalled, not sourced here) Fourier conduction, which 3D-ICE and
+our solvers assume, under-predicts the local resistance. It stays a stated limitation with a literature-based note.
+**Method.** Coarse field: reference solver at r=1 (100 um) on the full stack. Window of side w in {0.5, 1, 2, 4} mm centred on the M2 hotspot; local
+fine model (cell <= 12.5 um) on the window domain with the full vertical stack, lateral boundary conditions interpolated from the coarse field
+(Dirichlet T; a Neumann-flux variant is run as a labelled sensitivity), top and bottom conditions as in the global model. Truth: the domain-wide
+fine solve from M1/M2. Metrics: peak-rise error and field RMSE inside the window against the truth; wall time of the zoom vs the full fine solve.
+**Predictions [OWN].** P4: peak error < 2% when the window half-width >= 3 die thicknesses (450 um) with Dirichlet boundaries from the coarse field;
+> 10% when the half-width < 1 die thickness. P5: Dirichlet and Neumann variants agree within 2% for windows >= 2 mm.
+**Learned downscaler (M3b).** A small U-Net maps (coarse window field, coarse power map) to the fine window field, trained on synthetic hotspot
+families (size, strength, position, number) and tested on held-out families. It "pays" only if it matches the local solve's error at <= 1/10 of its
+latency (batch 1, equal hardware, 3 seeds). Expected: it does NOT beat the local solve on accuracy (a window solve takes seconds). The result is
+reported whichever way it falls; the synthetic hotspot families are not real chip data and the claim is about the method, not about real chips.
+**Gate G4.** The window solver reproduces the full fine solve to solver tolerance when the window covers the whole die (and to 1e-6 relative on the
+peak), and the interpolated-boundary consistency check passes before any sweep.
+**Link to regime A.** The leakage law uses each block's mean temperature; leakage is convex in temperature, so by Jensen's inequality sub-block hot
+spots make the true block leakage larger than the block-mean law gives. The zoom model quantifies this bias; this is [OWN] reasoning, untested.
