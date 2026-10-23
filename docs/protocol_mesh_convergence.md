@@ -132,3 +132,45 @@ AND median field RMSE <= 2 x the classical zoom's, AND median latency <= 1/10 of
 **Scope and weaknesses.** Synthetic additive hotspots; one geometry; source-layer field only; 12.5 um resolution (not the transistor scale); the truth is itself a solver
 (same physics model, no measured chip data); 240 training samples is small, so a failure may reflect data volume, not the method.
 **Compute.** About 25 s per sample (coarse ~4 s, 2 mm truth ~15 s, 1 mm classical ~3 s, + overhead); 440 samples ~3 h on one core, ~1.5 h on two.
+**Gate G5: PASS (2026-10-24).** 2 mm vs 3 mm window truth on 5 samples: max |dT| 0.0008-0.0010 K (limit 0.005 K). Generation started the same day (two workers).
+
+## 11. Results of M1, M2, M3 (2026-10-24; M3b results are added below when it finishes)
+Raw: `results/mesh_convergence/{sweeps.json, m2_consistent.json, gates.json}` and logs (untracked; `results/` is gitignored). Scripts: scratch only, reproduced from this section's
+definitions; the solver code is `tools/iceforge/iceforge/refsolve.py` (`solve_window`).
+**Deviations, stated.** (a) The first M2/M3/half-cell attempt produced no result: the case folders lacked the `sim/` output directory that the stack file writes to (3D-ICE
+"Cannot open output file"); fixed and rerun; the M1 reference sweeps from the first pass were kept. (b) My first M2 metric compared real 3D-ICE at 100 um with the fine
+reference solver; 3D-ICE reads 0.02-0.42 K above the reference at ANY resolution (end-layer convention), which made the coarse grid look like it overstated the peak (down
+to -3.2%). The reported M2 metric is the corrected one: same reference solver and same vertical sub-layers at coarse (100 um) and fine, plus a no-hotspot baseline per size,
+so the hotspot EXCESS over the baseline can be compared (script `m2_consistent.py`). (c) Neumann window solves did not reach the 1e-7 residual limit in several cases
+(s=25 um: baseline, m=10, m=30; s=10 um: baseline); they are excluded and Dirichlet, which converged everywhere, is the primary. (d) The protocol's window half-widths 0.5 mm were
+changed to 0.6 mm (side) because windows must lie on 100 um coarse cell edges around the hotspot.
+**M1 (geometry1 scenarios 0-2, geometry5; peak K; reference nz=4, r = 100/25 um cell ratio).**
+| case | r=1 | r=2 | r=4 | field RMSE r=1 vs r=4 | vertical, r=1, nz 2/4/8 | 3D-ICE native / half cell | 3D-ICE minus reference r=4 |
+|---|---|---|---|---|---|---|---|
+| g1 uniform (rise ~11.9 K) | 310.0407 | 310.0420 | 310.0424 | 0.0043 | 310.0458/310.0407/310.0392 | 310.064 / 310.065 | +0.022 K (0.18%) |
+| g1 hotspot pattern (rise ~90.8 K) | 388.9576 | 388.9665 | 388.9660 | 0.0289 | 389.0497/388.9576/388.9316 | 389.381 / 389.389 | +0.415 K (0.46%) |
+| g1 checkerboard (rise ~27.6 K) | 325.7070 | 325.7077 | 325.7080 | 0.0091 | 325.7223/325.7070/325.7026 | 325.776 / 325.777 | +0.068 K (0.25%) |
+| g5 (rise ~6.4 K) | 304.5367 | 304.5360 | 304.5355 | 0.0224 | 304.5367/304.5350/304.5346 | 304.559 / half-cell 3D-ICE run failed (solver-failed, cause not investigated) | +0.024 K (0.37%) |
+r=8 (12.5 um) was skipped by the memory guard (15.4M unknowns at nz=2). Observed convergence orders (0.6-2.0) are noise: the peak differences are at the 0.001 K level. **P1 holds**:
+lateral change 100 -> 25 um is at most 0.008 K, 3D-ICE at 100 vs 50 um differs by 0.001-0.008 K; vertical sub-layering (up to 0.12 K) is the larger effect; the 3D-ICE vs reference
+offset (0.2-0.5% of the rise) is a convention, not discretisation.
+**M2 (geometry1, block 1 hotspot of side s at density multiplier m; Dirichlet window/fine route; capture = coarse excess / fine excess over the no-hotspot baseline).**
+| s (um) | capture, m=3 / 10 / 30 | peak-rise error as % of fine rise (largest) | fine excess (K) at m=30 |
+|---|---|---|---|
+| 400 | 1.000 / 1.000 / 1.000 | 0 | 11.99 |
+| 200 | 0.985 / 0.985 / 0.985 | 0.41 | 4.44 |
+| 100 | 1.19 / 1.18 / 1.17 | -2.05 (coarse OVERSTATES by 0.28 K) | 1.59 |
+| 50 | 0.86 / 0.82 / 0.82 | 0.81 | 0.56 |
+| 25 | 0.63 / 0.61 / 0.60 | 0.64 | 0.19 |
+| 10 | 0.45 / 0.45 / 0.43 | 0.20 | 0.041 |
+Cross-route check (hotspots 100-400 um, where both exist): domain-wide r=4 and the window route agree within 0.004 K. **P2 is falsified as stated**: (i) below 5% for s >= 150 um holds (<= 0.41%);
+(ii) "above 20% for s = 10-25 um at m >= 10" fails for the total peak rise (0.06-0.64%), because the hotspot carries almost no power (m=30, s=25 um: about 4 mW) and silicon spreads it; as a fraction of the
+hotspot's own excess the coarse grid misses 37-57%, but that excess is at most 0.19 K; (iii) the sign is not fixed: a hotspot exactly one coarse cell wide (s=100 um) is OVERSTATED by the cell-centred
+coarse model. **P3 consequence:** "100-250 um resolution is adequate for block-level claims" is supported; "coarse peaks are lower bounds" is NOT supported (error can have either sign); hotspots with
+far more aggregate power than tested here (m > 30 or several hotspots) were not tested.
+**M3 (window size vs the domain-wide 25 um truth, hotspots 100/200/400 um at m=10; Dirichlet / Neumann).** Window side 0.6 mm: peak error 0.001-0.005 K (Dirichlet), 0.005-0.047 K (Neumann), at most 0.3% of the
+rise; 1 mm: <= 0.0016 / 0.014 K; 2 mm: <= 0.0005 / 0.0035 K; 4 mm: <= 0.0003 / 0.0006 K (Dirichlet / Neumann; the sides are twice the half-widths 300 / 500 / 1000 / 2000 um). Worst-case field error (max |dT|): Dirichlet 0.011-0.098 K, Neumann 0.002-0.053 K,
+so Dirichlet was better at the peak and Neumann at the worst-case field point; neither dominated. **P5 holds** (Dirichlet and Neumann peaks within 0.005 K for windows >= 2 mm). **P4: first half holds**
+(every window of side >= 0.6 mm has peak error <= 0.3% of the rise, below the 2% bound; the smallest window tested had half-width 300 um = 2 die thicknesses); the second half (error > 10% when the half-width is below one die
+thickness) was NOT tested.
+**Scope.** One geometry (+ geometry5 for M1), steady state, block-aggregate power with synthetic single hotspots, reference-solver physics (no measured chip data); this tests discretisation, not model fidelity.
