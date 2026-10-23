@@ -394,7 +394,8 @@ def _fields(model: RefModel, xe: np.ndarray, ye: np.ndarray, nz: Optional[int]):
     kx_l, ky_l, kz_l, dz_l, P_l, slices = [], [], [], [], [], []
     z0 = 0
     for L in model.layers:
-        n = nz if nz else default_nz(L.height)
+        # nz: None (<= 25 um sub-layers), an int (same for every layer) or a callable RefLayer -> int (per-layer refinement)
+        n = int(nz(L)) if callable(nz) else (nz if nz else default_nz(L.height))
         base = _k3(L.base)
         rem = np.ones((nx, ny))
         k = [np.zeros((nx, ny)) for _ in range(3)]
