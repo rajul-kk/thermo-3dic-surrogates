@@ -104,3 +104,31 @@ adiabatic) and `face_T_from_solution`; tests `tools/iceforge/tests/test_window.p
 
 **Link to regime A.** The leakage law uses each block's mean temperature; leakage is convex in temperature, so by Jensen's inequality sub-block hot
 spots make the true block leakage larger than the block-mean law gives. The zoom model quantifies this bias; this is [OWN] reasoning, untested.
+
+## 10. M3b detailed pre-registration (2026-10-24, written BEFORE any M3b sample is generated or any model trained)
+Question: can a learned downscaler stand in for the classical zoom (the 1 mm window solve) on the block -> cell step?
+**Setup.** geometry1, scenario 0, base power as in M2 (block1 centred at (2500, 2500) um, 3 mm square, uniform density `d_b`). Fine grid 12.5 um (r=8),
+vertical sub-layers `nz_fine(12.5)`. Per sample: add N square hotspots of side s on the source layer as EXTRA density `(m-1) d_b` (total power is not
+conserved here; additive hotspots), placed uniformly (continuous, not cell-aligned) so each lies inside the central 1 mm region [2000, 3000]^2.
+- **Truth:** window [1500, 3500]^2 (2 mm), r=8, Dirichlet data from the coarse (r=1) solve of the same sample; the source-layer mid-plane temperature on
+  the central 1 mm (80 x 80 fine cells). Truth gate **G5** (run first, 5 samples): the same field from a 3 mm window must agree with the 2 mm window within
+  0.005 K (max |dT|); if not, the half-width is increased and G5 repeated before anything else.
+- **Classical zoom (the thing to match):** window [2000, 3000]^2 (1 mm), r=8, Dirichlet data from the same coarse solve; same output field. Its error against
+  the truth and its wall time (assembly + solve, coarse solve excluded for every method) are measured, not assumed.
+- **No-downscaling baseline:** the coarse source-layer field bilinearly upsampled to the fine grid.
+- **Learned downscaler:** fully convolutional residual CNN (3x3 convs, 32 channels, dilations 1, 2, 4, 2, 1, about 60k parameters). Input on a 96 x 96 fine grid covering
+  [1900, 3100]^2: channel 1 the coarse source-layer temperature of the 12 x 12 coarse cells (bilinear, in K minus its mean), channel 2 the exact fine power-density map
+  divided by `d_b`. Output: residual (fine T minus upsampled coarse T) on the central 80 x 80. Loss MSE; Adam lr 1e-3, batch 16, up to 200 epochs, early stopping
+  patience 20 on validation; data augmentation by the 8 flips/rotations of the plane (approximate symmetry: the surroundings and the coarse boundary data are not exactly
+  symmetric, stated); seeds 0, 1, 2. CPU, no GPU.
+**Families (parameter ranges fixed now).** Train/val F0: N in {1, 2}, s log-uniform [25, 200] um, m log-uniform [3, 30]. Test families (40 samples each): T0 same as F0;
+T1 size shift, N = 1, s in [250, 400]; T2 count shift, N in {4, 5, 6}, s in [25, 200]; T3 strength shift, N in {1, 2}, s in [25, 200], m in [30, 60]. Train 240, val 40.
+**Metrics.** Per sample: peak error (K) and field RMSE (K) against the truth over the central 1 mm; median over samples per family and seed. Latency: classical window solve
+vs learned forward pass, batch 1, one CPU thread, same machine.
+**Decision rule (fixed now).** The learned downscaler "pays" iff, for ALL four test families and ALL three seeds: median |peak error| <= 2 x the classical zoom's median |peak error|
+AND median field RMSE <= 2 x the classical zoom's, AND median latency <= 1/10 of the classical zoom's. Otherwise it does not pay; each condition is reported separately.
+**Expectation [OWN].** Latency passes by orders of magnitude (the window solve takes seconds); accuracy fails, because the classical zoom is near the truth by construction
+(M3: peak error 0.001-0.05 K). The learned model should still beat the no-downscaling baseline on the training family. Reported whichever way it falls.
+**Scope and weaknesses.** Synthetic additive hotspots; one geometry; source-layer field only; 12.5 um resolution (not the transistor scale); the truth is itself a solver
+(same physics model, no measured chip data); 240 training samples is small, so a failure may reflect data volume, not the method.
+**Compute.** About 25 s per sample (coarse ~4 s, 2 mm truth ~15 s, 1 mm classical ~3 s, + overhead); 440 samples ~3 h on one core, ~1.5 h on two.
