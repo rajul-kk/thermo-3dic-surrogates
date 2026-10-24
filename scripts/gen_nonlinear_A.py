@@ -84,7 +84,7 @@ def load_R():
     u = json.loads((OUT / 'unit_response.json').read_text())
     return {float(k): np.array(v['R']) for k, v in u.items() if k.isdigit()}
 
-def fixed_point(R, ta, p_dyn, p_leak, kd, law, tol=1e-12, max_iter=20000):
+def fixed_point(R, ta, p_dyn, p_leak, kd, law, tol=1e-12, max_iter=20000):   # bisection uses tol=1e-8, max_iter=3000
     """Minimal fixed point by monotone iteration from the dynamic power; None if it runs away."""
     d = p_dyn.copy()
     for _ in range(max_iter):
@@ -103,11 +103,11 @@ def draw_candidate(rng, Rs):
     htc = float(rng.choice(HTCS)); R = Rs[htc]; ta = float(rng.uniform(20, 60))
     rel = rng.dirichlet(np.full(4, 2.0)) * 4.0                          # block pattern, mean 1
     share = rng.uniform(0.10, 0.35, 4) * rng.uniform(0.8, 1.2, 4); kd = float(rng.uniform(10, 45))
-    t_target = float(rng.uniform(70, 130))
+    t_target = float(rng.uniform(85, 135))
     def at(s, law=law_exp):
-        nom = s * rel; return nom, fixed_point(R, ta, nom * (1 - share), nom * share, kd, law)
+        nom = s * rel; return nom, fixed_point(R, ta, nom * (1 - share), nom * share, kd, law, tol=1e-8, max_iter=3000)
     lo, hi = np.log(0.05), np.log(400.0)
-    for _ in range(45):                                                   # bisection on the mean density scale
+    for _ in range(32):                                                   # bisection on the mean density scale
         mid = 0.5 * (lo + hi); nom, fp = at(np.exp(mid))
         if fp is None or fp[1].max() > t_target: hi = mid
         else: lo = mid
@@ -151,7 +151,7 @@ def stage_plan():
             ood_gain.append(dict(r, split='ood_gain')); items.append(ood_gain[-1])
         elif 0.9 < r['rho'] < 0.97 and len(near) < 30:
             near.append(dict(r, split='near_critical')); items.append(near[-1])
-        if tried % 2000 == 0: print('tried', tried, quota, len(ood_gain), len(ood_law), len(near), len(runaway), f'{time.perf_counter()-t0:.0f}s', flush=True)
+        if tried % 100 == 0: print('tried', tried, quota, len(ood_gain), len(ood_law), len(near), len(runaway), f'{time.perf_counter()-t0:.0f}s', flush=True)
     # runaway set: take an accepted candidate and raise the scale until no fixed point exists
     rr = np.random.default_rng(SEED + 1)
     while len(runaway) < 30:
