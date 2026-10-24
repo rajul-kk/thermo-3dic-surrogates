@@ -5015,6 +5015,34 @@ from the paper and the public artefacts alone.
 What this does not show: that the labels are wrong; they may be exactly reproducible with the authors' configuration.
 Limits: ten samples, a single fold design, W/64 versus W/63 pitch untested, equal-power chiplet merging unmodelled, ambient inferred. The authors were not contacted.
 
+### 9.36 Is the 100-250 µm grid enough, and does a learned downscaler pay? (mesh-convergence study, 2026-10-24)
+
+**Question.** Every model in this report works at 100-250 µm cells, far coarser than a transistor or a standard cell. Is that resolution adequate for
+block-level thermal claims, and can the block-to-cell step be bridged by a cheap learned downscaler instead of a classical local solve?
+Pre-registered in `docs/protocol_mesh_convergence.md` (§1-10 written before the corresponding runs; results §11-12). Solver: the iceforge finite-volume reference
+(`refsolve.py`, with a new local-window solver `solve_window`, tested in `tools/iceforge/tests/test_window.py`) plus the pinned 3D-ICE build for cross-checks.
+
+**M1, lateral and vertical convergence (geometry1, geometry5).** Refining 100 → 25 µm changes the peak by at most 0.008 K (field RMSE ≤ 0.03 K); 3D-ICE at 100 vs 50 µm
+differs by 0.001-0.008 K. Vertical sub-layering matters more (up to 0.12 K). 3D-ICE reads 0.02-0.42 K (0.18-0.46% of the rise) above the reference at any resolution: a
+convention (end-layer rule), not discretisation. Prediction P1 holds. geometry5's half-cell 3D-ICE run failed (solver failure, cause not investigated).
+
+**M2, sub-cell hotspots (side 10-400 µm, density ×3-×30 on one block).** The coarse grid keeps ≥ 98% of the hotspot excess for s ≥ 200 µm and 45-86% for s = 10-50 µm,
+but the peak-rise error stays ≤ 0.8% of the rise, because small hotspots carry little power and silicon spreads it. The sign is not fixed: a hotspot exactly one coarse
+cell wide (100 µm) is *overstated* by 2% (0.28 K). So the pre-registered P2 ("above 20% for 10-25 µm at m ≥ 10") is **falsified as stated**, and "coarse peaks are lower bounds" is
+not supported. Not tested: aggregate hotspot power above ×30, or many hotspots.
+
+**M3, local window ("zoom").** A 2 mm window driven by the coarse solution reproduces the domain-wide 25 µm truth to ≤ 0.0005 K (Dirichlet) at the peak; ≥ 0.6 mm windows are
+within 0.3% of the rise. Windows smaller than one die thickness were not tested (P4 half-tested).
+
+**M3b, learned downscaler (pre-registered rule: latency ≤ 1/10 of the classical zoom AND peak and RMSE error ≤ 2× the zoom's, 4 hotspot families × 3 seeds).** A 37,633-parameter
+dilated CNN trained on 240 samples gives the field at 12.5 µm in 10-17 ms against about 20 s for the zoom. Its median peak error is 3.6-13× the zoom's in all 12 family-seed pairs
+(RMSE fails in 1 of 12), so **it does not pay**. It does beat no downscaling at all (peak 1.2-15× lower, RMSE 2.2-3.5× lower; worst error 0.033 K).
+Caveats: the zoom is the same solver as the truth, an unusually strong baseline; synthetic single-geometry hotspots; 240 training samples; truth is a solver, not measured silicon.
+
+**What this supports.** The coarse grid is converged for block-level questions, so the learned-vs-classical comparisons in §9.25-9.31 are not artefacts of resolution; a
+classical zoom already bridges block → cell to milli-kelvin. Cell → transistor scale is a stated limitation and was not studied. Scripts: `scripts/mesh_study/`; raw
+results are in the gitignored `results/mesh_convergence/`.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
