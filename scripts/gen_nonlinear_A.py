@@ -132,7 +132,7 @@ def stage_plan():
     items, tried, t0 = [], 0, time.perf_counter()
     def rbin(r): return None if r < 0.1 else 0 if r < 0.3 else 1 if r < 0.5 else 2 if r <= 0.7 else None
     while True:
-        done = (all(v == 0 for v in quota.values()) and len(ood_gain) >= 30 and len(ood_law) >= 30 and len(near) >= 30 and len(runaway) >= 30)
+        done = (all(v == 0 for v in quota.values()) and len(ood_gain) >= 30 and len(ood_law) >= 30 and len(near) >= 30)
         if done or tried > 400000: break
         tried += 1; c = draw_candidate(rng, Rs)
         if c is None: continue
@@ -168,7 +168,7 @@ def stage_plan():
     print('planned', Counter(i['split'] for i in items), 'tried', tried, flush=True)
     for sp in ('train', 'iid', 'ood_gain', 'ood_law', 'near_critical'):
         v = [i['nonlin_pct'] for i in items if i['split'] == sp]
-        if v: print(sp, 'nonlin% median %.1f range %.1f..%.1f' % (np.median(v), min(v), max(v)), 'rho', '%.2f..%.2f' % (min(i['rho'] for i in items if i['split'] == sp), max(i['rho'] for i in items if i['split'] == sp)), flush=True)
+        if v: print(sp, 'nonlin pct median %.1f range %.1f..%.1f' % (np.median(v), min(v), max(v)), 'rho', '%.2f..%.2f' % (min(i['rho'] for i in items if i['split'] == sp), max(i['rho'] for i in items if i['split'] == sp)), flush=True)
 
 # ------------------------------------------------------------------------------------------------ run
 def stage_run(w, n):
