@@ -74,8 +74,11 @@ if mode == 'g5':
     ok = max(r['max_abs_2mm_vs_3mm_K'] for r in rows) <= 0.005
     (OUT / 'm3b' / 'g5.json').write_text(json.dumps(dict(rows=rows, pass_=ok), indent=1)); print('G5 PASS' if ok else 'G5 FAIL', flush=True)
 else:
-    w, nw = int(args[0]), int(args[1])
-    mine = [j for k, j in enumerate(JOBS) if k % nw == w]
+    if args[0] == 'rev':       # extra worker: walk the job list backwards, skipping samples that already exist
+        w, nw, mine = 9, 1, JOBS[::-1]
+    else:
+        w, nw = int(args[0]), int(args[1])
+        mine = [j for k, j in enumerate(JOBS) if k % nw == w]
     t0 = time.perf_counter()
     for n, (fam, idx) in enumerate(mine):
         try: make(fam, idx)

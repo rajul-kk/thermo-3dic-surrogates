@@ -174,3 +174,20 @@ so Dirichlet was better at the peak and Neumann at the worst-case field point; n
 (every window of side >= 0.6 mm has peak error <= 0.3% of the rise, below the 2% bound; the smallest window tested had half-width 300 um = 2 die thicknesses); the second half (error > 10% when the half-width is below one die
 thickness) was NOT tested.
 **Scope.** One geometry (+ geometry5 for M1), steady state, block-aggregate power with synthetic single hotspots, reference-solver physics (no measured chip data); this tests discretisation, not model fidelity.
+
+## 12. M3b result (2026-10-24; pre-registered section 10; 440 samples, 3 seeds, CPU)
+Raw: `results/mesh_convergence/m3b/{results.json, train.log}` (untracked); scripts `scripts/mesh_study/m3b_gen.py`, `m3b_train.py`. **Verdict by the pre-registered rule: the learned downscaler does NOT pay.**
+Medians over 40 test samples per family; peak error = |max(pred) - max(truth)| over the central 1 mm; seeds shown as a range.
+| family | classical zoom: peak K / RMSE K | no downscaling (upsampled coarse): peak / RMSE | learned (3 seeds): peak / RMSE |
+|---|---|---|---|
+| T0 same distribution | 0.00066 / 0.0016 | 0.049 / 0.0066 | 0.0032-0.0052 / 0.0018-0.0019 |
+| T1 larger hotspots (250-400 um) | 0.0026 / 0.0052 | 0.038 / 0.028 | 0.016-0.033 / 0.0098-0.0125 |
+| T2 more hotspots (4-6) | 0.0011 / 0.0032 | 0.107 / 0.022 | 0.0053-0.0086 / 0.0059-0.0060 |
+| T3 stronger hotspots (m 30-60) | 0.0040 / 0.0038 | 0.243 / 0.033 | 0.0142-0.0160 / 0.0071-0.0075 |
+- **Latency:** learned forward pass 10-17 ms (batch 1, one thread) vs the classical zoom's median about 20 s per 1 mm window at 12.5 um cells (the pre-registration assumed "seconds"; measured 20.4 s median on the F0 samples). Condition (latency <= 1/10) passes by about three orders of magnitude.
+- **Accuracy:** the median peak-error condition (<= 2x the classical's) FAILS in all 4 families and all 3 seeds (learned is 3.6x to 13x the classical's). The median field-RMSE condition (<= 2x) fails in 1 of 12 family-seed pairs (T1, seed 0: 2.4x) and passes in the other 11 (1.2x on T0; 1.9x on T2; 1.9-2.0x on T3). So the combined rule fails.
+- **Against no downscaling at all** the learned model is better in every family: peak error 1.2x to 15x lower, field RMSE 2.2x to 3.5x lower. Its largest errors are 0.033 K (T1), i.e. well under 1% of the hotspot-free peak rise (about 12 K).
+- The pre-registered expectation (latency passes, accuracy fails, and the model beats the no-downscaling baseline on its training family) was met on all three counts.
+- Training: 37,633 parameters (the pre-registration said "about 60k"; that was a miscount, the specified architecture is 37.6k); early stopping at 124 / 158 / 142 epochs (not cap-limited); validation RMSE 0.0030-0.0031 K.
+**Caveats.** The classical zoom is the same solver as the truth with a smaller window, so its error only measures window-boundary truncation (0.7-4 mK) and is an unusually strong baseline; the truth is itself a solver (no measured chip data); synthetic additive hotspots, one geometry, source-layer field only; 240 training samples, so a larger set could close part of the gap (not tested); no confidence intervals beyond the seed range and family medians.
+**What this supports for the thesis.** The block-to-cell step is not a place where a learned model earns its place: a classical zoom is already accurate to milli-kelvin, and the learned model is faster but about 4-13x less accurate at the peak. It fits the thesis line (classical wins unless the physics is unknown or the cost matters).
