@@ -5043,6 +5043,16 @@ Caveats: the zoom is the same solver as the truth, an unusually strong baseline;
 classical zoom already bridges block → cell to milli-kelvin. Cell → transistor scale is a stated limitation and was not studied. Scripts: `scripts/mesh_study/`; raw
 results are in the gitignored `results/mesh_convergence/`.
 
+### 9.37 Leakage-temperature feedback: the classical ladder on a non-linear closed loop (regime A, 2026-10-25)
+
+**Question.** Every earlier result is on a linear steady problem. Does the classical advantage survive a legitimately non-linear, closed-loop physics, per-block leakage `P_b = P_dyn + P_leak 2^((T_b - 85)/k_d)`? Pre-registered in `docs/protocol_nonlinear_A.md` (hypotheses A1-A5 written before any data; amendments 11-15 dated and listed there). Data: 360 real 3D-ICE fields on geometry1 (train 240, iid 30, OOD-gain 30, second leakage law 30, near-critical 30) plus 30 runaway parameter sets; each field is one 3D-ICE solve at the fixed-point power, checked by recomputing the power from the exported field (max 9.6e-5, limit 1e-3); the real 3D-ICE Picard loop matched the fast fixed-point model in iteration count in 8 of 8 checks.
+
+**Honest scale of the non-linearity.** Median signed deviation of the peak rise from the linear nominal-power prediction: train 9.7%, iid 8.1%, OOD-gain 18%, near-critical 31%. The pre-registered rule therefore labels the train/iid pool "weakly non-linear" (below 10%) and no A2 conclusion is drawn from it. The target temperature range was widened to 85-135 C (amendment 13) after a 56-candidate pre-screen showed the earlier range gave a 7.3% median; the leakage parameters (`k_d` 10-45 C, shares 10-35%) are my own, because the one primary source found (SkyWater `inv_1`: a 217x leakage rise from 25 to 100 C) is a single inverter, and a patent figure implies a 4x slower rise.
+
+**Classical solvers (A1 and A5 pass).** Newton-PCG on the full field (Jacobian `A - E D W`, symmetric, preconditioned by the layered backbone of 9.30) reproduces the real 3D-ICE fixed point to a median 0.0026 K and a maximum 0.006 K peak error on 90 held-out scenarios (0.022 K on 30 near-critical ones), in 4-7 Newton steps and 60-140 ms, about 0.04% of the estimated 3D-ICE loop time (iterations x 12.2 s). Damped Picard reaches the same accuracy in 30-90 iterations and does not reach 1e-6 on 80% of near-critical cases; one-step linearised superposition fails (median error 2.9 K, up to 17.8 K). A spectral-radius stability test classifies converged vs runaway correctly on 150 of 150 cases in 1.5 ms each.
+
+**Caveats.** geometry1's uniform layers make the backbone exact, so this is the easiest case for the classical ladder; the FV plant reproduces 3D-ICE's conventions by design; the 3D-ICE loop time is estimated; the runaway sets were made well past critical. **Not yet done:** the learned models (A2-A4) and the HotSpot and energy-balance checks. So this section establishes the classical frontier a learned surrogate must beat, not a learned-vs-classical result.
+
 ## 11. Conclusion
 
 > **Rewritten 2026-09-10**, twice: an earlier conclusion quoted superseded R² 0.999 figures
