@@ -153,3 +153,40 @@ class TestRandomPlacement:
 def test_placement_summary_is_readable():
     assert placement_summary(None) == 'nominal'
     assert 'chiplet_a' in placement_summary({'chiplet_a': (10.0, -20.0)})
+
+
+# ---- grid alignment (2026-09-30): die edges mid-cell make a 3D-ICE heated-insulator artefact --------------------
+@pytest.mark.parametrize('name', ['geometry4', 'geometry5', 'geometry6'])
+@pytest.mark.parametrize('sampler', ['random', 'free', 'shelf'])
+def test_chiplet_samplers_return_grid_aligned_layouts(name, sampler):
+    from src.core.placement import (free_chiplet_placement, grid_steps, shelf_chiplet_placement,
+                                    random_placement as rp)
+    geom = get_geometry_by_name(name)
+    fn = {'random': lambda g, r: rp(g, r, max_shift_um=1500.0), 'free': free_chiplet_placement,
+          'shelf': shelf_chiplet_placement}[sampler]
+    gx, gy = grid_steps(geom)
+    rng = np.random.default_rng(3)
+    moved = 0
+    for _ in range(6):
+        offsets = fn(geom, rng)
+        if not offsets:
+            continue                                       # e.g. free placement cannot fit geometry6
+        placed = place_chiplets(geom, offsets)
+        for dp in placed.die_footprints:
+            assert abs(dp.x / gx - round(dp.x / gx)) < 1e-9 and abs(dp.y / gy - round(dp.y / gy)) < 1e-9, dp
+        moved += any(dx or dy for dx, dy in offsets.values())
+    if sampler != 'free' or name != 'geometry6':
+        assert moved > 0
+
+
+def test_snap_offsets_moves_at_most_one_cell_and_keeps_stacks_together():
+    from src.core.placement import grid_steps, snap_offsets
+    geom = get_geometry_by_name('geometry5')
+    gx, gy = grid_steps(geom)
+    b = (-12037.570531673646, 394.7360581187279)            # offsets of data/3d-ice-layout-geometry5 train_001
+    offs = {'chiplet_a_die1': (12045.535959401834, -811.6453042247009), 'chiplet_b_die1': b,
+            'chiplet_b_tsv': b, 'chiplet_b_die2': b}
+    s = snap_offsets(geom, offs)
+    for k, (dx, dy) in offs.items():
+        assert abs(s[k][0] - dx) <= gx and abs(s[k][1] - dy) <= gy
+    assert s['chiplet_b_die1'] == s['chiplet_b_tsv'] == s['chiplet_b_die2']

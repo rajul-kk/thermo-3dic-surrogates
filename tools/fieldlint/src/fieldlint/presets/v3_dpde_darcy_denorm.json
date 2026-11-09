@@ -1,0 +1,27 @@
+{
+  "name": "v3_dpde_darcy_denorm",
+  "_comment": "Same file as v3_dpde_darcy with the standardisation undone: x_raw = x * (2*std) + mean, a: mean 7.5, std 4.5 (so a in {3, 12}, consistent with the stored +-0.5); u: mean 0.00569201936, std 0.00379030361 (darcy_hf/metadata.json).",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "u": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 1,
+    "affine": [
+      0.00758060722,
+      0.00569201936
+    ]
+  },
+  "k": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 0,
+    "affine": [
+      9.0,
+      7.5
+    ]
+  },
+  "source_uniform": 1.0,
+  "splits": "none"
+}

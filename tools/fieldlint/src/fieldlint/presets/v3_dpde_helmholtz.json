@@ -1,0 +1,18 @@
+{
+  "name": "v3_dpde_helmholtz",
+  "_comment": "CONTROL (out of scope). jcy20/DiffusionPDE-normalized helmholtz_hf, first 1000 rows converted losslessly: data (N, 2, 128, 128) float64. DiffusionPDE: nabla^2 u + k^2 u = a with k = 1, u = 0 on the boundary, a a Gaussian random field. A user's most plausible reading for a diffusion linter: source = channel 0, u = channel 1. AS RELEASED (standardised).",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "u": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 1
+  },
+  "source": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 0
+  },
+  "splits": "none"
+}

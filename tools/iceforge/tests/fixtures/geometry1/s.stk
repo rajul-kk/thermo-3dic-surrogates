@@ -1,0 +1,84 @@
+// 3D-ICE Stack Description File
+// Geometry: geometry1
+
+material copper :
+   thermal conductivity     4.0000e-04 ;
+   volumetric heat capacity 3.5500e-12 ;
+
+material tim :
+   thermal conductivity     4.0000e-06 ;
+   volumetric heat capacity 4.0000e-12 ;
+
+material silicon :
+   thermal conductivity     1.4800e-04 ;
+   volumetric heat capacity 1.6300e-12 ;
+
+bottom heat sink :
+   heat transfer coefficient 2.0000e-08 ;
+   temperature 298.15 ;
+
+dimensions :
+   chip length 10000.0 , width  10000.0 ;
+   cell length 100.0 , width  100.0 ;
+
+layer type_layer_0 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_1 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_2 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_3 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_4 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_5 :
+   height 100.0 ;
+   material tim ;
+
+layer type_layer_6 :
+   height 1000.0 ;
+   material copper ;
+
+layer type_layer_7 :
+   height 100.0 ;
+   material tim ;
+
+layer type_layer_9 :
+   height 50.0 ;
+   material tim ;
+
+die type_die_8 :
+   layer  50.0 silicon ;
+   source 50.0 silicon ;
+   layer  50.0 silicon ;
+
+stack :
+   layer inst_9  type_layer_9 ;
+   die   inst_8  type_die_8    floorplan "floorplan.flp" ;
+   layer inst_7  type_layer_7 ;
+   layer inst_6  type_layer_6 ;
+   layer inst_5  type_layer_5 ;
+   layer inst_4  type_layer_4 ;
+   layer inst_3  type_layer_3 ;
+   layer inst_2  type_layer_2 ;
+   layer inst_1  type_layer_1 ;
+   layer inst_0  type_layer_0 ;
+
+solver :
+   steady ;
+   initial temperature 298.15 ;
+   numofcores 1 ;
+
+output :
+   Tmap ( inst_8, "tmap_inst_8.txt", final ) ;
+   Tmap ( inst_0, "tmap_inst_0.txt", final ) ;

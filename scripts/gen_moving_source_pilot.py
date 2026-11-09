@@ -17,7 +17,7 @@ from src.core.placement import (free_chiplet_placement, lateral_chiplets, place_
                                 placement_summary, random_block_placement,
                                 random_placement, shelf_chiplet_placement)
 from src.scenario.generator import ScenarioGenerator
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.main import process_scenario
@@ -47,7 +47,7 @@ def main():
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--output', type=Path, default=None)
     ap.add_argument('--ice-executable',
-                    default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
+                    default=DEFAULT_ICE_EXECUTABLE)
     args = ap.parse_args()
 
     out_root = args.output or Path(f'data/3d-ice-moving-{args.geometry}')

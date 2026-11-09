@@ -1,0 +1,7 @@
+{
+  "name": "3dice",
+  "_comment": "3D-ICE .npz files (one sample per file): coords (n,3) um, temp (n,) K, power (n,), pickled metadata. Node coordinates are scattered onto the (z,y,x) tensor grid. Split read from the file name (_train_ / _val_ / _test_).",
+  "format": "3dice",
+  "units": "K",
+  "splits": "from_filename"
+}

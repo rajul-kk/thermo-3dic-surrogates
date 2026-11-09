@@ -1,0 +1,17 @@
+{
+  "name": "v3_cno_darcy",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CNO RPB Darcy_64x64_IN.h5, all 512 samples stacked losslessly: input = a (values 3 or 12), output = u as stored. -div(a grad u) = 1, u = 0 on the boundary (Raonic et al. 2023, eq. 4.7; same set-up as FNO). Note: the stored output is <= 0 everywhere (file constants min_out -0.023, max_out 0.0), i.e. it has the sign of -u for the documented equation; kept as released.",
+  "u": {
+    "key": "output",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "input",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

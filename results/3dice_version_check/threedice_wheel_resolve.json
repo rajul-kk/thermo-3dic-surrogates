@@ -1,0 +1,121 @@
+{
+ "date": "2026-10-12",
+ "wheel": "threedice-4.0.0.post1-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+ "wheel_sha256": "65d8961b2fa0c5e78be3b0dc98901c1e691b36eaff30685479ff30ecd26fbddb",
+ "pinned_executable": "wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator",
+ "wheel_executable": "wsl /home/rajul/tdverify/sp/threedice/bin/3D-ICE-Emulator (wheel extracted in WSL)",
+ "method": "scripts/resolve_from_metadata.py on copies of 9 stored files, once with THERMO_ICE_EXECUTABLE=wheel binary, once with the default pinned build; temp arrays (float32 as stored) compared",
+ "overall_max_dT_wheel_vs_stored": 0.0,
+ "overall_max_dT_wheel_vs_pinned": 0.0,
+ "all_bit_identical": true,
+ "files": [
+  {
+   "file": "3d-ice-geometry7-pilot/geometry7_test_016.npz",
+   "n": 208320,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 28.490997314453125
+  },
+  {
+   "file": "3d-ice-interface-pilot/geometry5_iface_tim_top_80.npz",
+   "n": 84000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 4.3079833984375
+  },
+  {
+   "file": "3d-ice-interface-pilot-median/geometry4_iface_tim_sink_8__median.npz",
+   "n": 56000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 30.345977783203125
+  },
+  {
+   "file": "3d-ice-layout-geometry1/geometry1_test_041.npz",
+   "n": 100000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 35.970001220703125
+  },
+  {
+   "file": "3d-ice-layout-geometry1/geometry1_train_040.npz",
+   "n": 100000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 80.1820068359375
+  },
+  {
+   "file": "3d-ice-layout-geometry4/geometry4_test_041.npz",
+   "n": 56000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 45.82098388671875
+  },
+  {
+   "file": "3d-ice-layout-geometry6/geometry6_test_041.npz",
+   "n": 141120,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 54.4210205078125
+  },
+  {
+   "file": "3d-ice-layout-geometry7/geometry7_train_040.npz",
+   "n": 208320,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 109.13299560546875
+  },
+  {
+   "file": "3d-ice-moving-geometry1/geometry1_test_041.npz",
+   "n": 100000,
+   "same_length": true,
+   "wheel_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_max_dT": 0.0,
+   "pinned_vs_stored_max_dT": 0.0,
+   "wheel_vs_pinned_bit_identical": true,
+   "wheel_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "pinned_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+   "rise": 34.21099853515625
+  }
+ ]
+}

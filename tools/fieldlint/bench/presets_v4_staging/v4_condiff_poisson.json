@@ -1,0 +1,20 @@
+{
+  "name": "v4_condiff_poisson",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "spacing": [
+    0.0078125,
+    0.0078125
+  ],
+  "_comment": "ConDiff poisson_grid128 test file: k = 1 (condiff.py lines 83-85, fd_mtx2 of an all-ones coefficient), f ~ N(0,1). Single variant (no k stored). Sign and layout as v4_condiff (lines 85, 151-155).",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  }
+}

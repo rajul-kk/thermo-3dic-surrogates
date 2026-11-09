@@ -45,8 +45,16 @@ class Split:
                 f"grid={self.y_train.shape[1:]}")
 
 
-def load_mat_pair(folder: Path) -> Tuple[np.ndarray, np.ndarray]:
-    """Load and transpose one scope's .mat pair. Mirrors their load_mat_pair()."""
+def load_mat_pair(folder: Path, fix_orientation: bool = False,
+                  channels: List[str] = None) -> Tuple[np.ndarray, np.ndarray]:
+    """Load and transpose one scope's .mat pair. Mirrors their load_mat_pair().
+
+    fix_orientation (default False, which reproduces upstream exactly): in the released data the SPATIAL input
+    channels (power, grid_x/grid_y, local_thermal_k) are stored transposed in-plane relative to the output
+    temperature. When True, the two in-plane axes of every spatial input channel are swapped so the input aligns
+    with y; scalar channels (SCALAR_CHANNELS, constant per sample) are left alone. Requires `channels` (the
+    channel names, e.g. SCOPES[scope]) and a square in-plane grid.
+    """
     with h5py.File(folder / 'input.mat', 'r') as f:
         x = f['data'][()]
     with h5py.File(folder / 'output.mat', 'r') as f:
@@ -63,7 +71,15 @@ def load_mat_pair(folder: Path) -> Tuple[np.ndarray, np.ndarray]:
 
     x = np.transpose(x, (0, 4, 3, 2, 1))   # (B,P,Z,Y,X) -> (B,X,Y,Z,P)
     y = np.transpose(y, (0, 3, 2, 1))      # (B,Z,Y,X)   -> (B,X,Y,Z)
-    return np.ascontiguousarray(x, dtype=np.float32), np.ascontiguousarray(y, dtype=np.float32)
+    x = np.ascontiguousarray(x, dtype=np.float32)
+    if fix_orientation:
+        if channels is None or len(channels) != x.shape[-1]:
+            raise ValueError('fix_orientation needs `channels` with one name per input channel')
+        if x.shape[1] != x.shape[2]:
+            raise ValueError(f'fix_orientation needs a square in-plane grid, got {x.shape[1:3]}')
+        spatial = [i for i, c in enumerate(channels) if c not in SCALAR_CHANNELS]
+        x[..., spatial] = np.swapaxes(x[..., spatial], 1, 2).copy()
+    return x, np.ascontiguousarray(y, dtype=np.float32)
 
 
 def split_indices(total: int, train_ratio: float = TRAIN_RATIO) -> Dict[str, slice]:
@@ -79,12 +95,13 @@ def split_indices(total: int, train_ratio: float = TRAIN_RATIO) -> Dict[str, sli
     }
 
 
-def load_scope(data_root: Path, scope: str, split_data: bool = True) -> Split:
+def load_scope(data_root: Path, scope: str, split_data: bool = True,
+               fix_orientation: bool = False) -> Split:
     """Load one scope."""
     if scope not in SCOPES:
         raise ValueError(f'unknown scope {scope!r}; expected one of {sorted(SCOPES)}')
     folder = data_root / f'{scope}_steady'
-    x, y = load_mat_pair(folder)
+    x, y = load_mat_pair(folder, fix_orientation=fix_orientation, channels=SCOPES[scope])
 
     if not split_data:
         empty_x = x[:0]

@@ -158,7 +158,9 @@ This paper makes the following contributions:
    (arXiv:2608.23977) — which reports only neural models — the strongest linear baseline is
    3.4–4.4× worse than Therm-FM, so that benchmark is *not* linear-solvable; we decompose
    how much of the gap is attributable to layout conditioning versus material variation
-   (§9.13, §9.14). This is the control the benchmark's own paper omits.
+   (§9.13, §9.14). This is the control the benchmark's own paper omits. (Auditing its files also found
+   that the spatial inputs are stored transposed relative to the temperature; the ridge result is
+   unaffected, §9.33.)
 7. **Applying a known benchmark fix here, measuring its effect, and reporting a failed first
    attempt in detail neither prior work supplies.** Layout randomisation as a fix for
    fixed-floorplan thermal benchmarks is not new — HSLD (arXiv:2103.11177, 2021) and
@@ -182,8 +184,8 @@ This paper makes the following contributions:
    diagnostic is calibrated against the canonical operator-learning benchmarks (PDEBench
    Darcy, Burgers, Navier–Stokes, §9.16): it correctly places nonlinear Burgers at the
    discriminative extreme, shows our *fixed* benchmark was the most linearly-solvable dataset
-   measured, and shows the layout fix made ours harder than Darcy at matched sample size and
-   capacity. It also found that **time-evolution PDE benchmarks omit the persistence
+   measured, and (on pre-repair data) shows the layout fix made ours harder than Darcy at matched sample size and
+   capacity; on the v5 rerun of 2026-10-07 the layout datasets sit at or above Darcy's 0.82-0.85 (§9.16a) with ridge on the per-cell power field, while ridge on the block-power vector still fails there (§9.15b-c). It also found that **time-evolution PDE benchmarks omit the persistence
    baseline** — on PDEBench Navier–Stokes a linear fit scores 0.958 while assuming nothing
    moved scores 0.9997, a gap the conventional mean-field baseline misses entirely (§9.16b).
    That is a fourth instance of this paper's structural finding, in the most-used benchmark
@@ -205,16 +207,21 @@ This paper makes the following contributions:
 10. Reference implementations of five surrogate families (PINN, FNO/WHNO/CNO-FNO, DeepONet,
    autoregressive z-layer operator, few-shot fine-tuning) with a shared explainability
    toolkit, released as infrastructure rather than as accuracy claims.
-11. **A new measurement: hotspot localisation on layout-varying data (§9.17).** No prior work
-   combines layout-varying data, a localisation metric and a non-neural baseline. On all
-   three sharp-peaked geometries, a linear fit on the per-cell power field localises the
-   hotspot better than ridge on the compact vector — 8.75×, 2.73×, 1.39×, seed-stable, and
-   better on every layout-varying dataset measured — at the cost of worse peak-*temperature* error. The
-   mechanism is not new (§9.16g); the magnitudes and their geometry-dependence are.
-   *(Re-measured on repaired data, §9.17/§9.23.)*
+11. **A new measurement: hotspot localisation on layout-varying data (§9.17, §9.32).** No prior
+   work combines layout-varying data, a localisation metric and a non-neural baseline. On all six
+   layout-randomised geometries, a linear fit on the per-cell power field localises the hotspot
+   better than ridge on the compact vector (1.39–8.75×, every seed). The cost is worse
+   peak-*temperature* error. The mechanism is not new (§9.16g); the magnitudes and their
+   geometry-dependence are. *(Re-measured on repaired data, §9.17/§9.23; geometry4–6 on the
+   artefact-free data, §9.32.)*
 12. **Calibrated peak-temperature intervals (§9.20).** Split conformal prediction meets its
    nominal coverage (81–93% against 80/90% targets) where the project's MC Dropout was ~30×
    miscalibrated. The intervals are wide (8–40 K), limited by point accuracy, not calibration.
+13. **A learned surrogate can beat physics by learning a simulator artefact (§9.32).** Off-grid die
+   edges made 3D-ICE (and our own FV check) put spurious peaks in unpowered cells. ThermoNO learned
+   them and appeared to beat a training-free physics solver on peak-temperature error by 2.6–5.4× (pre-fix data). On corrected data
+   that solver is better on every geometry. The lesson for validation: the cross-check must not
+   share the reference simulator's discretisation rules.
 
 **Stated plainly for examiners:** contributions 2, 7 and 8 are negative or corrective
 results. This paper's central claim is not that a new architecture is better; it is that the
@@ -514,6 +521,8 @@ active (§4, `assumptions.md` §6.1), and once more (2026-08-06) after removing
 geometry2b/2c. The numbers below are current as of that last regeneration.
 
 **Dataset (275 simulations, all real 3D-ICE 4.0):**
+
+*Solver provenance.* The 3D-ICE defects reported in this paper were reproduced identically on tag 4.0, on commit 39ed2a7 and on upstream HEAD 4953952 (`results/3dice_version_check/`). The build used for the shipped data was not recorded at the time (the generation scripts point to 4953952, `~/3d-ice-4.0`). Re-solving under 4953952 reproduced the stored temperature fields for 65 files in 28 datasets (73 re-solve comparisons): 60 bit-identical and 5 differing by 1.007e-3 K, one step of the stored three-decimal readback, with power and grid identical. The set covers the live layout and moving datasets (including the unsnapped `3d-ice-moving-geometry4`), the archived pre-snap geometry4-6 files, the snapped layout datasets (reproduced by the committed `--snap`), the rebuilt fixed-placement geometry1/3/4, microchannel, leakage and throttle samples, and the TSV-map fixed-placement geometry2a/5/6 files. The 2026-10-06 realdata diff was also re-run in full (48 cases) under 4953952 with its original parameters: 72,972 JSON numbers and 1,280 field arrays agree to 1.3e-10, with no change in any verdict. This shows that the stored data and the reported diff equal what 4953952 produces, not which build originally made them. Files written from 2026-10-08 record `ice_commit` and `ice_executable` in their metadata (the runners refuse any other build); earlier `.npz` files carry no per-file record of the executable.
 
 | Geometry | n | z-nodes | pts/file | median ΔT | max ΔT | median T | peak T |
 |---|---|---|---|---|---|---|---|
@@ -1363,6 +1372,17 @@ that are more useful than the claim would have been:
 
 ### 9.13 The linear baseline on IC-ThermBench: it loses, and that reframes this paper (2026-09-10)
 
+> **Note (2026-10-05, §9.33; rerun table added 2026-10-07).** The public IC-ThermBench files store the
+> spatial inputs transposed in-plane relative to the temperature, and this project's loader mirrored that,
+> so every number in the tables below was fit on mismatched input/output pairs. The table directly under the
+> results ("Fixed-orientation rerun") re-fits all baselines with the corrected orientation (same script,
+> split, λ grids and metrics; only `--fix-orientation` differs). The ridge variants change by ≤ 0.34% and
+> kNN by ≤ 1.7%, so the conclusion "the linear baseline loses on every scope" stands unchanged (§9.31).
+> The S4→S5 ridge instability (§9.13c) shrinks from ~1,700-2,000 K to ~53-59 K but persists: ridge is
+> still about 2x worse than the mean predictor. The as-stored rows are kept as originally reported. The transpose is
+> already in the stored files (the public loader reverses the axes of inputs and outputs alike; see §9.31). That the
+> mismatch is a plain transpose, and not a flip or rotation, was measured by testing all 8 dihedral transforms (§9.33).
+
 IC-ThermBench (arXiv:2608.23977) evaluates eight baselines — U-Net, FNO, U-FNO, SAU-FNO,
 DeepOHeat, Therm-FM T/B/L — and **not one is non-neural**. This section supplies the
 missing row. Method and pre-registered predictions are in `docs/ic_thermbench_plan.md`,
@@ -1398,6 +1418,33 @@ index-based and unshuffled: 10,800 train / 1,200 val / 3,000 test. λ was select
 | | ridge-green | 8.116 | 7.152 | 0.895 | 16.72 | 7.73 | 8.56 | 35.7 M |
 | | ridge-pca | 6.946 | 6.090 | 0.918 | 14.04 | 6.84 | 7.49 | 4.2 M |
 | | **ridge-per-geom** | **3.203** | 2.635 | 0.984 | 9.05 | 2.76 | 3.03 | 21.2 M |
+
+**Fixed-orientation rerun (2026-10-07).** Same `scripts/ic_thermbench_baselines.py`, their split, λ selected
+on their validation split (the selected λ is identical in both orientations), `--fix-orientation` added
+(`results/icb_orientation/baselines_{old,fixed}.json`). RMSE column: as stored → fixed; the other columns
+are the fixed run, and the last column is the RMSE change. The mean-field row is orientation-independent and
+unchanged.
+
+| scope | baseline | RMSE (K), stored → fixed | MAE | R² | MaxAE | peak-T err | Top-50 MAE | RMSE change |
+|---|---|---|---|---|---|---|---|---|
+| S2 | knn | 4.406 → **4.438** | 3.533 | 0.853 | 11.84 | 3.71 | 4.60 | +0.73% |
+|  | ridge-green | 3.131 → **3.131** | 2.514 | 0.962 | 8.78 | 3.10 | 3.73 | +0.00% |
+|  | ridge-pca | 3.430 → **3.437** | 2.764 | 0.961 | 9.43 | 3.48 | 4.13 | +0.21% |
+|  | ridge-per-geom | 1.943 → **1.945** | 1.485 | 0.980 | 6.97 | 1.96 | 1.86 | +0.10% |
+| S3 | knn | 10.889 → **11.071** | 9.703 | 0.296 | 22.11 | 10.87 | 15.03 | +1.67% |
+|  | ridge-green | 4.603 → **4.604** | 3.786 | 0.922 | 11.89 | 4.03 | 5.37 | +0.02% |
+|  | ridge-pca | 4.159 → **4.161** | 3.462 | 0.936 | 10.16 | 4.36 | 5.31 | +0.06% |
+|  | ridge-per-geom | 2.488 → **2.479** | 1.976 | 0.972 | 7.90 | 1.92 | 2.21 | -0.34% |
+| S4 | knn | 20.654 → **20.950** | 19.804 | 0.146 | 33.04 | 21.95 | 24.35 | +1.43% |
+|  | ridge-green | 8.116 → **8.115** | 7.151 | 0.895 | 16.72 | 7.73 | 8.56 | -0.00% |
+|  | ridge-pca | 6.946 → **6.939** | 6.083 | 0.918 | 14.04 | 6.88 | 7.51 | -0.10% |
+|  | ridge-per-geom | 3.203 → **3.196** | 2.626 | 0.984 | 9.03 | 2.75 | 3.02 | -0.23% |
+
+Ratios to Therm-FM with the best fixed linear model (ridge-per-geom): 4.39× / 3.46× / 3.42× on S2 / S3 / S4
+(as stored: 4.39× / 3.47× / 3.43×). **Does it still lose? Yes, on every scope, by the same margin.** The fix
+changes so little for ridge for a mechanical reason: a fixed in-plane permutation of the input is a linear map
+of the input, which ridge absorbs apart from the regulariser's slightly different geometry. Only the
+distance-based kNN rows move noticeably (+0.7 to +1.7% RMSE).
 
 **The headline: the linear baseline loses, clearly and on every scope.** The best linear
 model is 4.4× / 3.5× / 3.4× worse than Therm-FM on S2 / S3 / S4, and worse than every one
@@ -1493,6 +1540,12 @@ same way:
 | **mean field (trivial)** | **29.638** | 28.905 | −0.151 | 29.57 |
 | ridge-pca | 1740.5 | 1389.3 | −9037.5 | 1715.7 |
 | ridge-green | 1973.5 | 1841.3 | −11668.5 | 888.8 |
+| ridge-pca, fixed orientation (2026-10-07) | 53.46 | 45.67 | −3.55 | 77.64 |
+| ridge-green, fixed orientation (2026-10-07) | 59.23 | 53.99 | −4.58 | 37.72 |
+
+(The two ridge rows above the fixed ones are as stored. The fixed rows are from
+`results/icb_orientation/baselines_transfer_fixed.json`: same S4 fit, same unchanged preprocessing. Fixed
+orientation removes the numerical blow-up but not the failure: both are 1.8-2.0× worse than the mean predictor.)
 
 Two findings, and they point in opposite directions.
 
@@ -1537,6 +1590,12 @@ does not diminish IC-ThermBench — S2–S4 are genuinely discriminative (§9.13
 is honestly reported as their headline finding. But "structural OOD transfer is largely
 unsolved" is a much sharper statement when the reference point is a predictor with no
 parameters at all, and supplying that reference point costs seconds.
+
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** The mechanism (chip thermal is linear in power for a fixed
+stack) is classical, and the general weak-baseline critique is McGreivy & Hakim (2024, arXiv:2407.07218). That layout
+randomisation breaks a fixed linear map is close to true by construction; what this project contributes is the measurement on
+real 3D-ICE data and its use as a benchmark-design diagnostic. No paper reporting ridge-versus-layout on chip-thermal data
+was found (IC-ThermBench, arXiv:2608.23977, has no non-neural row).
 
 ### 9.14 Why our benchmark is linear-solvable and theirs is not — and why that is a criticism of ours (2026-09-11)
 
@@ -1669,6 +1728,25 @@ across rows:**
 | geometry1, independent blocks | 8 | 0.347 | 9.28 | 2.218 | **0.239** | **0.770** |
 | geometry4, fixed (§9.1a) | 0 (amplitudes only) | 1.000 | 2.63 | 0.320 | **0.122** | 0.891 |
 | geometry4, rigid translate | 4 | 0.735 | 5.92 | 0.755 | **0.128** | 0.962 |
+
+**Snapped re-solve of the rigid-translation pilot (2026-10-05).** `data/3d-ice-moving-geometry4` has the die-edge
+artefact of §9.32: the linter (`scripts/lint_dataset.py`) flags all 45 files for an off-grid footprint (L006) and 33 of
+45 for a maximum-principle violation (L005). The same 45 placements were re-solved on the cell grid
+(`resolve_from_metadata.py --snap`, `data/3d-ice-moving-geometry4-snap`; it passes the linter, and `power` and `coords`
+are identical to the original in all 45 files). It has **not** been swapped in; the original is untouched.
+`benchmark_linearity_audit.py` (`ours/geometry4-translate`, `-translate-snap`), measured:
+
+| geometry4, rigid translate | detrended spatial R² (linear, PCA k = 8) | effective DOF | verdict |
+|---|---|---|---|
+| original (current) | 0.9736 | 6.73 | LINEAR-SOLVABLE |
+| snapped | 0.9750 | 6.73 | LINEAR-SOLVABLE |
+
+The peak temperature changes by a median −0.69 K per scenario (range −13.25 to +1.31 K), and the argmax moves by a
+median 3.3 mm. The qualitative claim survives: rigid translation is a low-dimensional family that a linear fit
+covers, with or without the artefact. The table row above (geometry4, rigid translate; det.MAE 0.755, norm err 0.128,
+R² 0.962) and the ridge 5-fold CV of 0.862 in §9.24 are **pre-fix** and will be rerun after the swap. (The stored
+`results/linearity_audit.json` is older and gives 0.9729 for the original; the 0.9736 above is a fresh run,
+and the full v5 rerun, `results/linearity_audit_v5.json`, reproduces 0.9736 and 0.9750.)
 
 **Attempt 1 (rigid translation) failed.** Relative to the signal, ridge barely moved: +8% on
 geometry1, +5% on geometry4, and geometry4's spatial R² actually *improved* (0.891 → 0.962).
@@ -1844,7 +1922,10 @@ Transient simulation would add a further nonlinear axis; the present dataset is 
 only.
 
 **Threats to validity.** Ground truth is 3D-ICE, itself a compact RC-network approximation.
-HotSpot cross-validation covers geometry1 only and disagrees by ~15%. *(Updated 2026-09-24,
+The earlier HotSpot cross-validation (geometry1 only, "disagrees by ~15%") is withdrawn: it came from a wrapper with
+several bugs (§9.34, Limitations), and the ~15% figure could not be reproduced because no record of how it was made
+was found. With the rewritten wrapper HotSpot agrees with 3D-ICE to -0.7% on peak rise (0.13 K RMSE) on geometry1 and
+-0.9% (0.16 K RMSE) on geometry3. *(Updated 2026-09-24,
 §9.23–9.24: an independent finite-volume solver now reproduces 3D-ICE to ≤1.14% on 18 paired
 cases across all six geometries, and grid refinement changes the
 dataset by ≤1.45%. The numerical solution is verified; agreement with silicon or a
@@ -2001,6 +2082,19 @@ statistics are reported rather than one.
 > than first stated. The field representation is near-linear-solvable on all three layout
 > geometries, not just geometry4, while the compact vector fails on all three (−0.67, −2.31,
 > −2.87, unchanged). The 0.962 figures below are the pre-repair audit value; quote ≈0.95.
+>
+> **Audit rerun on current (v5, repaired, snapped) data, 2026-10-07** (`results/linearity_audit_v5.json`,
+> same script and settings as `results/linearity_audit.json` of 2026-09-12: single 20% split, PCA-restricted
+> and dense ridge, `--max-samples 3000`, seed 0). The audit table that follows was measured on
+> pre-repair data and is kept as originally reported. Detrended linear spatial R², old → v5: geometry4-shelf
+> 0.962 → 0.964, geometry5-shelf **0.418 → 0.948**, geometry6-shelf **0.536 → 0.870**; effective DOF
+> 7.6/3.2/2.5 → 7.6/4.8/5.2. The audit's shelf rows therefore no longer separate geometry4 from geometry5
+> (both are at or near the 0.95 threshold; geometry5 at 0.9475 is just under it and still labelled
+> "discriminative"), which agrees with the CV re-measurement above (0.936/0.951/0.954 and 0.893/0.923/0.937).
+> The old geometry5/6 audit values were an artefact of the layer-blind field. The conclusion of this section
+> (the field representation is linear-solvable where the compact vector is not) is strengthened, and the
+> "geometry5/6 are the hardest, because their material map changes most" reading below does not survive on
+> v5 data. Same 45-file single-split caveat as below.
 
 Adding the shelf datasets to the cross-benchmark linearity audit
 (`scripts/benchmark_linearity_audit.py`) produced a direct contradiction with §9.15b, and
@@ -2140,6 +2234,22 @@ column** — see §9.16c.
    exact regime our shelf datasets run in, still scores 0.816. It is therefore not an artifact
    of our datasets being small. (Darcy being comparatively easy for linear methods is
    consistent with existing criticism of it as an operator-learning benchmark.)
+
+> **Re-measured on v5 data, 2026-10-07 (`results/linearity_audit_v5.json`).** The ladder above is
+> pre-repair for the 'ours' rows. PDEBench rows are unchanged to every printed digit (same data, same
+> seed). Ours, old → v5: geometry5-shelf 0.418 → 0.948; geometry6-shelf 0.536 → 0.870;
+> geometry4-shelf 0.962 → 0.964; geometry1-layout 0.863 → 0.862; geometry1-fixed 0.988 → 0.986;
+> geometry4-fixed 0.946 → 0.982 (flips to LINEAR-SOLVABLE); geometry6-fixed 0.961 → 0.956;
+> geometry7-pilot 0.847 → 0.987 (flips to LINEAR-SOLVABLE). IC-ThermBench S2/S3/S4 (now loaded with
+> orientation fixed): 0.712 → 0.711, 0.594 → 0.594, 0.556 → 0.556; S4→S5 −0.228 → −0.228. Consequences:
+> items 1 and 2 above stand (Burgers is still the extreme, fixed placement is still among the most solvable,
+> geometry1-fixed 0.986 and shallow water 0.9999). **Item 3 does not stand on v5 data:** the layout
+> datasets are no longer less linearly explained than Darcy (0.816 at n = 45, 0.852 at n = 1000):
+> geometry5-shelf is 0.948 and geometry6-shelf 0.870, above both. Only geometry1-layout (0.862) is
+> comparable to Darcy, and it is at the Darcy n = 1000 level, not below it. The harder-than-Darcy claim
+> should be read as pre-repair; what the audit supports now is "layout randomisation lowers the field-linear
+> R² from ~0.98 to 0.86-0.95, to about Darcy's level", with the ridge-on-compact-vector failure (§9.15b)
+> being the stronger evidence. IC-ThermBench remains clearly discriminative (0.56-0.71) and unaffected.
 
 #### 9.16b Navier–Stokes: the missing baseline is persistence, not the mean
 
@@ -2298,7 +2408,10 @@ Added 2026-09-12; **substantially narrowed the same day after a prior-art check*
 The first version of this section presented the one-parameter structure as a discovery. It is
 not: **PDEBench documents it explicitly.** What was not previously reported, as far as we can
 establish, is the consequence — that a three-component linear fit reproduces the solutions at
-R² 0.991.
+detrended spatial R² 0.991 (independent PCA-ridge, k = 3, n = 1000, random split, h(0) → h(20)).
+The 0.9999 in the audit table below is a different measure: the audit's detrended linear spatial R²
+with 64 PCA components, n = 300 (240 train, contiguous split; `results/linearity_audit.json`,
+`pca_spatial_r2` 0.99992). The two agree: the same independent fit gives 0.99996 at k = 64 (table below).
 
 | benchmark | eff. DOF | linear spatial R² | persistence R² | verdict |
 |---|---|---|---|---|
@@ -2317,7 +2430,10 @@ as (their eq. 21):
 > the center of the domain** ... with the **radius r randomly sampled from U(0.3, 0.7)**."
 
 So a fixed centre, fixed heights (2.0 inside, 1.0 outside) and a single randomised scalar are
-*stated by the benchmark's authors*. Our measurements confirm their specification exactly
+*stated by the benchmark's authors*. (Quote re-checked against the text of arXiv v7, 26 Aug 2024, on 2026-10-14. D.7 states the
+centre, the two heights in eq. 21 and the U(0.3, 0.7) radius; it does not say that the family is
+one-parameter or what that implies. So: documented in the appendix; the consequence, that a
+3-component linear fit solves it (R² 0.991), is not reported.) Our measurements confirm their specification exactly
 rather than uncovering anything — which is worth reporting only as evidence the loader reads
 the file correctly:
 
@@ -2331,7 +2447,7 @@ over [−2.5, 2.5], confirming the documented specification. **The contribution 
 one-parameter structure but its consequence**, which we have not found reported: a linear
 function of that single radius explains **78.5%** of the target field's variance on its own,
 the target needs **3 principal components for 95%** of variance, and a closed-form linear fit
-reaches R² 0.991.
+reaches detrended spatial R² 0.991 (3 PCA components, n = 1000, random split).
 
 **Verified independently, not just by the audit.** Written from scratch (PCA-ridge, no shared
 code), at n=1000, with a **random** split rather than the audit's contiguous one, to rule out
@@ -2352,7 +2468,7 @@ and n=1000 results agree to three decimal places.
 scalars produces a near-linear solution manifold, and that this makes a benchmark unable to
 distinguish architectures. Our fixed-placement benchmark had ~8 such scalars; this PDEBench
 file has one. A closed-form linear fit with three components reproduces its solutions at
-R² 0.991 with no training and no GPU. The argument of §9.2–§9.3 therefore transfers to a
+detrended spatial R² 0.991 (3 components; 0.9999 with 64) with no training and no GPU. The argument of §9.2–§9.3 therefore transfers to a
 published PDE benchmark — which is the claim, and it is weaker than "we found a defect nobody
 knew about," because the design was documented all along.
 
@@ -2381,7 +2497,7 @@ paper about weak baselines should not itself overclaim novelty.
 | claim as first written | status after the check |
 |---|---|
 | PDEBench shallow water is a one-parameter family | **Prior art, from the benchmark's own authors.** arXiv:2210.07182 App. D.7 eq. 21 specifies a bump "in the center of the domain" with "radius r randomly sampled from U(0.3, 0.7)". Not a discovery. |
-| A linear fit solves it (R² 0.991, 3 components) | **Not found in the literature.** Retained as the contribution of §9.16e. |
+| A linear fit solves it (detrended spatial R² 0.991 with 3 components; 0.9999 with 64) | **Not found in the literature.** Retained as the contribution of §9.16e. |
 | Time-evolution benchmarks omit the persistence baseline | **The baseline is standard prior art in an adjacent field.** WeatherBench (Rasp et al., 2020) uses persistence and climatology as core baselines and states outright: "To be useful, a forecast system needs to beat the weekly climatology and the persistence forecast." Our contribution is narrowed to *importing* it into PDE operator-learning evaluation and measuring that PDEBench Navier–Stokes at a 2-step gap fails it. |
 | Simple methods can match neural operators | **Prior art.** Batlle et al., *Kernel Methods are Competitive for Operator Learning*, J. Comp. Phys. 2023 (arXiv:2304.13202), matches or beats FNO/DeepONet with vanilla kernels on a majority of six benchmarks. Note their **linear** kernel *underperforms* on Darcy (6.74% vs FNO 2.41%), so "a linear model suffices" is not their claim and our shallow-water result does not duplicate it. |
 | Weak baselines are endemic in ML-for-PDEs | Prior art, already cited: McGreivy & Hakim, *Nature Machine Intelligence* 2024. |
@@ -2401,7 +2517,7 @@ situation a prior-art check exists to resolve. The honest position is in
 
 **What survives §9.16 as plausibly unreported**, stated conservatively:
 
-1. The **measured consequence** for PDEBench shallow water (3 components → R² 0.991) of a
+1. The **measured consequence** for PDEBench shallow water (3 components → detrended spatial R² 0.991) of a
    design its authors documented.
 2. **Persistence applied to PDE operator-learning benchmarks**, and the specific finding that
    a linear fit on PDEBench Navier–Stokes at stride 2 (0.9354) *loses* to persistence
@@ -2668,6 +2784,10 @@ re-checked immediately before any submission that relies on it.
 > by inner CV on detrended R² inside each training fold (`scripts/hotspot_remeasure.py`,
 > `results/v5/hotspot_remeasured.json`). Ratios are ridge ÷ field error (>1 = field better).
 >
+> **Superseded for geometry4–6-shelf by §9.32 (2026-09-30).** Those rows were measured on data
+> with a die-edge artefact. On the corrected data the loc ratios are 3.26× / 6.00× / 3.69× and
+> the peaks are sharp (734 / 1031 / 1031 µm). All other rows reproduce exactly.
+>
 > | dataset | peak spread (µm) | loc ratio, seed-mean (range) | recall ratio | \|peak\| K ridge / field |
 > |---|---|---|---|---|
 > | geometry1-shelf | 300 | **8.75×** (7.62–9.62) | 5.86× | **11.90** / 18.86 |
@@ -2905,7 +3025,7 @@ field's expense.
 **Scope of what this does and does not show.** It shows that *naive linear concatenation* of
 a geometry signal does not help, and gives a physical reason why not. It does **not** rule out
 that a genuinely nonlinear geometry encoder (an attention/graph mechanism, as PI-GANO and
-Neural Green's Functions arXiv:2511.01924 use, rather than a raw field bolted onto a linear
+Neural Green's Functions (Yoo et al., NeurIPS 2025, arXiv:2511.01924; not the same paper as Neural Green's Operators, arXiv:2406.01857) use, rather than a raw field bolted onto a linear
 fit) could extract useful structure from the same distance information — if anything, this
 result is a reason a *nonlinear* encoder might be necessary for geometry conditioning to pay
 off here, not evidence against trying one. A full neural-operator version of this test was not
@@ -3272,7 +3392,7 @@ Re-measured (`scripts/remeasure_pilots_v5.sh`):
 | §9.10 leakage | converged / runaway | 28 / 15 | **28 / 15** |
 | §9.10 | stability classifier, LOO | 43/45 vs 40/45 | **43/45 vs 40/45** |
 | §9.11 geometry7 | ridge / kNN det.MAE, R² | 0.462, 0.992 / 0.482, 0.992 | **identical** |
-| §9.15 rigid translation | ridge 5-fold CV mean R² (g1 / g4) | — | **0.857 / 0.862** (still the best model) |
+| §9.15 rigid translation | ridge 5-fold CV mean R² (g1 / g4) | — | **0.857 / 0.862** (still the best model); pre-fix geometry4 data, to be rerun after the §9.15 snapped-data swap |
 
 Every pilot conclusion survives. One stale claim is corrected in §9.10: "ridge still wins on
 converged leakage" was measured on the original 20 scenarios. At n=45, kNN beats ridge (det.MAE
@@ -3299,7 +3419,17 @@ is exact for laterally uniform stacks: it reproduces the full FV solve to 1e-6 o
 Physics-plus-learned-residual models are common too (e.g. PI-ONet, 2026).
 
 **Result.** 6 layout-randomised v5 datasets, 5-fold CV × 4 seeds, `scripts/backbone_eval.py`,
-`results/backbone_eval.json`:
+`results/backbone_eval.json`.
+
+> **geometry4–6 rows updated by §9.32 (2026-10-01).** They were measured on data with a die-edge
+> artefact. On the corrected data (keys `geometry{4,5,6}-snap`) the backbone scores:
+> - R² 0.983 / 0.999 / 0.999;
+> - det.MAE 0.31 / 0.033 / 0.052 K;
+> - recall 0.84 / 0.85 / 0.91;
+> - |peak| error **0.06 / 0.15 / 0.08 K**;
+> - hotspot location error 250 / 0 / 0 µm.
+>
+> Its peaks are no longer diffuse. The rows below are kept as history.
 
 | geometry | model | R² mean | det.MAE (K) | top-1% recall | \|peak\| err (K) |
 |---|---|---|---|---|---|
@@ -3340,6 +3470,13 @@ learned model is the lateral-heterogeneity residual, 0.04–0.32 K detrended her
 the natural target for an FNO correction, and running it needs the GPU.
 
 ### 9.26 ThermoNO: a physics-shaped correction to the classical backbone (2026-09-25)
+
+> **Overturned in part by §9.32 (2026-10-01).** The tables below were measured on geometry4–6
+> layout data with a die-edge artefact: spurious peaks in unpowered edge cells. The backbone, which
+> solves the true physics, could not reproduce those peaks; ThermoNO learned them. On the corrected
+> data (seed 0) the backbone's hotspot errors fall to 0–250 µm and 0.06–0.15 K. That beats ThermoNO on
+> localisation and peak temperature on all three geometries, and on every metric on geometry5/6. The
+> "robust 9/9" peak and localisation claim below does not survive.
 
 `src/fno/thermono.py` learns a correction to the §9.25 backbone. The correction is exactly linear
 in power, through a bias-free linear path gated by a nonlinear, power-free geometry encoder. It
@@ -3386,7 +3523,7 @@ of seeds in which ThermoNO beats the backbone:
 | | *wins* | *2/3* | *0/3* | *3/3* | *0/3* | *3/3* |
 
 **Reading, multi-seed.**
-- **Robust (9/9 runs):** ThermoNO cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and puts
+- **Robust (9/9 runs) on pre-fix data, superseded by §9.32:** ThermoNO cuts peak-temperature error 2.6–5.4× (to 0.56–0.79 K) and puts
   the hottest cell 3.5–5× closer to the true one. This is the claim that survives.
 - **Also robust, in the other direction (0/9 runs):** top-1% recall is always lower, by 0.09–0.26.
 - **Geometry-dependent:** on geometry4 ThermoNO also improves the whole field (R², det.MAE halved).
@@ -3459,6 +3596,63 @@ models with no backbone. The linear-field and backbone rows are from §9.25 (4 s
 - Seed 0 only. The ranking among the three is consistent across both geometries, but the margins
   carry no error bar.
 
+**Same notebook on corrected data (2026-10-05).** The table above and the rescore table below are
+pre-fix. The same older-protocol notebook (absolute target, patience 80 epochs, cap 600; kernel
+`fno-ltfno-cnofno-geometry4-6`) was re-run on the grid-snapped data (§9.32), 5-fold, seed 0
+(`results/fno_kaggle_snap/checkpoints/layout_repr_test/{verdict_v2,fno_results}.json`; pre-fix:
+`results/fno_kaggle/fno_results.json`). Old → corrected data, R² mean (median):
+
+| geometry | model | R² mean (median) | det.MAE (K) | scenarios with R² < 0 |
+|---|---|---|---|---|
+| geometry4 | FNO | −0.53 (0.54) → 0.05 (0.63) | 2.45 → 2.38 | 15 → 13 |
+| | LT-FNO | 0.17 (0.79) → 0.55 (0.74) | 1.60 → 1.62 | 9 → 5 |
+| | CNO-FNO-attn | 0.75 (0.86) → 0.62 (0.77) | 1.36 → 1.58 | 2 → 2 |
+| geometry6 | FNO | −1.02 (−0.68) → −1.75 (−0.90) | 2.92 → 2.89 | 34 → 32 |
+| | LT-FNO | 0.18 (0.24) → 0.25 (0.48) | 1.86 → 1.85 | 14 → 10 |
+| | CNO-FNO-attn | 0.41 (0.53) → 0.44 (0.67) | 1.72 → 1.62 | 8 → 7 |
+
+- Same-run reference rows on the corrected data (same folds, seed 0): linear (field) R² 0.94 (0.96) on
+  geometry4 and 0.67 (0.83) on geometry6, det.MAE 0.58 / 1.29 K; ridge (compact) −0.66 (0.43) and
+  −3.01 (−0.35). These are one-seed numbers and differ from §9.25's four-seed linear-field rows (0.970 / 0.893).
+- The ordering within the family is unchanged on both geometries (CNO-FNO-attn > LT-FNO > FNO on mean R²),
+  and the within-family LT-FNO gain over FNO holds (mean R² +0.50 / +2.00).
+- No model's det.MAE moved by more than 0.22 K (CNO-FNO-attn, geometry4, worse). Mean R² moved by up to
+  0.58 on geometry4 (FNO, better) and 0.73 on geometry6 (FNO, worse). With one seed and 45
+  scenarios, and mean R² driven by a few catastrophic scenarios, treat those moves as indicative only.
+- No neural model beats the linear field fit on det.MAE on either geometry. As in the pre-fix run, this is
+  an absolute-target protocol that §9.27 already called a weak test; the fair-protocol rerun on
+  corrected data is below.
+- Hotspot metrics (the rescore table below) were not recomputed for the corrected-data run.
+
+**Fair protocol on corrected data (2026-10-05).** `scripts/fno_fair_cv.py` (rise target, detrended loss,
+annealed early stopping) via `notebooks/kaggle_fno_fair_a/b.ipynb`, on the grid-snapped data (§9.32), 5-fold,
+seeds 0-2. Results: `results/fno_fair/` (geometry6 is split over the two notebooks and merged by key). Mean +/-
+sd over seeds. Geometry4-6 have 45 scenarios, geometry7 has 40. CNO-FNO-attn was run with one seed only, on
+geometry4 and geometry6, so it has no sd.
+
+| geometry | model | seeds | R² mean | det.MAE (K) | \|peak\| err (K) | loc median (µm) | top-1% recall |
+|---|---|---|---|---|---|---|---|
+| geometry4 | FNO | 3 | 0.63 ± 0.07 | 1.43 ± 0.06 | 8.8 ± 0.7 | 3509 ± 477 | 0.28 ± 0.00 |
+| | LT-FNO | 3 | 0.79 ± 0.01 | 1.15 ± 0.09 | 4.7 ± 0.7 | 3638 ± 631 | 0.31 ± 0.01 |
+| | CNO-FNO-attn | 1 | 0.92 | 0.91 | 4.4 | 2478 | 0.40 |
+| geometry5 | FNO | 3 | 0.40 ± 0.32 | 1.34 ± 0.16 | 10.2 ± 1.5 | 4046 ± 294 | 0.16 ± 0.02 |
+| | LT-FNO | 3 | 0.69 ± 0.04 | 1.03 ± 0.06 | 5.3 ± 0.8 | 4721 ± 564 | 0.17 ± 0.01 |
+| geometry6 | FNO | 3 | 0.56 ± 0.06 | 1.40 ± 0.03 | 11.4 ± 0.7 | 6894 ± 938 | 0.17 ± 0.01 |
+| | LT-FNO | 3 | 0.72 ± 0.05 | 1.15 ± 0.11 | 6.0 ± 1.1 | 7926 ± 523 | 0.14 ± 0.01 |
+| | CNO-FNO-attn | 1 | 0.71 | 1.23 | 4.0 | 6042 | 0.20 |
+| geometry7 | FNO | 3 | 0.90 ± 0.02 | 1.95 ± 0.02 | 17.0 ± 0.5 | 1593 ± 579 | 0.66 ± 0.01 |
+| | LT-FNO | 3 | 0.95 ± 0.02 | 1.15 ± 0.10 | 7.7 ± 1.3 | 1431 ± 73 | 0.78 ± 0.03 |
+
+- The ordering matches the older protocol. LT-FNO beats FNO on mean R², det.MAE and peak error on all four
+  geometries, by several seed sd on peak error (4.7 ± 0.7 against 8.8 ± 0.7 K on geometry4). The one-seed
+  CNO-FNO-attn is better than LT-FNO on geometry4 and comparable on geometry6 (lower peak error, higher
+  det.MAE, equal R²).
+- The fair protocol does not close the gap to the classical routes. The best neural peak error per geometry is
+  4.0-7.7 K. The training-free backbone has 0.04-0.15 K (§9.32, `results/cost_accuracy.json`) and ThermoNO
+  0.18-0.80 K on corrected data (§9.32). Neural det.MAE is 0.9-2.0 K against 0.05-0.11 K for ThermoNO.
+- FNO geometry5 has a large seed spread in R² (0.40 ± 0.32). Geometry7 has no backbone or ThermoNO reference
+  here, so only the within-family comparison holds there.
+
 **Hotspot metrics and train-fold error (2026-09-26).** `scripts/fno_rescore.py` reloads the 30
 Kaggle checkpoints on CPU, rebuilding the notebook's folds, hold-out and normalisation. It
 reproduces the notebook's test R² to four decimals for all six variant × geometry pairs. It then
@@ -3495,6 +3689,14 @@ Test fold, with train-fold R² in brackets; ThermoNO and backbone rows are §9.2
 
 ### 9.28 Is ThermoNO correcting physics or 3D-ICE? The backbone against the full FV solve (2026-09-26)
 
+> **The reading below is wrong; see §9.32 (2026-10-01).** Our FV solver (`src/validation/fv_solver.py`)
+> uses the same cell rule as 3D-ICE: material by cell centre (`_centre_mask`), power by overlap
+> area (`_overlap`). So on the pre-fix layout data it reproduced 3D-ICE's die-edge artefact. The
+> "physics the backbone omits" (1.7–2.9 K peak) was mostly that shared artefact, not lateral
+> heterogeneity. On corrected data the backbone's peak error against 3D-ICE is 0.06–0.15 K. ThermoNO
+> did fit a 3D-ICE specific, the artefact, and so did the FV check, which is why it could not detect
+> it. The table is kept as history; the rerun on corrected data is in §9.32.
+
 A learned correction to the §9.25 backbone could be learning the physics the backbone omits, or the
 quirks of the simulator that produced the labels. `scripts/backbone_vs_fv.py` separates the two on
 the same 45 layout scenarios per geometry. Per scenario it runs the full FV solve (§9.23) on the
@@ -3528,7 +3730,26 @@ backbone's own grid, and scores three pairs at 3D-ICE's nodes with the §9.26 me
   cannot serve as a third solver: it supports only single-die geometry1, where the backbone is
   already exact (§9.25).
 
-### 9.29 ThermoNO on an outside benchmark: weak in-distribution, 2.3× the best published model zero-shot (2026-09-26)
+### 9.29 ThermoNO on an outside benchmark: weak in-distribution, 2.1× the best published model zero-shot (fixed orientation, 3 seeds; 2026-09-26)
+
+> **Orientation correction (2026-10-07, §9.33).** The tables below were produced with the as-stored
+> (transposed-input) IC-ThermBench orientation. The full protocol was rerun with `--fix-orientation` (same
+> split, metrics, seeds and hyper-parameters; `results/icb_thermono_fixed/`,
+> `notebooks/kaggle_icb_thermono_fixed.ipynb`). Fixed-orientation numbers: v2 S4 3.15 ± 0.07 K (3 seeds; was
+> 4.40), v2 S5 zero-shot 7.30 ± 0.51 K (6.78, 7.31, 7.81; was 6.70 ± 0.45 as stored), v2 S2 1.76 K and v4 S2 1.77 K
+> (was 1.88, 1.92), v1 S2/S3/S4/S5 3.45 / 3.54 / 4.02 / 6.38 K. The fix improves in-distribution error (S4
+> −28%), but the three-seed v2 S5 error rises by 0.6 K, so the zero-shot advantage over the best published
+> model is 2.1× rather than 2.3×. The in-distribution conclusion is unchanged (3.4–4.9× behind Therm-FM). With
+> v2 training ThermoNO now edges the fixed ridge-per-geom baseline on S2 (1.76 vs 1.945), is level with it on S4
+> (3.15 vs 3.196, inside about one seed-sd), and still loses on S3 (3.54 vs 2.48, v1 run only). Caveats: the
+> fixed v2 S4 runs all hit the 150-epoch cap (the as-stored ones early-stopped at epochs 121–134), so they may
+> be under-trained. S5 got worse on all three seeds by 0.4–0.8 K, about 1 SD at n=3, so this shows neither
+> help nor harm from the fix. The within-layout-group 0.52 K linear-fit figure below: its originating script was not
+> found and the 815-sample group could not be reconstructed. A general linear map is invariant to a fixed permutation of
+> the input pixels, so the orientation bug cannot change such a fit (a reconstructed group gives 1.3104 K in both
+> orientations; `results/icb_orientation/group_linear_fit.json`), but the 0.52 K figure itself is not reproduced. The
+> 300-epoch fixed S4 rerun is prepared (`notebooks/_icb_fixed300_build/`) but not run: the Kaggle weekly GPU quota was
+> reached, so the 150-epoch-cap caveat stays open. The text and tables below are the as-stored results unless marked fixed.
 
 IC-ThermBench (§9.13) is a single-layer 64×64 grid, so neither the layered backbone (§9.25) nor
 LT-FNO's layer coupling (§9.27) applies. LT-FNO reduces to a 2D FNO there and was not run.
@@ -3549,7 +3770,7 @@ One seed, T4, 4.2M parameters, lr 5e-3 one-cycle, plain MSE
 | S2 | 3.85 | 4.22 | 5.08 | 0.956 | **0.443** | 0.703 | 1.943 |
 | S3 | 3.91 | 3.70 | 4.35 | 0.938 | **0.716** | 0.802 | 2.488 |
 | S4 | 5.34 | 5.61 | 5.41 | 0.954 | **0.933** | 1.216 | 3.203 |
-| **S5 zero-shot** | **6.83** | 10.60 | 10.61 | 0.913 | 15.51 | 19.10 | unstable (~1,700, §9.13c) |
+| **S5 zero-shot** | ~~6.83~~ (v1, one seed, as stored; superseded by the v2 three-seed rows below: 6.70 ± 0.45 as stored, **7.30 ± 0.51 orientation-fixed**) | 10.60 | 10.61 | 0.913 | 15.51 | 19.10 | unstable (~1,700, §9.13c) |
 
 **In distribution it loses badly:** 4–9× worse than Therm-FM, and worse than our own linear
 baseline. Training was unstable. On S2 and S4 the validation RMSE bottomed out near epoch 24 and
@@ -3557,8 +3778,7 @@ then diverged as the one-cycle schedule reached its peak learning rate. Early st
 epoch-24 checkpoint. S3 trained smoothly to epoch 83 and still reached only 3.9 K. So part of the
 gap is optimisation, but the model has also not shown it can reach sub-kelvin accuracy here.
 
-**Zero-shot on S5 it is 2.3× better than the best published model** (6.83 vs 15.51 K RMSE;
-R² 0.91). This is the benchmark's headline OOD scope. Five unseen package systems, where every
+**Zero-shot on S5 the headline is 7.30 ± 0.51 K (orientation-fixed, 3 seeds), 2.1× better than the best published model (Therm-FM, 15.51 K); as stored it is 6.70 ± 0.45 K (2.3×).** The v1 single-seed 6.83 K in the table above (R² 0.91) is superseded by these three-seed figures. The 108-sample orientation gain on S5 (§9.31) did not replicate at full data: the fix made S5 worse on all three seeds. This is the benchmark's headline OOD scope. Five unseen package systems, where every
 published model degrades 16× or more and our linear fits blow up. To find where the gain comes
 from, we scored three geometry-blind predictors on S5, each built from the S4 training fields:
 
@@ -3566,9 +3786,9 @@ from, we scored three geometry-blind predictors on S5, each built from the S4 tr
 |---|---|---|
 | mean field (§9.13c) | 29.64 | −0.15 |
 | T_amb + mean S4 rise field | 29.00 | −0.08 |
-| **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** | 0.49 |
+| **T_amb + mean S4 rise field × (total power / mean S4 total power)** | **16.06** (sample-bootstrap 95% CI 15.58-16.53; package-cluster 8.80-24.87; per-package 16.5 / 32.1 / 3.7 / 17.8 / 10.2, §9.31) | 0.49 |
 | Therm-FM, U-Net (published) | 15.51, 19.10 | — |
-| ThermoNO | **6.83** | 0.91 |
+| ThermoNO (v1, one seed, as stored; superseded, v2 fixed 7.30 ± 0.51 K) | 6.83 | 0.91 |
 
 - Using the ambient channel as an offset explains nothing (29.64 → 29.00).
 - Scaling the rise with total power, a one-parameter, geometry-blind rule, matches the best
@@ -3585,7 +3805,21 @@ patience 20. S4→S5 with seeds 0–2, S2 with seed 0:
 |---|---|---|---|---|---|
 | S2 | 3.85 | **1.88** (seed 0; stopped at the 150-epoch cap, still improving) | 1.50 | 0.443 | 1.943 |
 | S4 | 5.34 | **4.40 ± 0.06** (4.38, 4.49, 4.35) | 4.37 | 0.933 | 3.203 |
-| **S5 zero-shot** | 6.83 | **6.70 ± 0.37** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
+| **S5 zero-shot** | 6.83 (superseded) | **6.70 ± 0.45** (6.40, 6.48, 7.22) | 9.21 | 15.51 | unstable |
+
+**Fixed orientation, v2 (2026-10-07).** Rerun with `--fix-orientation`; test RMSE in K:
+
+| scope | as stored | **fixed** | Therm-FM | ridge-per-geom (fixed) |
+|---|---|---|---|---|
+| S2 (v2) | 1.88 | **1.76** | 0.443 | 1.945 |
+| S4 (v2, 3 seeds) | 4.40 ± 0.06 | **3.15 ± 0.07** | 0.933 | 3.196 |
+| S5 zero-shot (v2, 3 seeds) | 6.70 ± 0.45 | **7.30 ± 0.51** (6.78, 7.31, 7.81) | 15.51 | unstable |
+
+The fixed v2 S4 runs all ran to the 150-epoch cap (as stored: early-stopped at epochs 121–134), so they
+may be under-trained. All three fixed seeds still beat Therm-FM on S5 (2.3×, 2.1×, 2.0×), and the mean is
+2.2× below the 16.06 K no-training power-scaling rule. S5 was worse than as stored on every seed (by 0.4–0.8 K),
+about one SD at n=3, so the fix is not shown to help or hurt S5. ThermoNO is 3.4–4.9× behind Therm-FM in
+distribution (S2 4.0×, S3 4.9× with the v1 run only, S4 3.4×).
 
 - **The S5 result is seed-stable.** All three seeds beat Therm-FM by 2.1–2.4× (R² 0.91–0.93).
 - **In distribution, stable training halves the S2 error**, and it was still falling when the
@@ -3624,7 +3858,7 @@ held off until epoch 240 (`--min-epochs 240`), so the one-cycle schedule anneals
 
 **This revises the step-limited reading above.** At 2,000 CPU steps on one layout group the model
 was still improving, but on the full data with a completed schedule it plateaus near 1.9 K, while
-a plain linear fit within a single layout group reaches 0.52 K. The remaining gap is architectural.
+a plain linear fit within a single layout group reaches 0.52 K (neither figure revisited here; with the orientation fixed, v4 plateaus near 1.77 K; the 0.52 K fit's script was not found and its group could not be reconstructed, see the §9.29 note). The remaining gap is architectural.
 ThermoNO adapts one global DCT operator to each layout only through per-cell multiplicative gates.
 That cannot represent 20 layouts × hundreds of chiplet footprints, each with its own Green's
 function, to sub-kelvin accuracy. Closing it needs a different way of conditioning the operator on
@@ -3633,11 +3867,16 @@ geometry, not more training. Untested candidates:
   (hypernetwork-style), instead of per-cell gates on fixed weights;
 - a per-layout linear backbone fitted out-of-fold, with ThermoNO as its correction (the §9.26 recipe).
 
-**Limits.** The S2 runs are one seed each. S5 zero-shot (6.70 ± 0.37 K, three seeds) is the
+**Limits.** The S2 runs are one seed each. S5 zero-shot (7.30 ± 0.51 K orientation-fixed, 6.70 ± 0.45 K as stored, three seeds; the v1 6.83 K is superseded) is the
 result that stands. The in-distribution gap means ThermoNO is not a general replacement for
 Therm-FM. The claim is narrow: under structural OOD shift, building exact linearity in power into
 the architecture beats a foundation model trained without it. The one-parameter scaling rule is
 itself a new trivial baseline that S5 should report.
+
+*CI note (2026-10-20, §9.31).* The Therm-FM 15.51 K is a single published number with no CI (and presumably trained on the as-stored,
+transposed inputs), so the 2.1x is a ratio of our three-seed mean to that one number. The one-parameter rule's 16.06 K has a sample-bootstrap
+95% CI of 15.58-16.53 K but a package-cluster CI of 8.80-24.87 K (five packages), so package-level claims about it carry that width.
+ThermoNO per-sample predictions were not saved, so its 7.30 +- 0.51 K has no bootstrap CI and it was not rerun.
 
 ### 9.30 The classical answer: backbone-preconditioned CG beats every learned correction (2026-09-28)
 
@@ -3658,8 +3897,8 @@ against the direct solve:
 **Reading.**
 - Twenty to thirty preconditioned iterations reach the direct solve's accuracy in 0.5–3 s, with
   no training data. Against 3D-ICE the solver-agreement floor then dominates (0–0.47 K peak,
-  §9.28). ThermoNO's 0.56–0.79 K peak error (§9.26) is 25–50× worse than the solve it
-  approximates, and the classical route is already 3–15× faster than the direct solve. PCG time
+  §9.28). ThermoNO's 0.56–0.79 K peak error (§9.26, pre-fix data) is 25–50× worse than the solve it
+  approximates (on corrected data the backbone alone reaches 0.06–0.15 K, §9.32), and the classical route is already 3–15× faster than the direct solve. PCG time
   excludes matrix assembly, which the direct solve includes.
 - The method is textbook: a fast-transform preconditioner for a variable-coefficient elliptic
   problem. That is the point. **For steady conduction with known material maps, a learned
@@ -3676,11 +3915,28 @@ against the direct solve:
   §9.25's "the backbone beats every trained model" therefore has a boundary: layers with strong
   in-plane contrast. §9.30's classical route does not.
 - Where learning can still earn its place: (i) when the operator is unknown, as on IC-ThermBench,
-  where no stack or solver is released (§9.29); (ii) physics outside the FV model, e.g.
+  where we found no released stack or solver (Appendix B.2 of the IC-ThermBench paper states the layer files are
+  released; we did not find them in the repository, its v1.0.0 release or the Zenodo snapshot, checked 2026-10-14; §9.31); (ii) physics outside the FV model, e.g.
   leakage–temperature feedback or microchannel convection; (iii) latency far below the ~0.5 s
   CPU cost, although the same PCG on a GPU would narrow that too.
 
 ### 9.31 Learning the physics, then solving it exactly: a learned-conductance solver (2026-09-28)
+
+> **Orientation correction (2026-10-05, §9.33).** The public IC-ThermBench release stores its spatial input
+> channels (power, grid, k) transposed in-plane relative to the output temperature. This project's loader
+> mirrored theirs, so every number in the *as-stored* rows below came from mismatched input/output pairs.
+> The fixed-orientation rows are added to the table, and the Reading is revised below them. The same
+> mismatch also underlies §9.13 and §9.29; both were rerun in full on 2026-10-07 (§9.13: conclusion unchanged;
+> §9.29: full-data ThermoNO on fixed inputs gives S4 3.15 K and S5 zero-shot 7.30 ± 0.51 K (as stored 6.70 ± 0.45 K), 2.1× better than Therm-FM; the 108-sample S5 gain from the fix did not replicate at full data;
+> see §9.29). Origin of the transpose: the public ThermalBench loader applies the same axis reversal to inputs and
+> outputs, so the transpose is already in the stored files and the loader is not the cause. Appendix B.2 of the IC-ThermBench paper states that
+> "the exact executable, configuration files, layer files, units, and conversion scripts are released with the benchmark
+> artifact"; we did not find them in the repository, its v1.0.0 release or the Zenodo software snapshot (checked
+> 2026-10-14; the S1-S5 data and checkpoints are on Google Drive, and we did not inspect their contents for such files).
+> The generation code we could trace (the ATPlace2.5D lineage) is not public: its public repository only writes HotSpot input files and does not rasterise or
+> parse grid output. HotSpot's row-0-is-top convention would produce a flip, not a transpose; the measured result (§9.33: all 8
+> dihedral transforms tested, plain transpose wins on every split, pure flips fit worst) confirms the stored files are
+> a transpose and a flip alone cannot explain it. The cause is unresolved.
 
 `src/hybrid/learned_conductance.py`. A small U-Net reads only the power-free IC-ThermBench inputs
 (layout, conductivity, cooling) and outputs a local 2D conductance field: lateral conductivity per
@@ -3694,25 +3950,1108 @@ parameters with a differentiable solver; one search pass found no application to
 or IC-ThermBench (own reasoning).
 
 **How fast can it learn? 108 training samples (1% of S4), CPU, IC-ThermBench protocol**
-(`scripts/icb_physsolve.py --train-n 108 --val-n 256`; `results/icb_physsolve_runs/`):
+(`scripts/icb_physsolve.py --train-n 108 --val-n 256`). "As stored" arms are
+`results/icb_physsolve_runs/*n108*`; "fixed" arms (`--fix-orientation`: power/grid/k transposed in-plane to
+match the temperature) are `results/icb_orientation/{thermono,physsolve}_n108_cpu_fixed.json`. Seed 0, one run each:
 
-| model, 108 training samples | params | S4 test RMSE | S5 zero-shot RMSE | S5 R² | CPU time |
+| model, 108 training samples | input orientation | S4 test RMSE (K) | S5 zero-shot RMSE (K) | S5 R² | CPU time |
 |---|---|---|---|---|---|
-| ThermoNO | 4.24M | **13.6** | 14.0 | 0.64 | 31 min |
-| learned-conductance solver | 1.95M | 20.8 (still improving at the 100-epoch cap) | **13.9** | 0.58 | 176 min |
-| *Therm-FM, 10,800 samples (published)* | — | *0.93* | *15.51* | — | — |
-| *T_amb + mean rise × total power (one parameter, §9.29)* | 1 | — | *16.06* | 0.49 | — |
+| ThermoNO (4.24M) | as stored | 13.64 | 14.02 | 0.64 | 31 min |
+| | **fixed** | **11.46** | **13.59** | 0.62 | 15 min |
+| learned-conductance solver (1.95M) | as stored | 20.83 (still improving at the 100-epoch cap) | 13.88 | 0.58 | 176 min |
+| | **fixed**, seed 0 | **20.69** (cap again) | **13.26** | **0.68** | 57 min |
+| | fixed, seed 1 (2026-10-20) | 24.43 (early-stopped at epoch 70) | 15.92 | 0.55 | 35 min |
+| | fixed, seed 2 (2026-10-20) | 20.78 (stopped at epoch 92) | 14.84 | 0.60 | 103 min |
+| | **fixed, 3 seeds, mean ± SD** | 21.96 ± 2.13 | **14.67 ± 1.34** | 0.61 ± 0.06 | |
+| *Therm-FM, 10,800 samples (published)* | | *0.93* | *15.51* | — | — |
+| *T_amb + mean rise × total power (one parameter, §9.29)* | | — | *16.06* | 0.49 | — |
+
+CPU times are wall-clock on a shared machine and are not comparable between the as-stored and fixed arms.
+
+**Seeds and confidence intervals (2026-10-20).** The 13.26 K figure was one seed: a CPU run on 108 S4 training samples
+(seed 0 also selects the subset; 256 validation samples), 100 epochs with early stopping from epoch 70 (patience 15), lr 2e-3,
+batch 32, ch 32, `--fix-orientation`, not the 176-minute full-data GPU run. Seeds 1 and 2 were run with the identical command
+on local CPU (`results/icb_physsolve_seeds/`; no Kaggle GPU was used). A rerun of seed 0 reproduced 13.2558 K exactly.
+Seed 1 stopped at epoch 70 and seed 2 at 92, so the seeds saw different training lengths under the same rule.
+The seed-0 number was the best of three: **the three-seed mean is 14.67 ± 1.34 K (SD), not 13.26 K**, and the seed spread (13.26-15.92 K)
+covers Therm-FM's published 15.51 K. The comparison with Therm-FM is against one published number with no CI (and
+presumably trained on the as-stored, transposed inputs), so it cannot be turned into a significance statement; what can
+be said is that the 108-sample solver's mean is not distinguishable from it at this seed count. Against the
+power-scaling rule (16.06 K), the seed-mean model is 1.39 K better (paired sample-bootstrap 95% CI 0.94 to 1.83 K, conditional on these three seeds).
+
+Bootstrap 95% CIs on S5 (5000 samples, 5 packages Case16-Case20 x 1000; 10,000 resamples, `scripts/icb_s5_bootstrap.py`,
+`results/icb_ci/s5_bootstrap.json`). The metric is the benchmark's RMSE, the mean over samples of the per-sample RMSE, and pooled R².
+The sample bootstrap resamples samples. The package-cluster bootstrap resamples the five packages with replacement
+(only five clusters, so it is coarse and its percentile interval is wide by construction); the two-stage variant (packages, then samples
+within) agrees with it to within 0.2 K. Only the sample bootstrap CI is shown for R², the cluster R² intervals are in the JSON.
+
+| S5 predictor | RMSE (K) | sample-bootstrap CI | package-cluster CI | Case16 | Case17 | Case18 | Case19 | Case20 |
+|---|---|---|---|---|---|---|---|---|
+| power-scaling rule (no training) | 16.06 | 15.58-16.53 | 8.80-24.87 | 16.47 | 32.12 | 3.69 | 17.78 | 10.22 |
+| learned-conductance, seed 0 | 13.26 | 12.90-13.61 | 6.90-19.61 | 14.50 | 23.56 | 3.25 | 18.22 | 6.74 |
+| learned-conductance, seed 1 | 15.92 | 15.50-16.34 | 7.78-24.35 | 17.09 | 31.64 | 4.03 | 17.77 | 9.06 |
+| learned-conductance, seed 2 | 14.84 | 14.44-15.23 | 6.48-23.21 | 15.55 | 19.91 | 3.19 | 30.29 | 5.24 |
+
+The sample-level CIs (about ±0.4 K) are much narrower than the seed spread (SD 1.34 K), so seed variance, not test-sample noise, is
+the dominant uncertainty at 108 training samples. Per-package error varies 10-fold (Case18 about 3-4 K, Case17 20-32 K), which is why the
+package-cluster intervals are 6-8x wider than the sample ones: the samples within a package are not independent evidence about new packages.
+Case17 and Case19 dominate every model's error, and the seeds disagree about which of them is worse (seed 2 is best on Case17 and worst on Case19).
+Pooled R²: rule 0.485 (sample CI 0.47-0.50), seeds 0.682 / 0.552 / 0.597.
+ThermoNO's per-seed S5 numbers (7.30 ± 0.51 K, §9.29) have no CI here: its result files hold only aggregate metrics, no per-sample
+predictions or checkpoints are saved locally or in the Kaggle outputs we hold, and it was not rerun.
+
+Ridge and the other baselines (`results/icb_orientation/baselines_{old,fixed}.json`, full S2–S4 training sets,
+same code, only the orientation changed). Test RMSE (K), as stored → fixed:
+
+| scope | ridge-green | ridge-pca | ridge-per-geom | kNN | NN |
+|---|---|---|---|---|---|
+| S2 | 3.131 → 3.131 | 3.430 → 3.437 | 1.943 → 1.945 | 4.406 → 4.438 | 4.412 → 4.468 |
+| S3 | 4.603 → 4.604 | 4.159 → 4.161 | 2.488 → 2.479 | 10.889 → 11.071 | 11.641 → 11.695 |
+| S4 | 8.116 → 8.115 | 6.946 → 6.939 | 3.203 → 3.196 | 20.654 → 20.950 | 23.951 → 24.434 |
+
+A fixed in-plane permutation is a linear map of the input, which ridge absorbs: the three ridge variants
+change by ≤ 0.34% (largest: ridge-per-geom on S3), and kNN / NN by up to +2.0%. §9.13's ridge results stand.
+
+S4 → S5 zero-shot for ridge (`baselines_transfer_{old,fixed}.json`; the training-mean predictor scores
+29.64 K): ridge-green 1973 → 59.2 K, ridge-pca 1741 → 53.5 K. **This is an open issue in both arms.**
+Orientation does not fix it: ridge is still worse than the mean predictor by 1.8–2.0× when fixed. It is
+a separate problem (S5's distribution shift, §9.13c) and has not been diagnosed here.
+
+**Reading (revised for the fixed orientation).**
+- On fixed inputs, both linear-in-power models trained on 1% of the data still beat the best published
+  model zero-shot on S5 (13.6 and 13.3 K against 15.5 K). They also sit 2.5 and 2.8 K below the
+  no-training one-parameter rule (16.06 K, §9.29). With the as-stored pairs the gap was 2.0 and 2.2 K.
+  The earlier statement that "most of that is the built-in linearity" is therefore weaker: some of the
+  S5 gain is now attributable to something the models learned from 108 samples. One seed each, so
+  this is indicative, not a measured effect size. **Update 2026-10-20:** with three seeds the learned-conductance solver is 14.67 ± 1.34 K,
+  so the single 13.26 K was the favourable seed; its margin over the rule is 1.4 K (CI 0.9-1.8 K) and over Therm-FM it is not established.
+- Caution: the 108-sample runs suggested the fix improves S5 (14.02 → 13.59 K, one seed). At full data with
+  three seeds it did not replicate (6.70 → 7.30 K, worse on every seed), so that S5 direction should not be generalised.
+  The S4 direction (improves) did replicate (13.64 → 11.46 K small; 4.40 → 3.15 K full).
+- The orientation fix helped ThermoNO's in-distribution error most (S4 13.64 → 11.46 K, −16%) and
+  the learned-conductance solver's S5 transfer most (13.88 → 13.26 K; R² 0.58 → 0.68). It barely moved the
+  solver's S4 error (20.83 → 20.69 K, which is still capped at 100 epochs and far from useful).
+- In distribution, both models remain far from useful (11.5 and 20.7 K RMSE, against Therm-FM's 0.93 K on 100×
+  more data).
+- The learned-conductance solver matches ThermoNO on S5 (13.26 vs 13.59 K, single seeds; solver 3-seed mean 14.67 K, ThermoNO 108-sample run still one seed) with half the parameters. It is
+  about 4× slower per epoch here (57 vs 15 min for the same 100-epoch cap, as a rough guide) and was still
+  improving when stopped. It has not shown the better transfer its design aims at with 108 samples.
+  The full-data run is reported below (amendment A: S4 only).
+- **"Learns physics quickly" is still not established.** What 108 samples buy is partly the structural
+  prior and partly something learned; the split is not measured here.
+
+#### Fair full-data protocol for the solver (pre-registered 2026-10-20, written before any run was launched)
+
+The 108-sample rows above are not a fair comparison with Therm-FM, which trains on the benchmark's full training set. The
+solver was also capped by epochs or stopped early differently per seed. The rerun below fixes both; the protocol is fixed here and will
+not be changed after the results are seen.
+
+- Data: the benchmark's own index split for S2, S3 and S4 (10,800 train, 1,200 validation used for checkpoint selection, 3,000 test, no
+  sub-sampling of either train or validation), `--fix-orientation`. S5 is scored zero-shot from the full-data S4 model.
+- Model: the same configuration as the 108-sample runs (`LearnedConductanceSolver`, ch 32, lr 2e-3 one-cycle, batch 32, AdamW, CG tol 1e-6).
+  Only the training length changes: `--epochs 300 --patience 30 --min-epochs 50`, chosen once and applied to every scope and seed. Reason: the
+  108-sample runs hit the 100-epoch cap or stopped at epoch 70-92; 300 epochs is 3x the old cap and patience 30 is twice the old patience, so
+  a run that ends before epoch 300 has been stopped by the validation curve, not the cap. The minimum of 50 epochs stops early noise ending a run
+  during the one-cycle warm-up. Runs that still reach the 300-epoch cap will be reported as cap-limited.
+- Seeds: 0, 1, 2 for each of S2, S3 and S4 (9 solver runs). Report mean +- SD (sample SD, n = 3).
+- S5 intervals: per-sample statistics are saved (`--save-persample`) and `scripts/icb_s5_bootstrap.py` is reused for sample and
+  package-cluster bootstrap CIs (10,000 resamples), as above.
+- ThermoNO on S3 with `--fix-orientation`, 3 seeds, the v2 configuration of §9.29 (`--epochs 150 --patience 20 --lr 2e-3`), so that every
+  scope has an orientation-fixed ThermoNO number.
+- Compute: Kaggle T4, private kernels, at most 2 concurrent. A timing job (2 epochs of the solver on full S4) is run first. If the projected
+  total exceeds 25 GPU-hours the full set is not launched and a cheaper alternative is proposed instead.
+- Comparators in the final table: Therm-FM (single published values, no CI, presumably trained on the as-stored inputs), ThermoNO fixed,
+  ridge-per-geometry (fixed), and the power-scaling rule (S5 only).
+
+*Timing outcome (2026-10-21).* The 2-epoch timing job (`rajulkabir/icb-fullfair-timing`, T4, full S4, 10,800 samples) took 3.9 min for 2 epochs
+(epoch 0 1.5 min including start-up, epoch 1 2.4 min; val RMSE 24.4 then 16.2 K; 2-epoch test 16.2 K on S4 and 12.7 K S5 zero-shot, not a result). At about 2.4 min per epoch
+(a lower bound; CG iterations may rise as training proceeds), the protocol above needs 9 runs x up to 300 epochs = up to about 108 GPU-hours
+(about 36 GPU-hours even if every run stopped at epoch 100), plus 3.4 h for ThermoNO S3. This exceeds the 25 GPU-hour limit, so under the protocol's compute rule the full set was not launched.
+
+**Protocol amendment A (2026-10-21; made after the timing run and before any training result).** The original plan (9 runs x up to 300 epochs at about 2.4 min
+per epoch on a T4, up to about 108 GPU-hours, about 36 even if every run stopped at epoch 100) exceeded the pre-stated 25 GPU-hour rule, so it was not launched.
+The amended design replaces the data-and-training bullets above; everything else (model configuration, metrics, comparators, reporting) is unchanged:
+- S4 only, full data, the benchmark's own split (10,800 train / 1,200 validation for checkpoint selection / 3,000 test), `--fix-orientation`.
+- Seeds 0, 1, 2; `--epochs 100 --patience 20 --min-epochs 50`, same for every seed. Any run that reaches epoch 100 is reported as cap-limited.
+- S5 zero-shot from each S4 model, with `--save-persample`, then the sample and package-cluster bootstrap CIs of `scripts/icb_s5_bootstrap.py`.
+- S2 and S3 solver entries stay at the existing numbers (108-sample runs and ridge-per-geometry); no full-data solver number is claimed for them.
+- The ThermoNO S3 fixed-orientation rerun is deferred (not run).
+Budget: at most 3 x 100 x 2.4 min, about 12 GPU-hours.
+
+**Results of the amended fair run (2026-10-21; `results/icb_physsolve_fullfair/`, `results/icb_ci/s5_bootstrap_fullfair.json`).** Learned-conductance solver, S4, full data
+(10,800 training samples), `--fix-orientation`, 100 epochs, three Kaggle T4 runs (163, 277 and 295 min; about 12.3 GPU-hours with the timing job). **All three runs reached
+the 100-epoch cap, so all are cap-limited**: patience 20 never triggered, and the final validation RMSE was still the best (2.30, 2.81, 2.63 K), so longer training would probably help.
+The numbers are therefore an upper bound on what this model reaches with full data, not a converged result.
+
+| seed | S4 test RMSE (K) | S4 R² | S5 zero-shot RMSE (K) | S5 sample-bootstrap 95% CI | S5 package-cluster 95% CI | S5 R² | S5 per package (Case16-20) |
+|---|---|---|---|---|---|---|---|
+| 0 | 2.239 | 0.993 | 11.71 | 11.36-12.05 | 4.42-22.89 | 0.730 | 5.9 / 6.2 / 12.3 / 32.1 / 2.1 |
+| 1 | 2.766 | 0.988 | 11.89 | 11.52-12.27 | 4.68-23.61 | 0.692 | 7.2 / 9.0 / 3.6 / 35.1 / 4.5 |
+| 2 | 2.622 | 0.991 | 11.41 | 11.00-11.81 | 3.97-24.38 | 0.681 | 4.9 / 7.8 / 3.5 / 36.9 / 4.0 |
+| **mean ± SD (n = 3)** | **2.54 ± 0.27** | 0.990 | **11.67 ± 0.24** | | | 0.701 ± 0.026 | |
+
+Against the power-scaling rule (16.06 K) the seed-mean is 4.39 K better (paired sample-bootstrap 95% CI 3.82-4.97 K, conditional on these three seeds). Case19 is the error
+driver for all three seeds (32-37 K); the other four packages are 2-12 K. In the 108-sample runs the errors were spread over Case17 and Case19.
+
+Full S2-S5 comparison (test RMSE, K; fixed orientation unless stated):
+
+| scope | Therm-FM (published) | learned-conductance solver, full data | ThermoNO | ridge-per-geometry | power-scaling rule |
+|---|---|---|---|---|---|
+| S2 | 0.443 | not run (amendment A) | 1.76 (v2, 1 seed) | 1.945 | n/a |
+| S3 | 0.716 | not run (amendment A) | 3.54 (v1 only, 1 seed; v2 rerun deferred) | 2.479 | n/a |
+| S4 | 0.933 | 2.54 ± 0.27 (3 seeds, cap-limited) | 3.15 ± 0.07 (3 seeds, v2, cap-limited) | 3.196 | n/a |
+| S5 zero-shot | 15.51 | **11.67 ± 0.24** (3 seeds) | 7.30 ± 0.51 (3 seeds) | unstable (about 1,700 as stored, §9.13c) | 16.06 |
+
+Therm-FM figures are single published values with no CI, presumably trained on the as-stored (transposed) inputs; no significance statement against them is possible.
+No S2 or S3 solver number is claimed. ThermoNO S3 was not rerun with the v2 configuration (deferred), so its S3 entry is the earlier fixed v1 run and is not matched to the S2/S4 entries.
+
+Reading. (i) With the full training set the solver goes from 20.7-24.4 K (108 samples) to 2.54 K on S4, so the 108-sample "far from useful" statement was a data
+limit, not a structural one; it now edges ridge-per-geometry (3.20 K) and ThermoNO (3.15 K) in distribution but stays 2.7x behind Therm-FM (0.93 K), and is cap-limited.
+(ii) Zero-shot on S5 it improves from 14.67 +- 1.34 K to 11.67 +- 0.24 K, 3.8 K better than Therm-FM's published 15.51 K (a comparison against a single number, not tested), 4.4 K better than the rule,
+but still worse than ThermoNO's 7.30 +- 0.51 K, which makes ThermoNO the best S5 model we have. (iii) The solver's seed spread shrank 5x with full data, and the package-cluster CIs
+(4-24 K) remain wide because Case19 dominates; sample-level CIs (about +-0.4 K) understate the uncertainty about new packages.
+
+#### Leave-cases-out (LOCO) test on IC-ThermBench S4: pre-registration (2026-10-22, written before any LOCO result)
+
+Question: does in-distribution skill come from memorising per-case (package/layout) parameters? If so, black-box models should lose far more than
+physics-structured ones when the test cases are absent from training. Code: `scripts/icb_loco.py` (written and smoke-tested for 2 epochs on 64 samples before this text; the held-out
+cases below were fixed in that script before the smoke test and are not changed).
+
+**Case identification.** The S4 release has no manifest (S5 does). `README.md` describes S4 as 15,000 samples, Case1-10 x 1,500. We identify a case by its domain size,
+(max `grid_x`, max `grid_y`) of the sample in the fixed orientation. This gives exactly 10 distinct domains with 1,500 samples each, and the case equals sample index mod 10 for all
+15,000 samples (the script asserts both). We could not map these to the benchmark's own case numbers (no id field), so cases are named by domain size. Within the benchmark split
+each case has 1,080 train / 120 val / 300 test samples.
+
+| domain (x by y) | area | idx mod 10 |
+|---|---|---|
+| 26 x 23 | 598 | 7 |
+| 30 x 25 | 750 | 6 |
+| **37 x 37** | **1369** | 4 |
+| 39 x 39 | 1521 | 2 |
+| 42 x 42 | 1764 | 0 |
+| 47 x 47 | 2209 | 9 |
+| 49 x 53 | 2597 | 5 |
+| **55 x 52** | **2860** | 1 |
+| 57 x 59 | 3363 | 3 |
+| 59 x 61 | 3599 | 8 |
+
+**Held-out cases: 37 x 37 and 55 x 52** (bold). Chosen from the domain-size column alone (no model error on any case had been seen): one small and one large case (3rd and 8th of 10 by area),
+both inside the range of the training domains, so that an unseen case is interpolation in domain size and not extrapolation; the extremes (26x23, 59x61) are avoided for that reason.
+
+**Arms (same test samples in both).** Test = the 300 benchmark-test-split samples of each held-out case (600 samples). *LOCO arm*: training and validation samples drawn only from the 8 other cases.
+*Random arm*: training and validation drawn from all 10 cases (so about 20% of its training samples come from the held-out cases). Both arms: 2,000 training samples drawn at random (seed) from the benchmark train split
+(index < 10,800), 400 validation samples from the benchmark validation split, `--fix-orientation` (all models see the same fixed inputs). Seeds 0, 1, 2 (seed sets the subsets and the initialisation).
+
+**Models** (all trained on the same subsets). (1) Black-box: our own U-Net (`UNetBB` in `scripts/icb_loco.py`: 3-level U-Net, 32 channels, reads power and the geometry maps, regresses T - T_amb directly, not linear in power by construction;
+no third-party ICB code). (2) ThermoNO, the v2 configuration of §9.29 (lr 2e-3). (3) the learned-conductance solver, as §9.31. (4) pooled ridge: linear (dual-form) ridge on the flattened power, log k, grid_x, grid_y maps plus log h, log R_conv and T_amb, standardised,
+lambda chosen on the validation subset from 10^-2..10^6; it is pooled across cases because per-geometry ridge (§9.13) cannot predict a case it has never seen and is not applicable here. (5) the power-scaling rule (T_amb + mean training rise field x total power / mean training power), recomputed from each arm's training subset.
+Neural models: `--epochs 100 --patience 20 --min-epochs 50`, batch 32, AdamW, one-cycle, lr 2e-3, identical for the three. The cap is 100 epochs; any run reaching it is reported as cap-limited. ThermoNO's published v2 used 150 epochs; 100 is used here so that all three neural models have the same cap.
+
+**Metric.** Test RMSE on the held-out-case samples: the mean over samples of the per-sample RMSE (K), reported per held-out case.
+
+**Statistic.** For each model, per case c and seed s, ratio = RMSE_LOCO(c,s) / RMSE_random(c,s) (same seed, same test samples). The model's degradation ratio R is the mean over the 2 cases and 3 seeds. Spread reported: the two per-case ratios (case-level) and the SD across the three seeds of the case-mean ratio (seed-level).
+With 2 cases and 3 seeds there is no meaningful confidence interval; the spread is descriptive and the rule below is applied to the point values R.
+
+**Prediction and decision rule (fixed in advance).** If memorisation drives in-distribution skill, the black-box ratio R_U exceeds the physics-structured ratios R_T (ThermoNO) and R_S (solver).
+Supports memorisation: R_U >= 2 R_T and R_U >= 2 R_S. Does not support it: R_U <= 1.25 R_T and R_U <= 1.25 R_S. Anything else (including mixed outcomes) is inconclusive. Pooled ridge and the power-scaling rule are reported but are not part of the rule.
+
+**Compute projection (from the existing timings).** The solver took 163-295 min per 100 epochs at 10,800 training samples; at 2,000 samples that is about 0.19x the steps, about 30-55 min per run, 6 runs = 3-5.5 GPU-hours.
+ThermoNO (about 68 min per 150 epochs at 10,800) and the U-Net are about 10 min per run, 6 runs each, about 1-1.5 GPU-hours together. Ridge and the rule run on local CPU. Projected total 4-7 GPU-hours, below the 12 GPU-hour limit.
+
+**LOCO results (2026-10-22; `results/icb_loco/`, 30 JSONs; Kaggle T4 kernels `icb-loco-a`/`icb-loco-b`, about 3.6 GPU-hours of run time, ridge and rule included).** Protocol exactly as pre-registered. Test RMSE (K) on the 300 test samples of each
+held-out case, mean over 3 seeds; ratio = LOCO / random, mean over seeds (per case) and over cases and seeds (R).
+
+| model | LOCO 37x37 / 55x52 | random 37x37 / 55x52 | ratio 37x37 / 55x52 | **R** | R per seed (0 / 1 / 2) | seed SD of R |
+|---|---|---|---|---|---|---|
+| U-Net (black-box) | 20.61 / 32.99 | 1.27 / 0.58 | 16.3 / 56.8 | **36.5** | 35.0 / 32.9 / 41.7 | 4.6 |
+| ThermoNO | 34.89 / 39.14 | 6.02 / 4.98 | 5.8 / 7.9 | **6.83** | 6.51 / 6.79 / 7.18 | 0.34 |
+| learned-conductance solver | 46.00 / 68.94 | 7.25 / 5.21 | 6.7 / 19.5 | **13.1** | 5.72 / 23.77 / 9.82 | 9.5 |
+| pooled ridge (not in the rule) | 39.00 / 55.16 | 17.45 / 9.51 | 2.2 / 5.8 | 4.03 | 4.07 / 4.25 / 3.75 | 0.25 |
+| power-scaling rule (not in the rule) | 29.82 / 26.49 | 29.93 / 25.87 | 1.00 / 1.03 | 1.01 | 0.99 / 1.01 / 1.03 | 0.02 |
+
+Cap status (100 epochs): U-Net hit the cap in 5 of 6 runs (stopped at epoch 50 in one LOCO run); ThermoNO in none (stopped at epochs 76-86); the solver in 1 of 6 (LOCO seed 0), the others stopped at epochs 50-87.
+Run times: U-Net 31 min, ThermoNO 39 min, solver 146 min, ridge 4 min in total over its 6 runs. `icb-loco-b` ended with status ERROR only because its final summary cell indexed an `epochs_run` key that ridge/rule JSONs do not have; all 24 result files had been written.
+
+**Verdict against the pre-registered rule: supports memorisation.** R_U = 36.5 is 5.3x R_T (6.83) and 2.8x R_S (13.1), so R_U >= 2 R_T and R_U >= 2 R_S both hold.
+
+Caveats that bear on how much this means (stated after the rule was applied; the rule was not changed):
+- The ratio is large mainly because the random-split U-Net is very accurate (1.3 and 0.6 K at 2,000 samples), better than the physics-structured models in the same arm (ThermoNO 6.0 / 5.0 K, solver 7.3 / 5.2 K; the solver is plainly under-trained at this size). Their lower ratios are partly a higher denominator.
+- In absolute terms every trained model fails on the unseen cases: LOCO errors of 21-69 K, worse than the training-free power-scaling rule (26-30 K) for four of the five models (U-Net on 37x37 is the exception). The physics-structured models do not generalise to an unseen case either. They degrade by a smaller factor, not to a good level. The solver's LOCO error (46 and 69 K) is the worst of all.
+- The solver's R has a seed SD of 9.5 (per-seed 5.7 / 23.8 / 9.8); with 2 cases and 3 seeds there is no usable confidence interval, so R_S = 13.1 is imprecise. Seed by seed, R_U/R_S is 6.1x, 1.4x and 4.3x (using the same seed's R_U and R_S), so the 2x threshold against the solver is cleared by the means (2.8x) and by two of three seeds, not by every seed.
+- The held-out domains were unseen in size and layout together; this test cannot separate memorising per-case parameters from simply not extrapolating a domain-size-dependent function from 8 sizes. Only 2 of 10 cases and S4 only.
+- ThermoNO ran 100 epochs here, not the 150 of its v2 configuration.
+
+### 9.32 A die-edge artefact in the layout-randomised data, fixed by grid-snapping the placement (2026-09-30)
+
+**The bug.**
+- Placement offsets were continuous, so chiplet edges fell mid-cell on the 250 µm grid.
+- 3D-ICE gives a partly covered cell its area share of the floorplan power. The cell's *material*,
+  however, is the layout's gap material (k = 0.7 W/mK).
+- The result is a row of heated insulator cells along every misaligned die edge.
+- A one-die reproduction in plain 3D-ICE 4.0 (`warpage/scripts/edge_artifact_3dice.sh`) gives a
+  peak rise of:
+  - 11.13 K with edges on cell boundaries;
+  - 14.56 K with the die shifted by 0.42 cell;
+  - 11.03 K without the layout;
+  - 11.12 K with the layout snapped outward to whole cells.
+- The artefact was found by an independent FE re-solve of a geometry5 sample (`warpage/warp/bridge.py`).
+- It is invisible to the existing checks:
+  - the energy balance holds, because total power is conserved;
+  - the paired FV check cannot see it on any data. `src/validation/fv_solver.py` uses the same
+    cell rule (material by cell centre, power by overlap), so it reproduces the artefact. That is
+    also why §9.28 attributed the backbone's 2–3 K peak error to physics.
+  - It took a solver with exact material regions (the warpage FE model) to expose it.
+
+**Prior art and positioning (web search, 2026-10-06; literature, not our own reasoning).**
+- The 3D-ICE 4.0 paper (arXiv:2512.05823) describes its GDS import as using per-tile intersection-area overlap
+  ratios to build area-weighted equivalent materials. Our `.lyt` path assigns material by cell centre while
+  power is split by overlap. So the cell-centre rule is inconsistent within 3D-ICE itself: the GDS route is
+  area-weighted and the `.lyt` route is not. This is a stronger framing for the maintainer note than "an
+  unusual convention". We found no public report of the `.lyt` partial-cell issue.
+- Closest work on surrogates and solver artefacts: "Neural Emulator Superiority" (arXiv:2510.23111) shows that
+  emulators can *filter* solver error in rollouts. Our result is the converse, for a deterministic, spatially
+  coherent artefact (ThermoNO reproduces it, see the projection test below), and is supported by a paired causal
+  test. We found nothing on a paired label-swap projection test.
+- HotSpot, an independent discretisation with per-tile resistivity, reproduces the reference and not 3D-ICE on the
+  misaligned repro (rise 11.060 K against 11.067 K reference and 14.562 K for 3D-ICE), so the artefact is
+  confirmed by a second solver (§9.34).
+
+**Extent.**
+- It affects all 135 layout-randomised solves of geometry4–6 (45 each; the other 135 of the 270 layout-randomised solves are geometry1, 2a and 3). Fixed-placement data is clean.
+- In the old data, the hottest cell was an *unpowered* edge cell in 28 / 36 / 35 of 45 samples
+  (g4 / g5 / g6).
+- The peak was inflated by a median 0.5 / 2.1 / 4.1 K, and by up to 14 K (41% of the rise).
+- The artefact carried ≤ 1% of the field variance.
+- geometry7 is not affected. Its footprints are on the grid, and the pilot and material-sweep data
+  show no unpowered peak.
+- An apparent geometry7 case came from `data/3d-ice-layout-geometry7`. That directory is the unused,
+  unrepaired 2026-09-15 duplicate named in `docs/compute.md`: its grid is still transposed (56 × 248
+  across the 62 mm width), so the footprints fall mid-cell. It is not used anywhere.
+
+**Fix.**
+- `src/core/placement.py`: the chiplet samplers (`random_placement`, `free_chiplet_placement`,
+  `shelf_chiplet_placement`) snap each offset to the nearest in-bounds, non-overlapping cell
+  boundary. They redraw if that fails, so every new layout is grid-aligned. Tests are in
+  `tests/test_placement.py`.
+- The 135 samples were re-solved with their own powers, HTC and ambient
+  (`scripts/resolve_from_metadata.py --snap`). Each die moved by ≤ 125 µm (median 105–116 µm).
+- The original offsets are kept in the metadata (`orig_placement_dx_*`; a first attempt named them
+  `placement_dx_orig_*`, which every offset parser read as extra dies), and the old data is
+  archived in `data/_archive_pre_snap_20260930/`.
+
+**Validation** (`warpage/scripts/validate_snap.py`, `warpage/results/validate_snap.json`):
+- The energy ratio is 1 ± 3·10⁻⁵ on all 135.
+- The hottest cell is unpowered in 0 of 135.
+- The excess of the peak over the hottest powered cell is 0.
+- The median field change is 0.03–0.05 K.
+- The independent FE solve now agrees with 3D-ICE to 0.1–0.2% of the rise on 11 of 11 g5/g6 samples
+  checked, with peak error ≤ 0.12 K except one at 0.32 K. This required honouring
+  `layer_k_overrides`: the metadata's `layer_{i}_k` fields show the geometry default, not the
+  overridden value the solve used.
+
+**What changes.**
+- *Field-level results stand.* `layout_cv` on the corrected data (`results/v5_snap/`):
+  - ridge's detrended error moves by ≤ 0.02 K (g4 3.02, g5 2.23, g6 3.74 K);
+  - its median R² is 0.43 / 0.33 / −0.35, and it is worse than the field mean in 13 / 18 / 26 of 45;
+  - ridge is still the worst baseline on all three, so §9.15b stands;
+  - kNN and mean move by ≤ 0.04 K. nn's *mean* R² falls (g6 0.36 → 0.01) while its median holds
+    (0.60), a single-sample outlier.
+- *§9.17's geometry4–6 hotspot rows change, and strengthen.* Re-run: `scripts/hotspot_remeasure.py`,
+  `results/v5_snap/hotspot_remeasured.json`. geometry1–3 and the fixed rows are unchanged and
+  reproduce exactly.
+
+| dataset | peak spread (µm), old → new | loc ratio, seed-mean (range) | recall ratio | \|peak\| K ridge / field | field loc median, old → new |
+|---|---|---|---|---|---|
+| geometry4-shelf | 2750 → **734** | 1.89× → **3.26×** (1.75–4.84) | 3.99× → 4.53× | **6.78** / 18.78 | 5.0 → 2.1 mm |
+| geometry5-shelf | 3626 → **1031** | 1.68× → **6.00×** (5.46–6.37) | 5.54× → 6.68× | **3.51** / 21.24 | 6.5 → 1.8 mm |
+| geometry6-shelf | 5178 → **1031** | 2.10× → **3.69×** (2.96–4.24) | 7.01× → 8.86× | **7.34** / 17.44 | 6.2 → 3.7 mm |
 
 **Reading.**
-- Both linear-in-power models, trained on 1% of the data, beat the best published model zero-shot
-  on S5. But the no-training one-parameter rule already gets 16.1, so most of that is the built-in
-  linearity, not physics learned from 108 samples. In distribution, both are far from useful
-  (13.6 and 20.8 K).
-- The learned-conductance solver matches ThermoNO on S5 with half the parameters. It is 6× slower
-  per epoch (one CG solve forward, one backward) and was still improving when stopped. With 108
-  samples it has not shown the better transfer its design aims at. The full-data GPU run
-  (`notebooks/kaggle_icb_physsolve.ipynb`) waits on the weekly GPU quota.
-- **"Learns physics quickly" is not established.** What 108 samples buy is the structural prior.
+- The "diffuse" peaks of geometry4–6 were the artefact. Their peaks are as sharp as geometry3's.
+- The field model's localisation error falls 2–4×, and the field-over-ridge advantage roughly
+  doubles.
+- On layout-varying data, the field representation now localises better on all six geometries, by
+  1.4–8.8×, with every seed > 1.
+- Ridge still has the lower peak-*temperature* error on all of them.
+- On geometry4, randomising the layout now amplifies the distance advantage 3.3× (was 1.9×) and
+  the recall advantage 2.6×.
+- §9.17's summary table and §11's "three sharp-peaked geometries" are superseded by this section.
+
+*§9.26's ThermoNO result reverses.* ThermoNO was re-run with seeds 0–2 on the Kaggle GPU, with the same script and
+defaults (`results/thermono_kaggle_snap/`; pre-fix: `results/thermono_kaggle/`, seed 0). The new ThermoNO rows are the mean ± std over the 3 seeds (5-fold each). The backbone is training-free, so its numbers are identical across seeds. The tensor cache
+in `scripts/thermono_train.py` was keyed by geometry name only; it now rebuilds when the data is
+newer, since it would otherwise have trained on the old fields.
+
+| geometry | model | R² median | det.MAE (K) | loc median (µm) | top-1% recall | \|peak\| err (K) |
+|---|---|---|---|---|---|---|
+| geometry4 | backbone, old → new | 0.982 → 0.984 | 0.322 → 0.313 | 3536 → **250** | 0.81 → **0.84** | 2.06 → **0.06** |
+| | ThermoNO, old → new (3 seeds) | 0.996 → **0.997 ± 0.002** | 0.202 → **0.161 ± 0.049** | 1008 → 956 ± 135 | 0.67 → 0.73 ± 0.03 | 0.96 → 1.00 ± 0.23 |
+| geometry5 | backbone, old → new | 0.997 → **0.999** | 0.044 → **0.033** | 4250 → **0** | 0.80 → **0.85** | 2.08 → **0.15** |
+| | ThermoNO, old → new (3 seeds) | 0.996 → 0.999 ± 0.0001 | 0.105 → 0.063 ± 0.004 | 806 → 937 ± 167 | 0.52 → 0.74 ± 0.02 | 0.54 → 0.24 ± 0.01 |
+| geometry6 | backbone, old → new | 0.992 → **0.999** | 0.079 → **0.052** | 3536 → **0** | 0.69 → **0.91** | 3.33 → **0.08** |
+| | ThermoNO, old → new (3 seeds) | 0.993 → 0.999 ± 0.0000 | 0.165 → 0.072 ± 0.003 | 1000 → 913 ± 118 | 0.61 → 0.79 ± 0.02 | 0.73 → 0.29 ± 0.01 |
+
+- The training-free backbone now finds the exact hottest cell on geometry5/6, and is within one cell
+  on geometry4. Its peak-temperature error is 0.06–0.15 K.
+- ThermoNO's earlier 2.6–5.4× peak-temperature-error advantage (pre-fix data) came from learning the artefact.
+- ThermoNO is now better only on geometry4's bulk field (det.MAE 0.161 ± 0.049 vs 0.313 K; every seed
+  is better, 0.13–0.22 K). On geometry4 it is worse than the backbone at hotspot location, peak
+  temperature and recall in all 3 seeds. On geometry5/6 it is worse than the backbone on every
+  metric in all 3 seeds (the median-R² gap is 0.0001–0.0002, within seed spread on geometry5).
+  The verdict holds across seeds.
+- The Kaggle (GPU) seed 0 agrees with the earlier local CPU seed 0 to within seed-to-seed spread
+  (geometry4 det.MAE 0.218 vs 0.113 K, against a 3-seed std of 0.049 K; the other geometries differ by
+  ≤ 0.015 K).
+- This strengthens the §9.30–9.31 line (classical structure beats learned correction) and removes
+  ThermoNO's main claim.
+
+*§9.25's backbone table, re-run* (`scripts/backbone_eval.py --tag=-snap`, 5-fold × 4 seeds; pre-fix copy
+in `results/_kaggle_presnap_20260930/backbone_eval_presnap.json`):
+
+| geometry | model | R² mean | det.MAE (K) | loc median (µm) | recall | \|peak\| err (K) |
+|---|---|---|---|---|---|---|
+| geometry4 | backbone, old → new | 0.981 → 0.983 | 0.322 → 0.313 | 3536 → **250** | 0.81 → **0.84** | 2.06 → **0.06** |
+| | backbone + residual | 0.993 → **0.995** | 0.148 → **0.132** | 1503 | 0.65 → 0.69 | 2.56 → 0.91 |
+| | linear (field) | 0.970 → 0.974 | 0.405 → 0.383 | 2129 | 0.47 → 0.51 | 18.95 → 19.13 |
+| geometry5 | backbone, old → new | 0.996 → **0.999** | 0.044 → 0.033 | 4250 → **0** | 0.80 → 0.85 | 2.08 → **0.15** |
+| | backbone + residual | 0.995 → 0.999 | 0.047 → **0.031** | 750 | 0.75 → 0.85 | 1.90 → 0.17 |
+| geometry6 | backbone, old → new | 0.991 → **0.999** | 0.079 → **0.052** | 3536 → **0** | 0.69 → **0.91** | 3.33 → **0.08** |
+| | backbone + residual | 0.991 → 0.999 | 0.079 → 0.052 | 750 | 0.64 → 0.87 | 3.09 → 0.18 |
+
+- On the corrected data, the training-free backbone matches 3D-ICE's hotspot almost exactly on all
+  three chiplet geometries.
+- The learned residual still lowers geometry4's bulk error (0.31 → 0.13 K), but it always moves the
+  peak away from the right cell.
+- The "room left for a learned model" (§9.25) is now the geometry4 bulk residual alone. It is not
+  the hotspot.
+
+**Learned vs artefact: does ThermoNO reproduce the artefact? (A1/A2)** `scripts/artefact_learning.py`
+trains ThermoNO (§9.26 defaults, seed 0) on the *pre-fix* data, 5-fold CV, 45 scenarios per geometry
+(`results/artefact_learning/geometry{5,6}_seed0.json`; geometry4 was not run). A1 scores its held-out
+scenarios on the old labels. A2 feeds the same model the corrected inputs and scores against the corrected
+labels. "Peak at unpowered node" counts scenarios (of 45) whose predicted maximum falls on a zero-power
+node. Loc is the median hotspot location error; hit-1 mm is the share of scenarios whose predicted peak
+is within 1 mm of the true peak.
+
+| geometry | data | model | peak at unpowered node | mean excess over hottest powered node (K) | \|peak\| err (K) | loc median (µm) | hit-1 mm | top-1% recall | det.MAE (K) |
+|---|---|---|---|---|---|---|---|---|---|
+| geometry5 | old (A1) | 3D-ICE truth | 36 | 2.22 | | | | | |
+| | | backbone | 0 | 0.00 | 2.08 | 4250 | 0.20 | 0.80 | 0.044 |
+| | | ThermoNO | **45** | 2.35 | 0.60 | 1121 | 0.47 | 0.57 | 0.107 |
+| | new (A2) | 3D-ICE truth | 0 | 0.00 | | | | | |
+| | | backbone | 0 | 0.00 | 0.15 | 0 | 0.98 | 0.85 | 0.033 |
+| | | ThermoNO (trained on old) | **31** | 0.55 | 0.77 | 1121 | 0.38 | 0.58 | 0.113 |
+| geometry6 | old (A1) | 3D-ICE truth | 35 | 3.36 | | | | | |
+| | | backbone | 0 | 0.00 | 3.33 | 3536 | 0.22 | 0.69 | 0.079 |
+| | | ThermoNO | **45** | 3.28 | 0.71 | 1000 | 0.53 | 0.63 | 0.169 |
+| | new (A2) | 3D-ICE truth | 0 | 0.00 | | | | | |
+| | | backbone | 0 | 0.00 | 0.08 | 0 | 0.98 | 0.91 | 0.052 |
+| | | ThermoNO (trained on old) | **42** | 0.88 | 1.34 | 3183 | 0.09 | 0.58 | 0.184 |
+
+- **A1: ThermoNO reproduces the artefact, and over-reproduces it.** Its peak is on an unpowered node in
+  45 / 45 scenarios on both geometries, against 36 / 35 in the labels, with an excess (2.35 / 3.28 K)
+  equal to the truth's (2.22 / 3.36 K). Its peak is within 1 mm of the true peak in 47% / 53% of
+  scenarios against 20% / 22% for the backbone, which is its apparent hotspot advantage. It picks the
+  exact true node in only 5 / 45 and 3 / 45 (backbone 7 and 6).
+- **A2: the advantage disappears on corrected data.** The same model still puts its peak on an
+  unpowered node in 31 / 45 and 42 / 45 scenarios. Its peak error rises (0.60 → 0.77 K, 0.71 → 1.34 K)
+  while the backbone's falls (2.08 → 0.15 K, 3.33 → 0.08 K). Hit-1 mm falls 0.47 → 0.38 and
+  0.53 → 0.09. A model trained on the new data reaches 0.18 / 0.31 K peak error (table above), so the
+  A2 loss is mostly the artefact the model learned. A2 alone is not a pure label swap, though. ThermoNO's
+  inputs (power on the FV grid and the backbone field) are rebuilt from the placement offsets in the
+  metadata, which the snap changed: on geometry5 they differ by up to 0.024 in normalised power and
+  1.79 K in the backbone between the pre-fix and corrected files. (The stored node `power` arrays, which
+  the FNO family reads, are byte-identical in all 135 files, because they are cell-centre based and a
+  nearest-boundary snap never moves an edge across a cell centre.) The paired projection test below
+  removes this confound by giving both arms the corrected inputs and swapping only the labels.
+- **Fold spread is large.** On geometry6, ThermoNO's A1 peak error is 0.21 / 1.35 / 0.79 / 0.34 / 0.87 K
+  across folds 0-4, and its A2 peak error is 0.99-1.71 K. In A1 the peak is unpowered in 9 of 9
+  scenarios in every fold on both geometries, whereas the truth's counts are 9/6/7/9/5 (g5) and
+  9/5/6/9/6 (g6). Fold 0 is the most artefact-heavy fold for the truth (9 / 9, against 36 / 45 and
+  35 / 45 overall).
+- One seed; geometry4 not run.
+
+**Paired label-swap projection test (2026-10-05).**
+Method: `src/validation/artefact_projection.py`, `scripts/artefact_projection_run.py`. Results:
+`results/artefact_projection/projection_summary.json` (print with `scripts/artefact_projection_report.py`).
+For each architecture and geometry, models are trained on the old labels (O) and on the corrected labels (N)
+with the same corrected inputs, hyper-parameters, folds and seeds. On a held-out scenario the true artefact is
+D = T_old - T_new and the learned difference is L = O(x) - N(x). The projection slope is
+beta = <L, D> / <D, D>: 1 if the artefact is reproduced exactly, 0 if L is orthogonal to D. A label-independent
+model error cancels in O - N, so beta stays meaningful for an inaccurate model. The null is the same statistic
+between two same-label models (N-N, O-O), which measures seed noise. The primary field is `beta`
+(pre-registered). The rule: *learned* if the seed-mean beta CI lies above the same-label null CI with lower
+bound > 0.2; *not learned* if the CI upper bound is < 0.1 and it overlaps the null CI; otherwise
+*inconclusive*. CIs are 95% bootstrap over held-out scenarios. The headline compares each seed singly. Seeds: 3
+for ThermoNO and FNO, 2 for CNO-FNO-attn.
+
+**Folds.** The first Kaggle kernel hit the 12 h limit with some folds missing. The missing folds were run in a
+resume kernel with the same script, hyper-parameters and seeds; every unit now has 5 of 5 folds (n = 45). The old
+partial results are kept in `results/artefact_projection/_pre_resume/`. No decision changed from the partial
+results; the ThermoNO and FNO geometry4 estimates did (below).
+
+| model | geometry | folds | seed-mean beta [95% CI] | null N-N [95% CI] | per-seed beta | decision |
+|---|---|---|---|---|---|---|
+| ThermoNO | geometry4 | 5/5 | 0.95 [0.73, 1.23] | 0.08 [0.03, 0.15] | 0.89 / 1.01 / 0.97, all learned | **learned** |
+| | geometry5 | 5/5 | 0.77 [0.63, 0.97] | 0.00 [-0.01, 0.01] | 0.75 / 0.81 / 0.76, all learned | **learned** |
+| | geometry6 | 5/5 | 0.80 [0.74, 0.87] | 0.01 [0.00, 0.02] | 0.77 / 0.80 / 0.83, all learned | **learned** |
+| FNO | geometry4 | 5/5 | 0.35 [0.20, 0.50] | -0.02 [-0.24, 0.18] | 0.38 / 0.52 / 0.15, all inconclusive | inconclusive |
+| | geometry5 | 5/5 | 0.06 [-0.09, 0.19] | 0.34 [-0.02, 0.73] | 0.11 / -0.20 / 0.27, all inconclusive | inconclusive |
+| | geometry6 | 5/5 | 0.26 [0.15, 0.38] | 0.07 [-0.21, 0.33] | 0.23 / 0.25 / 0.30, all inconclusive | inconclusive |
+| CNO-FNO-attn | geometry5 | 5/5 | 0.06 [-0.32, 0.40] | 0.03 [-0.48, 0.60] | 0.01 / 0.11, all inconclusive | inconclusive |
+| | geometry6 | 5/5 | 0.34 [0.08, 0.61] | 0.19 [-0.11, 0.53] | 0.47 / 0.21, all inconclusive | inconclusive |
+
+Reading (the data are measured; the interpretation is ours):
+- **ThermoNO learned the artefact.** Seed-mean beta is 0.95 on geometry4 (CI [0.73, 1.23]), 0.77 on geometry5 and
+  0.80 on geometry6. Each of the three seeds is individually "learned" on every geometry. The same-label nulls
+  are about 0 (N-N means 0.08, 0.00, 0.01). The Wilcoxon p against N-N is 5.7e-14 on all three geometries.
+  Restricted to the support of the artefact (|D| > 0.1 K), beta_s is 1.09 / 0.84 / 0.82. Both arms use the
+  corrected inputs, so this removes the input-shift confound of A2: held-out ThermoNO predictions reproduce
+  roughly 80-95% of the artefact's amplitude.
+- **FNO: a partial reproduction, not "learned".** On geometry4 and geometry6 the seed-mean beta CI lies above
+  zero (0.35 [0.20, 0.50] and 0.26 [0.15, 0.38]) and, on geometry4, the Wilcoxon p against N-N is 0.004. It still
+  misses the pre-registered "learned" bar, which needs every seed's CI to lie above its same-label null CI with a
+  lower bound > 0.2. No FNO seed passes: each seed's CI overlaps its own seed-pair null (geometry4 seed 0:
+  0.38 [0.20, 0.58] vs null [-0.06, 0.40]; seed 2: 0.15 [-0.07, 0.39]). The seed-mean CI also overlaps the O-O
+  null (upper bound 0.36 on geometry4, 0.39 on geometry6). On geometry5 beta is 0.06 and the null CI is
+  wide ([-0.02, 0.73]). The decision is inconclusive on all three, and we do not call FNO "learned".
+- **CNO-FNO-attn: inconclusive, not "not learned".** Geometry5 beta is 0.06; geometry6 is 0.34 [0.08, 0.61]
+  (p vs N-N 0.059), with a null CI that overlaps it. Two seeds only. The test lacks power at this noise level.
+- Secondary, exploratory: the support-restricted correlation corr_s of FNO is above its null on geometry5
+  (0.22, p = 6.5e-5) and geometry6 (0.35, p = 5e-9). This is consistent with a weak partial reproduction. It
+  does not meet the pre-registered rule.
+- The A1 result for ThermoNO therefore holds under a paired test on all three geometries. The FNO family shows at
+  most a partial reproduction at its noise level. No claim about neural operators in general follows.
+
+**FNO A1/A2 (single seed): inconclusive.**
+`results/fno_artefact/fno_artefact/geometry{5,6}_seed0.json`. This is the fair protocol
+(`scripts/fno_fair_cv.py`: rise target, detrended loss, annealed early stopping), the same 5 folds as
+ThermoNO, seed 0, 45 scenarios per geometry. FNO and CNO-FNO-attn were trained on the *old* data and scored on old
+labels (A1) and on the corrected labels with the corrected inputs (A2). As a control, an FNO was trained on
+corrected data only (`fno_trained_new`). Columns are measured from the `rows` arrays.
+
+| geometry | model | peak at unpowered node (of 45) | mean excess (K) | \|peak\| err (K) | loc median (µm) | hit-1 mm (of 45) | det.MAE (K) |
+|---|---|---|---|---|---|---|---|
+| geometry5 | truth, old / new | 36 / 0 | 2.22 / 0.00 | | | | |
+| | FNO, trained old, A1 | 27 | 1.00 | 10.89 | 5799 | 0 | 1.47 |
+| | FNO, trained old, A2 | 27 | 1.00 | 11.59 | 4033 | 0 | 1.47 |
+| | FNO, trained new (control) | **28** | 1.23 | 11.89 | 4138 | 0 | 1.48 |
+| | CNO-FNO-attn, trained old, A1 | 27 | 0.45 | 4.70 | 6607 | 1 | 1.27 |
+| | CNO-FNO-attn, trained old, A2 | 27 | 0.45 | 4.51 | 4251 | 1 | 1.27 |
+| geometry6 | truth, old / new | 35 / 0 | 3.36 / 0.00 | | | | |
+| | FNO, trained old, A1 | 31 | 1.42 | 10.00 | 6770 | 1 | 1.43 |
+| | FNO, trained old, A2 | 31 | 1.42 | 11.13 | 8255 | 0 | 1.42 |
+| | FNO, trained new (control) | **23** | 1.03 | 10.77 | 7978 | 1 | 1.42 |
+| | CNO-FNO-attn, trained old, A1 | 24 | 0.34 | 5.79 | 7766 | 0 | 1.23 |
+| | CNO-FNO-attn, trained old, A2 | 24 | 0.34 | 4.15 | 5815 | 2 | 1.22 |
+
+Reading (the data are measured; the interpretation is ours):
+- Counts and excess are identical between A1 and A2 for each model because the inputs are identical
+  (see the A2 note above), so only the truth moved. The A2 location and peak-error changes are the
+  truth's move, not a change in the model.
+- The FNO family is an order of magnitude less accurate than ThermoNO on this data: det.MAE 1.2–1.5 K
+  (ThermoNO 0.11–0.18 K) and |peak| error 4–12 K (ThermoNO 0.6–1.3 K). Hit-1 mm is 0–2 of 45.
+- The control FNO, which never saw the artefact, puts its peak on an unpowered node in 28 / 45 and 23 / 45
+  scenarios with 1.0–1.2 K mean excess, the same as the FNO trained on the old data (27 / 31 of 45,
+  1.0–1.4 K). Those unpowered peaks are therefore smoothing, not a learned artefact.
+- An FNO at this error level cannot resolve a one-cell edge effect, so this single-seed run can neither confirm
+  nor refute artefact learning. The paired test above did not settle it either: its FNO result is
+  inconclusive because the seed-to-seed null is wide.
+- Stated plainly, the artefact was learned by the one model accurate enough to resolve it (ThermoNO), and the
+  paired test confirms that on corrected inputs. One model family is not a trend, and no claim about neural
+  operators in general follows.
+
+**Cost versus accuracy** (`scripts/cost_accuracy.py --n 5`, `results/cost_accuracy.json`). The first 5
+scenarios per geometry of the corrected layout data, all scored against the 3D-ICE nodes. Times are
+means per scenario on CPU; the 3D-ICE time includes the WSL launch. **The timings were taken while other
+CPU jobs were running, so every time is an upper bound.** ThermoNO's time is backbone plus inference;
+its accuracy is the 5-fold-CV figure over all 45 scenarios (`results/thermono_snap`), not these 5.
+Its training time (CPU, per fold, from the seed-0 logs) is not in the per-solve time. Speed-up is
+relative to 3D-ICE.
+
+| geometry (cells) | method | time (s) | speed-up | \|peak\| err (K) | det.MAE (K) | loc (µm) | R² |
+|---|---|---|---|---|---|---|---|
+| geometry4 (67 200) | 3D-ICE | 11.02 | 1× | | | | |
+| | FV direct | 2.55 | 4.3× | 0.0002 | 0.0014 | 50 | 1.0000 |
+| | backbone | 0.018 | 619× | 0.041 | 0.370 | 344 | 0.983 |
+| | backbone-PCG 10 / 20 / 30 / 50 | 0.12 / 0.26 / 0.39 / 0.66 | 90× / 42× / 28× / 17× | 0.015 / 0.0026 / 0.0006 / 0.0002 | 0.054 / 0.0023 / 0.0014 / 0.0014 | 171 / 100 / 50 / 50 | 0.9994 / 1.0000 / 1.0000 / 1.0000 |
+| | ThermoNO | 0.30 | 36× | 0.80 | 0.113 | 1256 | 0.997 |
+| geometry5 (84 000) | 3D-ICE | 15.19 | 1× | | | | |
+| | FV direct | 3.20 | 4.7× | 0.015 | 0.0011 | 71 | 1.0000 |
+| | backbone | 0.019 | 798× | 0.150 | 0.050 | 71 | 0.999 |
+| | backbone-PCG 10 / 20 / 30 / 50 | 0.15 / 0.31 / 0.47 / 0.78 | 100× / 48× / 32× / 19× | 0.017 / 0.015 / 0.015 / 0.015 | 0.0070 / 0.0012 / 0.0011 / 0.0011 | 71 | 1.0000 |
+| | ThermoNO | 0.35 | 43× | 0.18 | 0.047 | 1003 | 0.999 |
+| geometry6 (141 120) | 3D-ICE | 19.05 | 1× | | | | |
+| | FV direct | 5.17 | 3.7× | 0.015 | 0.0019 | 100 | 1.0000 |
+| | backbone | 0.028 | 687× | 0.124 | 0.080 | 1624 | 0.999 |
+| | backbone-PCG 10 / 20 / 30 / 50 | 0.24 / 0.49 / 0.74 / 1.23 | 80× / 39× / 26× / 16× | 0.015 / 0.015 / 0.015 / 0.015 | 0.0098 / 0.0024 / 0.0019 / 0.0019 | 1603 / 100 / 100 / 100 | 1.0000 |
+| | ThermoNO | 0.21 | 92× | 0.31 | 0.084 | 1000 | 0.998 |
+
+ThermoNO training: 4476 / 2116 / 1826 s per fold on CPU (geometry4 / 5 / 6).
+
+- The backbone alone is 600-800× faster than 3D-ICE at 0.04-0.15 K peak error. Backbone-PCG matches
+  the direct FV solve in 20 iterations, 39-48× faster than 3D-ICE and about 10× faster than the direct
+  FV solve. Its 0.015 K floor on geometry5/6 is the FV-to-3D-ICE gap.
+- ThermoNO costs about as much per solve as 10-20 PCG iterations and is 12-300× less accurate at the
+  peak and 25-100× less accurate in det.MAE (0.05-0.11 K against 0.001-0.002 K). Its training cost is
+  paid before it saves anything. On this evidence it is dominated on both axes by the classical routes.
+- n = 5 per geometry. The backbone's 1624 µm location error on geometry6 is one scenario landing on
+  another cell; the 45-scenario median is 0 µm.
+
+**§9.28 rerun on corrected data** (`scripts/backbone_vs_fv.py geometry4 geometry5 geometry6`,
+`results/backbone_vs_fv.json`; pre-fix copy `results/_kaggle_presnap_20260930/backbone_vs_fv_presnap.json`;
+45 scenarios per geometry), old → new:
+
+| geometry (mean peak rise, old → new) | pair | \|peak\| err (K) | loc median (µm) | top-1% recall | det.MAE (K) | R² |
+|---|---|---|---|---|---|---|
+| geometry4 (34.0 → 32.0 K) | backbone vs FV | 2.06 → **0.061** | 3536 → 250 | 0.81 → 0.84 | 0.323 → 0.314 | 0.981 → 0.983 |
+| | FV vs 3D-ICE | 0.002 → 0.0004 | 0 → 0 | 1.00 → 1.00 | 0.0011 → 0.0013 | 1.000 |
+| | backbone vs 3D-ICE | 2.06 → **0.061** | 3536 → 250 | 0.81 → 0.84 | 0.322 → 0.313 | 0.981 → 0.983 |
+| geometry5 (25.6 → 23.4 K) | backbone vs FV | 1.72 → **0.169** | 4008 → 0 | 0.79 → 0.83 | 0.043 → 0.033 | 0.996 → 0.999 |
+| | FV vs 3D-ICE | 0.373 → 0.015 | 0 → 0 | 0.97 → 0.98 | 0.0015 → 0.0009 | 1.000 |
+| | backbone vs 3D-ICE | 2.08 → **0.154** | 4250 → 0 | 0.80 → 0.85 | 0.044 → 0.033 | 0.996 → 0.999 |
+| geometry6 (30.3 → 27.0 K) | backbone vs FV | 2.86 → **0.091** | 3041 → 0 | 0.69 → 0.90 | 0.077 → 0.052 | 0.992 → 0.999 |
+| | FV vs 3D-ICE | 0.470 → 0.015 | 0 → 0 | 0.97 → 0.98 | 0.0038 → 0.0016 | 1.000 |
+| | backbone vs 3D-ICE | 3.33 → **0.076** | 3536 → 0 | 0.69 → 0.91 | 0.079 → 0.052 | 0.991 → 0.999 |
+
+- The 1.7-2.9 K of "physics the backbone omits" in §9.28 was the shared artefact. It falls to 0.06-0.17 K
+  once the layout is on the grid, about 0.2-0.7% of the 23-32 K mean rise.
+- FV and 3D-ICE now agree to 0.0004-0.015 K at the peak (the old 0.37-0.47 K on geometry5/6 was part of
+  the artefact).
+- The FV solver reproduced the artefact because it shares 3D-ICE's partial-cell rule, which is why the
+  paired FV check could not reveal it.
+
+**Not yet redone.**
+- The Kaggle zips `data/kaggle_v5/geometry{4,5,6}_shelf_v5.zip` and the private Kaggle dataset
+  `thermo-3dic-shelf-v5` were rebuilt from the corrected data on 2026-09-30. The old zips are in
+  `data/_archive_pre_snap_20260930/kaggle_v5/`.
+- Neural results on layout geometry4–6 other than ThermoNO (3 seeds) were trained on the old data and need a
+  rerun on the new dataset version. Two of these have since been run:
+  - the FNO A1/A2 run (above): inconclusive;
+  - the paired projection test (above, 5/5 folds in every unit): ThermoNO learned the artefact, FNO and CNO-FNO-attn inconclusive;
+  - the older-protocol FNO / LT-FNO / CNO-FNO-attn notebook (absolute target; geometry4 and geometry6 only;
+    kernel `fno-ltfno-cnofno-geometry4-6`), now on corrected data (§9.27, "Same notebook on corrected data");
+  - the fair-protocol FNO notebook pair (`notebooks/kaggle_fno_fair_a/b.ipynb`), now on corrected data
+    (§9.27, "Fair protocol on corrected data").
+  No neural rerun is pending. Some cells are partial (seed counts in §9.27).
+- §9.20's conformal results use fixed-placement geometry1/6 and the untouched geometry1 layout data,
+  so they are unaffected. The re-run gives coverage of 87.3–93.3%, matching the v5 summary.
+
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** The general claim that surrogates trained on discretised
+simulation data learn the discretisation's artefacts is already published (Mohan, Chattopadhyay & Miller 2024,
+arXiv:2411.15101; Neural Emulator Superiority, arXiv:2510.23111, treats it as a known failure mode). What this section adds
+is a specific, understood bug class in a steady-state chip-thermal setting and a paired label-swap projection test with
+pre-registered thresholds. Mohan et al. work on 1-D equations through numerical analysis and model-Jacobian/eigen
+analysis, not paired retraining; Koehler (arXiv:2608.24547) studies unconverged training solvers through mode-wise Fourier
+analysis. We found no prior paired label-swap test (abstract-level check; full texts not yet read). For the
+`.lyt` rule itself, no public report was found; the 3D-ICE 4.0 paper (arXiv:2512.05823) describes area-overlap equivalent
+materials only for its GDS tile extraction and says nothing about `.lyt`, so "inconsistent with the GDS route" is an
+inference, not a documented fact.
+
+### 9.33 Linting public datasets: the IC-ThermBench orientation mismatch (2026-10-05)
+
+The dataset linter (`scripts/lint_dataset.py`, `src/validation/lint.py`; external formats in
+`scripts/lint_external.py`, results in `results/lint_external.json`) detects the §9.32 artefact in this
+project's archived data and found it independently in `data/3d-ice-moving-geometry4`. We ran its maximum-principle rule (L005: the hottest cell must be a powered one, tolerance
+0.01 K) on the public datasets we could obtain.
+
+**Coverage.**
+- **No public per-cell 3D-ICE dataset was found** in our search (a search result, not a proof of absence). The
+  3D-ICE die-edge artefact (§9.32) is therefore untested on third-party data. Every public set linted here is
+  HotSpot-generated, and none is 3D-ICE.
+- The artefact comes from 3D-ICE's partial-cell rule (power by area, material by cell centre). A clean result
+  on HotSpot-generated data says nothing about 3D-ICE datasets (inferred; HotSpot's own rasterisation was not checked).
+
+**Therm-FM HotSpot sets: clean (L005 violations 0 in every set).**
+
+| set | samples checked | L005 violations | mean fraction of unpowered cells | samples with no unpowered cell |
+|---|---|---|---|---|
+| HS_SC refine1 / refine2 | 5000 / 5000 | 0 / 0 | 0.0% / 0.0% | 5000 / 5000 |
+| HS_QC refine1 / refine2 | 5000 / 5000 | 0 / 0 | 0.1% / 0.1% | 4854 / 4854 |
+| HS_OC refine1 / refine2 | 5000 / 5000 | 0 / 0 | 4.3% / 4.0% | 0 / 0 |
+| IND_8C / IND_32C | 1000 / 1000 | 0 / 0 | 25.0% / 24.9% | 0 / 0 |
+
+L005 is nearly vacuous on HS_SC and HS_QC (almost every cell is powered, so the hottest cell cannot be
+unpowered). HS_OC and IND_* have 4–25% unpowered cells, so the test is informative there, and they are clean.
+
+**IC-ThermBench (arXiv:2608.23977): the linter's first external catch.**
+- As stored, 22.5 / 34.2 / 33.1 / 27.7% of S2 / S3 / S4 / S5 samples (full released files) have their hottest
+  cell on an unpowered cell (3376 of 15000, 5132 of 15000, 4959 of 15000, 1386 of 5000). The
+  median distance from the hot cell to the nearest powered cell is 2 cells, up to 25–28.
+- With the power (and, where present, conductivity) channels transposed in-plane, violations are 0 / 0 / 0 / 1.
+  The one S5 sample is 1 in 5000.
+- Per-sample check on the first 400 samples per scope (`scripts/icb_orientation_check.py`,
+  `results/icb_orientation/orientation_check.json`), correlation between smoothed power and temperature:
+
+| scope | corr as stored | corr power transposed | samples where transposed is better | max-principle violations as stored / transposed |
+|---|---|---|---|---|
+| S2 | 0.41 | 0.78 | 395 / 400 | 101 / 0 |
+| S3 | 0.33 | 0.76 | 384 / 400 | 123 / 0 |
+| S4 | 0.34 | 0.77 | 391 / 400 | 113 / 0 |
+| S5 | 0.40 | 0.70 | 400 / 400 | 154 / 0 |
+
+- The public release therefore stores the spatial input channels (power, grid, k) transposed in-plane
+  relative to the output temperature. No power map in the 1600 samples is symmetric. We found no mention in
+  their README, issues or paper (a search of those three, as of 2026-10-05).
+- This project's loader mirrored theirs, so every IC-ThermBench number in this report came from
+  mismatched pairs (§9.13, §9.29, §9.31). §9.31 has the fixed-orientation rerun: ridge-type baselines change
+  by ≤ 0.34%, ThermoNO (108 samples) S4 13.64 → 11.46 K, learned-conductance solver S5 13.88 → 13.26 K.
+- **Is it a transpose, or some other flip or rotation?** Measured, not inferred
+  (`scripts/icb_orientation_dihedral.py`, `results/icb_orientation/dihedral.json`; same first 400 samples per
+  scope, F008 on 200). We applied all 8 dihedral transforms of the square grid (identity, transpose, flip x, flip y,
+  rot 90 / 180 / 270, anti-transpose) to the power (and k) channels and scored each against the stored temperature
+  by mean per-sample correlation, max-principle violations (L005) and the median R² of F008's fitted local
+  operator. The plain transpose is best on every split on all three statistics, with no ties (no sample is symmetric).
+
+| scope | corr: transpose / best other (stored) | L005 violations: transpose / fewest of the other 7 | F008 median R²: transpose / best other |
+|---|---|---|---|
+| S2 | 0.784 / 0.412 | 0 / 91 | 0.716 / 0.139 |
+| S3 | 0.755 / 0.327 | 0 / 107 | 0.513 / 0.114 |
+| S4 | 0.766 / 0.342 | 0 / 113 | 0.530 / 0.093 |
+| S5 | 0.696 / 0.403 | 0 / 154 | 0.223 / 0.036 |
+
+  "Best other" is the highest of the seven other orientations for correlation (always the stored one) and for F008
+  (the stored one, or a 90 degree rotation). Transpose leads the best other on correlation by 0.37 / 0.43 / 0.42 / 0.29.
+  Excluding the stored orientation, the margin over the best remaining one (a 90 degree rotation) is 0.53 / 0.46 /
+  0.48 / 0.35. A pure flip (x or y) scores worst of all (correlation 0.18-0.20, 113-151 violations), so the
+  stored files are not a flip of the true layout. S5's transposed F008 R² (0.22) is much lower than S2-S4 (0.51-0.72);
+  we did not investigate why (it still beats every other orientation by 6x).
+- What is not known: the effect on the published U-Net / FNO / Therm-FM numbers (not retrained), and which of
+  their tensors is the odd one out (we compare inputs against outputs only).
+
+**Draft issue reports (not sent).** `notes/icthermbench_orientation_report.md` (IC-ThermBench maintainers) and
+`notes/3dice_partial_cell_report.md` (3D-ICE, the die-edge partial-cell rule of §9.32).
+
+### 9.34 Tools: iceforge and fieldlint (2026-10-06)
+
+Two standalone command-line tools on branch `iceforge` package the checks that caught the bugs of §9.23, §9.32
+and §9.33. Neither imports from this repository. Both have READMEs with the full rule lists
+(`tools/iceforge/README.md`, `tools/fieldlint/README.md`).
+
+**iceforge** (`tools/iceforge/`, numpy only; `diff` needs scipy and pyamg). A front end for 3D-ICE 4.0.
+- Commands: `parse`, `check`, `snap`, `run`, `build`, `init`, `diff`, `doctor`. `run` uses a native, WSL or
+  docker backend.
+- `check` is a pre-solve lint. Rules S001-S009 include S001 (a powered, off-grid die edge next to a layout gap
+  cell: the §9.32 artefact) and S003 (off-grid `.lyt` rectangle). `snap` writes a grid-aligned copy. `run` also
+  parses the Tmap output (width-major rows, the §9.23 orientation) and warns if the hottest cell is unpowered.
+- The pipeline guard in `src/simulators/ice_simulator.py` runs `check` on every generated `stack.stk`. S001,
+  S003, S004 and S005 raise; `ICEFORGE_GUARD=0` disables it.
+
+Validation on the one-die repro of §9.32 (6 x 6 mm, 10 W, 250 µm cells; rises in K):
+- `check` flags S001 and S003 on the misaligned case. `snap` gives 11.118 K, against 11.130 K aligned and
+  14.562 K misaligned. The docker backend gives 11.130 K and 14.562 K.
+- `diff` runs 3D-ICE and an independent finite-volume reference (`iceforge/refsolve.py`: exact area fractions
+  of each layout rectangle, lateral grid refined by r = 4 and 8, sub-layers of at most 25 µm). Unlike
+  `src/validation/fv_solver.py`, it does not copy 3D-ICE's partial-cell rule.
+
+| case | 3D-ICE max rise | reference max rise | verdict |
+|---|---|---|---|
+| aligned | 11.130 | 11.044 | AGREE |
+| misaligned | 14.562 | 11.067 | DISAGREE (die-edge): 90 flagged cells, all at or next to die edges; max \|dT\| 7.37 K |
+| no layout | 11.027 | 10.970 | AGREE |
+| snapped | 11.118 | 11.047 | AGREE |
+
+The reference does not move with the die edge (11.044 against 11.067). Our generated geometry1 and geometry5
+models also AGREE.
+
+The aligned residual (up to 0.3 K at die corners) is a 3D-ICE node-placement convention, not a bug. In
+`thermal_grid.c` (`get_conductance_top/bottom`), a stack-end layer without a heat sink couples to its
+neighbour over its full height (k A / h) instead of half of it (k A / (h/2)), so its node sits effectively on
+the outer face. A reference solver that emulates this rule reproduces 3D-ICE to 0.005 K. `diff` reports flagged cells that
+match the emulation as explained, and only unexplained cells decide the verdict.
+
+**iceforge diff on archived real data (2026-10-07).**
+The one-die repro above is synthetic. `scripts/iceforge_realdata_diff.py` runs `diff` on real archived solves:
+8 scenarios per geometry for geometry4-6 (sorted names, every k-th), taken from
+`data/_archive_pre_snap_20260930/`. Each stack is rebuilt twice from the metadata, once with the original
+(pre-snap) placement offsets and once with the snapped offsets. Results: `results/iceforge_realdata/`
+(`summary.md`, per-case JSON). Pre-registered expectation: pre-snap DISAGREE with flagged cells at or next to die
+edges, snapped AGREE.
+- Snapped: 24 / 24 AGREE.
+- Pre-snap (orig): 23 / 24 DISAGREE. The one miss is geometry4 train_021: 3D-ICE peak rise 35.133 K against a
+  reference 35.093 K (a 0.04 K effect), max |dT| 0.81 K, below the verdict threshold of
+  max(0.02 x rise = 0.70 K, 3x the reference's own r-vs-2r change). That is a mild artefact below the
+  resolution of `diff` at r = 2. `iceforge check` raised S001 and S003 on it statically, so the pre-solve lint
+  catches it where the solve-and-compare does not. `diff` confirms only thermally material cases at this
+  resolution.
+- Sanity: 3D-ICE's peak rise matches the archived npz peak (original arm) and the corrected npz peak (snapped
+  arm) to within 0.05 K in 48 / 48 cases.
+
+Verdict counts (n = 8 per row). `own` is the pre-registered rule: the die-edge mask comes from each layer's own
+floorplan / layout edges. `union` is a **post-hoc** rule, added after seeing the data: the in-plane union of all
+layers' edges.
+
+| geometry | arm | own AGREE | own die-edge | own diffuse | union AGREE (post-hoc) | union die-edge (post-hoc) | union diffuse (post-hoc) |
+|---|---|---|---|---|---|---|---|
+| geometry4 | orig | 1 | 2 | 5 | 1 | 6 | 1 |
+| geometry4 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+| geometry5 | orig | 0 | 1 | 7 | 0 | 8 | 0 |
+| geometry5 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+| geometry6 | orig | 0 | 1 | 7 | 0 | 8 | 0 |
+| geometry6 | snapped | 8 | 0 | 0 | 8 | 0 | 0 |
+
+Totals, orig arm: own rule 4 die-edge + 19 diffuse; union rule (post-hoc) 22 die-edge + 1 diffuse.
+
+Why the own rule says "diffuse": the artefact does not stay in the layer whose edge causes it. The heated gap cell
+spills vertically into a neighbouring layer that has no edges of its own at that position, so the own rule, which
+tests each layer against its own edges, labels those flagged cells as interior. The union rule tests against the
+edges of every layer. It was added after the own rule produced mostly "diffuse" labels, so the union counts
+are post-hoc and the own counts are the pre-registered ones. The vertical-spill reading is our interpretation; the
+distance statistics below do not depend on either rule.
+
+Distance of the flagged (unexplained) cells to the nearest union edge, orig arm, pooled over the 24 cases
+(post-hoc, chessboard distance in cells): 0 cells 10,726; 1 cell 2,159; 2 cells 119; 3 cells 24; none beyond 3.
+Of the 13,028 flagged cells, 100% lie within 3 cells of a die edge and 98.9% within 1 cell. The only case still
+labelled "diffuse" under the union rule is geometry4 train_002 (13.4 K peak excess: archived 65.71 K against
+52.75 K corrected). It has no interior flagged cell, but 76 of its 304 flagged cells are 1-3 cells from an edge,
+a bucket the label rule does not count as edge. Its check codes are S001 and S003 only, so it is the same
+artefact, not a different bug.
+
+**Resolution deviation and the r = 4 spot check.** These runs used lateral refinement r = 2 and nz = 2
+(`--r 2 --nz 2`), not the README default of r = 4 / 8, because the r = 4 reference on these stacks is about
+21 M unknowns. To check that r = 2 is not a coarse-grid artefact, geometry4 test_041 (orig) was rerun at r = 4
+(419 s): still DISAGREE, max |dT| 4.25 K (r = 2: 4.51 K), reference peak 62.50 K (r = 2: 62.48 K). The finer
+reference flags 159 cells against 119 at r = 2, the extra 40 in the neighbouring layer, and all 159 are at
+distance 0 from a die edge. The own rule says diffuse and the union rule die-edge, as at r = 2. So r = 2 is, if
+anything, conservative on this case; it is one case, not a general statement.
+
+**HotSpot as a third solver (2026-10-07).** `diff --with-hotspot` translates the stack to HotSpot's grid model
+(steady state, built with SuperLU; iceforge self-tests every HotSpot it is pointed at and refuses a build that
+fails). HotSpot has its own discretisation, so it is a second solver independent of 3D-ICE besides the reference.
+Layouts translate through `-detailed_3D on`: each layout layer becomes a tiling of the chip with a per-tile
+resistivity, and a grid cell shared by several tiles gets the occupancy-weighted parallel conductance. That is an
+area-fraction rule, not 3D-ICE's cell-centre rule. Modelling facts that were measured and shape the translation
+include `DET_FILM_FACTOR = 1.5` (the film coefficient is divided by 1.5 in detailed mode, which adds an extra
+film/2 in series per cell; checked on a homogeneous control: 0.05 K of 10.9 K) and the grid's row 0 being the top
+of the die. Because HotSpot's boundary and vertical model mostly rescale and offset the rise, `diff` removes the best
+affine map (`HotSpot ~ s x reference + o`) before judging and prints both the raw and the fit residuals. Features
+HotSpot cannot take (microchannels, pluggable heat sinks, transient, non-uniform grids, top plus bottom sink, no
+sink, non-square chips, anisotropic k, overlapping rectangles) are refused with a message, not approximated. The
+exit code of `diff` is still decided by 3D-ICE against the reference only.
+
+Rises in K above ambient (HotSpot at 64 x 64; `tools/iceforge/README.md` has the full table, including
+max |dT| against the reference and against 3D-ICE):
+
+| case | 3D-ICE | reference | HotSpot | HotSpot sides with |
+|---|---|---|---|---|
+| repro misaligned | 14.562 | 11.067 | 11.060 | the reference |
+| repro aligned | 11.130 | 11.044 | 11.037 | all three agree |
+| repro nolayout | 11.027 | 10.970 | 10.930 | all three agree |
+| repro snapped | 11.118 | 11.047 | 11.040 | all three agree |
+| geometry1 (12 layers, r = 1, nz = 3) | 12.420 | 12.393 | 12.350 | all three agree |
+| geometry1 sink-end layer | 4.196 | 4.196 | 4.200 | all three agree |
+
+On the misaligned die-edge repro, HotSpot (max |dT| 0.058 K against the reference, 7.375 K against 3D-ICE)
+independently confirms the §9.32 artefact: two solvers with different discretisations agree with each other and
+disagree with 3D-ICE's `.lyt` route. The reference and HotSpot do share the area-fraction idea, so this is
+agreement between two area-fraction treatments against one cell-centre treatment; it does not show that
+area-fraction is what the 3D-ICE authors intend. The 124 iceforge tests pass, including the HotSpot ones; they
+need a SuperLU HotSpot and are skipped otherwise.
+
+**Non-uniform grids (2026-10-07).** iceforge now reads 3D-ICE 4.0's non-uniform mode (`non-uniform true ;` plus
+`discretization` entries). `model.non_uniform_cells` derives the mesh (checked against the `xyaxis_*.txt` files
+3D-ICE writes; a mismatch raises P003), `run` stores per-cell temperatures with their rectangles, `check` applies
+the new rules N001-N005, and `diff` compares per 3D-ICE cell against the reference area-averaged exactly over each
+cell's rectangle. N001: a layout is used but ignored. N002: the floorplan elements do not cover the die. N003: no top
+heat sink (segfault). N004 (warning): an element with several rectangles, of which only the first is meshed, or a
+fractional discretization. N005: top and bottom sinks (constant offset). HotSpot is refused on non-uniform grids.
+
+Finding: **in non-uniform mode 3D-ICE 4.0 silently ignores the `.lyt` layout.** Verified by direct reproduction: a
+case whose SRC layer is GAP plus an SI rectangle given in the `.lyt` gives a rise of 12.849 K, identical to an
+all-GAP control (max |diff| = 0.0), whereas the conforming fixture gives 7.507 K. The layout therefore has no
+effect on the solve, and no warning is printed (N001 is our lint). We did not find this in the 3D-ICE 4.0 paper
+(arXiv:2512.05823) or its documentation; that is an inference from a search that could not be exhaustive
+(`docs/prior_art_review.md`). Two related observations: floorplan elements that do not cover the die leave a void
+with no cells, silently (N002, measured). A second, independent case confirms the layout is ignored
+(`tests/fixtures/nonuniform/repro_lyt_ignore_strip/`: a 10 x 10 mm chip, SRC layer GAP plus an SI strip in the `.lyt`):
+on the uniform grid the layout changes the result by 5.522 K (max |dT|, with against without it); in non-uniform mode
+the two outputs are byte-identical.
+
+**Two heat-sink defects in non-uniform mode (verified 2026-10-07; fixtures `repro_topsink_null/`).**
+- *Segfault with no top heat sink.* 3D-ICE 4.0 crashes (exit 139) in non-uniform mode whenever the stack has no
+  `top heat sink`. A bottom-only sink is the usual way to get there; a stack with no sink at all crashes the same way.
+  Both are valid input: the bottom-sink block follows the parser grammar, and the uniform-mode bottom-sink test shipped
+  with 3D-ICE runs. The cause is an unguarded `First->Data.TopSink->SinkModel` dereference of a NULL pointer at
+  `thermal_data.c:153` (`update_number_of_cells`; AddressSanitizer backtrace in `asan_backtrace.txt`). With a top sink
+  the same stack runs. Workaround: declare a top heat sink (a negligible HTC suffices) or use uniform mode.
+- *Constant offset with top plus bottom sinks.* No crash and no warning, but every temperature is shifted by a constant:
+  +223050 K on the 10 x 10 mm two-element-die matrix case (uniform 303.8 K, non-uniform 223057.5 K) and +390300 K on a
+  two-die rebuild of the example in upstream issue #3 (Tmax 320.0 K uniform and with a top sink only, 390620.0 K
+  non-uniform with both). This is the symptom of esl-epfl/3d-ice issue #3 ("Bugs that may exist", 2026-05-18), which
+  reports abnormal temperatures without a diagnosis. We did not have the issue's own files, only its description, so the
+  second case is a rebuild, not the reporter's input.
+- *Our diagnosis (read from the source, tested by patch).* (i) In the non-uniform system matrix the ambient conductance
+  is added to the diagonal only for layers connected to ambient through the top sink; there is no case for the bottom
+  (PCB-connected) layer, so the bottom sink's conductance never enters the matrix. (ii) The source vector does add
+  `T_ambient` times the bottom sink conductance to the right-hand side. A source with no matching sink gives a singular
+  or garbage system for bottom-only and a constant offset for both sinks, of the order of T_amb x g_bottom / g_top,
+  which matches the order of magnitude of the +223050 K. (iii) The non-uniform bottom conductance omits the series
+  ambient HTC that the uniform code and the top-sink code include. A two-part scratch patch (a NULL guard, then the
+  missing diagonal term and the corrected conductance) removes the crash and makes non-uniform equal uniform to 0.000 K
+  (below the 3-decimal Tmap resolution) in the top-only, bottom-only and both-sink cases on an identical mesh. Scope:
+  steady state, layer 0 only; the transient terms were not touched. It is a diagnosis aid, not an upstream-quality fix,
+  and was not submitted.
+- iceforge now has N003 for "non-uniform grid without a top heat sink" (it fires on the segfault) and a new N005 for
+  "non-uniform grid with top and bottom sinks" (the offset). 133 iceforge tests pass.
+
+On the non-uniform fixture (reference r = 4/8, tolerance 2%): with every cell 500 x 500 um 3D-ICE agrees (max |dT|
+0.10 K of a 7.5 K rise); with die element B at 600 x 1000 um cells beside A at 500 x 500 and a 500 x 500 layer, 60 of
+260 die cells and 120 of 400 layer cells are off by up to 0.87 K (11%), all at cells that do not line up with the
+other mesh, while the peak rise is off by only 0.002 K. The shipped steady example agrees to 0.036 K. There is no
+vertical-rule explanation on a non-uniform mesh, so keep stack-end layers thin or raise `--tol`.
+
+**fieldlint** (`tools/fieldlint/`, numpy only). A generalisation of the dataset linter of §9.23 and §9.33 to
+steady diffusion-type PDE datasets, with file adapters (npz, npy, MATLAB, HDF5, 3D-ICE) and presets for
+IC-ThermBench, Therm-FM and this project's data. Rules F001-F007: integrity, maximum principle, orientation,
+duplicates across splits, range and units, a ridge linearity probe (info only), energy balance. F008 and F009
+(added 2026-10-06) are an operator-residual consistency check and a sample-pairing check, described below.
+- IC-ThermBench S2-S5, first 400 samples per scope: corr(smoothed power, T) is 0.33-0.42 as stored and
+  0.70-0.78 transposed. F002 violations are 84-147 of 400 as stored and 0 transposed (S2, S3 and S5; S4 was not
+  rerun transposed). These differ from §9.33's 101-154 because fieldlint uses a tolerance relative to the field range
+  (1e-3) rather than a fixed 0.01 K.
+- The eight public Therm-FM steady sets and this project's 3D-ICE data lint clean for F001-F005.
+
+**fieldlint F008/F009 and the fault-injection benchmark (2026-10-06).**
+Three weaknesses of the first version motivated this round: the F003 thresholds had been retuned on Therm-FM
+HS_SC (overfit risk), F003 needs a spatially varying source (so it is useless for k-only problems such as
+Darcy), and no detection or false-positive rates had been measured.
+- F008 (operator residual): per orientation of the inputs, fit s ~ a(-div k grad u) + b(u - c) by least squares
+  and report R^2; it fires when an alternative orientation wins by a margin. It works for k-only and
+  source-only problems. F009 (pairing): on M = 32 samples, score every (inputs_i, u_j) pair with F008's
+  residual and flag if the diagonal is not the best match.
+- Harness: `tools/fieldlint/bench/`. It injects faults into clean copies (transpose, flip_x, flip_y, roll 1-3
+  cells, index shift by 1, C/K unit slip, cross-split duplicates, and 20%-of-samples variants) and records
+  per-rule detection and false-positive rates (`bench/results/bench_results.md`). Thresholds were frozen on the
+  tuning datasets (18: IC-ThermBench S2-S5 read with inputs transposed so they are clean, 8 Therm-FM steady
+  sets, 6 of our 3D-ICE geometries) on 2026-10-06 before the held-out sets were run.
+- Tuning results (thresholds fitted here, so optimistic): clean false positives 1 / 18 for any rule (F004 on
+  IC-ThermBench S2, whose first 400 samples contain identical u fields). Any rule detects 15 / 15 transposes,
+  18 / 18 flip_x, 16 / 18 flip_y, 18 / 18 cross-split duplicates and 15 / 18 unit slips. F008 alone scores
+  10 / 15 transposes and 13 / 18 flips (skipped on 5 of 18 datasets, counted as misses; where it runs it
+  catches every transpose, 10 / 10, and flip, 13 / 13) and catches rolls that F003 misses (roll 1: 8 / 18,
+  roll 2: 12 / 18, roll 3: 13 / 18, against 0 / 18 for F003 on all three). A one-cell roll stays invisible to
+  every rule where the operator R^2 is around 0.5.
+- **Held-out, frozen v1: failure.** On PDEBench Darcy (beta 1.0 and 0.01; k varies, uniform source, u = 0
+  boundary) F008 and F009 skipped on both sets and every fault. With the harmonic face-conductivity stencil the
+  operator explains only R^2 = 0.16-0.19, below the 0.3 applicability gate. F002 and F003 skip (no varying
+  source). Only F004 acted (cross-split duplicates, 2 / 2). False positives 0 / 2, but only because nothing ran.
+  We keep this as the held-out measurement of v1.
+- **Post-hoc** result: PDEBench's Darcy data match the arithmetic mean of k on cell faces. Re-running with that
+  option (chosen after seeing the failure, so a convention fix and not a held-out estimate) gives operator
+  R^2 = 1.00 on the stored data, and F008 detects transpose, flip_x, flip_y, roll 1-3 and the 20% variants on
+  2 / 2 datasets with 0 / 2 false positives. F009 still detects nothing on shifted data: with a wrong pairing
+  every (inputs_i, u_j) R^2 is near zero and the applicability gate reads that as "operator does not apply".
+- Out-of-scope controls: diffusion-reaction (t = 20) gives no finding. PDEBench Burgers (read as a 1 x 1024
+  line) gives **false alarms**, an F002 error and an F003 warning, on both files; F008 / F009 skip.
+- HS_SC (Therm-FM): the negative plain correlation (-0.31 stored, +0.37 after flipping y) is still unexplained.
+  F008 rules out a transposition (R^2 0.006 against 0.19 stored) but cannot separate the flips (0.19 stored
+  against 0.20-0.21), a difference inside the noise of a model that explains under a quarter of the variance.
+
+**fieldlint round 2 (v2) and round 2b (2026-10-07).** The v1 failure above stands as measured; v2 changes the
+code and was frozen again (2026-10-07T02:15, `bench/results/frozen_thresholds_v2.json`, with the code SHA-256; the
+v1 file is untouched).
+- F008/F009 now pick the face conductivity mean (harmonic, arithmetic or geometric) per dataset (`auto`). On 32
+  samples each is scored by the median R^2 of the best orientation, not the stored one, so a mis-oriented input
+  cannot decide it. It picks arithmetic on both PDEBench Darcy files (R^2 1.00 and 0.99, against 0.19 and 0.17
+  harmonic).
+- A scope gate skips F002, F003, F008 and F009 as "out of scope" when the field is effectively 1D (an in-plane
+  axis under 8 cells) or the dataset is flagged `time_dependent`. This removes the Burgers false alarms of v1: all
+  rules skip on both Burgers files, with and without the flag. Diffusion-reaction still gives no finding.
+- The thresholds equal v1's; the v2 file only adds the new options (`op_face_mean`, `op_face_samples`,
+  `min_inplane_cells`). The held-out stage refuses to run if the hashed code has changed.
+- F009's applicability gate is unchanged (skip, not warn): a wrong pairing and an inapplicable operator model both
+  give a diagonal indistinguishable from the off-diagonal scores.
+- Tuning (20 datasets: the 18 above plus both PDEBench Darcy files, which v1 had already seen, so the tuning rates
+  remain optimistic): clean false positives 1 / 20 for any rule, again F004 on the genuine identical fields of
+  IC-ThermBench S2. F008 detects transpose 13 / 17, flip_x 16 / 20, flip_y 16 / 20, roll 1, 2, 3 cells 13, 15, 16
+  of 20 (4 skips each). Any rule: transpose 17 / 17, flip_x 20 / 20, flip_y 18 / 20, index shift 16 / 20, unit slip
+  15 / 18, cross-split duplicates 20 / 20.
+- First fresh held-out, the FNO-paper Darcy release (Zenodo 12784353, 128 x 128, 1000 samples): F008 and F009
+  skipped, median R^2 0.03 with any face mean. That file is processed (binary coefficient, rescaled u, resampled
+  from the 421 grid the PDE was solved on), and a post-hoc probe with three face means and two linear
+  coefficients gave R^2 <= 0.033, so it is not a convention F008 could fit. **Uninformative** about F008's
+  detection rate; 0 / 1 false positives, but nothing ran.
+- Round 2b, second fresh held-out on the native grid: Li et al.'s `piececonst_r421_N1024_smooth1` on its 421 x 421
+  solver grid (Hugging Face `LDA1020/codepde-data`, `darcy/piececonst_r421_N1024_smooth1_sample100.hdf5`, 100
+  samples, sha256 `7032793a...`). Frozen v2 thresholds, hash-checked. Result on this one dataset: false positives
+  0 / 1; F008 detects 6 / 6 whole-dataset faults (transpose, flip_x, flip_y, roll 1, 2, 3). It skips on the
+  20%-contaminated variants and on the index shift, and F009 skips on every fault. **The evidence is thin:** the
+  clean-data operator R^2 is 0.31, just above the 0.3 gate (0.02 transposed or flipped), so the original solver's
+  discretisation is matched only loosely, and partial contamination drops it below the gate. The claim we make is
+  limited to this: F008 detects whole-dataset orientation faults on one unseen native-grid set.
+- Scope: F008/F009 apply only to data stored on the solver's native grid, with a known or fitted face convention,
+  while the operator explains a median R^2 of at least 0.3. The first fresh file violates the first condition.
+- HS_SC (Therm-FM) is still unexplained.
+
+**Limitations.**
+- On non-uniform grids iceforge skips the regular-grid rules S001-S004 (a floorplan edge is a cell edge by
+  construction; layouts are not read) and `diff` runs per cell. `diff` refuses microchannel layers, pluggable
+  heat sinks, transient solves and models with no power. The non-uniform findings rest on one conforming fixture
+  and two layout controls. The heat-sink defects are verified by reproduction, but the diagnosis rests on one scratch
+  patch, steady state only.
+- HotSpot as a third solver (`--with-hotspot`) refuses the features listed above and needs a SuperLU build. It
+  shares the area-fraction idea with the reference, so it is not independent of the reference's modelling choice,
+  only of its discretisation and code. Its three-way agreement is shown on four repro cases and geometry1, not on
+  the archived real data.
+- The y-flip in `src/simulators/hotspot_simulator.py` is confirmed and fixed in commit 58d4280: HotSpot's grid
+  row 0 is the top of the die and the wrapper did not flip rows (regression test
+  `tests/test_hotspot_orientation.py`). No saved spatial result used this wrapper.
+- Besides the y-flip the old wrapper had two more bugs and one modelling error, all fixed in commit fa2509c. (1) Its
+  floorplan spanned only the power blocks' bounding box, so when the blocks did not tile the die HotSpot's grid was
+  stretched over the box, not the die (geometry1, geometry3, 2.5D). (2) The spreader and sink were sized exactly to the
+  chip, which degenerates HotSpot's package model: it returned about 0 K regardless of `r_convec` and ambient. (3)
+  `r_convec` lumped the layers above the die, which are dead ends with the bottom heat sink. The fixes were zero-power
+  filler blocks over the uncovered die, sink and spreader oversized by 1.0005, and lumping only layers below the die.
+  Even then the wrapper lumped the Cu base and spreader as vertical resistances, and was +33% (geometry1) and +53%
+  (geometry3) on peak rise against 3D-ICE (commit 53fafc6). The report's only result from the old wrapper, the
+  geometry1 "~15% disagreement", could not be reproduced (no record of how it was made was found) and is withdrawn. We
+  did not locate a source for the error before these fixes, so none is quoted.
+- Commit 53fafc6 replaced the lumped model: the wrapper now writes the ICESimulator `stack.stk`, translates it with
+  iceforge's full-stack 3D-ICE-to-HotSpot translation (one grid layer pair per stack layer, `.lcf`) and reads the die
+  layer back. Peak rise against 3D-ICE is -0.7% on geometry1 and -0.9% on geometry3, mean about 0.0%, RMSE 0.13 K
+  (geometry1) and 0.16 K (geometry3), and correlation 0.9998 on geometry1 (`tests/test_hotspot_vs_3dice.py` covers
+  geometry1). It inherits iceforge's refusals (non-square chips, stacks with both heat sinks, and the other features
+  listed above). This is agreement on two geometries only; other geometries are untested, and HotSpot's boundary model
+  differs from 3D-ICE's, so it is not equivalence.
+- The docker backend was verified by hand on the repro fixtures, not in an automated test.
+- `diff` is checked on the repro, geometry1 and geometry5, and on the 48 archived geometry4-6 solves above (r = 2
+  and nz = 2, with one r = 4 spot check). At r = 1 on geometry5 the reference's own r vs 2r change is 0.05 K, so
+  use the default r = 4 for a real check; r = 2 can miss mild artefacts (geometry4 train_021).
+- fieldlint F003 (orientation) was refined once, to a band-passed vote, after it gave a false positive on the
+  Therm-FM HS_SC sets. It has been tuned on two dataset families (IC-ThermBench, Therm-FM). The held-out check
+  on PDEBench Darcy failed for F008/F009 as frozen (above). After round 2, one fresh set was uninformative and
+  one native-grid set (whose clean operator R^2 is 0.31, barely above the gate) gave 6 / 6 whole-dataset faults
+  detected and no false positive; generalisation is not established, and fieldlint applies to native-grid data
+  only.
+- fieldlint covers steady, non-negative-source diffusion problems only. F006 is a screening heuristic.
+
+**Prior-art note (2026-10-07, `docs/prior_art_review.md`).** Differential testing and code-to-code comparison of
+independent simulators are standard verification practice, and metamorphic testing of PDE programs dates to Chen, Feng & Tse
+(COMPSAC 2002); a HotSpot grid-model bug was exposed by model disagreement. `iceforge diff` is therefore a tool and an
+application, not a new technique. For `fieldlint`, no PDE-dataset linter was found; the nearest works audit trained models
+(arXiv:2606.18200, arXiv:2606.17529) or give general frameworks (FlowMLLab, arXiv:2609.27975). The search could not index
+GitHub or PyPI, so this is weak evidence of absence.
+
+### 9.35 IC-ThermBench S2: release completeness and a HotSpot reference-ceiling check (tier C; 2026-10-20)
+
+**Framing.** This is a tier C check, not a competitor. Re-running the benchmark authors' own generator
+configuration would match their labels by construction, so such a number cannot be compared with a learned
+surrogate. Fair comparisons are tiers A/B (§9.29, §9.31). The questions here are (1) is the HotSpot configuration
+that App. B.2 says is released actually in the release, and (2) can the released S2 fields be reproduced from the
+paper's description alone? Scripts: `scripts/icb_hotspot_repro.py`, `scripts/icb_hotspot_repro_diag.py`; results:
+`results/icb_hotspot_repro/{at,t8,diag}.json`.
+
+**1. Drive and repository finding.** App. B.2 states "The exact executable, configuration files, layer files, units,
+and conversion scripts are released with the benchmark artifact", and Sec. 4.3 that "Complete tensor semantics and
+HotSpot configurations are provided with the benchmark release".
+- The S2-S5 Drive archive (README: 4.6 GB; we hold a copy, `data/ic-thermbench/s2_s5_datasets.zip`, which was not
+  re-downloaded for this check, so the live Drive file was not re-listed) has these members: `level{2,3,4}_steady/{input,output}.mat`,
+  `level5_steady/{input,output}.mat` and `manifest.json`, a 473-byte `datasets/README.md`, and
+  `tools/convert_csv_to_mat.py`. There is no `.lcf`, `.flp`, `.ptrace`, `hotspot.config`, layer file or HotSpot binary.
+  The converter turns per-point CSVs (columns `chiplet_power, grid_x, grid_y, [local_thermal_k, ambient_c, h_w_m2k,
+  r_convec_k_per_w], temperature`) into the `.mat` tensors; it does not run HotSpot.
+- The S1 Drive folder (listed with `gdown`, nothing downloaded) holds Therm-FM data only: `thermal_steady.tar.gz`,
+  `thermal_transient.tar.gz`, normalization constants, `checksums.txt`, `README.md`. No generator configuration.
+- The GitHub tree (`Day333/ThermalBench`, 139 files) has no HotSpot, layer or generator file; `docs/DATASETS.md` gives
+  only a lineage reference to the ATPlace2.5D public package.
+- Not checked: the 44 GB checkpoint archive (not downloaded; a model archive, so a config is unlikely there).
+- The closest public material is the upstream ATPlace2.5D package (`PKU-IDEA/ATPlace_pub`: `Thermal.py`, `thermal/hotspot.config`).
+  Its layer table matches Table 8 layer for layer (materials, thicknesses), but it is a different codebase, so it is
+  evidence for the lineage, not the ICB configuration. Its ambient (318.15 K) cannot be what S2 used: the lowest released S2
+  temperature is 302.03 K.
+- Finding: the generator configuration and layer files that App. B.2 says are released are not present in the Drive
+  archives or the repository as inspected. The strongest statement we can make is "not found in these places".
+
+**2. Reproduction attempt.** Ten S2 samples were fixed before running: indices 12000 + 301j, j = 0..9 (last 20 % of the file,
+the benchmark's test block; 301 is coprime to 10, so all ten cases appear, case = index mod 10). HotSpot is
+the WSL build (SuperLU, preflight self-test passed), grid model, `-detailed_3D on`, 64 x 64, steady, the six layers of Table 8.
+Assumptions (all reconstructed; none comes from ICB's own configuration):
+1. The inputs are transposed relative to the output (§9.33); the fix is applied (power map transposed). All 8 dihedral
+   orientations of the power map were run (80 HotSpot runs per variant).
+2. Interposer extent = max(grid_x) x max(grid_y) mm (integers, constant per case: 42x42, 55x52, 39x39, 57x59, 37x37, 49x53, 30x25,
+   26x23, 59x61 and 47x47 for cases 1-10). The 64 x 64 grid then has pitch W/64. `grid_x` is linspace(0, W, 64), so W/63 would also be plausible; not tested.
+3. Chiplet footprints: connected components (4-neighbour) of equal non-zero `chiplet_power`, tiled exactly at cell level; the power is the
+   broadcast value used as the chiplet's total in W. Touching chiplets with equal power would merge (unknowable from the raster).
+   Filler between chiplets is epoxy underfill (res 0.625, cap 2.32e6).
+4. Package, from the upstream config: spreader side W+H, sink side 2(W+H), r_convec 0.01 K/W, spreader and sink 400 W/mK, 20 um
+   k=4 interface, secondary path off. Ambient 298.15 K (inferred; S2 has no ambient channel and the paper gives none for S2).
+5. Two material variants: `t8` = Table 8 numbers verbatim (uniform layers); `at` = the composite C4/TSV/micro-bump
+   materials of the upstream writer. They differ by under 0.4 K RMSE per sample, so the choice does not matter here. The half-granularity rim units of the upstream writer are omitted.
+
+Identity orientation after the transpose fix (variant `at`; `t8` within 0.4 K RMSE on every row; K, 4096 cells):
+
+| index | case | W x H mm | chiplets | P total W | RMSE | max err | peak err | R2 | pattern corr |
+|---|---|---|---|---|---|---|---|---|---|
+| 12000 | 1 | 42x42 | 4 | 455 | 9.60 | 26.3 | +16.0 | 0.29 | 0.940 |
+| 12301 | 2 | 55x52 | 4 | 320 | 21.16 | 48.3 | +48.2 | -8.68 | 0.980 |
+| 12602 | 3 | 39x39 | 6 | 640 | 28.92 | 62.0 | +62.0 | -5.65 | 0.993 |
+| 12903 | 4 | 57x59 | 6 | 505 | 11.73 | 20.4 | -14.0 | 0.54 | 0.926 |
+| 13204 | 5 | 37x37 | 5 | 360 | 28.97 | 43.0 | +8.2 | -1.81 | 0.774 |
+| 13505 | 6 | 49x53 | 17 | 712 | 33.58 | 65.0 | +63.5 | -11.79 | 0.944 |
+| 13806 | 7 | 30x25 | 20 | 180 | 4.62 | 10.4 | +7.4 | 0.60 | 0.934 |
+| 14107 | 8 | 26x23 | 24 | 168 | 6.62 | 13.6 | +2.8 | -1.76 | 0.838 |
+| 14408 | 9 | 59x61 | 35 | 1245 | 69.41 | 122.6 | +121.9 | -15.24 | 0.971 |
+| 14709 | 10 | 47x47 | 40 | 797 | 33.46 | 58.5 | +51.6 | -5.66 | 0.981 |
+
+Mean RMSE 24.8 K (median 25.0 K), against Therm-FM's published S2 RMSE of 0.443 K (§9.29): 1-2 orders of magnitude larger. "Pattern corr" is the
+Pearson correlation over the 4096 cells; it is a shape indicator, not a skill measure.
+- **Orientation.** The transposed-input orientation (identity here) has the lowest RMSE on 9 of 10 samples; mean RMSE over the eight orientations
+  is 24.8 K (identity), 27.6 (transpose), 27.9 (flip cols) and 30.2-32.5 (the other five). On sample 12903 flip-cols is marginally better (11.48 vs 11.73 K).
+  This independently supports §9.33: the released inputs are transposed relative to the outputs.
+- **Footprints.** The spatial pattern is largely right (corr 0.77-0.99), so the recovered layouts and orientation are close to the generator's.
+- **Magnitude is wrong, and not consistently.** With our package the hottest cell is too hot by up to 122 K on the large, high-power cases and too cold by 14 K on case 4.
+
+**3. Diagnostic (calibration against the released labels; NOT a result).** To separate a cooling/boundary mismatch from a geometry mismatch:
+(a) per sample, the best affine map prediction to truth leaves 1.4-10.9 K RMSE (median 2.9 K), but its slope varies 0.34-1.03 and its offset 0-203 K, so the shape is
+right and the scale is not; (b) one global affine map (slope, offset) fitted on 5 of the 10 samples and scored on the other 5 (two folds) gives test RMSE 3.6-33.8 K
+(mean 13.2 K); (c) one package knob (spreader conductivity, 400-40000 W/mK, chosen on 5 samples, scored on the other 5) gives 3.5-36.5 K (mean 15.5 K).
+A sensitivity probe on sample 14408 shows the result is dominated by the spreader's lateral conductance (spreader k x 10: RMSE 69 to 7.5 K), not by r_convec
+(which moves it by at most about 12 K there). No single global scale, offset or spreader value fixes all ten samples, so the effective cooling differs per case.
+The package model (ambient, sink geometry, spreader) is what is wrong or missing, which is exactly what the unreleased configuration would pin down.
+
+**Verdict: not reproduced.** The layout and orientation side reproduces (pattern correlation 0.77-0.99, transpose confirmed), but the temperatures do not
+(mean RMSE 24.8 K, up to 69 K) because the package/boundary configuration is unknown and the release does not contain it. The reproduction cannot be completed
+from the paper and the public artefacts alone.
+What this does not show: that the labels are wrong; they may be exactly reproducible with the authors' configuration.
+Limits: ten samples, a single fold design, W/64 versus W/63 pitch untested, equal-power chiplet merging unmodelled, ambient inferred. The authors were not contacted.
+
+### 9.36 Is the 100-250 µm grid enough, and does a learned downscaler pay? (mesh-convergence study, 2026-10-24)
+
+**Question.** Every model in this report works at 100-250 µm cells, far coarser than a transistor or a standard cell. Is that resolution adequate for
+block-level thermal claims, and can the block-to-cell step be bridged by a cheap learned downscaler instead of a classical local solve?
+Pre-registered in `docs/protocol_mesh_convergence.md` (§1-10 written before the corresponding runs; results §11-12). Solver: the iceforge finite-volume reference
+(`refsolve.py`, with a new local-window solver `solve_window`, tested in `tools/iceforge/tests/test_window.py`) plus the pinned 3D-ICE build for cross-checks.
+
+**M1, lateral and vertical convergence (geometry1, geometry5).** Refining 100 → 25 µm changes the peak by at most 0.008 K (field RMSE ≤ 0.03 K); 3D-ICE at 100 vs 50 µm
+differs by 0.001-0.008 K. Vertical sub-layering matters more (up to 0.12 K). 3D-ICE reads 0.02-0.42 K (0.18-0.46% of the rise) above the reference at any resolution: a
+convention (end-layer rule), not discretisation. Prediction P1 holds. geometry5's half-cell 3D-ICE run failed (solver failure, cause not investigated).
+
+**M2, sub-cell hotspots (side 10-400 µm, density ×3-×30 on one block).** The coarse grid keeps ≥ 98% of the hotspot excess for s ≥ 200 µm and 45-86% for s = 10-50 µm,
+but the peak-rise error stays ≤ 0.8% of the rise, because small hotspots carry little power and silicon spreads it. The sign is not fixed: a hotspot exactly one coarse
+cell wide (100 µm) is *overstated* by 2% (0.28 K). So the pre-registered P2 ("above 20% for 10-25 µm at m ≥ 10") is **falsified as stated**, and "coarse peaks are lower bounds" is
+not supported. Not tested: aggregate hotspot power above ×30, or many hotspots.
+
+**M3, local window ("zoom").** A 2 mm window driven by the coarse solution reproduces the domain-wide 25 µm truth to ≤ 0.0005 K (Dirichlet) at the peak; ≥ 0.6 mm windows are
+within 0.3% of the rise. Windows smaller than one die thickness were not tested (P4 half-tested).
+
+**M3b, learned downscaler (pre-registered rule: latency ≤ 1/10 of the classical zoom AND peak and RMSE error ≤ 2× the zoom's, 4 hotspot families × 3 seeds).** A 37,633-parameter
+dilated CNN trained on 240 samples gives the field at 12.5 µm in 10-17 ms against about 20 s for the zoom. Its median peak error is 3.6-13× the zoom's in all 12 family-seed pairs
+(RMSE fails in 1 of 12), so **it does not pay**. It does beat no downscaling at all (peak 1.2-15× lower, RMSE 2.2-3.5× lower; worst error 0.033 K).
+Caveats: the zoom is the same solver as the truth, an unusually strong baseline; synthetic single-geometry hotspots; 240 training samples; truth is a solver, not measured silicon.
+
+**What this supports.** The coarse grid is converged for block-level questions, so the learned-vs-classical comparisons in §9.25-9.31 are not artefacts of resolution; a
+classical zoom already bridges block → cell to milli-kelvin. Cell → transistor scale is a stated limitation and was not studied. Scripts: `scripts/mesh_study/`; raw
+results are in the gitignored `results/mesh_convergence/`.
+
+### 9.37 Leakage-temperature feedback: the classical ladder on a non-linear closed loop (regime A, 2026-10-25)
+
+**Question.** Every earlier result is on a linear steady problem. Does the classical advantage survive a legitimately non-linear, closed-loop physics, per-block leakage `P_b = P_dyn + P_leak 2^((T_b - 85)/k_d)`? Pre-registered in `docs/protocol_nonlinear_A.md` (hypotheses A1-A5 written before any data; amendments 11-15 dated and listed there). Data: 360 real 3D-ICE fields on geometry1 (train 240, iid 30, OOD-gain 30, second leakage law 30, near-critical 30) plus 30 runaway parameter sets; each field is one 3D-ICE solve at the fixed-point power, checked by recomputing the power from the exported field (max 9.6e-5, limit 1e-3); the real 3D-ICE Picard loop matched the fast fixed-point model in iteration count in 8 of 8 checks.
+
+**Honest scale of the non-linearity.** Median signed deviation of the peak rise from the linear nominal-power prediction: train 9.7%, iid 8.1%, OOD-gain 18%, near-critical 31%. The pre-registered rule therefore labels the train/iid pool "weakly non-linear" (below 10%) and no A2 conclusion is drawn from it. The target temperature range was widened to 85-135 C (amendment 13) after a 56-candidate pre-screen showed the earlier range gave a 7.3% median; the leakage parameters (`k_d` 10-45 C, shares 10-35%) are my own, because the one primary source found (SkyWater `inv_1`: a 217x leakage rise from 25 to 100 C) is a single inverter, and a patent figure implies a 4x slower rise.
+
+**Classical solvers (A1 and A5 pass).** Newton-PCG on the full field (Jacobian `A - E D W`, symmetric, preconditioned by the layered backbone of 9.30) reproduces the real 3D-ICE fixed point to a median 0.0026 K and a maximum 0.006 K peak error on 90 held-out scenarios (0.022 K on 30 near-critical ones), in 4-7 Newton steps and 60-140 ms, about 0.04% of the estimated 3D-ICE loop time (iterations x 12.2 s). Damped Picard reaches the same accuracy in 30-90 iterations and does not reach 1e-6 on 80% of near-critical cases; one-step linearised superposition fails (median error 2.9 K, up to 17.8 K). A spectral-radius stability test classifies converged vs runaway correctly on 150 of 150 cases in 1.5 ms each.
+
+**Caveats.** geometry1's uniform layers make the backbone exact, so this is the easiest case for the classical ladder; the FV plant reproduces 3D-ICE's conventions by design; the 3D-ICE loop time is estimated; the runaway sets were made well past critical. **Not yet done:** the learned models (A2-A4) and the HotSpot and energy-balance checks. So this section establishes the classical frontier a learned surrogate must beat, not a learned-vs-classical result.
 
 ## 11. Conclusion
 
@@ -3812,7 +5151,8 @@ re-run.)*
 
 **The representation also decides where the hotspot is (§9.17).** On layout-varying data, a
 linear fit on the power field localises the peak better than ridge on the compact vector on
-all three sharp-peaked geometries (8.75×, 2.73×, 1.39×, seed-stable), while ridge stays better
+all six layout-randomised geometries (1.39–8.75×, seed-stable; geometry4–6 re-measured on artefact-free
+data in §9.32), while ridge stays better
 at peak *temperature* — the metric split above, now between two linear models. And where a
 peak-temperature prediction is needed with an error bar, **split conformal prediction gives
 valid coverage** (§9.20); MC Dropout did not.

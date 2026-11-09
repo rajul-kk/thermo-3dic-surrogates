@@ -5125,7 +5125,7 @@ function. The physics stays linear, but the solution operator becomes a genuine
 Green's function: for geometry1's ~100k nodes that is a ~1e10-entry object,
 which a per-point linear regression cannot represent, while an FNO compresses it
 to ~1e7 via spectral truncation. This is the regime neural operators exist for
-(Neural Green's Operators, arXiv:2406.01857), and it is reachable without
+(Neural Green's Operators, Melchers et al., arXiv:2406.01857), and it is reachable without
 abandoning one-FNO-per-geometry, because the geometry stays fixed.
 
 Cost: essentially nothing. 3D-ICE solve time is set by the mesh, not the
@@ -5433,57 +5433,20 @@ Defines the interface that all thermal simulator wrappers must implement.
 ### ClassDef:HotSpotSimulator
 
 ```text
-Wrapper for HotSpot thermal simulator (grid model, steady-state).
+Wrapper for HotSpot (grid model, steady-state) over the FULL package stack.
 
-    Handles:
-    - Floorplan file (.flp) with power block geometry (in metres)
-    - Power trace file (.ptrace) with per-block power values
-    - HotSpot config via command-line flags
-    - Grid steady-state output (.grid.steady) parsing
+    generate_config_files writes the same stack.stk ICESimulator would give 3D-ICE
+    (into <config_dir>/hotspot_stack, never solved with 3D-ICE) and translates it with
+    iceforge's HotSpot translation (tools/iceforge/iceforge/hotspot.py): every stack
+    layer becomes grid layers of a layer configuration file (.lcf, half-thickness
+    split, -detailed_3D film factor, 1.0005 spreader/sink sizing), so the Cu base and
+    spreader spread heat laterally.  Replaced the earlier die-only model that lumped
+    all other layers into r_convec (+33 % peak on geometry1, +53 % on geometry3);
+    now -0.7 % / -0.9 % peak and ~0.0 % mean rise against 3D-ICE (RMSE 0.13-0.16 K).
 
-    Unit system: HotSpot uses SI metres/watts. Geometry stores µm, so
-    conversion × 1e-6 is applied when writing files.
-
-    Effective thermal resistance: all non-die layers are lumped into
-    r_convec (K/W) together with the convective BC, so the HotSpot
-    package model (spreader + sink) is set to negligibly thin.
-```
-
-### FunctionDef:_generate_floorplan_file
-
-```text
-Write HotSpot floorplan file.
-
-        Format (tab-separated, all in metres):
-            name  width  height  left-x  bottom-y
-```
-
-### FunctionDef:_generate_power_trace_file
-
-```text
-Write HotSpot power trace file (single steady-state time step).
-
-        Format:
-            block1  block2  ...   (tab-separated names)
-            P1      P2      ...   (tab-separated watts)
-```
-
-### FunctionDef:_run_via_wsl_stage
-
-```text
-Run HotSpot via a WSL staging directory to avoid path-with-spaces
-        issues when passing Windows paths through WSL argument parsing.
-        Files are copied to /tmp inside WSL, hotspot runs there, and the
-        grid output is copied back.
-```
-
-### FunctionDef:parse_results
-
-```text
-Parse HotSpot grid steady-state output for the die layer (Layer 0).
-
-        Returns:
-            dict with 'coords' (N,3) float32 and 'temperature' (N,) float32.
+    Output: 64 x 64 die-layer field, coords in um laid out like ICESimulator.parse_results (rows along die_width = block.x).
+    The public interface (generate_config_files / run_simulation / parse_results /
+    cleanup_temp_files) is unchanged.
 ```
 
 ### module
@@ -5491,12 +5454,9 @@ Parse HotSpot grid steady-state output for the die layer (Layer 0).
 ```text
 HotSpot thermal simulator wrapper.
 
-Wraps the HotSpot block/grid simulator for geometry1 (single-die, steady-state).
-Generates .flp and .ptrace inputs, runs HotSpot in grid mode, and parses the
-per-cell temperature output.
-
-Scope: geometry1 only (single active silicon die layer). Multi-die stacks
-(geometry2a/2b/2c) are not supported — HotSpot has no native TSV model.
+Scope: single-die stacks with a square chip, one heat sink and uniform grid (the
+cases iceforge's translation accepts; others raise HotspotRefused, a ValueError).
+Multi-die stacks (geometry2a/2b/2c) are not supported - use ICESimulator.
 ```
 
 ## `src/simulators/ice_simulator.py`

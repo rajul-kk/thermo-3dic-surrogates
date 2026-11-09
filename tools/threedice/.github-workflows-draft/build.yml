@@ -1,0 +1,64 @@
+# DRAFT, NOT ACTIVE, NEVER RUN. It lives outside .github/ on purpose so nothing triggers.
+# To use it: copy to <repo>/.github/workflows/threedice-wheels.yml (the paths below assume the repo root).
+# Linux x86_64 was built locally with tools/threedice/build_manylinux.sh in the manylinux_2_28 container.
+# aarch64 and macOS have NEVER been built or tested by us.
+name: threedice wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["threedice-v*"]
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install build
+      - run: python -m build --sdist tools/threedice     # clones upstream at the pinned shas and bundles them (GPL source)
+      - uses: actions/upload-artifact@v4
+        with: {name: sdist, path: tools/threedice/dist/*.tar.gz}
+
+  wheels:
+    needs: sdist
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest,    archs: x86_64}
+          - {os: ubuntu-24.04-arm, archs: aarch64}      # native arm runner; avoids QEMU
+          - {os: macos-14,         archs: arm64}        # UNTESTED
+          - {os: macos-13,         archs: x86_64}       # UNTESTED
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: sdist, path: sdist}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install cibuildwheel==2.21.3
+      - name: Build from the sdist (offline: upstream tarballs are inside it)
+        run: python -m cibuildwheel --output-dir wheelhouse sdist/*.tar.gz
+        env:
+          CIBW_BUILD: "cp311-*"                       # the wheel is py3-none, one interpreter is enough
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # Linux: AlmaLinux 8 packages; cblas.h is in /usr/include/openblas there
+          CIBW_BEFORE_ALL_LINUX: dnf install -y epel-release || true; dnf install -y bison flex patch git openblas-devel gcc-gfortran
+          CIBW_ENVIRONMENT_LINUX: CPATH=/usr/include/openblas
+          # macOS (UNTESTED): Homebrew gcc (real gcc, for -fopenmp), libomp, openblas, bison/flex; delocate bundles the dylibs
+          CIBW_BEFORE_ALL_MACOS: brew install gcc libomp openblas bison flex
+          CIBW_ENVIRONMENT_MACOS: >
+            PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+            CPATH="$(brew --prefix openblas)/include"
+            LIBRARY_PATH="$(brew --prefix openblas)/lib:$(brew --prefix libomp)/lib"
+            THREEDICE_MAKE_ARGS="CC=gcc-14"
+            THREEDICE_BLAS_LIBS="-L$(brew --prefix openblas)/lib -lopenblas"
+            MACOSX_DEPLOYMENT_TARGET=14.0
+          CIBW_TEST_COMMAND: >
+            python -c "import threedice; print(threedice.executable(), threedice.ice_commit())"
+            && 3d-ice-emulator || true
+      - uses: actions/upload-artifact@v4
+        with: {name: "wheels-${{ matrix.os }}", path: wheelhouse/*.whl}

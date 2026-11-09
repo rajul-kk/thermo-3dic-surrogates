@@ -1,0 +1,31 @@
+material SILICON :
+   thermal conductivity     1.30e-4, 1.30e-4, 1.30e-4 ;
+   volumetric heat capacity 1.628e-12 ;
+
+top heat sink :
+   heat transfer coefficient 1.0e-7 ;
+   temperature               300 ;
+
+bottom heat sink :
+   heat transfer coefficient 1.0e-7 ;
+   temperature               300 ;
+
+dimensions :
+   chip length 10000, width 10000 ;
+   cell length  5000, width  5000 ;
+
+die TOP_IC :
+   source  2 SILICON ;
+
+stack:
+   die     MEM_TOP    TOP_IC    floorplan "./mem_mat.flp" ;
+   die     MEM_BOT    TOP_IC    floorplan "./mem_mat.flp" ;
+
+solver:
+   steady ;
+   initial temperature 300.0 ;
+   numofcores 1 ;
+
+output:
+   Tmap (MEM_TOP, "i_u_both_top.txt", final) ;
+   Tmap (MEM_BOT, "i_u_both_bot.txt", final) ;

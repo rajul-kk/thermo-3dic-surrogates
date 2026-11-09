@@ -29,7 +29,7 @@ from src.scenario.leakage import apply_leakage_feedback
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.visualization.visualization import create_visualization_summary
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.simulators.hotspot_simulator import HotSpotSimulator
 
 
@@ -349,9 +349,10 @@ def main():
     parser.add_argument(
         '--ice-executable',
         type=str,
-        default='3D-ICE-Emulator',
-        help='Path to 3D-ICE-Emulator binary (default: "3D-ICE-Emulator" on PATH). '
-             'For WSL use e.g. "wsl /home/user/3d-ice/bin/3D-ICE-Emulator"'
+        default=DEFAULT_ICE_EXECUTABLE,
+        help='3D-ICE-Emulator command (default: the pinned build, wsl ~/3d-ice-4.0; override with env '
+             'THERMO_ICE_EXECUTABLE). Runs are refused unless the build is at commit 4953952 '
+             '(THERMO_ALLOW_ANY_3DICE=1 overrides). For WSL: "wsl /home/user/3d-ice-4.0/bin/3D-ICE-Emulator"'
     )
     parser.add_argument(
         '--hotspot-executable',
@@ -508,7 +509,7 @@ def main():
             executable=args.hotspot_executable
         )
         logger.info(f"HotSpot simulator: {args.hotspot_executable}")
-        logger.info("Note: HotSpot supports geometry1 (single-die) only")
+        logger.info("Note: HotSpot models the full single-die stack (square chip); multi-die 3D stacks are not supported")
 
     # Generate scenarios for all requested geometries
     logger.info("\nGenerating scenario parameters...")

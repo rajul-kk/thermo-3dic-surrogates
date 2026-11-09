@@ -1,0 +1,38 @@
+material SI :
+   thermal conductivity     1.4800e-04 ;
+   volumetric heat capacity 1.628e-12 ;
+material GAP :
+   thermal conductivity     7.0000e-07 ;
+   volumetric heat capacity 1.628e-12 ;
+
+bottom heat sink :
+   heat transfer coefficient 2.0000e-08 ;
+   temperature 300.00 ;
+
+dimensions :
+   chip length 10000.0 , width  10000.0 ;
+   cell length 250.0 , width  250.0 ;
+
+layer SUB :
+   height 300.0 ;
+   material SI ;
+
+layer SRC :
+   height 50.0 ;
+   material GAP ;
+   layout "fp.lyt" ;
+
+die D :
+   source SRC ;
+
+stack :
+   die   TOPD  D  floorplan "die.flp" ;
+   layer BOT  SUB ;
+
+solver:
+   steady ;
+   initial temperature 300.0 ;
+   numofcores 1 ;
+
+output:
+   Tmap (TOPD, "tmap.txt", final) ;

@@ -1,0 +1,51 @@
+threedice -- the 3D-ICE thermal simulator, packaged as a Python wheel
+======================================================================
+
+This package redistributes the 3D-ICE-Emulator program, compiled from the
+upstream source at https://github.com/esl-epfl/3d-ice (commit
+4953952a1ef6d38807ff307212a6f15e5b2ef935) with the small patches in patches/.
+3D-ICE is free software under the GNU General Public License, version 3 or (at
+your option) any later version; see COPYING. The complete corresponding source
+(the unmodified upstream tree at that commit, the SuperLU_MT tree it links, and the
+patches) is inside the source distribution (sdist) of this package, under upstream/
+and patches/.
+
+3D-ICE is Copyright (C) 2021 Embedded Systems Laboratory, Ecole Polytechnique
+Federale de Lausanne (EPFL). All Rights Reserved. Authors: Arvind Sridhar,
+Alessandro Vincenzi, Giseong Bak, Martino Ruggiero, Thomas Brunschwiler, Eder
+Zulian, Federico Terraneo, Darong Huang, Kai Zhu, Luis Costero, Marina Zapater,
+David Atienza.
+
+The wheel also bundles, through auditwheel, shared libraries of OpenBLAS (BSD
+3-clause), the GNU OpenMP runtime libgomp and libgfortran (GPL-3 with the GCC
+Runtime Library Exception), and links SuperLU_MT statically (BSD-style licence,
+see licenses/SuperLU_MT-License.txt inside the package).
+
+CITATION REQUEST (from the 3D-ICE README)
+-----------------------------------------
+Any usage of 3D-ICE for research, commercial or other purposes should be
+properly acknowledged in the resulting products or publications. Specifically,
+publications 1, 2, 3 and 4 below should be appropriately cited.
+
+1. K. Zhu, D. Huang, L. Costero and D. Atienza, 3D-ICE 4.0: Accurate and
+   efficient thermal modeling for 2.5D/3D heterogeneous chiplet systems, 2026
+   Design, Automation and Test in Europe Conference (DATE), Verona, Italy, 2026.
+
+2. F. Terraneo, A. Leva, W. Fornaciari, M. Zapater, D. Atienza, 3D-ICE 3.0:
+   efficient nonlinear MPSoC thermal simulation with pluggable heat sink models,
+   Transactions on Computer-Aided Design of Integrated Circuits and Systems
+   Volume 40 pp. 1-14, 2021-04-19.
+
+3. A. Sridhar, A. Vincenzi, D. Atienza and T. Brunschwiler, 3D-ICE: A Compact
+   Thermal Model for Early-Stage Design of Liquid-Cooled ICs, IEEE Transactions
+   on Computers, vol. 63, no. 10, pp. 2576-2589, Oct. 2014,
+   doi: 10.1109/TC.2013.127.
+
+4. A. Sridhar, A. Vincenzi, M. Ruggiero, T. Brunschwiler and D. Atienza,
+   3D-ICE: Fast compact transient thermal modeling for 3D ICs with inter-tier
+   liquid cooling, 2010 IEEE/ACM International Conference on Computer-Aided
+   Design (ICCAD), San Jose, CA, 2010, pp. 463-470,
+   doi: 10.1109/ICCAD.2010.5653749.
+
+This package is a repackaging only. It is not affiliated with or endorsed by
+EPFL or the 3D-ICE authors.

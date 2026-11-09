@@ -1,0 +1,19 @@
+{
+  "name": "v3_dpde_darcy",
+  "_comment": "jcy20/DiffusionPDE-normalized darcy_hf, first 1000 rows converted losslessly: data (N, 2, 128, 128) float64, channel 0 = a, channel 1 = u (-div(a grad u) = 1, u = 0 on the boundary, a in {3, 12}; DiffusionPDE Sec. 4.1 / App. B.1, FNO scripts). AS RELEASED: both channels standardised to zero mean, std 0.5 (a is therefore in {-0.5, +0.5}). The uniform source q = 1 is documented for the raw data; after standardisation of u it is unknown, so it is kept at 1 (the operator fit absorbs scale).",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "u": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 1
+  },
+  "k": {
+    "key": "data",
+    "layout": "NCHW",
+    "channel": 0
+  },
+  "source_uniform": 1.0,
+  "splits": "none"
+}

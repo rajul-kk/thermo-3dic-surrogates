@@ -1,0 +1,16 @@
+{
+  "name": "v5_flowbench_ldcht",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "_comment": "CONTROL (steady, advection-dominated forced/mixed convection; binding). FlowBench (HF BGLab/FlowBench, CC-BY-NC-4.0; Tali et al., arXiv 2409.18032) LDC_NSHT_2D_constant-Re/128x128/harmonics: Navier-Stokes + heat transfer (Boussinesq), lid-driven cavity, bottom wall T = 1, top wall T = 0, side walls adiabatic, object surface T = 0. u := Y channel 3 (temperature; the paper's Table 12 lists [u, v, p, theta] but the file has 5 channels and channel 3 is the one in [0, 1]). source := X channel 2, the object mask (binary 0/255 as stored; the paper's order [Re, Gr, g, s] does not match the 3 stored channels [Gr (constant per sample), continuous, binary]). This source is a user's plausible reading, NOT a documented heat source: the object is a cold Dirichlet body. No k. Ambient 0 (the cold-wall level), as for the other controls.",
+  "u": {
+    "key": "theta",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "mask",
+    "layout": "NHW"
+  }
+}

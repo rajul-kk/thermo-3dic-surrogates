@@ -1,0 +1,20 @@
+{
+  "name": "v5_chip_fem_b",
+  "format": "npz",
+  "units": "K",
+  "splits": "none",
+  "ambient": 300.0,
+  "spacing": [
+    0.015625,
+    0.015625
+  ],
+  "_comment": "SELF-GENERATED thermal set (T6, non-binding): bench/gen_v5.py chip_fem_b. Q1 FEM, -div(grad r) + 5 r = q, k = 1 (not mapped), r = 0 on the boundary, T = 300 + 50 r (K). source = power density q (Gaussian hot spots + one rectangle, >= 0).",
+  "u": {
+    "key": "T",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "power",
+    "layout": "NHW"
+  }
+}

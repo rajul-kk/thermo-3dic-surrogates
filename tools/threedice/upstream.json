@@ -1,0 +1,12 @@
+{
+  "3d-ice": {
+    "url": "https://github.com/esl-epfl/3d-ice.git",
+    "commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+    "note": "esl-epfl/3d-ice master of 2026-07-02 (3D-ICE 4.0 plus later commits); the build pinned by the Thermo benchmark"
+  },
+  "superlu_mt": {
+    "url": "https://github.com/xiaoyeli/superlu_mt.git",
+    "commit": "e60ed2c1dd491e1832d783f519c1851288f9d422",
+    "note": "SuperLU_MT master of 2026-03-29; the tree the pinned WSL build linked against (NOT the 4.0.0 zip shipped inside the 3D-ICE tree)"
+  }
+}

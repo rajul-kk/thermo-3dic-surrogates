@@ -1,0 +1,12 @@
+Backtrace from an AddressSanitizer build (gcc -g -O0 -fsanitize=address) of the 3D-ICE 4.0 sources on crash_bottom_only.stk
+(gdb and valgrind are not installed in this WSL):
+
+SEGV on unknown address 0x0 (READ, zero page)
+    #0 update_number_of_cells  sources/thermal_data.c:153
+    #1 thermal_data_build      sources/thermal_data.c:1063
+    #2 main                    3D-ICE-Emulator.c:140
+
+thermal_data.c:153 is
+    if(stack_elements_list->First->Data.TopSink->SinkModel == TDICE_HEATSINK_TOP_PLUGGABLE)
+TopSink is NULL whenever the stack has no `top heat sink` (stack_element.c:52 initialises it to NULL, and the parser only sets it
+on the first stack element when a top sink is declared). Line 672 (get_cell_position-related code) has the same unguarded dereference.

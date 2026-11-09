@@ -1,0 +1,16 @@
+{
+  "name": "v3_cno_allen_cahn",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope). CNO RPB AllenCahn_64x64_IN.h5, 512 samples: input = u0, output = u(T). Allen-Cahn equation (Raonic et al. 2023). Time-dependent, nonlinear. A user's most plausible reading for a diffusion linter: source = input, u = output.",
+  "u": {
+    "key": "output",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "input",
+    "layout": "NHW"
+  }
+}

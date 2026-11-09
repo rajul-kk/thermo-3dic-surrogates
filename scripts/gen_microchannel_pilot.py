@@ -10,7 +10,7 @@ from src.core.geometry import Geometry, Layer
 from src.core.geometry_builders import build_geometry6
 from src.core.material import MaterialLibrary
 from src.scenario.generator import ScenarioGenerator
-from src.simulators.ice_simulator import ICESimulator
+from src.simulators.ice_simulator import ICESimulator, DEFAULT_ICE_EXECUTABLE
 from src.export.npz_exporter import NPZExporter
 from src.export.statistics import StatisticsCalculator
 from src.main import process_scenario
@@ -43,11 +43,28 @@ def build_microchannel_geometry6() -> Geometry:
     )
 
 
+def microchannel_cooling(i: int) -> dict:
+    """Scenario keys that switch pilot scenario `i` (0-based file index) to microchannel cooling."""
+    return {
+        'cooling_mode': 'microchannel_2rm',
+        'microchannel': {
+            'channel_height_um': 200.0,
+            'channel_length_um': 100.0,
+            'wall_length_um': 100.0,
+            'wall_material': 'copper',
+            'flow_rate_ml_min': FLOW_RATES_ML_MIN[i % len(FLOW_RATES_ML_MIN)],
+            'coolant_htc_top_wm2k': 25000.0,
+            'coolant_htc_bottom_wm2k': 15000.0,
+            'coolant_vhc_jm3k': 4.18e6,
+        },
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--n', type=int, default=12, help='Number of pilot scenarios')
     ap.add_argument('--output', type=Path, default=Path('data/3d-ice-microchannel-pilot'))
-    ap.add_argument('--ice-executable', default='wsl /home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator')
+    ap.add_argument('--ice-executable', default=DEFAULT_ICE_EXECUTABLE)
     args = ap.parse_args()
 
     geom = build_microchannel_geometry6()
@@ -62,17 +79,7 @@ def main():
     ok, failed = 0, []
     for i, sc in enumerate(scenarios):
         sc_dict = sc.to_dict()
-        sc_dict['cooling_mode'] = 'microchannel_2rm'
-        sc_dict['microchannel'] = {
-            'channel_height_um': 200.0,
-            'channel_length_um': 100.0,
-            'wall_length_um': 100.0,
-            'wall_material': 'copper',
-            'flow_rate_ml_min': FLOW_RATES_ML_MIN[i % len(FLOW_RATES_ML_MIN)],
-            'coolant_htc_top_wm2k': 25000.0,
-            'coolant_htc_bottom_wm2k': 15000.0,
-            'coolant_vhc_jm3k': 4.18e6,
-        }
+        sc_dict.update(microchannel_cooling(i))
         scenario_name = f"{GEOM_NAME}_{sc.scenario_type}_{i:03d}"
 
         import tempfile

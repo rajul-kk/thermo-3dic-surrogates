@@ -1,0 +1,20 @@
+{
+  "name": "v4_condiff_nok",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "spacing": [
+    0.0078125,
+    0.0078125
+  ],
+  "_comment": "SECONDARY DIAGNOSTIC mapping of the same ConDiff npz: k omitted (u and source only), although k varies from sample to sample. Pre-registered as a diagnostic, not counted. See v4_condiff for sign and layout.",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  }
+}

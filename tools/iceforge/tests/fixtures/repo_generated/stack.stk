@@ -1,0 +1,51 @@
+// Representative of the stack.stk emitted by src/simulators/ice_simulator.py (hand-written copy,
+// relative paths instead of absolute ones): layer/die type definitions, a footprint layout on the
+// source layer, split source die layer, instance names inst_N, TOP-to-BOTTOM stack.
+material silicon :
+   thermal conductivity     1.4800e-04 ;
+   volumetric heat capacity 1.6280e-12 ;
+material underfill :
+   thermal conductivity     7.0000e-07 ;
+   volumetric heat capacity 1.6280e-12 ;
+material tim :
+   thermal conductivity     4.0000e-06 ;
+   volumetric heat capacity 2.0000e-12 ;
+
+top heat sink :
+   heat transfer coefficient 1.0000e-08 ;
+   temperature 318.15 ;
+
+dimensions :
+   chip length 12000.0 , width  8000.0 ;
+   cell length 250.0 , width  250.0 ;
+
+layer type_layer_0 :
+   height 200.0 ;
+   material silicon ;
+
+layer type_layer_1 :
+   height 40.0 ;
+   material tim ;
+
+layer type_layer_2_src :
+   height 20.0 ;
+   material underfill ;
+   layout "layout_footprint_active.lyt" ;
+
+die type_die_2 :
+   layer  type_layer_2_src ;
+   source type_layer_2_src ;
+   layer  type_layer_2_src ;
+
+stack :
+   layer inst_3  type_layer_1 ;
+   die   inst_2  type_die_2  floorplan "floorplan_layer1.flp" ;
+   layer inst_0  type_layer_0 ;
+
+solver :
+   steady ;
+   initial temperature 318.15 ;
+   numofcores 1 ;
+
+output :
+   Tmap ( inst_2, "output_inst_2.txt", final ) ;

@@ -1,0 +1,10 @@
+{
+  "name": "fno_darcy",
+  "_comment": "FNO-paper Darcy flow (Li et al. 2020) as released by the NeuralOperator team (Zenodo 10.5281/zenodo.12784353, darcy_test_128.pt converted to .npz with X = x, Y = y flattened 128 x 128). The release is NORMALISED: x in {0, 1} stands for a in {3, 12} (a = 3 + 9x, undone here by the affine map) and y is z-scored (u = sigma y + mu with unknown scalars, which the operator fit absorbs: L(const) = 0 and the scale is the fitted a). f = 1. The 128 grid is a strided subsample of the 421 grid the PDE was solved on, so the discrete operator matches only approximately.",
+  "format": "npz",
+  "units": "",
+  "u": {"key": "Y", "layout": "NHW", "reshape": [128, 128]},
+  "k": {"key": "X", "layout": "NHW", "reshape": [128, 128], "affine": [9.0, 3.0]},
+  "source_uniform": 1.0,
+  "splits": "none"
+}

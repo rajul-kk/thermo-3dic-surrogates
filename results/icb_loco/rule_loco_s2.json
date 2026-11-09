@@ -1,0 +1,39 @@
+{
+ "args": {
+  "model": "rule",
+  "arm": "loco",
+  "seed": 2,
+  "data_root": "/kaggle/input/datasets/rajulkabir/ic-thermbench-s2-s5/datasets",
+  "train_n": 2000,
+  "val_n": 400,
+  "epochs": 100,
+  "patience": 20,
+  "min_epochs": 50,
+  "batch": 32,
+  "lr": 0.002,
+  "device": "cuda",
+  "out": "/kaggle/working/icb_full/rule_loco_s2.json",
+  "limit": null,
+  "fix_orientation": true
+ },
+ "held_out": [
+  [
+   37,
+   37
+  ],
+  [
+   55,
+   52
+  ]
+ ],
+ "n_train": 2000,
+ "n_val": 400,
+ "n_test": 600,
+ "train_held_out_samples": 0,
+ "rmse_per_case": {
+  "37x37": 29.847959952147793,
+  "55x52": 26.31992699432266
+ },
+ "rmse_mean_cases": 28.083943473235227,
+ "minutes": 0.005274009704589844
+}

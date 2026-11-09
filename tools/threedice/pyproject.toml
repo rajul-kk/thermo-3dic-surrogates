@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "threedice"
+version = "4.0.0.post1"
+description = "The 3D-ICE 4.0 thermal simulator (3D-ICE-Emulator), pinned to upstream commit 4953952, packaged as a wheel."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "GPL-3.0-or-later"
+license-files = ["COPYING", "NOTICE"]
+keywords = ["3D-ICE", "thermal simulation", "3D IC", "chiplet"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Upstream = "https://github.com/esl-epfl/3d-ice"
+Source = "https://github.com/rajul-kk/thermo-3dic-surrogates"
+
+[project.scripts]
+3d-ice-emulator = "threedice._cli:main"
+
+[tool.setuptools]
+packages = ["threedice"]
+include-package-data = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

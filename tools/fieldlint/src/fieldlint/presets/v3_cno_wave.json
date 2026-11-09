@@ -1,0 +1,16 @@
+{
+  "name": "v3_cno_wave",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope). CNO RPB WaveData_64x64_IN.h5, groups Sample_*_t_5 (first 1000 in numeric order): input = initial condition u0, output = u(t=5). Wave equation u_tt = c^2 Laplace(u), c = 0.1, exact sine-series solution on 64 x 64 (Raonic et al. 2023, SM C.3.2). Time-dependent. A user's most plausible reading for a diffusion linter: source = input, u = output.",
+  "u": {
+    "key": "output",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "input",
+    "layout": "NHW"
+  }
+}

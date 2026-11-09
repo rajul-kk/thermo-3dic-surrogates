@@ -1,0 +1,16 @@
+{
+  "name": "v3_poisson_gauss",
+  "_comment": "PDEgym / Poseidon Poisson-Gauss (camlab-ethz/Poisson-Gauss, Poisson-Gauss.nc), first 1000 samples converted losslessly to npz by bench/convert_v3.py. -Laplace(u) = f on (0,1)^2, u = 0 on the boundary, f a random sum of Gaussians (Herde et al. 2024, App. B.2.14), FEniCS FEM at 128 x 128. Arrays are (sample, x, y), float32, as stored. k is absent (k = 1).",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "u": {
+    "key": "solution",
+    "layout": "NHW"
+  },
+  "source": {
+    "key": "source",
+    "layout": "NHW"
+  },
+  "splits": "none"
+}

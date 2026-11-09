@@ -1,0 +1,13 @@
+{
+  "name": "v5_helmholtz_staircase",
+  "format": "npz",
+  "units": "",
+  "splits": "none",
+  "ambient": 0.0,
+  "_comment": "CONTROL (steady Helmholtz, binding; The Well helmholtz_staircase, CC-BY-4.0, Agocs & Barnett arXiv 2310.12486): -(Laplace + omega^2) u = delta_{x0}, Neumann on the staircase, radiation condition. u := pressure_re at t = 0 (= Re u), first 13 trajectories of each of the 16 train files (omega-major order). The source position is not stored in the file, so, as for the other source-less Helmholtz controls, the source is the invented uniform 1 (user decision 3). No k (mask not mapped: its zeros would be k <= 0).",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

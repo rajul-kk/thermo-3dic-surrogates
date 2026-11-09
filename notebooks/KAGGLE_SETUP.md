@@ -1,5 +1,14 @@
 # Kaggle Setup Guide
 
+> **Corrected layout data, 2026-09-30: read this first.**
+> - The geometry4–6 layout data had a 3D-ICE die-edge artefact (`docs/report.md` §9.32).
+> - `data/kaggle_v5/geometry{4,5,6}_shelf_v5.zip` and the private Kaggle dataset `rajulkabir/thermo-3dic-shelf-v5`
+>   were rebuilt from the grid-aligned re-solve. Every file has `placement_snapped_2026_09_30 = True` in its
+>   metadata.
+> - Neural results on the earlier versions are superseded. The old zips are in
+>   `data/_archive_pre_snap_20260930/kaggle_v5/`.
+> - When attaching the dataset, use its latest version.
+
 > **v5 data, 2026-09-24: read this first.** Every neural result before this date is void
 > (`docs/report.md` §9.23–9.24): the data was transposed, and all three neural loaders scrambled
 > or zeroed their inputs. For `kaggle_geometry4_vs_geometry6_fno.ipynb`:

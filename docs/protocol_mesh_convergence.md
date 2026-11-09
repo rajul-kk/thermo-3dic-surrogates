@@ -1,0 +1,193 @@
+# Pre-registration: mesh-convergence and sub-cell hotspot study
+
+**Status: written 2026-10-22 BEFORE any run.** Provenance tags: [LIT], [OWN], [UNV]. Predictions below are [OWN] guesses, stated so the
+results can be compared with them honestly; they are not derived from data.
+
+## 1. Question
+Our geometries resolve heat at 100 um (geometry1, 2a) and 250 um (geometry3-6) cells with one 150 um silicon die layer. Real chips have power
+structure down to the um scale (report scoping note, 2026-10-22). How much error does the coarse grid cause, and does it change a claim?
+- **M1 (discretisation):** is the 3D-ICE solution at its native lateral resolution converged for our block-power maps?
+- **M2 (sub-cell power):** how much does averaging power over a cell understate the local peak, as a function of hotspot size and strength?
+
+## 2. Method
+Reference: `iceforge diff` reference solver (independent discretisation: lateral cell / r, vertical sub-layers, exact power overlap; pyamg-CG;
+README "Reference solver"). 3D-ICE: pinned build 4953952, iceforge guard ON, uniform grid, no non-uniform mode.
+Vertical discretisation is held fixed for the lateral sweep, with the heat sink and spreader sub-layers capped via `--nz` to keep memory below
+~12 GB (the earlier r=4 out-of-memory came from 25 um sub-layers in the 5 mm heat sink). A separate vertical check doubles nz once.
+- **M1.** geometry1 and geometry5 (3D-on-2.5D; 250 um cells), the standard 4 power blocks, 3 nominal scenarios each (low, mid, high power).
+  Reference at r in {1, 2, 4, 8} (geometry1: 100, 50, 25, 12.5 um). 3D-ICE at its native cell and, if one solve fits in memory (gate G2), at half
+  the native cell. Metrics: peak temperature, hotspot location, field RMSE against the finest reference; observed order of convergence and a
+  Richardson-extrapolated peak; 3D-ICE native error against the extrapolated value.
+- **M2.** geometry1 with the block-1 3 mm power split into a hot rectangle of side s in {10, 25, 50, 100, 200, 400} um (cell-aligned, centred in
+  the block) at power density multiplier m in {3, 10, 30} of the block mean, block total power unchanged (the rest of the block lowered). The
+  coarse-grid value is 3D-ICE at 100 um (power averaged over the cell by overlap area) and the reference at r fine enough that the cell is <= s/4.
+  Metric: relative peak-rise underestimation `(rise_fine - rise_coarse) / rise_fine` as a function of s/(die thickness 150 um) and m. A misaligned
+  placement (offset 0.5 cell) is run once per (s, m) as a labelled check of power smearing (iceforge rule S002). No `.lyt` layout is used, so the
+  die-edge artefact (S001) cannot interfere.
+
+## 3. Predictions (fixed now, [OWN])
+- **P1:** 3D-ICE at native resolution is within 1% of the extrapolated converged peak rise on block-power maps (consistent with prior iceforge
+  diff AGREE on geometry1/5); hotspot location within one cell.
+- **P2:** underestimation is monotone in 1/s; below 5% for s >= 150 um (the die thickness, because silicon spreads heat laterally over about its
+  thickness); above 20% for s = 10-25 um at m >= 10; the misaligned placement changes the coarse peak by less than the aligned-vs-fine gap.
+- **P3 (decision):** if P1 holds, "the resolution is adequate for block-level claims" is stated; if P2 holds, peak temperatures at 100-250 um
+  are reported as lower bounds with the measured relation as the limitation. If P1 fails, the discretisation error is added to the error budget
+  of every classical-vs-learned comparison and the largest-error geometry is reported.
+Everything is reported whatever it shows; predictions are not edited after the runs.
+
+## 4. Gates (record as dated amendments before the sweep)
+- **G1** Confirm `iceforge diff` can be driven programmatically for r, nz and custom `.flp` files, and that the reference solver fits in memory for
+  geometry1 at r=8 with the capped nz (run r=2 first).
+- **G2** One 3D-ICE solve of geometry1 at 50 um cells (200 x 200) on a quiet machine: record time and memory. If it fails, 3D-ICE is compared at
+  native resolution only and the convergence evidence comes from the reference solver alone (stated as a weaker result).
+- **G3** The reference reproduces 3D-ICE at native resolution on the standard geometry1 scenario within the existing iceforge tolerance before any
+  sweep is interpreted.
+
+## 5. Cost
+Reference solves: minutes each (about 7 s per 360k unknowns, 25 s per 1.4M); roughly 60-80 reference runs. 3D-ICE: ~30-40 s per native solve,
+~10-30 min per 50 um solve if it fits. About 3-6 CPU-hours in total, no GPU.
+
+## 6. Stated weaknesses
+Block-aggregate power inputs only; steady state; the reference solver shares the same physics model and boundary conditions as 3D-ICE, so this tests
+discretisation, not model fidelity (no measured chip temperatures exist to validate against). Real BEOL and TSV detail stays homogenised.
+
+## 7. Amendment M3 (2026-10-22, before any run): coarse-to-fine downscaling (block -> cell scale)
+**Why.** Real chips span transistor -> cell -> block -> die -> package. We model die-to-package at 100-250 um. The block -> cell step (10-100 um) can
+be bridged by a one-way "zoom": the local hotspot rise adds on top of the coarse field because silicon spreads heat laterally over about its
+thickness (150 um) [OWN]. The cell -> transistor step is NOT simulated: no public sub-block power data exists, the wiring stack is anisotropic and
+unmodelled, and below the phonon mean free path (hundreds of nm in silicon, [UNV] recalled, not sourced here) Fourier conduction, which 3D-ICE and
+our solvers assume, under-predicts the local resistance. It stays a stated limitation with a literature-based note.
+**Method.** Coarse field: reference solver at r=1 (100 um) on the full stack. Window of side w in {0.5, 1, 2, 4} mm centred on the M2 hotspot; local
+fine model (cell <= 12.5 um) on the window domain with the full vertical stack, lateral boundary conditions interpolated from the coarse field
+(Dirichlet T; a Neumann-flux variant is run as a labelled sensitivity), top and bottom conditions as in the global model. Truth: the domain-wide
+fine solve from M1/M2. Metrics: peak-rise error and field RMSE inside the window against the truth; wall time of the zoom vs the full fine solve.
+**Predictions [OWN].** P4: peak error < 2% when the window half-width >= 3 die thicknesses (450 um) with Dirichlet boundaries from the coarse field;
+> 10% when the half-width < 1 die thickness. P5: Dirichlet and Neumann variants agree within 2% for windows >= 2 mm.
+**Learned downscaler (M3b).** A small U-Net maps (coarse window field, coarse power map) to the fine window field, trained on synthetic hotspot
+families (size, strength, position, number) and tested on held-out families. It "pays" only if it matches the local solve's error at <= 1/10 of its
+latency (batch 1, equal hardware, 3 seeds). Expected: it does NOT beat the local solve on accuracy (a window solve takes seconds). The result is
+reported whichever way it falls; the synthetic hotspot families are not real chip data and the claim is about the method, not about real chips.
+**Gate G4.** The window solver reproduces the full fine solve to solver tolerance when the window covers the whole die (and to 1e-6 relative on the
+peak), and the interpolated-boundary consistency check passes before any sweep.
+## 8. Gate results (2026-10-22; gates G1-G3 run once, before any sweep; log `results/mesh_convergence/gates.log`, untracked)
+Scenario: geometry1, uniform pattern, HTC 20000, ambient 25 C; peak about 310.05 K, i.e. a peak rise of about 11.9 K (single low-power scenario).
+- **G1 (reference solver feasibility): PASS with a limit.** Peak (K) by lateral refinement r (cell = 100 um / r) and sub-layers per layer nz:
+  r=1,nz=2: 310.0458 (5 s, 0.25 GB); r=2,nz=2: 310.0472 (20 s, 0.78 GB); r=2,nz=4: 310.0420 (33 s, 1.5 GB); r=4,nz=4: 310.0424
+  (227 s, 7.7M unknowns, 5.4 GB). **r=8,nz=4 fails: MemoryError** at 30.7M unknowns (8.9 GB resident at failure on this 16 GB machine).
+  So domain-wide refinement reaches 25 um at nz=4; 12.5 um needs nz=2 (15.4M unknowns, untested) or a local window.
+- **G3 (reference vs 3D-ICE at native resolution): PASS.** `iceforge diff` at r=2, nz=2, tol 0.02: AGREE on all 10 Tmap layers (250 s, 2.8 GB).
+- **G2 (3D-ICE at 50 um cells): PASS.** The 200 x 200 solve fits and completes: 85 s versus 12.9 s at native 100 um (6.6x for 4x the cells), peak
+  310.0650 K vs 310.0640 K native (difference 0.001 K).
+- **Early observation (not the M1 result, one scenario):** on this block-power map the lateral change in the reference peak between r=1 and r=4 is
+  at most about 0.005 K (about 0.04% of the 11.9 K rise) and the nz=2 -> 4 change is about 0.005 K, so vertical discretisation is the larger of the two;
+  3D-ICE and the reference differ by about 0.02 K at the peak (the known end-layer convention). Prediction P1 (within 1%) is therefore expected to hold
+  trivially for block-aggregate power; M2/M3 are where discretisation can matter.
+- **Timing correction.** A native 3D-ICE solve took 12.9 s on a quiet machine, against 27-60 s in earlier loaded runs; the regime-A compute estimate
+  (docs/protocol_nonlinear_A.md section 9) should be refreshed at its gate G1 using ~13-15 s per native solve measured on a quiet machine, with the
+  loaded 40-60 s as the pessimistic case.
+**Consequence for M2 (amendment).** M2 asks for hotspots down to s = 10 um, which needs cells <= s/4 = 2.5 um. Domain-wide refinement stops at 12.5 um
+(and only at nz=2), so M2 for s <= 50 um CANNOT use a domain-wide fine solve. It requires the local window solver of M3 (gate G4). The order is
+therefore changed: build and validate the window solver (G4) against the domain-wide solves that do fit (r=4, nz=4, and r=8, nz=2 if it fits) first;
+M2 for s >= 100 um uses domain-wide solves; M2 for s < 100 um uses the validated window solver, and its results are labelled as such.
+
+## 9. Gate G4 result (2026-10-22): PASS
+`iceforge.refsolve.solve_window` (local fine window, full vertical stack, Dirichlet or Neumann lateral data from a coarse r=1 solve; chip-edge sides
+adiabatic) and `face_T_from_solution`; tests `tools/iceforge/tests/test_window.py` (7 pass; with `test_diff.py` 27 pass).
+- A window covering the whole die reproduces the domain-wide r=2 solve to < 1e-6 K.
+- With exact interface temperatures from the domain-wide solve, four interior/edge windows (including a 4 x 4-coarse-cell window) reproduce it inside
+  the window to < 1e-6 K.
+- Early observation, fixture only (iceforge `repro/aligned`, 250 um coarse cells, peak rise about 11 K, windows centred on the die; NOT the M3 result):
+  max |dT| vs the domain-wide solve for half-widths 1000 / 2500 / 4000 um: Dirichlet 0.057 / 0.184 / 0.033 K, Neumann 0.019 / 0.044 / 0.017 K.
+  The Dirichlet error is not monotone in window size here (the 2500 um boundary sits near a block edge, where the coarse field is least accurate),
+  and Neumann was the more accurate on this fixture. M3 will report both and does not assume monotonicity; P4 and P5 stay as stated and are judged
+  on the geometry1 runs.
+
+**Link to regime A.** The leakage law uses each block's mean temperature; leakage is convex in temperature, so by Jensen's inequality sub-block hot
+spots make the true block leakage larger than the block-mean law gives. The zoom model quantifies this bias; this is [OWN] reasoning, untested.
+
+## 10. M3b detailed pre-registration (2026-10-24, written BEFORE any M3b sample is generated or any model trained)
+Question: can a learned downscaler stand in for the classical zoom (the 1 mm window solve) on the block -> cell step?
+**Setup.** geometry1, scenario 0, base power as in M2 (block1 centred at (2500, 2500) um, 3 mm square, uniform density `d_b`). Fine grid 12.5 um (r=8),
+vertical sub-layers `nz_fine(12.5)`. Per sample: add N square hotspots of side s on the source layer as EXTRA density `(m-1) d_b` (total power is not
+conserved here; additive hotspots), placed uniformly (continuous, not cell-aligned) so each lies inside the central 1 mm region [2000, 3000]^2.
+- **Truth:** window [1500, 3500]^2 (2 mm), r=8, Dirichlet data from the coarse (r=1) solve of the same sample; the source-layer mid-plane temperature on
+  the central 1 mm (80 x 80 fine cells). Truth gate **G5** (run first, 5 samples): the same field from a 3 mm window must agree with the 2 mm window within
+  0.005 K (max |dT|); if not, the half-width is increased and G5 repeated before anything else.
+- **Classical zoom (the thing to match):** window [2000, 3000]^2 (1 mm), r=8, Dirichlet data from the same coarse solve; same output field. Its error against
+  the truth and its wall time (assembly + solve, coarse solve excluded for every method) are measured, not assumed.
+- **No-downscaling baseline:** the coarse source-layer field bilinearly upsampled to the fine grid.
+- **Learned downscaler:** fully convolutional residual CNN (3x3 convs, 32 channels, dilations 1, 2, 4, 2, 1, about 60k parameters). Input on a 96 x 96 fine grid covering
+  [1900, 3100]^2: channel 1 the coarse source-layer temperature of the 12 x 12 coarse cells (bilinear, in K minus its mean), channel 2 the exact fine power-density map
+  divided by `d_b`. Output: residual (fine T minus upsampled coarse T) on the central 80 x 80. Loss MSE; Adam lr 1e-3, batch 16, up to 200 epochs, early stopping
+  patience 20 on validation; data augmentation by the 8 flips/rotations of the plane (approximate symmetry: the surroundings and the coarse boundary data are not exactly
+  symmetric, stated); seeds 0, 1, 2. CPU, no GPU.
+**Families (parameter ranges fixed now).** Train/val F0: N in {1, 2}, s log-uniform [25, 200] um, m log-uniform [3, 30]. Test families (40 samples each): T0 same as F0;
+T1 size shift, N = 1, s in [250, 400]; T2 count shift, N in {4, 5, 6}, s in [25, 200]; T3 strength shift, N in {1, 2}, s in [25, 200], m in [30, 60]. Train 240, val 40.
+**Metrics.** Per sample: peak error (K) and field RMSE (K) against the truth over the central 1 mm; median over samples per family and seed. Latency: classical window solve
+vs learned forward pass, batch 1, one CPU thread, same machine.
+**Decision rule (fixed now).** The learned downscaler "pays" iff, for ALL four test families and ALL three seeds: median |peak error| <= 2 x the classical zoom's median |peak error|
+AND median field RMSE <= 2 x the classical zoom's, AND median latency <= 1/10 of the classical zoom's. Otherwise it does not pay; each condition is reported separately.
+**Expectation [OWN].** Latency passes by orders of magnitude (the window solve takes seconds); accuracy fails, because the classical zoom is near the truth by construction
+(M3: peak error 0.001-0.05 K). The learned model should still beat the no-downscaling baseline on the training family. Reported whichever way it falls.
+**Scope and weaknesses.** Synthetic additive hotspots; one geometry; source-layer field only; 12.5 um resolution (not the transistor scale); the truth is itself a solver
+(same physics model, no measured chip data); 240 training samples is small, so a failure may reflect data volume, not the method.
+**Compute.** About 25 s per sample (coarse ~4 s, 2 mm truth ~15 s, 1 mm classical ~3 s, + overhead); 440 samples ~3 h on one core, ~1.5 h on two.
+**Gate G5: PASS (2026-10-24).** 2 mm vs 3 mm window truth on 5 samples: max |dT| 0.0008-0.0010 K (limit 0.005 K). Generation started the same day (two workers).
+
+## 11. Results of M1, M2, M3 (2026-10-24; M3b results are added below when it finishes)
+Raw: `results/mesh_convergence/{sweeps.json, m2_consistent.json, gates.json}` and logs (untracked; `results/` is gitignored). Scripts: scratch only, reproduced from this section's
+definitions; the solver code is `tools/iceforge/iceforge/refsolve.py` (`solve_window`).
+**Deviations, stated.** (a) The first M2/M3/half-cell attempt produced no result: the case folders lacked the `sim/` output directory that the stack file writes to (3D-ICE
+"Cannot open output file"); fixed and rerun; the M1 reference sweeps from the first pass were kept. (b) My first M2 metric compared real 3D-ICE at 100 um with the fine
+reference solver; 3D-ICE reads 0.02-0.42 K above the reference at ANY resolution (end-layer convention), which made the coarse grid look like it overstated the peak (down
+to -3.2%). The reported M2 metric is the corrected one: same reference solver and same vertical sub-layers at coarse (100 um) and fine, plus a no-hotspot baseline per size,
+so the hotspot EXCESS over the baseline can be compared (script `m2_consistent.py`). (c) Neumann window solves did not reach the 1e-7 residual limit in several cases
+(s=25 um: baseline, m=10, m=30; s=10 um: baseline); they are excluded and Dirichlet, which converged everywhere, is the primary. (d) The protocol's window half-widths 0.5 mm were
+changed to 0.6 mm (side) because windows must lie on 100 um coarse cell edges around the hotspot.
+**M1 (geometry1 scenarios 0-2, geometry5; peak K; reference nz=4, r = 100/25 um cell ratio).**
+| case | r=1 | r=2 | r=4 | field RMSE r=1 vs r=4 | vertical, r=1, nz 2/4/8 | 3D-ICE native / half cell | 3D-ICE minus reference r=4 |
+|---|---|---|---|---|---|---|---|
+| g1 uniform (rise ~11.9 K) | 310.0407 | 310.0420 | 310.0424 | 0.0043 | 310.0458/310.0407/310.0392 | 310.064 / 310.065 | +0.022 K (0.18%) |
+| g1 hotspot pattern (rise ~90.8 K) | 388.9576 | 388.9665 | 388.9660 | 0.0289 | 389.0497/388.9576/388.9316 | 389.381 / 389.389 | +0.415 K (0.46%) |
+| g1 checkerboard (rise ~27.6 K) | 325.7070 | 325.7077 | 325.7080 | 0.0091 | 325.7223/325.7070/325.7026 | 325.776 / 325.777 | +0.068 K (0.25%) |
+| g5 (rise ~6.4 K) | 304.5367 | 304.5360 | 304.5355 | 0.0224 | 304.5367/304.5350/304.5346 | 304.559 / half-cell 3D-ICE run failed (solver-failed, cause not investigated) | +0.024 K (0.37%) |
+r=8 (12.5 um) was skipped by the memory guard (15.4M unknowns at nz=2). Observed convergence orders (0.6-2.0) are noise: the peak differences are at the 0.001 K level. **P1 holds**:
+lateral change 100 -> 25 um is at most 0.008 K, 3D-ICE at 100 vs 50 um differs by 0.001-0.008 K; vertical sub-layering (up to 0.12 K) is the larger effect; the 3D-ICE vs reference
+offset (0.2-0.5% of the rise) is a convention, not discretisation.
+**M2 (geometry1, block 1 hotspot of side s at density multiplier m; Dirichlet window/fine route; capture = coarse excess / fine excess over the no-hotspot baseline).**
+| s (um) | capture, m=3 / 10 / 30 | peak-rise error as % of fine rise (largest) | fine excess (K) at m=30 |
+|---|---|---|---|
+| 400 | 1.000 / 1.000 / 1.000 | 0 | 11.99 |
+| 200 | 0.985 / 0.985 / 0.985 | 0.41 | 4.44 |
+| 100 | 1.19 / 1.18 / 1.17 | -2.05 (coarse OVERSTATES by 0.28 K) | 1.59 |
+| 50 | 0.86 / 0.82 / 0.82 | 0.81 | 0.56 |
+| 25 | 0.63 / 0.61 / 0.60 | 0.64 | 0.19 |
+| 10 | 0.45 / 0.45 / 0.43 | 0.20 | 0.041 |
+Cross-route check (hotspots 100-400 um, where both exist): domain-wide r=4 and the window route agree within 0.004 K. **P2 is falsified as stated**: (i) below 5% for s >= 150 um holds (<= 0.41%);
+(ii) "above 20% for s = 10-25 um at m >= 10" fails for the total peak rise (0.06-0.64%), because the hotspot carries almost no power (m=30, s=25 um: about 4 mW) and silicon spreads it; as a fraction of the
+hotspot's own excess the coarse grid misses 37-57%, but that excess is at most 0.19 K; (iii) the sign is not fixed: a hotspot exactly one coarse cell wide (s=100 um) is OVERSTATED by the cell-centred
+coarse model. **P3 consequence:** "100-250 um resolution is adequate for block-level claims" is supported; "coarse peaks are lower bounds" is NOT supported (error can have either sign); hotspots with
+far more aggregate power than tested here (m > 30 or several hotspots) were not tested.
+**M3 (window size vs the domain-wide 25 um truth, hotspots 100/200/400 um at m=10; Dirichlet / Neumann).** Window side 0.6 mm: peak error 0.001-0.005 K (Dirichlet), 0.005-0.047 K (Neumann), at most 0.3% of the
+rise; 1 mm: <= 0.0016 / 0.014 K; 2 mm: <= 0.0005 / 0.0035 K; 4 mm: <= 0.0003 / 0.0006 K (Dirichlet / Neumann; the sides are twice the half-widths 300 / 500 / 1000 / 2000 um). Worst-case field error (max |dT|): Dirichlet 0.011-0.098 K, Neumann 0.002-0.053 K,
+so Dirichlet was better at the peak and Neumann at the worst-case field point; neither dominated. **P5 holds** (Dirichlet and Neumann peaks within 0.005 K for windows >= 2 mm). **P4: first half holds**
+(every window of side >= 0.6 mm has peak error <= 0.3% of the rise, below the 2% bound; the smallest window tested had half-width 300 um = 2 die thicknesses); the second half (error > 10% when the half-width is below one die
+thickness) was NOT tested.
+**Scope.** One geometry (+ geometry5 for M1), steady state, block-aggregate power with synthetic single hotspots, reference-solver physics (no measured chip data); this tests discretisation, not model fidelity.
+
+## 12. M3b result (2026-10-24; pre-registered section 10; 440 samples, 3 seeds, CPU)
+Raw: `results/mesh_convergence/m3b/{results.json, train.log}` (untracked); scripts `scripts/mesh_study/m3b_gen.py`, `m3b_train.py`. **Verdict by the pre-registered rule: the learned downscaler does NOT pay.**
+Medians over 40 test samples per family; peak error = |max(pred) - max(truth)| over the central 1 mm; seeds shown as a range.
+| family | classical zoom: peak K / RMSE K | no downscaling (upsampled coarse): peak / RMSE | learned (3 seeds): peak / RMSE |
+|---|---|---|---|
+| T0 same distribution | 0.00066 / 0.0016 | 0.049 / 0.0066 | 0.0032-0.0052 / 0.0018-0.0019 |
+| T1 larger hotspots (250-400 um) | 0.0026 / 0.0052 | 0.038 / 0.028 | 0.016-0.033 / 0.0098-0.0125 |
+| T2 more hotspots (4-6) | 0.0011 / 0.0032 | 0.107 / 0.022 | 0.0053-0.0086 / 0.0059-0.0060 |
+| T3 stronger hotspots (m 30-60) | 0.0040 / 0.0038 | 0.243 / 0.033 | 0.0142-0.0160 / 0.0071-0.0075 |
+- **Latency:** learned forward pass 10-17 ms (batch 1, one thread) vs the classical zoom's median about 20 s per 1 mm window at 12.5 um cells (the pre-registration assumed "seconds"; measured 20.4 s median on the F0 samples). Condition (latency <= 1/10) passes by about three orders of magnitude.
+- **Accuracy:** the median peak-error condition (<= 2x the classical's) FAILS in all 4 families and all 3 seeds (learned is 3.6x to 13x the classical's). The median field-RMSE condition (<= 2x) fails in 1 of 12 family-seed pairs (T1, seed 0: 2.4x) and passes in the other 11 (1.2x on T0; 1.9x on T2; 1.9-2.0x on T3). So the combined rule fails.
+- **Against no downscaling at all** the learned model is better in every family: peak error 1.2x to 15x lower, field RMSE 2.2x to 3.5x lower. Its largest errors are 0.033 K (T1), i.e. well under 1% of the hotspot-free peak rise (about 12 K).
+- The pre-registered expectation (latency passes, accuracy fails, and the model beats the no-downscaling baseline on its training family) was met on all three counts.
+- Training: 37,633 parameters (the pre-registration said "about 60k"; that was a miscount, the specified architecture is 37.6k); early stopping at 124 / 158 / 142 epochs (not cap-limited); validation RMSE 0.0030-0.0031 K.
+**Caveats.** The classical zoom is the same solver as the truth with a smaller window, so its error only measures window-boundary truncation (0.7-4 mK) and is an unusually strong baseline; the truth is itself a solver (no measured chip data); synthetic additive hotspots, one geometry, source-layer field only; 240 training samples, so a larger set could close part of the gap (not tested); no confidence intervals beyond the seed range and family medians.
+**What this supports for the thesis.** The block-to-cell step is not a place where a learned model earns its place: a classical zoom is already accurate to milli-kelvin, and the learned model is faster but about 4-13x less accurate at the peak. It fits the thesis line (classical wins unless the physics is unknown or the cost matters).

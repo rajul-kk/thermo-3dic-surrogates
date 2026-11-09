@@ -1,0 +1,41 @@
+{
+ "args": {
+  "scope": "level2",
+  "transfer": null,
+  "data_root": "/kaggle/input/datasets/rajulkabir/ic-thermbench-s2-s5/datasets",
+  "epochs": 150,
+  "ch": 32,
+  "blocks": 4,
+  "modes": 32,
+  "batch": 32,
+  "lr": 0.002,
+  "w_top": 0.0,
+  "patience": 20,
+  "min_epochs": 0,
+  "th_scale": 20.0,
+  "geo_arch": "mlp",
+  "geo_attn": false,
+  "local_k": 1,
+  "multiscale": 0,
+  "seed": 0,
+  "limit": null,
+  "device": "cuda",
+  "out": "/kaggle/working/icb_fixed_results/icb_thermono_level2_v2_seed0_fixed.json",
+  "fix_orientation": true
+ },
+ "n_params": 4235749,
+ "epochs_run": 150,
+ "val_rmse_best": 1.986597415997339,
+ "minutes": 68.28852885564169,
+ "level2": {
+  "rmse": 1.764529274660342,
+  "r2": 0.9873735192950556,
+  "r2_per_sample": 0.9318580537504875,
+  "max_absolute_error": 6.006031270345052,
+  "mean_absolute_error": 1.3707663500855367,
+  "mape_percent": 0.40250106962729404,
+  "pape_percent": 1.727869417929775,
+  "max_temperature_error": 1.3590834655761719,
+  "topk50_temperature_difference": 1.7102695568847681
+ }
+}

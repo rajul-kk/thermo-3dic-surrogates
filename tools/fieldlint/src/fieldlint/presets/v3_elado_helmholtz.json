@@ -1,0 +1,17 @@
+{
+  "name": "v3_elado_helmholtz",
+  "format": "h5",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope). ELADO Helmholtz set E1 (E1_test.h5): x = wavenumber field a, y = |u| (u complex, source a fixed centred Gaussian that is not stored). Mapped exactly like the Poisson sibling (x -> k, y -> u, uniform source 1), i.e. what a user running one preset on every ELADO file would do.",
+  "u": {
+    "key": "y",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "x",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

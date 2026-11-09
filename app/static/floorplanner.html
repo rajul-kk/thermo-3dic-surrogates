@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Floorplanner</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/floorplanner.css">
+</head>
+<body>
+<header>
+  <h1><span class="logo-mark">3D</span>Thermal Floorplanner</h1>
+  <nav>
+    <button class="active">Floorplan</button>
+    <button onclick="location.href='/'">3D-ICE Pipeline</button>
+  </nav>
+  <div class="sys-status">
+    <div class="led" id="fp-led"></div>
+    <span id="fp-status">READY</span>
+  </div>
+</header>
+
+<main class="fp-main">
+  <section class="fp-stage">
+    <div class="fp-readouts">
+      <div class="fp-readout"><span class="fp-k">Peak</span><span class="fp-v" id="r-peak">–</span></div>
+      <div class="fp-readout"><span class="fp-k">Rise</span><span class="fp-v" id="r-rise">–</span></div>
+      <div class="fp-readout"><span class="fp-k">Hotspot layer</span><span class="fp-v" id="r-layer">–</span></div>
+      <div class="fp-readout"><span class="fp-k">Total power</span><span class="fp-v" id="r-power">–</span></div>
+      <div class="fp-readout"><span class="fp-k">Solver</span><span class="fp-v" id="r-solver">–</span></div>
+    </div>
+
+    <div class="fp-canvas-wrap">
+      <canvas id="fp-canvas" width="900" height="420"></canvas>
+      <div class="fp-colorbar">
+        <span id="cb-max">–</span>
+        <canvas id="fp-cbar" width="14" height="200"></canvas>
+        <span id="cb-min">–</span>
+      </div>
+    </div>
+    <div class="fp-hint" id="fp-hover">Drag a chiplet. The map updates as you move; the exact solve runs when you let go.</div>
+    <div class="fp-warnings" id="fp-warnings"></div>
+
+    <div class="fp-tiers">
+      <div class="fp-tier"><span class="fp-k">Preview</span><span class="fp-v" id="t-preview">–</span><span class="fp-s" id="t-preview-s">layered solver</span></div>
+      <div class="fp-tier"><span class="fp-k">Exact</span><span class="fp-v" id="t-exact">–</span><span class="fp-s" id="t-exact-s">preconditioned CG</span></div>
+      <div class="fp-tier"><span class="fp-k">3D-ICE</span><span class="fp-v" id="t-ice">–</span><span class="fp-s" id="t-ice-s">not run</span></div>
+    </div>
+  </section>
+
+  <aside class="fp-panel">
+    <div class="form-section">
+      <h3>Package</h3>
+      <div class="fp-pad">
+        <div class="form-row"><label for="fp-geometry">Geometry</label><select id="fp-geometry"></select></div>
+        <div class="form-row"><label for="fp-layer">Layer shown</label><select id="fp-layer"></select></div>
+        <div class="fp-two">
+          <div class="form-row"><label for="fp-htc">Cooling HTC (W/m²·K)</label><input id="fp-htc" type="number" min="100" max="200000" step="500" value="10000"></div>
+          <div class="form-row"><label for="fp-tamb">Ambient (°C)</label><input id="fp-tamb" type="number" min="-20" max="100" step="1" value="45"></div>
+        </div>
+        <div class="fp-two">
+          <div class="form-row"><label for="fp-limit">Temperature limit (°C)</label><input id="fp-limit" type="number" min="40" max="200" step="1" value="105"></div>
+          <div class="form-row"><label class="fp-check"><input id="fp-auto-exact" type="checkbox" checked> Exact solve on release</label></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>Actions</h3>
+      <div class="fp-pad fp-actions">
+        <button class="btn btn-primary" id="btn-exact">Exact solve</button>
+        <button class="btn btn-primary" id="btn-optimise">Optimise placement</button>
+        <button class="btn btn-secondary" id="btn-reset">Reset placement</button>
+        <button class="btn btn-secondary" id="btn-export">Export 3D-ICE files</button>
+        <button class="btn btn-secondary" id="btn-signoff">Run 3D-ICE sign-off</button>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>Power (W/cm²)</h3>
+      <div class="fp-pad" id="fp-power"></div>
+    </div>
+  </aside>
+</main>
+
+<script src="/static/floorplanner.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "v4_pdegym_helmholtz",
+  "format": "npz",
+  "units": "",
+  "ambient": 0.0,
+  "splits": "none",
+  "_comment": "CONTROL (out of scope, steady). PDEgym Helmholtz (HF camlab-ethz/Helmholtz; Poseidon arXiv 2405.19101 App. B.2.15 eq. 69): -Laplace(u) - omega^2 a u = 0 in (0,1)^2, omega = 5/2, u = b on the boundary with b ~ U[0.25, 0.5] (stored per sample as `bc`), a = normalised sum of Gaussians in [0,1]; finite differences at 128^2. NO source term. First 1000 Sample_i groups, converted by convert_v4.py helmholtz_pdegym. A user's most plausible reading for a diffusion linter: a -> k, u -> u, uniform source 1 (the same logic as v3_elado_helmholtz).",
+  "u": {
+    "key": "u",
+    "layout": "NHW"
+  },
+  "k": {
+    "key": "a",
+    "layout": "NHW"
+  },
+  "source_uniform": 1.0
+}

@@ -1,0 +1,23 @@
+Background1 :
+
+  position       0,    0 ;
+  dimension   5000, 5000 ;
+  discretization  250, 100 ;
+
+Hotspot1 :
+
+  position    5000,    0 ;
+  dimension   5000, 5000 ;
+  discretization  250, 100 ;
+
+Hotspot2 :
+
+  position       0, 5000 ;
+  dimension   5000, 5000 ;
+  discretization  250, 100 ;
+
+Background2 :
+
+  position    5000, 5000 ;
+  dimension   5000, 5000 ;
+  discretization  250, 100 ;

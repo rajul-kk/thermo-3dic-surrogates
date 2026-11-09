@@ -1,0 +1,4 @@
+blk :
+   position  1500.0, 1500.0 ;
+   dimension 6000.0, 6000.0 ;
+   power values  10.0 ;

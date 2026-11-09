@@ -1,0 +1,136 @@
+/* Floorplanner — extends the control-panel theme in style.css */
+
+.fp-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  padding: 20px 24px 32px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.fp-stage { min-width: 0; }
+
+.fp-readouts, .fp-tiers {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.fp-tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 14px 0 0; }
+
+.fp-readout, .fp-tier {
+  background: var(--surface);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.fp-k {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+.fp-v {
+  font-size: 1.05rem;
+  color: var(--amber-hi);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp-v.over { color: var(--red); }
+.fp-s { font-size: 0.62rem; color: var(--muted); }
+
+.fp-canvas-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 12px;
+}
+#fp-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  background: #050506;
+  touch-action: none;
+  cursor: grab;
+}
+#fp-canvas.dragging { cursor: grabbing; }
+
+.fp-colorbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.62rem;
+  color: var(--subtle);
+  font-variant-numeric: tabular-nums;
+  width: 52px;
+}
+#fp-cbar { flex: 1 1 auto; width: 14px; border: 1px solid var(--border); }
+
+.fp-hint { margin-top: 10px; font-size: 0.68rem; color: var(--subtle); min-height: 1.2em; }
+
+.fp-warnings { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.fp-warning {
+  border-left: 3px solid var(--red);
+  background: rgba(248, 113, 113, 0.08);
+  color: var(--red);
+  padding: 8px 10px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.fp-warning.info { border-left-color: var(--blue); background: rgba(96, 165, 250, 0.08); color: var(--blue); }
+
+.fp-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.fp-pad { padding: 14px 16px; }
+.fp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fp-check { display: flex; align-items: center; gap: 8px; margin-top: 18px; text-transform: none; letter-spacing: 0; }
+.fp-check input { width: auto; }
+
+.fp-group { margin-bottom: 12px; }
+.fp-group-title { font-size: 0.66rem; color: var(--amber); letter-spacing: 0.1em; margin-bottom: 6px; }
+.fp-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 54px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 0.66rem;
+  color: var(--text);
+}
+.fp-block span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-block input[type="range"] { width: 100%; accent-color: var(--amber); }
+.fp-block input[type="number"] {
+  width: 100%;
+  padding: 3px 4px;
+  font: inherit;
+  font-size: 0.66rem;
+  color: var(--amber-hi);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  text-align: right;
+}
+.fp-block input[type="number"]:focus { outline: 1px solid var(--amber); }
+.fp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fp-actions .btn:first-child { grid-column: 1 / -1; }
+
+.fp-actions .btn { width: 100%; min-width: 0; white-space: normal; padding-left: 8px; padding-right: 8px; line-height: 1.4; }
+.btn[disabled] { opacity: 0.45; cursor: progress; }
+
+.led.busy { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.led.fail { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+@media (max-width: 1000px) {
+  .fp-main { grid-template-columns: 1fr; padding: 16px; }
+  .fp-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

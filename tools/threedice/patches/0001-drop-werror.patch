@@ -1,0 +1,41 @@
+diff --git a/bin/Makefile b/bin/Makefile
+index 242ee1c..aeda81a 100644
+--- a/bin/Makefile
++++ b/bin/Makefile
+@@ -47,7 +47,7 @@ endif
+ 
+ all: $(TARGETS)
+ 
+-CFLAGS := $(CFLAGS) -Wall -Wextra -Werror
++CFLAGS := $(CFLAGS) -Wall -Wextra
+ 
+ CINCLUDES := $(CINCLUDES) -I$(SLU_INCLUDE)
+ CLIBS = $(3DICE_LIB_A) $(SLU_LIBS) -lm -ldl
+diff --git a/makefile.def b/makefile.def
+index 5b945c7..c22df86 100644
+--- a/makefile.def
++++ b/makefile.def
+@@ -179,8 +179,8 @@ DOXYGEN   = doxygen
+ DOXYFILE  = Doxyfile
+ 
+ CXX       = g++
+-CXXFLAGS  = -std=c++11 -O2 -Wall -Wextra -Werror -fopenmp
+-#CXXFLAGS  = -std=c++11 -g -O0 -fsanitize=address -Wall -Wextra -Werror -fopenmp
++CXXFLAGS  = -std=c++11 -O2 -Wall -Wextra  -fopenmp
++#CXXFLAGS  = -std=c++11 -g -O0 -fsanitize=address -Wall -Wextra  -fopenmp
+ 
+ INC_DIRS  = $(CINCLUDES) -I$(SYSTEMC_INCLUDE)
+ 
+diff --git a/sources/Makefile b/sources/Makefile
+index de7a749..4f556e3 100644
+--- a/sources/Makefile
++++ b/sources/Makefile
+@@ -42,7 +42,7 @@ include $(3DICE_MAIN)/makefile.def
+ 
+ CINCLUDES := $(CINCLUDES) -I$(SLU_INCLUDE)
+ 
+-CFLAGS := $(CFLAGS) -Wall -Wextra -Werror
++CFLAGS := $(CFLAGS) -Wall -Wextra
+ #CFLAGS := $(CFLAGS) -DPRINT_SYSTEM_MATRIX
+ #CFLAGS := $(CFLAGS) -DPRINT_SYSTEM_VECTOR
+ 

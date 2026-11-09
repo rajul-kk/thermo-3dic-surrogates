@@ -40,11 +40,14 @@ def main():
     ap.add_argument('--limit', type=int, default=None, help='smoke test: first N samples of every split')
     ap.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     ap.add_argument('--out', type=Path, default=None)
+    ap.add_argument('--save-persample', type=Path, default=None, help='npz of per-sample SSE/sum/sumsq on the transfer scope')
+    ap.add_argument('--fix-orientation', action='store_true',
+                    help='transpose in-plane axes of spatial input channels (IC-ThermBench stores them transposed vs temperature)')
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     dev = torch.device(args.device)
 
-    s = load_scope(args.data_root, args.scope)
+    s = load_scope(args.data_root, args.scope, fix_orientation=args.fix_orientation)
     print(s.summary(), flush=True)
     amb0 = 298.15
     xtr, ytr = s.x_train, s.y_train
@@ -98,11 +101,16 @@ def main():
     pt = predict(model, *te[:3], 64, dev)
     res[args.scope] = score(pt.reshape(len(pt), -1), te[3].cpu().numpy().reshape(len(pt), -1), 't')
     if args.transfer:
-        t = load_scope(args.data_root, args.transfer, split_data=False)
+        t = load_scope(args.data_root, args.transfer, split_data=False, fix_orientation=args.fix_orientation)
         assert t.channels == s.channels, (t.channels, s.channels)
         tt = to_dev(t.x_test, t.y_test, t.channels, amb0, dev, args.limit)
         p5 = predict(model, *tt[:3], 64, dev)
         res[args.transfer] = score(p5.reshape(len(p5), -1), tt[3].cpu().numpy().reshape(len(p5), -1), 'z')
+        if args.save_persample:
+            # per-sample sufficient statistics for bootstrap CIs (RMSE and pooled R2); no config change
+            a, y = p5.reshape(len(p5), -1).astype(np.float64), tt[3].cpu().numpy().reshape(len(p5), -1).astype(np.float64)
+            args.save_persample.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(args.save_persample, sse=((a - y) ** 2).sum(1), sy=y.sum(1), syy=(y ** 2).sum(1), n_cells=y.shape[1])
     for sc in [args.scope] + ([args.transfer] if args.transfer else []):
         b, bv, r, rv = PUBLISHED[sc]
         print(f'\n=== {args.model} {sc} test | published {b} {bv:.4f}, {r} {rv:.4f}'
