@@ -1,0 +1,26 @@
+{
+ "geometry": "geometry1",
+ "htc": 10000.0,
+ "t_ambient": 25.0,
+ "scenarios": [
+  "geometry1_train_002",
+  "geometry1_train_011",
+  "geometry1_train_014"
+ ],
+ "max_abs_diff_K": 0.0,
+ "emulator_s": [
+  23.14028129982762,
+  19.390905499923974,
+  19.283503900049254
+ ],
+ "native_s": [
+  19.00878749997355,
+  0.7670843999367207,
+  0.5848894999362528
+ ],
+ "native_stats": {
+  "native_solves": 3,
+  "factorisations": 1,
+  "emulator_fallbacks": 0
+ }
+}

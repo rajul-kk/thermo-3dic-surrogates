@@ -355,6 +355,20 @@ def main():
              '(THERMO_ALLOW_ANY_3DICE=1 overrides). For WSL: "wsl /home/user/3d-ice-4.0/bin/3D-ICE-Emulator"'
     )
     parser.add_argument(
+        '--ice-backend',
+        choices=['emulator', 'native'],
+        default='emulator',
+        help='emulator: one 3D-ICE-Emulator run per scenario (default). native: threedice 3D-ICE-Batch, one '
+             'factorisation per distinct stack reused across scenarios that differ only in power '
+             '(src/simulators/ice_native.py); needs --ice-batch-executable or $THERMO_ICE_BATCH_EXECUTABLE'
+    )
+    parser.add_argument(
+        '--ice-batch-executable',
+        type=str,
+        default=None,
+        help='3D-ICE-Batch command for --ice-backend native, e.g. "wsl /home/user/threedice/build/native/3d-ice/bin/3D-ICE-Batch"'
+    )
+    parser.add_argument(
         '--hotspot-executable',
         type=str,
         default='hotspot',
@@ -491,12 +505,22 @@ def main():
         sim_output_dir = Path(_sim_tmpdir) / 'output'
         config_dir.mkdir()
         sim_output_dir.mkdir()
-        simulator = ICESimulator(
-            config_dir=config_dir,
-            output_dir=sim_output_dir,
-            executable=args.ice_executable
-        )
-        logger.info(f"3D-ICE simulator: {args.ice_executable}")
+        if args.ice_backend == 'native':
+            from src.simulators.ice_native import NativeICESimulator
+            simulator = NativeICESimulator(
+                config_dir=config_dir,
+                output_dir=sim_output_dir,
+                executable=args.ice_executable,
+                batch_executable=args.ice_batch_executable,
+            )
+            logger.info(f"3D-ICE simulator: {args.ice_executable}, native batch backend {simulator.batch_executable}")
+        else:
+            simulator = ICESimulator(
+                config_dir=config_dir,
+                output_dir=sim_output_dir,
+                executable=args.ice_executable
+            )
+            logger.info(f"3D-ICE simulator: {args.ice_executable}")
     elif args.simulator == 'hotspot':
         _sim_tmpdir = tempfile.mkdtemp(prefix=f'hotspot_pid{os.getpid()}_')
         config_dir = Path(_sim_tmpdir) / 'configs'
