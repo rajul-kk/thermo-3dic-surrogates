@@ -1,0 +1,171 @@
+{
+ "soc": "Rockchip RK3399",
+ "linux_commit": "7475ea8b58616b33c04afb976cf0fbaad9dd63fb",
+ "opp_source": "https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/arch/arm64/boot/dts/rockchip/rk3399.dtsi",
+ "thermal_source": "https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/arch/arm64/boot/dts/rockchip/rk3399-base.dtsi",
+ "note": "Operating points (frequency, regulator target/min/max voltage) and thermal-zone trip points as shipped in the mainline Linux device tree. Primary engineering data for one real SoC; not a measurement of power.",
+ "opp_tables": {
+  "cluster0_opp": [
+   {
+    "MHz": 408,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 600,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 816,
+    "V_target": 0.85,
+    "V_min": 0.85,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1008,
+    "V_target": 0.925,
+    "V_min": 0.925,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1200,
+    "V_target": 1.0,
+    "V_min": 1.0,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1416,
+    "V_target": 1.125,
+    "V_min": 1.125,
+    "V_max": 1.25
+   }
+  ],
+  "cluster1_opp": [
+   {
+    "MHz": 408,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 600,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 816,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1008,
+    "V_target": 0.875,
+    "V_min": 0.875,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1200,
+    "V_target": 0.95,
+    "V_min": 0.95,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1416,
+    "V_target": 1.025,
+    "V_min": 1.025,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1608,
+    "V_target": 1.1,
+    "V_min": 1.1,
+    "V_max": 1.25
+   },
+   {
+    "MHz": 1800,
+    "V_target": 1.2,
+    "V_min": 1.2,
+    "V_max": 1.25
+   }
+  ],
+  "gpu_opp_table": [
+   {
+    "MHz": 200,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.15
+   },
+   {
+    "MHz": 297,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.15
+   },
+   {
+    "MHz": 400,
+    "V_target": 0.825,
+    "V_min": 0.825,
+    "V_max": 1.15
+   },
+   {
+    "MHz": 500,
+    "V_target": 0.875,
+    "V_min": 0.875,
+    "V_max": 1.15
+   },
+   {
+    "MHz": 600,
+    "V_target": 0.925,
+    "V_min": 0.925,
+    "V_max": 1.15
+   },
+   {
+    "MHz": 800,
+    "V_target": 1.1,
+    "V_min": 1.1,
+    "V_max": 1.15
+   }
+  ]
+ },
+ "thermal_zones": {
+  "cpu-thermal": [
+   {
+    "trip": "cpu_alert0",
+    "C": 70.0,
+    "hysteresis_C": 2.0,
+    "type": "passive"
+   },
+   {
+    "trip": "cpu_alert1",
+    "C": 75.0,
+    "hysteresis_C": 2.0,
+    "type": "passive"
+   },
+   {
+    "trip": "cpu_crit",
+    "C": 95.0,
+    "hysteresis_C": 2.0,
+    "type": "critical"
+   }
+  ],
+  "gpu-thermal": [
+   {
+    "trip": "gpu_alert0",
+    "C": 75.0,
+    "hysteresis_C": 2.0,
+    "type": "passive"
+   },
+   {
+    "trip": "gpu_crit",
+    "C": 95.0,
+    "hysteresis_C": 2.0,
+    "type": "critical"
+   }
+  ]
+ }
+}
