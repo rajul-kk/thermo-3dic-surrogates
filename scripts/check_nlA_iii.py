@@ -11,7 +11,14 @@ Reference resolution, fixed before the 10 runs: --r 1 (reference at 100 x 100 an
 sink) ran out of memory on this machine in a one-scenario trial. diff reports the reference's own r -> 2r change, so the
 coarser reference's discretisation error is stated next to each comparison.
 
-usage: python scripts/check_nlA_iii.py [--only NAME ...]   ->  results/nonlinear_A/check_iii.json (+ .log)
+HotSpot: the SuperLU build (~/HotSpot_slu/hotspot in WSL), run through ~/hs_capped/hotspot (the same binary under a 6 GB address-space
+cap), on a 64 x 64 grid (--hotspot-grid 64). iceforge's default HotSpot, ~/HotSpot/hotspot, is built without SuperLU; its self-test times
+out on these stiff stacks and the HotSpot leg was missing (first attempt, 2026-11-10). At iceforge's default grid (128 x 128) the SuperLU
+factorisation passed 7 GB and exhausted the machine (second attempt); at 64 x 64 it takes ~1 min and 3 GB. 3D-ICE and the reference keep
+the resolution above. Deviation recorded in docs/protocol_nonlinear_A.md.
+
+usage: python scripts/check_nlA_iii.py [--only NAME ...] [--resume]   ->  results/nonlinear_A/check_iii.json (+ .log)
+  --resume keeps the scenarios already in check_iii.json and runs the rest (the file is rewritten after every scenario)
 """
 import argparse, json, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
@@ -25,6 +32,7 @@ import gen_nonlinear_A as G  # noqa: E402  (same geometry, base scenario and sim
 OUT = REPO / 'results' / 'nonlinear_A'
 SPLITS = ['train', 'iid', 'ood_gain', 'ood_law', 'near_critical']
 ICE = '/home/rajul/3d-ice-4.0/bin/3D-ICE-Emulator'
+HOTSPOT = 'wsl /home/rajul/hs_capped/hotspot'
 
 
 def selection(plan):
@@ -49,19 +57,24 @@ def write_stack(it, tmp):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', nargs='*')
+    ap.add_argument('--resume', action='store_true')
     a = ap.parse_args()
     plan = json.loads((OUT / 'plan.json').read_text())
     sel = selection(plan)
     if a.only:
         sel = [it for it in sel if it['name'] in a.only]
-    rows = []
+    out = OUT / ('check_iii.json' if not a.only else 'check_iii_trial.json')
+    rows = json.loads(out.read_text()) if a.resume and out.exists() else []
+    done = {r['name'] for r in rows}
     for it in sel:
+        if it['name'] in done:
+            continue
         tmp = Path(tempfile.mkdtemp(prefix='nlA_iii_'))
         try:
             stk = write_stack(it, tmp)
             t0 = time.perf_counter()
             r = subprocess.run([sys.executable, '-m', 'iceforge', 'diff', str(stk), '--with-hotspot', '--json',
-                                '--exe', ICE, '--backend', 'wsl', '-o', str(tmp / 'ice'), '--r', '1', '--nz', '8'],
+                                '--exe', ICE, '--backend', 'wsl', '--hotspot-exe', HOTSPOT, '--hotspot-grid', '64', '-o', str(tmp / 'ice'), '--r', '1', '--nz', '8'],
                                cwd=REPO / 'tools' / 'iceforge', capture_output=True, text=True)
             secs = time.perf_counter() - t0
             try:
@@ -72,10 +85,11 @@ def main():
             row = dict(name=it['name'], split=it['split'], htc=it['htc'], exit=r.returncode, seconds=round(secs, 1),
                        stored_peak_K=float(z['temp'].max()), report=rep)
             rows.append(row)
-            print(json.dumps({k: v for k, v in row.items() if k != 'report'}), rep.get('verdict'), flush=True)
+            print(json.dumps({k: v for k, v in row.items() if k != 'report'}), rep.get('verdict'),
+                  'hotspot', (rep.get('hotspot') or {}).get('status'), flush=True)
+            out.write_text(json.dumps(rows, indent=1))  # after every scenario, so a killed run keeps what it finished
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
-    out = OUT / ('check_iii.json' if not a.only else 'check_iii_trial.json')
     out.write_text(json.dumps(rows, indent=1))
     print('wrote', out)
 
