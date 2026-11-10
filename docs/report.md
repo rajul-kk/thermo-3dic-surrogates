@@ -4596,6 +4596,8 @@ unpowered). HS_OC and IND_* have 4–25% unpowered cells, so the test is informa
 - This project's loader mirrored theirs, so every IC-ThermBench number in this report came from
   mismatched pairs (§9.13, §9.29, §9.31). §9.31 has the fixed-orientation rerun: ridge-type baselines change
   by ≤ 0.34%, ThermoNO (108 samples) S4 13.64 → 11.46 K, learned-conductance solver S5 13.88 → 13.26 K.
+  The full-data §9.29 runs were also redone with the fix on 2026-10-07 (`results/icb_thermono_fixed/`; numbers
+  in the §9.29 note: S4 3.15 ± 0.07 K, S5 zero-shot 7.30 ± 0.51 K).
 - **Is it a transpose, or some other flip or rotation?** Measured, not inferred
   (`scripts/icb_orientation_dihedral.py`, `results/icb_orientation/dihedral.json`; same first 400 samples per
   scope, F008 on 200). We applied all 8 dihedral transforms of the square grid (identity, transpose, flip x, flip y,

@@ -32,7 +32,9 @@ solves for 3D/2.5D IC packages, plus an audit of what neural thermal surrogates 
 5. **The dataset linter's first external catch** (§9.33): the public IC-ThermBench release stores its spatial input
    channels transposed in-plane relative to the output temperature; our loader mirrored it, so our IC-ThermBench numbers
    came from mismatched pairs. Ridge-type baselines change by ≤ 0.34% when fixed. Fixed-orientation runs at 108 samples
-   are in §9.31, and the full-data §9.29 numbers are not yet rerun. Draft issue reports are in `notes/` (not sent).
+   are in §9.31. The full-data §9.29 runs were redone with the fix on 2026-10-07 (`results/icb_thermono_fixed/`): S4
+   3.15 ± 0.07 K, S5 zero-shot 7.30 ± 0.51 K (3 seeds), so the 108-sample S5 gain did not replicate at full data. The
+   300-epoch S4 rerun for the 150-epoch-cap caveat is still not run. Draft issue reports are in `notes/` (not sent).
 6. **Every data bug was caught by an independent physics re-solve, not by a metric.** These were a transposed
    temperature field, a layer-blind power field, the die-edge artefact, and others (§9.23, §9.32).
 
