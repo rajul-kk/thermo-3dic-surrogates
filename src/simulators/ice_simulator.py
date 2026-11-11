@@ -362,26 +362,40 @@ class ICESimulator(ThermalSimulator):
         return plan
 
     def _generate_stack_file(self, geometry: Geometry, scenario: Dict[str, Any]) -> None:
-        """Generate 3D-ICE stack description file (.stk) with correct µm-unit syntax."""
-        stk_file = self.config_dir / "stack.stk"
+        """Generate 3D-ICE stack description file (.stk) with correct µm-unit syntax.
 
-        htc = scenario.get('htc', 10000.0)      # W/m²·K
-        t_ambient_c = scenario.get('t_ambient', 25.0)
-        t_ambient_k = t_ambient_c + 273.15
-
-        # 3D-ICE uses µm; convert SI properties:
-        #   k:      W/m/K   → W/µm/K    × 1e-6
-        #   rho_cp: J/m³/K  → J/µm³/K   × 1e-18
-        #   HTC:    W/m²/K  → W/µm²/K   × 1e-12
-        htc_ice = htc * 1e-12
-
-        lines = []
-        lines.append("// 3D-ICE Stack Description File")
-        lines.append(f"// Geometry: {geometry.name}")
-        lines.append("")
-
-        # ── Material definitions ──────────────────────────────────────────────
+        3D-ICE uses µm; SI properties are converted as k: W/m/K -> W/µm/K x 1e-6, rho_cp: J/m³/K -> J/µm³/K
+        x 1e-18, HTC: W/m²/K -> W/µm²/K x 1e-12. The grammar fixes the section order: materials, the heat sink
+        or microchannel, dimensions, ALL layer definitions before ALL die definitions, the stack, the solver
+        and the output."""
+        t_ambient_k = scenario.get('t_ambient', 25.0) + 273.15
         layer_k_overrides = scenario.get('layer_k_overrides', {})
+        footprints_by_layer = self._footprints_by_layer(geometry)
+
+        lines = ["// 3D-ICE Stack Description File", f"// Geometry: {geometry.name}", ""]
+        lines += self._stk_materials(geometry, scenario, layer_k_overrides, footprints_by_layer)
+        lines += self._stk_cooling(geometry, scenario, t_ambient_k)
+        lines += self._stk_dimensions(geometry)
+        lines += self._stk_passive_layers(geometry, scenario, layer_k_overrides, footprints_by_layer)
+        lines += self._stk_footprint_source_layers(geometry, layer_k_overrides, footprints_by_layer)
+        lines += self._stk_dies(geometry, layer_k_overrides, footprints_by_layer)
+        lines += self._stk_stack()
+        lines += self._stk_solver(scenario, t_ambient_k)
+        lines += self._stk_output()
+
+        with open(self.config_dir / "stack.stk", 'w') as f:
+            f.write('\n'.join(lines))
+
+    def _stk_path(self, path: Path) -> str:
+        """An absolute path as the solver will see it: translated to /mnt/... when 3D-ICE runs under WSL."""
+        path = path.resolve()
+        return self._to_wsl_path(path) if getattr(self, '_use_wsl', False) else str(path)
+
+    def _stk_materials(self, geometry: Geometry, scenario: Dict[str, Any], layer_k_overrides: dict,
+                       footprints_by_layer: Dict[str, list]) -> List[str]:
+        """Material definitions: the stack's own, one anisotropic material per TSV density level, and the
+        underfill when any layer carries DiePrint footprints."""
+        lines = []
         for mat_name, props in self._get_unique_materials(geometry, layer_k_overrides).items():
             k_ice = props['k'] * 1e-6
             rho_cp_ice = props['rho_cp'] * 1e-18
@@ -401,7 +415,6 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   volumetric heat capacity {rho_cp * 1e-18:.4e} ;")
             lines.append("")
 
-        footprints_by_layer = self._footprints_by_layer(geometry)
         if footprints_by_layer:
             # Epoxy underfill volumetric heat capacity -- engineering estimate
             # (no specific cited source); steady-state solves are insensitive to it.
@@ -410,7 +423,10 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   thermal conductivity     {geometry.underfill_k * 1e-6:.4e} ;")
             lines.append(f"   volumetric heat capacity {underfill_rho_cp * 1e-18:.4e} ;")
             lines.append("")
+        return lines
 
+    def _stk_cooling(self, geometry: Geometry, scenario: Dict[str, Any], t_ambient_k: float) -> List[str]:
+        """The heat-rejection boundary: a microchannel cold plate, or the bottom heat sink's HTC."""
         cooling_mode = scenario.get('cooling_mode', 'air')
         if cooling_mode == 'microchannel_2rm' and getattr(geometry, 'coolant_layer_name', None) is None:
             raise ValueError(
@@ -419,6 +435,7 @@ class ICESimulator(ThermalSimulator):
                 f"no `channel` stack element and no bottom heat sink either, "
                 f"leaving the thermal problem with no heat-rejection boundary."
             )
+        lines = []
         if cooling_mode == 'microchannel_2rm':
             # Liquid microchannel cold plate replaces the idealised HTC boundary
             # condition with an explicitly modelled coolant layer -- see
@@ -453,32 +470,37 @@ class ICESimulator(ThermalSimulator):
             lines.append(f"   coolant incoming temperature {t_ambient_k:.2f} ;")
             lines.append("")
         else:
-            # ── Heat-sink boundary condition ─────────────────────────────────
             # Die is the topmost layer; convective cooling is on the bottom surface.
+            htc_ice = scenario.get('htc', 10000.0) * 1e-12      # W/m²·K -> W/µm²·K
             lines.append("bottom heat sink :")
             lines.append(f"   heat transfer coefficient {htc_ice:.4e} ;")
             lines.append(f"   temperature {t_ambient_k:.2f} ;")
             lines.append("")
+        return lines
 
-        # ── Chip dimensions ───────────────────────────────────────────────────
+    @staticmethod
+    def _stk_dimensions(geometry: Geometry) -> List[str]:
+        """Chip and cell dimensions from the lateral mesh resolution."""
         nx, ny, _ = geometry.mesh_resolution
         cell_length = geometry.die_length / nx
         cell_width  = geometry.die_width  / ny
-        lines.append("dimensions :")
-        lines.append(f"   chip length {geometry.die_length:.1f} , width  {geometry.die_width:.1f} ;")
-        lines.append(f"   cell length {cell_length:.1f} , width  {cell_width:.1f} ;")
-        lines.append("")
+        return ["dimensions :",
+                f"   chip length {geometry.die_length:.1f} , width  {geometry.die_width:.1f} ;",
+                f"   cell length {cell_length:.1f} , width  {cell_width:.1f} ;",
+                ""]
 
-        # ── Layer / die type definitions ──────────────────────────────────────
-        # 3D-ICE grammar requires ALL layer definitions before ALL die definitions.
-        # One definition per emitted sub-layer; several may share a geometry layer's
-        # material but each needs its own type because heights differ across layers.
+    def _stk_passive_layers(self, geometry: Geometry, scenario: Dict[str, Any], layer_k_overrides: dict,
+                            footprints_by_layer: Dict[str, list]) -> List[str]:
+        """One `layer` type per passive sub-layer. Several may share a geometry layer's material, but each needs
+        its own type because heights differ across layers."""
+        lines = []
+        tsv_layers = scenario.get('tsv_map_by_layer') or {}
         for s_idx, sub in enumerate(self._sublayers):
             if sub['is_active'] or sub.get('is_coolant'):
                 continue
             layer = geometry.layers[sub['layer_idx']]
             mat_name = self._get_layer_material_name(layer, layer_k_overrides, sub['layer_idx'])
-            has_tsv_map = layer.name in (scenario.get('tsv_map_by_layer') or {})
+            has_tsv_map = layer.name in tsv_layers
             # PASSIVE layers can carry DiePrint footprints too (geometry7's
             # CoWoS-L bridge layer: silicon LSI bridge islands embedded in an
             # organic RDL sea). Same convention as the active-layer case below --
@@ -499,36 +521,42 @@ class ICESimulator(ThermalSimulator):
             # field. 3D-ICE 4.0 only: a layer declaration takes an optional layout
             # that overrides the uniform material per rectangle.
             if has_tsv_map:
-                lyt = (self.config_dir / f"layout_{self._sanitise(layer.name)}.lyt").resolve()
-                lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
-                lines.append(f'   layout "{lyt_path}" ;')
+                lyt = self.config_dir / f"layout_{self._sanitise(layer.name)}.lyt"
+                lines.append(f'   layout "{self._stk_path(lyt)}" ;')
             elif has_footprints:
-                lyt = (self.config_dir
-                       / f"layout_footprint_{self._sanitise(layer.name)}.lyt").resolve()
-                lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
-                lines.append(f'   layout "{lyt_path}" ;')
+                lyt = self.config_dir / f"layout_footprint_{self._sanitise(layer.name)}.lyt"
+                lines.append(f'   layout "{self._stk_path(lyt)}" ;')
             lines.append("")
+        return lines
 
-        # Active (source) sub-layers whose geometry layer carries DiePrint
-        # footprints need a standalone `layer` declaration with a layout,
-        # because the grammar's `source` clause only accepts a bare
-        # thickness+material pair OR a reference to a pre-declared `layer`
-        # (which is where a layout can be attached) -- see
-        # bison/stack_description_parser.y die_layer_content / layer_copy.
+    def _stk_footprint_source_layers(self, geometry: Geometry, layer_k_overrides: dict,
+                                     footprints_by_layer: Dict[str, list]) -> List[str]:
+        """Active (source) sub-layers whose geometry layer carries DiePrint
+        footprints need a standalone `layer` declaration with a layout,
+        because the grammar's `source` clause only accepts a bare
+        thickness+material pair OR a reference to a pre-declared `layer`
+        (which is where a layout can be attached) -- see
+        bison/stack_description_parser.y die_layer_content / layer_copy."""
+        lines = []
         for s_idx, sub in enumerate(self._sublayers):
             if not sub['is_active']:
                 continue
             layer = geometry.layers[sub['layer_idx']]
             if layer.name not in footprints_by_layer:
                 continue
-            lyt = (self.config_dir / f"layout_footprint_{self._sanitise(layer.name)}.lyt").resolve()
-            lyt_path = self._to_wsl_path(lyt) if getattr(self, '_use_wsl', False) else str(lyt)
+            lyt = self.config_dir / f"layout_footprint_{self._sanitise(layer.name)}.lyt"
             lines.append(f"layer type_layer_{s_idx}_src :")
             lines.append(f"   height {self._source_thickness(sub):.1f} ;")
             lines.append(f"   material {self._gap_material_name(geometry, layer, layer_k_overrides)} ;")
-            lines.append(f'   layout "{lyt_path}" ;')
+            lines.append(f'   layout "{self._stk_path(lyt)}" ;')
             lines.append("")
+        return lines
 
+    def _stk_dies(self, geometry: Geometry, layer_k_overrides: dict,
+                  footprints_by_layer: Dict[str, list]) -> List[str]:
+        """One `die` type per active sub-layer: a single source, or layer / source / layer thirds when the layer
+        is thicker than ACTIVE_SPLIT_UM."""
+        lines = []
         for s_idx, sub in enumerate(self._sublayers):
             if not sub['is_active']:
                 continue
@@ -547,67 +575,67 @@ class ICESimulator(ThermalSimulator):
             if split:
                 lines.append(f"   layer  {content} ;")
             lines.append("")
+        return lines
 
-        # ── Stack assembly: 3D-ICE lists TOP → BOTTOM; geometry is BOTTOM → TOP
-        # Each active layer has its own per-layer floorplan file, keyed by the
-        # ORIGINAL geometry layer index (floorplans are unaffected by subdivision).
-        lines.append("stack :")
+    def _stk_stack(self) -> List[str]:
+        """Stack assembly. 3D-ICE lists TOP -> BOTTOM; the geometry is BOTTOM -> TOP. Each active layer has its
+        own per-layer floorplan file, keyed by the ORIGINAL geometry layer index (floorplans are unaffected by
+        subdivision)."""
+        lines = ["stack :"]
         for s_idx, sub in reversed(list(enumerate(self._sublayers))):
             inst = f"inst_{s_idx}"
             if sub.get('is_coolant'):
                 lines.append(f"   channel {inst} ;")
             elif sub['is_active']:
-                flp_name = f"floorplan_layer{sub['layer_idx']}.flp"
-                flp_abs  = (self.config_dir / flp_name).resolve()
-                flp_path = self._to_wsl_path(flp_abs) if getattr(self, '_use_wsl', False) else str(flp_abs)
+                flp_path = self._stk_path(self.config_dir / f"floorplan_layer{sub['layer_idx']}.flp")
                 lines.append(f"   die   {inst}  type_die_{s_idx}    floorplan \"{flp_path}\" ;")
             else:
                 lines.append(f"   layer {inst}  type_layer_{s_idx} ;")
         lines.append("")
+        return lines
 
-        # ── Solver ────────────────────────────────────────────────────────────
-        # numofcores: 3D-ICE 4.0's SLU_Options.nprocs feeds SuperLU_MT's parallel
-        # factorization (pdgstrf). CORRECTION 2026-08-18: an earlier version of
-        # this comment claimed 8 cores was a free, exact speedup verified
-        # byte-identical to the 1-core baseline -- that was true for exactly one
-        # run pair and NOT re-checked against a second independent run at the
-        # same core count before being made the default. It was wrong. Running
-        # the identical scenario twice at numofcores=8 (nothing else changed)
-        # produced peak-adjacent values differing by >1 K between the two runs;
-        # numofcores=1 run twice in a row was bit-for-bit identical both times.
-        # The non-determinism is real and isolated to the multi-threaded path
-        # (thread-scheduling-dependent floating-point reduction order in
-        # SuperLU_MT's parallel factorization, not this project's code), not a
-        # fluke of one comparison. Defaulting to >1 core would have silently
-        # made every future dataset non-reproducible run to run -- a much worse
-        # problem than the wall-clock this was meant to save. Reverted to the
-        # deterministic default; multi-core remains available for anyone who
-        # explicitly wants the tradeoff (e.g. quick exploratory sweeps where
-        # exact reproducibility doesn't matter), never as a silent default.
+    @staticmethod
+    def _stk_solver(scenario: Dict[str, Any], t_ambient_k: float) -> List[str]:
+        """Steady solve.
+
+        numofcores: 3D-ICE 4.0's SLU_Options.nprocs feeds SuperLU_MT's parallel
+        factorization (pdgstrf). CORRECTION 2026-08-18: an earlier version of
+        this comment claimed 8 cores was a free, exact speedup verified
+        byte-identical to the 1-core baseline -- that was true for exactly one
+        run pair and NOT re-checked against a second independent run at the
+        same core count before being made the default. It was wrong. Running
+        the identical scenario twice at numofcores=8 (nothing else changed)
+        produced peak-adjacent values differing by >1 K between the two runs;
+        numofcores=1 run twice in a row was bit-for-bit identical both times.
+        The non-determinism is real and isolated to the multi-threaded path
+        (thread-scheduling-dependent floating-point reduction order in
+        SuperLU_MT's parallel factorization, not this project's code), not a
+        fluke of one comparison. Defaulting to >1 core would have silently
+        made every future dataset non-reproducible run to run -- a much worse
+        problem than the wall-clock this was meant to save. Reverted to the
+        deterministic default; multi-core remains available for anyone who
+        explicitly wants the tradeoff (e.g. quick exploratory sweeps where
+        exact reproducibility doesn't matter), never as a silent default."""
         num_cores = int(scenario.get('num_cores', 1))
-        lines.append("solver :")
-        lines.append("   steady ;")
-        lines.append(f"   initial temperature {t_ambient_k:.2f} ;")
-        lines.append(f"   numofcores {num_cores} ;")
-        lines.append("")
+        return ["solver :",
+                "   steady ;",
+                f"   initial temperature {t_ambient_k:.2f} ;",
+                f"   numofcores {num_cores} ;",
+                ""]
 
-        # ── Output: Tmap per stack element ────────────────────────────────────
-        # Files are written to output_dir named output_inst_N.txt. The coolant
-        # element is skipped -- it is fluid, not a solid layer/die, and this
-        # first pass does not yet reconcile its node output with the coords/
-        # npz-export pipeline built for solid stack elements (see goal.md).
-        lines.append("output :")
+    def _stk_output(self) -> List[str]:
+        """One Tmap per stack element, written to output_dir as output_inst_N.txt. The coolant element is
+        skipped -- it is fluid, not a solid layer/die, and this first pass does not yet reconcile its node output
+        with the coords/npz-export pipeline built for solid stack elements (see goal.md)."""
+        lines = ["output :"]
         for i in reversed(range(len(self._sublayers))):
             if self._sublayers[i].get('is_coolant'):
                 continue
             inst = f"inst_{i}"
-            out_abs  = (self.output_dir / f"output_{inst}.txt").resolve()
-            out_path = self._to_wsl_path(out_abs) if getattr(self, '_use_wsl', False) else str(out_abs)
+            out_path = self._stk_path(self.output_dir / f"output_{inst}.txt")
             lines.append(f"   Tmap ( {inst}, \"{out_path}\", final ) ;")
         lines.append("")
-
-        with open(stk_file, 'w') as f:
-            f.write('\n'.join(lines))
+        return lines
 
     def _source_thickness(self, sub) -> float:
         t = sub['thickness']
