@@ -691,141 +691,78 @@ class ScenarioGenerator:
 
         return scenarios
 
+    # Relative power of block i of n (named `name`) per pattern, as a multiple of base_power. 'random_smooth' is
+    # handled separately because it draws from a seeded generator.
+    _PATTERN_WEIGHTS = {
+        'uniform': lambda i, n, name: 1.0,
+        'hotspot': lambda i, n, name: 1.0 if i == 0 else 0.1,
+        'checkerboard': lambda i, n, name: 1.0 if i % 2 == 0 else 0.5,
+        'gradient': lambda i, n, name: 0.5 + 0.5 * (i / max(1, n - 1)),
+        'dual_hotspot': lambda i, n, name: 1.0 if i < 2 else 0.2,
+        'extreme_hotspot': lambda i, n, name: 1.0 if i == 0 else 0.01,   # Tier-1 extreme: very low background
+        'split_chiplet_a_hot': lambda i, n, name: 1.0 if name.startswith('chipA') else 0.1,
+        # chipB_* on geometry4/5, hbm1-N_* on geometry6
+        'split_chiplet_b_hot': lambda i, n, name: 1.0 if name.startswith(('chipB', 'hbm')) else 0.1,
+    }
+
+    # Memory (HBM-style) dies: geometry6 hbm{n}_*, and geometry5 chipB_d1_* / chipB_d2_* (documented as HBM-style).
+    HBM_DIE_PREFIXES = ('hbm', 'chipB_d1', 'chipB_d2')
+    # Absolute ceiling for memory dies, applied after TDP normalisation so it stays a physical limit rather than a
+    # fraction of the budget. HBM3E dies run at about 1-5 W/cm2 (an engineering estimate from per-stack power over the
+    # ~48 mm2 footprint, not a cited source); 8 W/cm2 allows worst-case coverage while keeping the stacks under their
+    # ~95-105 C junction spec. History: 2.0 until the POWER_SCALE change of 2026-07-31; without any cap, 'uniform' and
+    # 'split_chiplet_b_hot' gave HBM logic-level power and geometry6 reached 134 C.
+    HBM_POWER_CAP_WCM2 = 8.0
+
     def _apply_pattern(self, block_names: List[str], pattern: str,
-                      base_power: float,
-                      rdl_joule_fraction: float = 0.05) -> Dict[str, float]:
-        """Apply power distribution pattern to blocks."""
-        n_blocks = len(block_names)
-        power_map = {}
+                       base_power: float,
+                       rdl_joule_fraction: float = 0.05) -> Dict[str, float]:
+        """Power density (W/cm2) per block for one scenario: the pattern's relative map, scaled onto the active
+        geometry's TDP budget, then the absolute density ceilings and the RDL self-heating term."""
+        relative = self._relative_pattern(block_names, pattern, base_power)
+        power_map = self._normalise_to_tdp(relative, self._workload_fraction(base_power))
+        self._apply_density_caps(power_map, block_names)
+        self._add_rdl_heating(power_map, block_names, rdl_joule_fraction)
+        return power_map
 
-        # base_power now selects a workload fraction of TDP; the absolute W/cm2 is
-        # fixed later by _normalise_to_tdp. Keeping the raw value here preserves each
-        # pattern's internal ratios (hotspot vs background), which is all the code
-        # below depends on.
-        workload = min(max(base_power * self.WORKLOAD_PER_BASE_POWER,
-                           self.MIN_WORKLOAD_FRACTION),
-                       self.MAX_WORKLOAD_FRACTION)
+    def _workload_fraction(self, base_power: float) -> float:
+        """base_power selects a workload fraction of TDP; the absolute W/cm2 is fixed by _normalise_to_tdp, so the
+        pattern keeps only its internal ratios (hotspot against background)."""
+        return min(max(base_power * self.WORKLOAD_PER_BASE_POWER, self.MIN_WORKLOAD_FRACTION),
+                   self.MAX_WORKLOAD_FRACTION)
 
-        if pattern == 'uniform':
-            # All blocks at same power
-            for name in block_names:
-                power_map[name] = base_power
-
-        elif pattern == 'hotspot':
-            # First block at base_power, others at 0.1 × base_power
-            for i, name in enumerate(block_names):
-                if i == 0:
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.1
-
-        elif pattern == 'checkerboard':
-            # Alternating high (base_power) and low (0.5 × base_power)
-            for i, name in enumerate(block_names):
-                if i % 2 == 0:
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.5
-
-        elif pattern == 'gradient':
-            # Linear gradient from 0.5 × base_power to base_power
-            for i, name in enumerate(block_names):
-                fraction = 0.5 + 0.5 * (i / max(1, n_blocks - 1))
-                power_map[name] = base_power * fraction
-
-        elif pattern == 'dual_hotspot':
-            # First two blocks at base_power, others at 0.2 × base_power
-            for i, name in enumerate(block_names):
-                if i < 2:
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.2
-
-        elif pattern == 'extreme_hotspot':
-            # Single extreme hotspot (for Tier 1 extreme scenarios)
-            # First block at base_power, others at 0.01 × base_power (very low background)
-            for i, name in enumerate(block_names):
-                if i == 0:
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.01
-
-        elif pattern == 'split_chiplet_a_hot':
-            # 2.5D geometries: chiplet A hot, all other chiplets (B or hbm1-N) at 10%
-            for name in block_names:
-                if name.startswith('chipA'):
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.1
-
-        elif pattern == 'split_chiplet_b_hot':
-            # 2.5D geometries: chiplet B / HBM stacks hot, chiplet A at 10%
-            # Works for both geometry4/5 (chipB_*) and geometry6 (hbm1-4_*)
-            for name in block_names:
-                if name.startswith('chipB') or name.startswith('hbm'):
-                    power_map[name] = base_power
-                else:
-                    power_map[name] = base_power * 0.1
-
-        elif pattern == 'random_smooth':
-            # Spatially correlated random powers — each block gets an independent
-            # random multiplier in [0.3, 2.0] × base_power.  Seed is derived from
-            # block count so it's deterministic for a given geometry.
-            rng = np.random.default_rng(seed=n_blocks * 7 + int(base_power * 100))
-            multipliers = rng.uniform(0.3, 2.0, size=n_blocks)
-            for i, name in enumerate(block_names):
-                power_map[name] = max(0.05, base_power * multipliers[i])
-
-        else:
+    def _relative_pattern(self, block_names: List[str], pattern: str, base_power: float) -> Dict[str, float]:
+        """The pattern's relative power per block (units of base_power, before TDP normalisation)."""
+        n = len(block_names)
+        if pattern == 'random_smooth':
+            # Independent multiplier in [0.3, 2.0] per block, seeded from the block count and base_power so it is
+            # deterministic for a geometry.
+            rng = np.random.default_rng(seed=n * 7 + int(base_power * 100))
+            multipliers = rng.uniform(0.3, 2.0, size=n)
+            return {name: max(0.05, base_power * multipliers[i]) for i, name in enumerate(block_names)}
+        weight = self._PATTERN_WEIGHTS.get(pattern)
+        if weight is None:
             raise ValueError(f"Unknown pattern: {pattern}")
+        return {name: base_power * weight(i, n, name) for i, name in enumerate(block_names)}
 
-        # Memory-stack (HBM) dies are capped below compute-logic power density,
-        # regardless of pattern. Real HBM3 stacks dissipate roughly 0.1-0.5
-        # W/cm² under typical-to-heavy load (engineering estimate from published
-        # per-stack power figures over the ~48mm² footprint used here, not a
-        # specific cited source); compute logic in this dataset legitimately
-        # sweeps up to 5-20 W/cm² (including Tier-1 extreme scenarios). Without
-        # this cap, patterns like 'uniform' or 'split_chiplet_b_hot' assign
-        # HBM dies the SAME power range as compute logic, producing scenarios
-        # where HBM3 stacks exceed their ~95-105°C junction-temperature spec
-        # (geometry6 recorded T up to 134°C) -- unrealistic for the "6x HBM3,
-        # MI300X-like" claim geometry6's docstring then made (since corrected: MI300X has 8 stacks). 2.0 W/cm² ceiling
-        # gives ~4-6x headroom above typical HBM load for legitimate worst-case
-        # coverage without reaching logic-die-like power density.
-        # Applies to: geometry6 hbm{n}_d1/d2, geometry5 chipB_d1_c*/chipB_d2_c*
-        # (chipB is documented as "HBM-style" in that geometry too).
-        # Raised from 2.0 alongside the POWER_SCALE regime change (2026-07-31).
-        # HBM3E dies genuinely run at ~1-5 W/cm², far below logic, so the cap must
-        # stay an absolute physical ceiling rather than scale with compute power --
-        # but 2.0 against a 300 W/cm² logic hotspot was an unrealistic 150x ratio.
-        # 8.0 keeps HBM well under its ~95-105°C junction spec while allowing
-        # legitimate worst-case coverage.
-        # Convert the relative map into absolute W/cm2 against the TDP budget. Done
-        # BEFORE the HBM cap and RDL terms so those remain absolute physical limits
-        # rather than fractions of a budget.
-        power_map = self._normalise_to_tdp(power_map, workload)
-
-        # Absolute density ceilings. Applied after TDP normalisation, so a
-        # concentrated pattern ends up below TDP rather than at an impossible density.
-        for name in list(power_map):
+    def _apply_density_caps(self, power_map: Dict[str, float], block_names: List[str]) -> None:
+        """Absolute ceilings, in place: every block at most MAX_LOGIC_POWER_DENSITY_WCM2 (so a concentrated pattern
+        ends below TDP rather than at an impossible density), memory dies at most HBM_POWER_CAP_WCM2."""
+        for name in power_map:
             power_map[name] = min(power_map[name], self.MAX_LOGIC_POWER_DENSITY_WCM2)
-
-        _HBM_POWER_CAP_WCM2 = 8.0
         for name in block_names:
-            is_hbm_die = name.startswith('hbm') or name.startswith('chipB_d1') or name.startswith('chipB_d2')
-            if is_hbm_die and name in power_map:
-                power_map[name] = min(power_map[name], _HBM_POWER_CAP_WCM2)
+            if name.startswith(self.HBM_DIE_PREFIXES) and name in power_map:
+                power_map[name] = min(power_map[name], self.HBM_POWER_CAP_WCM2)
 
-        # RDL routing layers self-heat at rdl_joule_fraction of the local logic power.
-        # Varies 1–10% across scenarios to teach the PINN that RDL heating is a
-        # free variable (pump-out degradation, routing density, current load).
+    @staticmethod
+    def _add_rdl_heating(power_map: Dict[str, float], block_names: List[str], rdl_joule_fraction: float) -> None:
+        """RDL routing layers self-heat at rdl_joule_fraction of the hottest logic block, in place. The fraction varies
+        1-10% across scenarios so the models see RDL heating as a free variable."""
         logic = [v for n, v in power_map.items() if 'rdl' not in n.lower()]
         ref = max(logic) if logic else 1.0
         for name in block_names:
             if 'rdl' in name.lower():
                 power_map[name] = max(0.02, ref * rdl_joule_fraction)
-
-        return power_map
 
     def _normalise_to_tdp(self, power_map: Dict[str, float],
                           workload: float) -> Dict[str, float]:
