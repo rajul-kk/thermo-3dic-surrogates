@@ -1,0 +1,299 @@
+{
+  "geometry": "geometry4",
+  "test_split": "test",
+  "n_train": 40,
+  "n_test": 5,
+  "n_points": 56000,
+  "block_keys": [
+    "block_power_chipA_c1",
+    "block_power_chipA_c2",
+    "block_power_chipA_c3",
+    "block_power_chipA_c4",
+    "block_power_chipB_c1",
+    "block_power_chipB_c2",
+    "block_power_chipB_c3",
+    "block_power_chipB_c4"
+  ],
+  "k": 3,
+  "ridge_lambda": 1.0,
+  "summary": {
+    "mean": {
+      "mae_K": 14.317162660457067,
+      "rmse_K": 14.548940266641313,
+      "max_abs_err_K": 23.54691619873048,
+      "r2": -122.40304132039122,
+      "mae_detrended_K": 1.9528672960425002,
+      "spatial_r2": -1.5494801165490806,
+      "true_spatial_std_K": 2.5105609377382185,
+      "hotspot_temp_err_K": 11.146705322265632,
+      "hotspot_loc_err_um": 5047.139706983873,
+      "worst_mae_K": 19.538421362740653
+    },
+    "nn": {
+      "mae_K": 5.3339149957929335,
+      "rmse_K": 5.514378886711354,
+      "max_abs_err_K": 12.905999755859375,
+      "r2": -10.33416556513615,
+      "mae_detrended_K": 0.9383736525365443,
+      "spatial_r2": 0.5935425536713829,
+      "true_spatial_std_K": 2.5105609377382185,
+      "hotspot_temp_err_K": -7.08560791015625,
+      "hotspot_loc_err_um": 7205.538652026213,
+      "worst_mae_K": 6.688715313502721
+    },
+    "knn": {
+      "mae_K": 2.494185101579114,
+      "rmse_K": 2.595101704591819,
+      "max_abs_err_K": 7.87801696747772,
+      "r2": -1.7140617609677697,
+      "mae_detrended_K": 0.36809935848269654,
+      "spatial_r2": 0.9292820044744723,
+      "true_spatial_std_K": 2.5105609377382185,
+      "hotspot_temp_err_K": -5.297810409178714,
+      "hotspot_loc_err_um": 4247.275886159426,
+      "worst_mae_K": 4.696500429629686
+    },
+    "ridge": {
+      "mae_K": 2.9296680436352616,
+      "rmse_K": 2.9842242852920786,
+      "max_abs_err_K": 7.058794758495731,
+      "r2": -3.3693340027576015,
+      "mae_detrended_K": 0.25342907271016185,
+      "spatial_r2": 0.958605775201349,
+      "true_spatial_std_K": 2.5105609377382185,
+      "hotspot_temp_err_K": -4.39431151975665,
+      "hotspot_loc_err_um": 4684.3343291010515,
+      "worst_mae_K": 4.517196335771645
+    }
+  },
+  "per_scenario": {
+    "mean": {
+      "geometry4_test_001": {
+        "mae_K": 19.534369898114885,
+        "rmse_K": 19.67930838821834,
+        "max_abs_err_K": 27.69748001098634,
+        "r2": -157.06309599385176,
+        "mae_detrended_K": 1.9879057315454214,
+        "spatial_r2": -1.3197016722078811,
+        "true_spatial_std_K": 1.565289202123869,
+        "hotspot_temp_err_K": 23.842639923095703,
+        "hotspot_loc_err_um": 3482.09706929603
+      },
+      "geometry4_test_002": {
+        "mae_K": 6.251525049591064,
+        "rmse_K": 6.711724236745194,
+        "max_abs_err_K": 20.096334075927757,
+        "r2": -0.73954107339617,
+        "mae_detrended_K": 2.1557143046264673,
+        "spatial_r2": 0.5380797626689725,
+        "true_spatial_std_K": 5.088816147148318,
+        "hotspot_temp_err_K": -20.096334075927757,
+        "hotspot_loc_err_um": 559.0169943749474
+      },
+      "geometry4_test_003": {
+        "mae_K": 19.538421362740653,
+        "rmse_K": 19.679195631851904,
+        "max_abs_err_K": 26.50747756958009,
+        "r2": -148.5707966626403,
+        "mae_detrended_K": 1.9763511864585042,
+        "spatial_r2": -1.132242535359659,
+        "true_spatial_std_K": 1.6091033524595464,
+        "hotspot_temp_err_K": 25.102002716064476,
+        "hotspot_loc_err_um": 1030.7764064044152
+      },
+      "geometry4_test_004": {
+        "mae_K": 17.9608707951137,
+        "rmse_K": 18.1903174029701,
+        "max_abs_err_K": 27.35042495727538,
+        "r2": -299.7880732690993,
+        "mae_detrended_K": 2.4293754708762534,
+        "spatial_r2": -6.540224472282776,
+        "true_spatial_std_K": 1.0488417615249732,
+        "hotspot_temp_err_K": 22.9133125305176,
+        "hotspot_loc_err_um": 4589.389937671454
+      },
+      "geometry4_test_005": {
+        "mae_K": 8.300626196725029,
+        "rmse_K": 8.484155673421029,
+        "max_abs_err_K": 16.082864379882835,
+        "r2": -5.8536996029686685,
+        "mae_detrended_K": 1.2149897867058554,
+        "spatial_r2": 0.7066883344359396,
+        "true_spatial_std_K": 3.240754225434387,
+        "hotspot_temp_err_K": 3.9719055175781364,
+        "hotspot_loc_err_um": 15574.418127172521
+      }
+    },
+    "nn": {
+      "geometry4_test_001": {
+        "mae_K": 5.2873526965550015,
+        "rmse_K": 5.317436966918168,
+        "max_abs_err_K": 8.0989990234375,
+        "r2": -10.540258106034548,
+        "mae_detrended_K": 0.45829348768971645,
+        "spatial_r2": 0.8697875940858214,
+        "true_spatial_std_K": 1.565289202123869,
+        "hotspot_temp_err_K": -7.12799072265625,
+        "hotspot_loc_err_um": 14214.868975829499
+      },
+      "geometry4_test_002": {
+        "mae_K": 6.118347878047398,
+        "rmse_K": 6.391506643148512,
+        "max_abs_err_K": 25.97100830078125,
+        "r2": -0.5775130769862109,
+        "mae_detrended_K": 1.0550358731788376,
+        "spatial_r2": 0.8680425608653037,
+        "true_spatial_std_K": 5.088816147148318,
+        "hotspot_temp_err_K": -25.667022705078125,
+        "hotspot_loc_err_um": 3201.5621187164243
+      },
+      "geometry4_test_003": {
+        "mae_K": 2.3326193286350794,
+        "rmse_K": 2.4135667896673585,
+        "max_abs_err_K": 3.7239990234375,
+        "r2": -1.249835490848564,
+        "mae_detrended_K": 0.4788437126736538,
+        "spatial_r2": 0.8488488956733556,
+        "true_spatial_std_K": 1.6091033524595464,
+        "hotspot_temp_err_K": -2.699005126953125,
+        "hotspot_loc_err_um": 8097.067370350824
+      },
+      "geometry4_test_004": {
+        "mae_K": 6.24253976222447,
+        "rmse_K": 6.335234885796742,
+        "max_abs_err_K": 9.277008056640625,
+        "r2": -35.484256508110484,
+        "mae_detrended_K": 0.8261123073397284,
+        "spatial_r2": -0.05984109370144308,
+        "true_spatial_std_K": 1.0488417615249732,
+        "hotspot_temp_err_K": -5.813018798828125,
+        "hotspot_loc_err_um": 8746.42784226795
+      },
+      "geometry4_test_005": {
+        "mae_K": 6.688715313502721,
+        "rmse_K": 7.114149148025991,
+        "max_abs_err_K": 17.458984375,
+        "r2": -3.8189646437009417,
+        "mae_detrended_K": 1.8735828818007854,
+        "spatial_r2": 0.44087481143387663,
+        "true_spatial_std_K": 3.240754225434387,
+        "hotspot_temp_err_K": 5.878997802734375,
+        "hotspot_loc_err_um": 1767.7669529663688
+      }
+    },
+    "knn": {
+      "geometry4_test_001": {
+        "mae_K": 0.9297356395668916,
+        "rmse_K": 0.9852804769410549,
+        "max_abs_err_K": 3.523716111642557,
+        "r2": 0.6037853073875099,
+        "mae_detrended_K": 0.21540167775160254,
+        "spatial_r2": 0.9564943616602006,
+        "true_spatial_std_K": 1.565289202123869,
+        "hotspot_temp_err_K": -2.2638703577034676,
+        "hotspot_loc_err_um": 3508.9172119045497
+      },
+      "geometry4_test_002": {
+        "mae_K": 2.5197083394315634,
+        "rmse_K": 2.8158815745882175,
+        "max_abs_err_K": 19.01022613810602,
+        "r2": 0.6938070049436931,
+        "mae_detrended_K": 0.6268757992893318,
+        "spatial_r2": 0.9389768347002173,
+        "true_spatial_std_K": 5.088816147148318,
+        "hotspot_temp_err_K": -18.058888151754502,
+        "hotspot_loc_err_um": 1903.943276465977
+      },
+      "geometry4_test_003": {
+        "mae_K": 0.9843470302592998,
+        "rmse_K": 1.0432473707855363,
+        "max_abs_err_K": 3.2812803182029597,
+        "r2": 0.5796541941866964,
+        "mae_detrended_K": 0.2278286598438779,
+        "spatial_r2": 0.9536453123223104,
+        "true_spatial_std_K": 1.6091033524595464,
+        "hotspot_temp_err_K": -3.2579514395958427,
+        "hotspot_loc_err_um": 7850.159234053791
+      },
+      "geometry4_test_004": {
+        "mae_K": 3.340634069008127,
+        "rmse_K": 3.3633628575935655,
+        "max_abs_err_K": 4.754623276018378,
+        "r2": -9.283181594173683,
+        "mae_detrended_K": 0.27947816015612803,
+        "spatial_r2": 0.8614871220059092,
+        "true_spatial_std_K": 1.0488417615249732,
+        "hotspot_temp_err_K": -4.125391883240184,
+        "hotspot_loc_err_um": 6020.797289396148
+      },
+      "geometry4_test_005": {
+        "mae_K": 4.696500429629686,
+        "rmse_K": 4.767736243050722,
+        "max_abs_err_K": 8.820238993418684,
+        "r2": -1.1643737171830653,
+        "mae_detrended_K": 0.49091249537254245,
+        "spatial_r2": 0.9358063916837238,
+        "true_spatial_std_K": 3.240754225434387,
+        "hotspot_temp_err_K": 1.2170497864004233,
+        "hotspot_loc_err_um": 1952.5624189766636
+      }
+    },
+    "ridge": {
+      "geometry4_test_001": {
+        "mae_K": 4.517196335771645,
+        "rmse_K": 4.529350592725103,
+        "max_abs_err_K": 6.73787261503702,
+        "r2": -7.3730309798832,
+        "mae_detrended_K": 0.22418425923317573,
+        "spatial_r2": 0.9551231799688695,
+        "true_spatial_std_K": 1.565289202123869,
+        "hotspot_temp_err_K": -5.131417784230109,
+        "hotspot_loc_err_um": 1414.213562373095
+      },
+      "geometry4_test_002": {
+        "mae_K": 1.0092548366532148,
+        "rmse_K": 1.1675124413100724,
+        "max_abs_err_K": 11.040108901919098,
+        "r2": 0.9473631958456441,
+        "mae_detrended_K": 0.30273427282912363,
+        "spatial_r2": 0.9794447582992282,
+        "true_spatial_std_K": 5.088816147148318,
+        "hotspot_temp_err_K": -9.851677658164988,
+        "hotspot_loc_err_um": 1820.0274723201296
+      },
+      "geometry4_test_003": {
+        "mae_K": 3.809456398875442,
+        "rmse_K": 3.8263510937389382,
+        "max_abs_err_K": 5.977202184671739,
+        "r2": -4.654598252842766,
+        "mae_detrended_K": 0.2318583467270303,
+        "spatial_r2": 0.9501761315949019,
+        "true_spatial_std_K": 1.6091033524595464,
+        "hotspot_temp_err_K": -3.963137204112229,
+        "hotspot_loc_err_um": 3913.118960624632
+      },
+      "geometry4_test_004": {
+        "mae_K": 2.7886401747379437,
+        "rmse_K": 2.799337846755605,
+        "max_abs_err_K": 4.2721235520921255,
+        "r2": -6.123455065291089,
+        "mae_detrended_K": 0.12495103071420871,
+        "spatial_r2": 0.945659450540689,
+        "true_spatial_std_K": 1.0488417615249732,
+        "hotspot_temp_err_K": 1.3026796143307138,
+        "hotspot_loc_err_um": 14673.530590829188
+      },
+      "geometry4_test_005": {
+        "mae_K": 2.5237924721380613,
+        "rmse_K": 2.5985694519306732,
+        "max_abs_err_K": 7.26666653875867,
+        "r2": 0.3570510883834037,
+        "mae_detrended_K": 0.3834174540472709,
+        "spatial_r2": 0.9626253556030565,
+        "true_spatial_std_K": 3.240754225434387,
+        "hotspot_temp_err_K": -4.328004566606637,
+        "hotspot_loc_err_um": 1600.7810593582121
+      }
+    }
+  }
+}
