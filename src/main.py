@@ -269,7 +269,10 @@ def _process_split(split: str,
 
     count = 0
     for i, scenario_params in enumerate(scenarios, start_index):
-        scenario_name = f"{geometry_name}_{split}_{i:03d}"
+        # The scenario's own name, which carries the index the generator gave it. Numbering by list position put
+        # extra-train scenarios generated from an auto-detected start (say 022) at file 016 onward, where existing
+        # files made them look done and they were skipped.
+        scenario_name = scenario_params.get('name') or f"{geometry_name}_{split}_{i:03d}"
         if (output_base / f"{scenario_name}.npz").exists():
             logger.info(f"  [SKIP] {scenario_name} (already exists)")
             count += 1
@@ -708,7 +711,8 @@ def main(argv=None):
     args.output.mkdir(parents=True, exist_ok=True)
 
     geometries = load_geometries()
-    geometry_list = STANDARD_GEOMETRIES if args.all_geometries else [args.geometry]
+    geometry_list = (STANDARD_GEOMETRIES if args.all_geometries or args.geometry == 'all'
+                     else [args.geometry])
     logger.info("\nGenerating scenario parameters...")
     scenarios_by_geometry = generate_scenarios(ScenarioGenerator(), geometries, geometry_list, args)
     if args.generator_only:

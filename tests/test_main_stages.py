@@ -96,3 +96,25 @@ def test_generator_only_writes_scenarios(tmp_path):
     assert [s["name"] for s in data["train"][-2:]] == ["geometry1_train_016", "geometry1_train_017"]
     assert set(data["train"][0]) == {"name", "geometry", "type", "power_blocks", "htc", "t_ambient", "pattern",
                                      "description", "rdl_joule_fraction", "layer_k_overrides"}
+
+
+def test_extra_train_files_take_the_generated_index(tmp_path, monkeypatch):
+    d = tmp_path / "geometry1"
+    d.mkdir()
+    for i in range(1, 22):
+        (d / f"geometry1_train_{i:03d}.npz").touch()
+    ran = []
+
+    def fake_process(name, *a, **k):
+        ran.append(name)
+        return {}
+
+    monkeypatch.setattr(pipeline, "process_scenario", fake_process)
+    monkeypatch.setattr(pipeline, "log_summary", lambda *a: None)
+    pipeline.main(["--geometry", "geometry1", "--extra-train", "2", "--output", str(tmp_path)])
+    assert ran == ["geometry1_train_022", "geometry1_train_023"]
+
+
+def test_geometry_all_means_the_standard_set(tmp_path):
+    assert pipeline.main(["--generator-only", "--geometry", "all", "--output", str(tmp_path)]) == 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == pipeline.STANDARD_GEOMETRIES
