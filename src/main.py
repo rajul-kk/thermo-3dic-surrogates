@@ -7,7 +7,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Optional, Dict
 import numpy as np
 import json
 
@@ -248,6 +248,53 @@ def process_scenario(scenario_name: str,
     return stats
 
 
+def _process_split(split: str,
+                   geometry_name: str,
+                   geometry: object,
+                   scenarios: List[Dict],
+                   start_index: int,
+                   simulator: object,
+                   exporter: NPZExporter,
+                   calculator: StatisticsCalculator,
+                   output_base: Path,
+                   all_stats: Dict,
+                   use_synthetic: bool,
+                   allow_synthetic_fallback: bool) -> int:
+    """Run one split ('train' or 'test') of a geometry, skipping files already on disk. Records stats and failures
+    in all_stats and returns how many scenarios were processed or skipped."""
+    title = 'Training' if split == 'train' else 'Test'
+    logger.info(f"\n{title} Scenarios ({len(scenarios)} total):")
+    split_dir = output_base / split
+    split_dir.mkdir(parents=True, exist_ok=True)
+
+    count = 0
+    for i, scenario_params in enumerate(scenarios, start_index):
+        scenario_name = f"{geometry_name}_{split}_{i:03d}"
+        if (output_base / f"{scenario_name}.npz").exists():
+            logger.info(f"  [SKIP] {scenario_name} (already exists)")
+            count += 1
+            continue
+        try:
+            stats = process_scenario(
+                scenario_name,
+                scenario_params,
+                geometry,
+                simulator,
+                exporter,
+                calculator,
+                split_dir,
+                use_synthetic=use_synthetic,
+                generate_plots=(i == 1),  # Plot only first for speed
+                allow_synthetic_fallback=allow_synthetic_fallback
+            )
+            all_stats[split][scenario_name] = stats
+            count += 1
+        except Exception as e:
+            logger.error(f"  [FAILED] {scenario_name}: {e}")
+            all_stats['failed'].append(scenario_name)
+    return count
+
+
 def process_geometry(geometry_name: str,
                      geometry: object,
                      scenarios_per_type: Dict[str, List[Dict]],
@@ -268,75 +315,24 @@ def process_geometry(geometry_name: str,
 
     all_stats = {'train': {}, 'test': {}, 'failed': []}
     scenario_count = 0
-
-    # Process training scenarios
-    if not skip_train:
-        logger.info(f"\nTraining Scenarios ({len(scenarios_per_type['train'])} total):")
-        train_dir = output_base / "train"
-        train_dir.mkdir(parents=True, exist_ok=True)
-
-        for i, scenario_params in enumerate(scenarios_per_type['train'], train_start_index):
-            scenario_name = f"{geometry_name}_train_{i:03d}"
-            if (output_base / f"{scenario_name}.npz").exists():
-                logger.info(f"  [SKIP] {scenario_name} (already exists)")
-                scenario_count += 1
-                continue
-            try:
-                stats = process_scenario(
-                    scenario_name,
-                    scenario_params,
-                    geometry,
-                    simulator,
-                    exporter,
-                    calculator,
-                    train_dir,
-                    use_synthetic=use_synthetic,
-                    generate_plots=(i == 1),  # Plot only first for speed
-                    allow_synthetic_fallback=allow_synthetic_fallback
-                )
-                all_stats['train'][scenario_name] = stats
-                scenario_count += 1
-            except Exception as e:
-                logger.error(f"  [FAILED] {scenario_name}: {e}")
-                all_stats['failed'].append(scenario_name)
-
-    # Process test scenarios
-    if not skip_test:
-        logger.info(f"\nTest Scenarios ({len(scenarios_per_type['test'])} total):")
-        test_dir = output_base / "test"
-        test_dir.mkdir(parents=True, exist_ok=True)
-
-        for i, scenario_params in enumerate(scenarios_per_type['test'], 1):
-            scenario_name = f"{geometry_name}_test_{i:03d}"
-            if (output_base / f"{scenario_name}.npz").exists():
-                logger.info(f"  [SKIP] {scenario_name} (already exists)")
-                scenario_count += 1
-                continue
-            try:
-                stats = process_scenario(
-                    scenario_name,
-                    scenario_params,
-                    geometry,
-                    simulator,
-                    exporter,
-                    calculator,
-                    test_dir,
-                    use_synthetic=use_synthetic,
-                    generate_plots=(i == 1),  # Plot only first for speed
-                    allow_synthetic_fallback=allow_synthetic_fallback
-                )
-                all_stats['test'][scenario_name] = stats
-                scenario_count += 1
-            except Exception as e:
-                logger.error(f"  [FAILED] {scenario_name}: {e}")
-                all_stats['failed'].append(scenario_name)
+    for split, skip, start in (('train', skip_train, train_start_index), ('test', skip_test, 1)):
+        if not skip:
+            scenario_count += _process_split(
+                split, geometry_name, geometry, scenarios_per_type[split], start,
+                simulator=simulator, exporter=exporter, calculator=calculator, output_base=output_base,
+                all_stats=all_stats, use_synthetic=use_synthetic,
+                allow_synthetic_fallback=allow_synthetic_fallback)
 
     logger.info(f"\n{geometry_name}: {scenario_count} scenarios processed")
     return all_stats
 
 
-def main():
-    """Main orchestration entry point."""
+# The standard dataset. geometry7 (the CoWoS-L pilot) is left out and only runs via --geometry geometry7.
+STANDARD_GEOMETRIES = ['geometry1', 'geometry2a', 'geometry3', 'geometry4', 'geometry5', 'geometry6']
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The command line of the data generator."""
     parser = argparse.ArgumentParser(
         description='3D-IC Thermal PINN Benchmark Data Generator'
     )
@@ -472,61 +468,27 @@ def main():
         action='store_true',
         help='Verbose logging'
     )
+    return parser
 
-    args = parser.parse_args()
 
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+def make_sim_tmpdir(args) -> Optional[str]:
+    """A per-process temp dir for the simulator's config and output files, so concurrent main.py invocations (one
+    per geometry) don't share them. None for the mock, which writes no files."""
+    if args.simulator not in ('3d-ice', 'hotspot'):
+        return None
+    prefix = 'ice' if args.simulator == '3d-ice' else 'hotspot'
+    return tempfile.mkdtemp(prefix=f'{prefix}_pid{os.getpid()}_')
 
-    logger.info("=" * 80)
-    logger.info("3D-IC THERMAL PINN BENCHMARK SYSTEM")
-    logger.info("=" * 80)
-    logger.info(f"Simulator: {args.simulator}")
-    logger.info(f"Output: {args.output}")
 
-    # Create output directory
-    args.output.mkdir(parents=True, exist_ok=True)
-
-    # Load geometries
-    geometries = load_geometries()
-
-    # Determine which geometries to process
-    geometry_list = ['geometry1', 'geometry2a',
-                     'geometry3', 'geometry4', 'geometry5', 'geometry6'] \
-        if args.all_geometries else [args.geometry]
-
-    # Initialize simulator — use a per-process temp dir so concurrent main.py
-    # invocations (one per geometry) don't share 3D-ICE config/output files.
-    simulator = None
-    _sim_tmpdir = None
-    if args.simulator == '3d-ice':
-        _sim_tmpdir = tempfile.mkdtemp(prefix=f'ice_pid{os.getpid()}_')
-        config_dir = Path(_sim_tmpdir) / 'configs'
-        sim_output_dir = Path(_sim_tmpdir) / 'output'
-        config_dir.mkdir()
-        sim_output_dir.mkdir()
-        if args.ice_backend == 'native':
-            from src.simulators.ice_native import NativeICESimulator
-            simulator = NativeICESimulator(
-                config_dir=config_dir,
-                output_dir=sim_output_dir,
-                executable=args.ice_executable,
-                batch_executable=args.ice_batch_executable,
-            )
-            logger.info(f"3D-ICE simulator: {args.ice_executable}, native batch backend {simulator.batch_executable}")
-        else:
-            simulator = ICESimulator(
-                config_dir=config_dir,
-                output_dir=sim_output_dir,
-                executable=args.ice_executable
-            )
-            logger.info(f"3D-ICE simulator: {args.ice_executable}")
-    elif args.simulator == 'hotspot':
-        _sim_tmpdir = tempfile.mkdtemp(prefix=f'hotspot_pid{os.getpid()}_')
-        config_dir = Path(_sim_tmpdir) / 'configs'
-        sim_output_dir = Path(_sim_tmpdir) / 'output'
-        config_dir.mkdir()
-        sim_output_dir.mkdir()
+def make_simulator(args, sim_tmpdir: Optional[str]) -> object:
+    """The simulator backend, working inside sim_tmpdir (None for the mock)."""
+    if sim_tmpdir is None:
+        return None
+    config_dir = Path(sim_tmpdir) / 'configs'
+    sim_output_dir = Path(sim_tmpdir) / 'output'
+    config_dir.mkdir()
+    sim_output_dir.mkdir()
+    if args.simulator == 'hotspot':
         simulator = HotSpotSimulator(
             config_dir=config_dir,
             output_dir=sim_output_dir,
@@ -534,66 +496,84 @@ def main():
         )
         logger.info(f"HotSpot simulator: {args.hotspot_executable}")
         logger.info("Note: HotSpot models the full single-die stack (square chip); multi-die 3D stacks are not supported")
+    elif args.ice_backend == 'native':
+        from src.simulators.ice_native import NativeICESimulator
+        simulator = NativeICESimulator(
+            config_dir=config_dir,
+            output_dir=sim_output_dir,
+            executable=args.ice_executable,
+            batch_executable=args.ice_batch_executable,
+        )
+        logger.info(f"3D-ICE simulator: {args.ice_executable}, native batch backend {simulator.batch_executable}")
+    else:
+        simulator = ICESimulator(
+            config_dir=config_dir,
+            output_dir=sim_output_dir,
+            executable=args.ice_executable
+        )
+        logger.info(f"3D-ICE simulator: {args.ice_executable}")
+    return simulator
 
-    # Generate scenarios for all requested geometries
-    logger.info("\nGenerating scenario parameters...")
-    scenario_generator = ScenarioGenerator()
+
+def release_simulator(simulator: object, sim_tmpdir: Optional[str]) -> None:
+    """Stop the simulator (the native backend keeps a 3D-ICE-Batch process running in the temp dir, which on
+    Windows locks its files) and remove the temp dir."""
+    close = getattr(simulator, 'close', None)
+    if close is not None:
+        close()
+    if sim_tmpdir and Path(sim_tmpdir).exists():
+        shutil.rmtree(sim_tmpdir, ignore_errors=True)
+
+
+def attach_fields(generator: ScenarioGenerator, scenarios: List, geom: object, args,
+                  tsv_seed_base: int = 0, power_seed_base: int = 0) -> None:
+    """Attach the per-scenario fields the command line asks for, in place."""
+    # Spatially varying TSV density field, replacing the geometry's single tsv_density scalar. No-op for geometries
+    # without TSV layers -- always on, since it strictly increases fidelity at no measured solve-time cost (see
+    # assumptions.md TSV section).
+    generator.attach_tsv_maps(scenarios, geom, seed_base=tsv_seed_base)
+    if args.power_map:
+        # Replace block scalars with per-cell power fields. Keeps the TDP budget, density ceiling and cooling rule;
+        # only redistributes power in space. This is what makes the input a function rather than ~8 numbers -- see
+        # src/scenario/power_maps.py.
+        generator.attach_power_maps(scenarios, geom, kind=args.power_map,
+                                    resolution=args.power_map_resolution, seed_base=power_seed_base)
+    if args.throttle:
+        # Package-level DVFS: power becomes a function of the temperature being solved for, a real closed feedback
+        # loop no fixed-source scenario can express -- see src/scenario/throttling.py. Costs ~2x solve time per
+        # scenario (measured convergence in 2 solves).
+        generator.attach_throttling(scenarios, throttle_temp_c=args.throttle_temp,
+                                    gain=args.throttle_gain, power_floor=args.throttle_floor)
+
+
+def extra_train_start(args, geom_name: str) -> int:
+    """File index of the first extra training scenario: --train-start, else one after the last file on disk, else
+    16."""
+    if args.train_start is not None:
+        return args.train_start
+    existing = sorted((args.output / geom_name).glob(f"{geom_name}_train_*.npz"))
+    return int(existing[-1].stem.split('_')[-1]) + 1 if existing else 16
+
+
+def generate_scenarios(generator: ScenarioGenerator, geometries: Dict[str, object], geometry_list: List[str],
+                       args) -> Dict[str, Dict[str, List[Dict]]]:
+    """Train and test scenario dicts per geometry: always the base 15 train + 5 test, plus --extra-train."""
     scenarios_by_geometry = {}
-    train_start_by_geometry = {}
-
     for geom_name in geometry_list:
         geom = geometries[geom_name]
-
-        # Always generate base 15 train + 5 test first
-        geom_scenarios = scenario_generator.generate_all_scenarios(geom)
-        # Spatially varying TSV density field, replacing the geometry's single
-        # tsv_density scalar. No-op for geometries without TSV layers -- always
-        # on, since it strictly increases fidelity at no measured solve-time
-        # cost (see assumptions.md TSV section).
-        scenario_generator.attach_tsv_maps(geom_scenarios, geom)
-        if args.power_map:
-            # Replace block scalars with per-cell power fields. Keeps the TDP
-            # budget, density ceiling and cooling rule; only redistributes power
-            # in space. This is what makes the input a function rather than ~8
-            # numbers -- see src/scenario/power_maps.py.
-            scenario_generator.attach_power_maps(
-                geom_scenarios, geom, kind=args.power_map,
-                resolution=args.power_map_resolution)
-        if args.throttle:
-            # Package-level DVFS: power becomes a function of the temperature
-            # being solved for, a real closed feedback loop no fixed-source
-            # scenario can express -- see src/scenario/throttling.py. Costs
-            # ~2x solve time per scenario (measured convergence in 2 solves).
-            scenario_generator.attach_throttling(
-                geom_scenarios, throttle_temp_c=args.throttle_temp,
-                gain=args.throttle_gain, power_floor=args.throttle_floor)
+        geom_scenarios = generator.generate_all_scenarios(geom)
+        attach_fields(generator, geom_scenarios, geom, args)
         scenario_dicts = [s.to_dict() for s in geom_scenarios]
         train = [s for s in scenario_dicts if s['type'] == 'train']
         test  = [s for s in scenario_dicts if s['type'] == 'test']
 
         if args.extra_train > 0:
-            # Append extra training scenarios starting after any already on disk.
-            if args.train_start is not None:
-                start = args.train_start
-            else:
-                existing = sorted(
-                    (args.output / geom_name).glob(f"{geom_name}_train_*.npz")
-                )
-                start = (int(existing[-1].stem.split('_')[-1]) + 1
-                         if existing else 16)
-            extra = scenario_generator.generate_extra_training_scenarios(
+            start = extra_train_start(args, geom_name)
+            extra = generator.generate_extra_training_scenarios(
                 geom, args.extra_train, start_index=start,
                 pool_start_idx=args.pool_start,
             )
-            scenario_generator.attach_tsv_maps(extra, geom, seed_base=900_000)
-            if args.power_map:
-                scenario_generator.attach_power_maps(
-                    extra, geom, kind=args.power_map,
-                    resolution=args.power_map_resolution, seed_base=500_000)
-            if args.throttle:
-                scenario_generator.attach_throttling(
-                    extra, throttle_temp_c=args.throttle_temp,
-                    gain=args.throttle_gain, power_floor=args.throttle_floor)
+            attach_fields(generator, extra, geom, args, tsv_seed_base=900_000, power_seed_base=500_000)
             train = train + [s.to_dict() for s in extra]
             logger.info(
                 "  %s: 15 base + %d extra train + 5 test  (extra indices %d-%d)",
@@ -603,83 +583,78 @@ def main():
             logger.info(f"  {geom_name}: {len(train)} train + {len(test)} test scenarios")
 
         scenarios_by_geometry[geom_name] = {'train': train, 'test': test}
-        train_start_by_geometry[geom_name] = 1
+    return scenarios_by_geometry
 
-    # If generator-only mode, save scenarios and exit
-    if args.generator_only:
-        logger.info("\nSaving scenario configurations...")
-        for geom_name, scenario_dict in scenarios_by_geometry.items():
-            geom_output = args.output / geom_name
-            geom_output.mkdir(parents=True, exist_ok=True)
-            config_file = geom_output / "scenarios.json"
 
-            # Convert scenario dicts to serializable format
-            def _serialize_scenario(s):
-                d = {
-                    'name': s['name'],
-                    'geometry': s['geometry'],
-                    'type': s['type'],
-                    'power_blocks': s['power_blocks'],
-                    'htc': float(s['htc']),
-                    't_ambient': float(s['t_ambient']),
-                    'pattern': s['pattern'],
-                    'description': s['description'],
-                    'rdl_joule_fraction': float(s.get('rdl_joule_fraction', 0.05)),
-                    'layer_k_overrides': s.get('layer_k_overrides', {}),
-                }
-                return d
-            train_serializable = [_serialize_scenario(s) for s in scenario_dict['train']]
-            test_serializable  = [_serialize_scenario(s) for s in scenario_dict['test']]
+def _serialize_scenario(s: Dict) -> Dict:
+    """The fields of a scenario dict that --generator-only writes to scenarios.json."""
+    return {
+        'name': s['name'],
+        'geometry': s['geometry'],
+        'type': s['type'],
+        'power_blocks': s['power_blocks'],
+        'htc': float(s['htc']),
+        't_ambient': float(s['t_ambient']),
+        'pattern': s['pattern'],
+        'description': s['description'],
+        'rdl_joule_fraction': float(s.get('rdl_joule_fraction', 0.05)),
+        'layer_k_overrides': s.get('layer_k_overrides', {}),
+    }
 
-            with open(config_file, 'w') as f:
-                json.dump({
-                    'train': train_serializable,
-                    'test': test_serializable
-                }, f, indent=2)
-            logger.info(f"  {config_file}")
-        logger.info("\n[OK] Scenario generation complete")
-        return 0
 
-    # Process geometries
+def save_scenario_configs(scenarios_by_geometry: Dict[str, Dict[str, List[Dict]]], output: Path) -> None:
+    """--generator-only: write each geometry's scenarios to <output>/<geometry>/scenarios.json."""
+    logger.info("\nSaving scenario configurations...")
+    for geom_name, scenario_dict in scenarios_by_geometry.items():
+        geom_output = output / geom_name
+        geom_output.mkdir(parents=True, exist_ok=True)
+        config_file = geom_output / "scenarios.json"
+        with open(config_file, 'w') as f:
+            json.dump({
+                'train': [_serialize_scenario(s) for s in scenario_dict['train']],
+                'test': [_serialize_scenario(s) for s in scenario_dict['test']],
+            }, f, indent=2)
+        logger.info(f"  {config_file}")
+    logger.info("\n[OK] Scenario generation complete")
+
+
+def run_geometries(geometries: Dict[str, object], geometry_list: List[str],
+                   scenarios_by_geometry: Dict[str, Dict[str, List[Dict]]], simulator: object, args) -> Dict:
+    """Simulate, export and summarise every scenario; returns the per-geometry stats."""
     all_results = {}
     for geom_name in geometry_list:
-        geom = geometries[geom_name]
-        output_geom = args.output / geom_name
-
-        results = process_geometry(
+        all_results[geom_name] = process_geometry(
             geom_name,
-            geom,
+            geometries[geom_name],
             scenarios_by_geometry[geom_name],
             simulator,
-            output_geom,
+            args.output / geom_name,
             use_synthetic=(args.simulator == 'mock'),
             skip_train=args.skip_train,
             skip_test=(args.skip_test or args.extra_train > 0),
-            train_start_index=train_start_by_geometry[geom_name],
             allow_synthetic_fallback=args.allow_synthetic_fallback,
         )
-        all_results[geom_name] = results
+    return all_results
 
-    # Summary
+
+def log_summary(all_results: Dict, output: Path) -> None:
+    """Totals and the dataset layout."""
     logger.info(f"\n{'='*80}")
     logger.info("PROCESSING COMPLETE")
     logger.info(f"{'='*80}")
 
     total_train = sum(len(all_results[g]['train']) for g in all_results)
     total_test = sum(len(all_results[g]['test']) for g in all_results)
-    total_scenarios = total_train + total_test
-    failed = {g: all_results[g].get('failed', []) for g in all_results}
-    n_failed = sum(len(v) for v in failed.values())
     total_size_mb = sum(
-        (args.output / g / "train").stat().st_size / (1024**2)
-        for g in all_results if (args.output / g / "train").exists()
+        (output / g / "train").stat().st_size / (1024**2)
+        for g in all_results if (output / g / "train").exists()
     )
 
     logger.info(f"Geometries processed: {len(all_results)}")
     logger.info(f"Training scenarios: {total_train}")
     logger.info(f"Test scenarios: {total_test}")
-    logger.info(f"Total scenarios: {total_scenarios}")
-    logger.info(f"Data directory: {args.output}")
+    logger.info(f"Total scenarios: {total_train + total_test}")
+    logger.info(f"Data directory: {output}")
     logger.info(f"Estimated size: {total_size_mb:.1f} MB")
 
     logger.info("\nDataset structure:")
@@ -689,23 +664,22 @@ def main():
         logger.info(f"    test/   ({len(all_results[geom_name]['test'])} scenarios)")
         logger.info(f"    plots/  (optional visualizations)")
 
-    if _sim_tmpdir and Path(_sim_tmpdir).exists():
-        shutil.rmtree(_sim_tmpdir, ignore_errors=True)
 
-    # Exit non-zero on partial or empty output. Per-scenario failures used to be
-    # logged and then swallowed: a run in which EVERY scenario raised still
-    # printed "PROCESSING COMPLETE" and returned 0, so a batch script saw success
-    # while producing no files at all. Anything driving this in a loop needs the
-    # exit code to mean something.
+def exit_code(all_results: Dict, output: Path) -> int:
+    """1 on partial or empty output, else 0. Per-scenario failures used to be logged and then swallowed: a run in which
+    EVERY scenario raised still printed "PROCESSING COMPLETE" and returned 0, so a batch script saw success while
+    producing no files at all. Anything driving this in a loop needs the exit code to mean something."""
+    failed = {g: all_results[g].get('failed', []) for g in all_results}
+    n_failed = sum(len(v) for v in failed.values())
     if n_failed:
         logger.error("%d scenario(s) FAILED:", n_failed)
         for geom_name, names in failed.items():
             if names:
                 logger.error("  %s: %s", geom_name, ', '.join(names))
 
-    if total_scenarios == 0:
+    if sum(len(r['train']) + len(r['test']) for r in all_results.values()) == 0:
         logger.error(
-            "No scenarios were produced. Nothing was written to %s.", args.output)
+            "No scenarios were produced. Nothing was written to %s.", output)
         return 1
 
     if n_failed:
@@ -717,8 +691,38 @@ def main():
     logger.info("2. Compute additional statistics across dataset")
     logger.info("3. Validate physical consistency of thermal results")
     logger.info("4. Train PINNs on benchmark dataset")
-
     return 0
+
+
+def main(argv=None):
+    """Main orchestration entry point."""
+    args = build_parser().parse_args(argv)
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    logger.info("=" * 80)
+    logger.info("3D-IC THERMAL PINN BENCHMARK SYSTEM")
+    logger.info("=" * 80)
+    logger.info(f"Simulator: {args.simulator}")
+    logger.info(f"Output: {args.output}")
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    geometries = load_geometries()
+    geometry_list = STANDARD_GEOMETRIES if args.all_geometries else [args.geometry]
+    logger.info("\nGenerating scenario parameters...")
+    scenarios_by_geometry = generate_scenarios(ScenarioGenerator(), geometries, geometry_list, args)
+    if args.generator_only:
+        save_scenario_configs(scenarios_by_geometry, args.output)
+        return 0
+
+    simulator, sim_tmpdir = None, make_sim_tmpdir(args)
+    try:
+        simulator = make_simulator(args, sim_tmpdir)
+        all_results = run_geometries(geometries, geometry_list, scenarios_by_geometry, simulator, args)
+        log_summary(all_results, args.output)
+    finally:
+        release_simulator(simulator, sim_tmpdir)
+    return exit_code(all_results, args.output)
 
 
 if __name__ == '__main__':
