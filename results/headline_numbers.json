@@ -113,12 +113,87 @@
   }
  },
  {
+  "id": "thermono_prefix_advantage",
+  "finding": 4,
+  "value": "2.6–5.4×",
+  "readme": "ThermoNO's apparent 2.6–5.4× hotspot advantage",
+  "source": [
+   "results/thermono_kaggle/summary.json"
+  ],
+  "how": "per geometry, backbone abs_peak_err_K over the seed-mean ThermoNO abs_peak_err_K (seeds 0-2, pre-fix data); min and max over geometry4-6",
+  "detail": {
+   "ratio_by_geometry": {
+    "geometry4": 2.6033930598820754,
+    "geometry5": 3.699003666099696,
+    "geometry6": 5.358679542628945
+   }
+  }
+ },
+ {
+  "id": "label_swap_beta",
+  "finding": 4,
+  "value": "β 0.77–0.95",
+  "readme": "amplitude (β 0.77–0.95, all 3 seeds",
+  "source": [
+   "results/artefact_projection/projection_summary.json"
+  ],
+  "how": "results['thermono|<g>'].analysis.beta.mean.mean (3-seed mean over 5 folds), min and max over geometry4-6",
+  "detail": {
+   "beta_by_geometry": {
+    "geometry4": 0.953993937565988,
+    "geometry5": 0.7742510740763306,
+    "geometry6": 0.8022260742067636
+   }
+  }
+ },
+ {
+  "id": "fno_label_swap_beta",
+  "finding": 4,
+  "value": "β 0.35 and 0.26",
+  "readme": "geometry4/6 (β 0.35 and 0.26, CI above zero)",
+  "source": [
+   "results/artefact_projection/projection_summary.json"
+  ],
+  "how": "results['fno|<g>'].analysis.beta.mean.mean for geometry4 and geometry6",
+  "detail": {
+   "beta_by_geometry": {
+    "geometry4": 0.35253784703120206,
+    "geometry6": 0.2598809178193551
+   }
+  }
+ },
+ {
+  "id": "icb_ridge_orientation_change",
+  "finding": 5,
+  "value": "≤ 0.34%",
+  "readme": "Ridge-type baselines change by ≤ 0.34% when fixed",
+  "source": [
+   "results/icb_orientation/baselines_old.json",
+   "results/icb_orientation/baselines_fixed.json"
+  ],
+  "how": "largest |fixed - old| / old test RMSE over the ridge-* baselines at every level present in both files (levels 2-4), rounded up",
+  "detail": {
+   "relative_rmse_change": {
+    "level2/ridge-green": 2.307929028136942e-05,
+    "level2/ridge-pca": 0.0021324432596135537,
+    "level2/ridge-per-geom": 0.0010250192305821355,
+    "level3/ridge-green": 0.00016232040272585262,
+    "level3/ridge-pca": 0.00056498866428274,
+    "level3/ridge-per-geom": 0.003351159247653002,
+    "level4/ridge-green": 3.1579915307291756e-05,
+    "level4/ridge-pca": 0.0009531329601244832,
+    "level4/ridge-per-geom": 0.0023232774179113855
+   },
+   "rounding": "up to 0.01%, since the text states a bound"
+  }
+ },
+ {
   "id": "field_vs_vector_r2",
   "finding": 2,
   "value": null,
   "readme": "R² 0.95 from the per-cell power field and −0.67 from the block vector",
   "source": null,
-  "note": "report 9.15c quotes 'about 0.95' over CV values 0.936/0.951/0.954; the -0.67 file was not located"
+  "note": "report 9.15c (re-measured 2026-09-24) quotes field 0.936/0.951/0.954 at pca_k 8/16/32 and compact -0.67, printed by a CV script that writes no file. The nearest result file, results/v5/layout_cv_geometry4.json (v5 snapped data), gives ridge r2_mean -0.663, i.e. -0.66: the README value may predate the v5 snap"
  },
  {
   "id": "pcg_iterations",
@@ -126,7 +201,7 @@
   "value": null,
   "readme": "20–50 iterations",
   "source": null,
-  "note": "scripts/backbone_pcg.py prints its table; no result file is written"
+  "note": "results/cost_accuracy.json holds PCG at 10/20/30/50 iterations. No single tolerance gives 20-50: matching the direct FV solve's |peak| and det.MAE to 1e-4 K gives 30-50 (g4 50, g5 30, g6 30); to 5e-4 or 1e-3 K gives 20-30"
  },
  {
   "id": "artefact_peak_inflation",
@@ -134,38 +209,6 @@
   "value": null,
   "readme": "spurious peaks up to 14 K",
   "source": null,
-  "note": "report 9.32; result file not located"
- },
- {
-  "id": "thermono_prefix_advantage",
-  "finding": 4,
-  "value": null,
-  "readme": "2.6–5.4×",
-  "source": null,
-  "note": "report 9.26 and 9.32, pre-fix data; derived from results/thermono_kaggle/, rule not yet written down"
- },
- {
-  "id": "label_swap_beta",
-  "finding": 4,
-  "value": null,
-  "readme": "β 0.77–0.95",
-  "source": null,
-  "note": "report 9.32; results/artefact_learning/ holds geometry5 and geometry6 seed 0 only"
- },
- {
-  "id": "fno_label_swap_beta",
-  "finding": 4,
-  "value": null,
-  "readme": "β 0.35 and 0.26",
-  "source": null,
-  "note": "report 9.32; results/fno_artefact/ is not readable from this account"
- },
- {
-  "id": "icb_ridge_orientation_change",
-  "finding": 5,
-  "value": null,
-  "readme": "≤ 0.34%",
-  "source": null,
-  "note": "report 9.13 table, ridge-per-geom on S3; results/icb_orientation/baselines_{old,fixed}.json, rule not yet written down"
+  "note": "report 9.32 gives medians 0.5 / 2.1 / 4.1 K and a 14 K maximum (g4 / g5 / g6). results/artefact_learning/ reproduces the g5 and g6 medians (truth_old.excess_K: 2.10, 4.13; maxima 7.5 and 6.6 K) but has no geometry4 file, where the 14 K must come from"
  }
 ]
