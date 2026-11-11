@@ -61,6 +61,14 @@ class ScenarioParameters:
         }
 
 
+@dataclass(frozen=True)
+class PowerBudget:
+    """One geometry's power budget: the TDP in W and each power block's area in cm2. Built by
+    ScenarioGenerator._budget and passed explicitly, so nothing reads a budget left over from another geometry."""
+    tdp_w: float
+    block_area_cm2: Dict[str, float]
+
+
 class ScenarioGenerator:
     """Generate training and test scenarios for thermal benchmarks."""
 
@@ -194,21 +202,15 @@ class ScenarioGenerator:
     def __init__(self):
         """Initialize scenario generator."""
         self.scenarios: List[ScenarioParameters] = []
-        # TDP budget and block areas of the geometry currently being generated. Set by
-        # every public generate_* entry point via _set_active_geometry, read by
-        # _apply_pattern to normalise a relative power map onto the budget.
-        self._active_tdp_w: float = self.TDP_DEFAULT_W
-        self._active_block_area_cm2: Dict[str, float] = {}
 
-    def _set_active_geometry(self, geometry: Geometry) -> None:
-        """Select the TDP budget and block areas for `geometry`."""
-        self._active_tdp_w = self.TDP_BY_GEOMETRY_W.get(
-            geometry.name, self.TDP_DEFAULT_W)
-        # Block areas in cm2 (geometry dimensions are in µm; 1 cm2 = 1e8 µm2).
-        self._active_block_area_cm2 = {
-            b.name: (b.width * b.height) / 1e8
-            for b in geometry.power_blocks if not b.is_tsv_region
-        }
+    def _budget(self, geometry: Geometry) -> PowerBudget:
+        """The TDP budget and block areas of `geometry`, passed to everything that normalises power onto it."""
+        return PowerBudget(
+            tdp_w=self.TDP_BY_GEOMETRY_W.get(geometry.name, self.TDP_DEFAULT_W),
+            # Block areas in cm2 (geometry dimensions are in µm; 1 cm2 = 1e8 µm2).
+            block_area_cm2={b.name: (b.width * b.height) / 1e8
+                            for b in geometry.power_blocks if not b.is_tsv_region},
+        )
 
     def _enforce_cooling_adequacy(
             self, scenarios: List[ScenarioParameters]) -> List[ScenarioParameters]:
@@ -258,7 +260,7 @@ class ScenarioGenerator:
         """Replace each scenario's block powers with a per-cell power map."""
         from .power_maps import generate_power_map
 
-        self._set_active_geometry(geometry)
+        budget = self._budget(geometry)
         active = [l for l in geometry.layers if l.is_active]
         if not active:
             return scenarios
@@ -285,7 +287,7 @@ class ScenarioGenerator:
             # Workload fraction is recovered from the scenario's own total power so
             # the map inherits the TDP/workload level already assigned to it.
             prev_total_w = sum(
-                p * self._active_block_area_cm2.get(n, 0.0)
+                p * budget.block_area_cm2.get(n, 0.0)
                 for n, p in s.power_blocks.items()
             )
             if prev_total_w <= 0:
@@ -315,7 +317,7 @@ class ScenarioGenerator:
                 for b in geometry.power_blocks:
                     if b.is_tsv_region or b.layer_name != layer.name or b.name not in s.power_blocks:
                         continue
-                    watts = s.power_blocks[b.name] * self._active_block_area_cm2.get(b.name, 0.0)
+                    watts = s.power_blocks[b.name] * budget.block_area_cm2.get(b.name, 0.0)
                     if watts <= 0:
                         continue
                     frac = overlap(b)
@@ -333,7 +335,7 @@ class ScenarioGenerator:
             # Block powers become the delivered mean density over each block, so the
             # scalar summary and the map describe the same power.
             for name, watts in delivered.items():
-                s.power_blocks[name] = watts / max(self._active_block_area_cm2[name], 1e-12)
+                s.power_blocks[name] = watts / max(budget.block_area_cm2[name], 1e-12)
 
         # Cooling must still match the (new) peak density.
         self._enforce_cooling_adequacy(scenarios)
@@ -378,7 +380,6 @@ class ScenarioGenerator:
 
     def generate_all_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
         """Generate all scenarios (train + test) for a geometry."""
-        self._set_active_geometry(geometry)
         scenarios = []
 
         # Generate training scenarios
@@ -399,7 +400,7 @@ class ScenarioGenerator:
 
     def generate_training_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
         """Generate 15 training scenarios with diverse parameter combinations."""
-        self._set_active_geometry(geometry)
+        budget = self._budget(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
 
@@ -408,7 +409,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_001",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 1.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 1.0),
             htc=20000.0,
             t_ambient=25.0,
             pattern='uniform',
@@ -420,7 +421,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_002",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'hotspot', 5.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'hotspot', 5.0),
             htc=50000.0,
             t_ambient=25.0,
             pattern='hotspot',
@@ -432,7 +433,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_003",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'checkerboard', 2.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'checkerboard', 2.0),
             htc=20000.0,
             t_ambient=25.0,
             pattern='checkerboard',
@@ -444,7 +445,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_004",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'gradient', 2.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'gradient', 2.0),
             htc=5000.0,
             t_ambient=35.0,
             pattern='gradient',
@@ -456,7 +457,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_005",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'dual_hotspot', 5.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'dual_hotspot', 5.0),
             htc=50000.0,
             t_ambient=42.0,
             pattern='dual_hotspot',
@@ -468,7 +469,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_006",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 0.1),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 0.1),
             htc=5000.0,
             t_ambient=25.0,
             pattern='uniform',
@@ -480,7 +481,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_007",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'hotspot', 2.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'hotspot', 2.0),
             htc=20000.0,
             t_ambient=35.0,
             pattern='hotspot',
@@ -492,7 +493,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_008",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 5.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 5.0),
             htc=50000.0,
             t_ambient=42.0,
             pattern='uniform',
@@ -504,7 +505,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_009",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'gradient', 1.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'gradient', 1.0),
             htc=5000.0,
             t_ambient=25.0,
             pattern='gradient',
@@ -516,7 +517,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_010",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 0.5),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 0.5),
             htc=20000.0,
             t_ambient=35.0,
             pattern='uniform',
@@ -530,7 +531,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_011",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 10.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 10.0),
             htc=50000.0,
             t_ambient=25.0,
             pattern='uniform',
@@ -542,7 +543,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_012",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 2.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 2.0),
             htc=2000.0,
             t_ambient=25.0,
             pattern='uniform',
@@ -554,7 +555,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_013",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 5.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 5.0),
             htc=20000.0,
             t_ambient=45.0,
             pattern='uniform',
@@ -566,7 +567,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_014",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'extreme_hotspot', 20.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'extreme_hotspot', 20.0),
             htc=50000.0,
             t_ambient=25.0,
             pattern='extreme_hotspot',
@@ -578,7 +579,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_train_015",
             geometry_name=geometry.name,
             scenario_type='train',
-            power_blocks=self._apply_pattern(block_names, 'gradient', 3.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'gradient', 3.0),
             htc=35000.0,
             t_ambient=38.0,
             pattern='gradient',
@@ -594,7 +595,7 @@ class ScenarioGenerator:
                 name=f"{geometry.name}_train_013",
                 geometry_name=geometry.name,
                 scenario_type='train',
-                power_blocks=self._apply_pattern(block_names, 'split_chiplet_a_hot', 5.0),
+                power_blocks=self._apply_pattern(budget, block_names, 'split_chiplet_a_hot', 5.0),
                 htc=50000.0,
                 t_ambient=25.0,
                 pattern='split_chiplet_a_hot',
@@ -604,7 +605,7 @@ class ScenarioGenerator:
                 name=f"{geometry.name}_train_014",
                 geometry_name=geometry.name,
                 scenario_type='train',
-                power_blocks=self._apply_pattern(block_names, 'split_chiplet_b_hot', 5.0),
+                power_blocks=self._apply_pattern(budget, block_names, 'split_chiplet_b_hot', 5.0),
                 htc=20000.0,
                 t_ambient=35.0,
                 pattern='split_chiplet_b_hot',
@@ -614,7 +615,7 @@ class ScenarioGenerator:
                 name=f"{geometry.name}_train_015",
                 geometry_name=geometry.name,
                 scenario_type='train',
-                power_blocks=self._apply_pattern(block_names, 'split_chiplet_a_hot', 2.0),
+                power_blocks=self._apply_pattern(budget, block_names, 'split_chiplet_a_hot', 2.0),
                 htc=5000.0,
                 t_ambient=42.0,
                 pattern='split_chiplet_a_hot',
@@ -625,7 +626,7 @@ class ScenarioGenerator:
 
     def generate_test_scenarios(self, geometry: Geometry) -> List[ScenarioParameters]:
         """Generate 5 test scenarios with interpolation values."""
-        self._set_active_geometry(geometry)
+        budget = self._budget(geometry)
         scenarios = []
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
 
@@ -634,7 +635,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_test_001",
             geometry_name=geometry.name,
             scenario_type='test',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 1.5),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 1.5),
             htc=35000.0,
             t_ambient=30.0,
             pattern='uniform',
@@ -646,7 +647,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_test_002",
             geometry_name=geometry.name,
             scenario_type='test',
-            power_blocks=self._apply_pattern(block_names, 'hotspot', 3.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'hotspot', 3.0),
             htc=10000.0,
             t_ambient=38.0,
             pattern='hotspot',
@@ -658,7 +659,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_test_003",
             geometry_name=geometry.name,
             scenario_type='test',
-            power_blocks=self._apply_pattern(block_names, 'checkerboard', 1.5),
+            power_blocks=self._apply_pattern(budget, block_names, 'checkerboard', 1.5),
             htc=35000.0,
             t_ambient=30.0,
             pattern='checkerboard',
@@ -670,7 +671,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_test_004",
             geometry_name=geometry.name,
             scenario_type='test',
-            power_blocks=self._apply_pattern(block_names, 'uniform', 0.3),
+            power_blocks=self._apply_pattern(budget, block_names, 'uniform', 0.3),
             htc=10000.0,
             t_ambient=30.0,
             pattern='uniform',
@@ -682,7 +683,7 @@ class ScenarioGenerator:
             name=f"{geometry.name}_test_005",
             geometry_name=geometry.name,
             scenario_type='test',
-            power_blocks=self._apply_pattern(block_names, 'gradient', 3.0),
+            power_blocks=self._apply_pattern(budget, block_names, 'gradient', 3.0),
             htc=35000.0,
             t_ambient=38.0,
             pattern='gradient',
@@ -714,13 +715,13 @@ class ScenarioGenerator:
     # 'split_chiplet_b_hot' gave HBM logic-level power and geometry6 reached 134 C.
     HBM_POWER_CAP_WCM2 = 8.0
 
-    def _apply_pattern(self, block_names: List[str], pattern: str,
+    def _apply_pattern(self, budget: PowerBudget, block_names: List[str], pattern: str,
                        base_power: float,
                        rdl_joule_fraction: float = 0.05) -> Dict[str, float]:
-        """Power density (W/cm2) per block for one scenario: the pattern's relative map, scaled onto the active
-        geometry's TDP budget, then the absolute density ceilings and the RDL self-heating term."""
+        """Power density (W/cm2) per block for one scenario: the pattern's relative map, scaled onto the geometry's
+        TDP budget, then the absolute density ceilings and the RDL self-heating term."""
         relative = self._relative_pattern(block_names, pattern, base_power)
-        power_map = self._normalise_to_tdp(relative, self._workload_fraction(base_power))
+        power_map = self._normalise_to_tdp(budget, relative, self._workload_fraction(base_power))
         self._apply_density_caps(power_map, block_names)
         self._add_rdl_heating(power_map, block_names, rdl_joule_fraction)
         return power_map
@@ -764,11 +765,11 @@ class ScenarioGenerator:
             if 'rdl' in name.lower():
                 power_map[name] = max(0.02, ref * rdl_joule_fraction)
 
-    def _normalise_to_tdp(self, power_map: Dict[str, float],
+    def _normalise_to_tdp(self, budget: PowerBudget, power_map: Dict[str, float],
                           workload: float) -> Dict[str, float]:
         """Rescale a relative power map so total dissipation equals workload x TDP."""
-        target_w = self._active_tdp_w * workload * self.CORE_FRACTION_OF_TDP
-        current_w = sum(p * self._active_block_area_cm2.get(n, 0.0)
+        target_w = budget.tdp_w * workload * self.CORE_FRACTION_OF_TDP
+        current_w = sum(p * budget.block_area_cm2.get(n, 0.0)
                         for n, p in power_map.items())
         if current_w <= 0.0:
             return power_map
@@ -884,7 +885,7 @@ class ScenarioGenerator:
         pool_start_idx: int = 0,
     ) -> List[ScenarioParameters]:
         """Generate n_extra additional training scenarios starting at start_index."""
-        self._set_active_geometry(geometry)
+        budget = self._budget(geometry)
         block_names = [b.name for b in geometry.power_blocks if not b.is_tsv_region]
         pool = (self._EXTRA_POOL_2P5D
                 if geometry.geometry_type == '2p5d_stack'
@@ -911,7 +912,7 @@ class ScenarioGenerator:
                 name=name,
                 geometry_name=geometry.name,
                 scenario_type='train',
-                power_blocks=self._apply_pattern(block_names, pattern, power, rdl_frac),
+                power_blocks=self._apply_pattern(budget, block_names, pattern, power, rdl_frac),
                 htc=float(htc),
                 t_ambient=float(ambient),
                 pattern=pattern,
