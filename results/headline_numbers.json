@@ -188,12 +188,39 @@
   }
  },
  {
+  "id": "artefact_peak_inflation",
+  "finding": 4,
+  "value": "14 K",
+  "readme": "spurious peaks up to 14 K",
+  "source": [
+   "results/validate_snap.json"
+  ],
+  "how": "largest summary.excess_K_max_old_new[0] (old, unsnapped data) over geometry4-6, rounded: 13.79 K on geometry4. Report 9.32's '(41% of the rise)' is geometry6's largest excess fraction, a different sample",
+  "detail": {
+   "max_excess_K_old": {
+    "geometry4": 13.787017822265625,
+    "geometry5": 7.516998291015625,
+    "geometry6": 6.631988525390625
+   },
+   "median_excess_K_old": {
+    "geometry4": 0.468017578125,
+    "geometry5": 2.102020263671875,
+    "geometry6": 4.134002685546875
+   },
+   "max_excess_frac_old": {
+    "geometry4": 0.1978452631278793,
+    "geometry5": 0.3736412287737843,
+    "geometry6": 0.4105284187302944
+   }
+  }
+ },
+ {
   "id": "field_vs_vector_r2",
   "finding": 2,
   "value": null,
   "readme": "R² 0.95 from the per-cell power field and −0.67 from the block vector",
   "source": null,
-  "note": "report 9.15c (re-measured 2026-09-24) quotes field 0.936/0.951/0.954 at pca_k 8/16/32 and compact -0.67, printed by a CV script that writes no file. The nearest result file, results/v5/layout_cv_geometry4.json (v5 snapped data), gives ridge r2_mean -0.663, i.e. -0.66: the README value may predate the v5 snap"
+  "note": "report 9.15c (re-measured 2026-09-24) quotes field 0.936/0.951/0.954 at pca_k 8/16/32 and compact -0.67, printed by a CV script that writes no file. The nearest result file, results/v5/layout_cv_geometry4.json (v5 snapped data), gives ridge r2_mean -0.663, and the snapped Kaggle rerun (fno_kaggle_snap/checkpoints/layout_repr_test/verdict_v2.json, main worktree) gives -0.656: -0.66 either way. -0.674 is the pre-snap value in report 9.15b's table, for which no result file survives, so the README value predates the snap"
  },
  {
   "id": "pcg_iterations",
@@ -201,14 +228,6 @@
   "value": null,
   "readme": "20–50 iterations",
   "source": null,
-  "note": "results/cost_accuracy.json holds PCG at 10/20/30/50 iterations. No single tolerance gives 20-50: matching the direct FV solve's |peak| and det.MAE to 1e-4 K gives 30-50 (g4 50, g5 30, g6 30); to 5e-4 or 1e-3 K gives 20-30"
- },
- {
-  "id": "artefact_peak_inflation",
-  "finding": 4,
-  "value": null,
-  "readme": "spurious peaks up to 14 K",
-  "source": null,
-  "note": "report 9.32 gives medians 0.5 / 2.1 / 4.1 K and a 14 K maximum (g4 / g5 / g6). results/artefact_learning/ reproduces the g5 and g6 medians (truth_old.excess_K: 2.10, 4.13; maxima 7.5 and 6.6 K) but has no geometry4 file, where the 14 K must come from"
+  "note": "results/cost_accuracy.json holds PCG at 10/20/30/50 iterations. No single tolerance gives 20-50: matching the direct FV solve's |peak| and det.MAE to 1e-4 K gives 30-50 (g4 50, g5 30, g6 30); to 5e-4 or 1e-3 K gives 20-30. The README's 20-50 is the first count whose hotspot location equals the direct solve's and whose |peak| error is within 2e-4 K of it (g4 50, g5 20, g6 20), i.e. a reading of the report 9.32 table at its printed precision; the range depends on that threshold"
  }
 ]

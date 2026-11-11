@@ -22,6 +22,9 @@ LAYOUT_GEOMS = ("geometry4", "geometry5", "geometry6")
 THERMONO_KAGGLE = "thermono_kaggle/summary.json"
 PROJECTION = "artefact_projection/projection_summary.json"
 ORIENTATION = "icb_orientation/baselines_{}.json"
+# Copied from the main worktree's warpage/results/ (gitignored there), written by warpage/scripts/validate_snap.py,
+# which compares each layout-randomised sample before and after the grid snap of report 9.32.
+VALIDATE_SNAP = "validate_snap.json"
 
 
 def _load(root, rel):
@@ -104,6 +107,15 @@ def icb_ridge_orientation_change(root):
     return f"≤ {bound:.2f}%", {"relative_rmse_change": changes, "rounding": "up to 0.01%, since the text states a bound"}
 
 
+def artefact_peak_inflation(root):
+    d = _load(root, VALIDATE_SNAP)
+    peak = {g: d[g]["summary"]["excess_K_max_old_new"][0] for g in LAYOUT_GEOMS}
+    median = {g: d[g]["summary"]["excess_K_median_old_new"][0] for g in LAYOUT_GEOMS}
+    frac = {g: max(r["old"]["excess_frac"] for r in d[g]["rows"]) for g in LAYOUT_GEOMS}
+    return f"{round(max(peak.values()))} K", {"max_excess_K_old": peak, "median_excess_K_old": median,
+                                              "max_excess_frac_old": frac}
+
+
 ENTRIES = [
     {"id": "ridge_spatial_r2_v5", "readme": "spatial R² {value}", "finding": 1,
      "source": [f"v5/baselines_{g}.json" for g in V5_GEOMS], "derive": ridge_spatial_r2,
@@ -140,20 +152,26 @@ ENTRIES = [
      "source": [ORIENTATION.format("old"), ORIENTATION.format("fixed")], "derive": icb_ridge_orientation_change,
      "how": "largest |fixed - old| / old test RMSE over the ridge-* baselines at every level present in both files "
             "(levels 2-4), rounded up"},
+    {"id": "artefact_peak_inflation", "readme": "spurious peaks up to {value}", "finding": 4,
+     "source": [VALIDATE_SNAP], "derive": artefact_peak_inflation,
+     "how": "largest summary.excess_K_max_old_new[0] (old, unsnapped data) over geometry4-6, rounded: 13.79 K on "
+            "geometry4. Report 9.32's '(41% of the rise)' is geometry6's largest excess fraction, a different sample"},
 ]
 
 UNRESOLVED = [
     {"id": "field_vs_vector_r2", "readme": "R² 0.95 from the per-cell power field and −0.67 from the block vector",
      "finding": 2, "note": "report 9.15c (re-measured 2026-09-24) quotes field 0.936/0.951/0.954 at pca_k 8/16/32 and "
      "compact -0.67, printed by a CV script that writes no file. The nearest result file, results/v5/layout_cv_geometry4.json "
-     "(v5 snapped data), gives ridge r2_mean -0.663, i.e. -0.66: the README value may predate the v5 snap"},
+     "(v5 snapped data), gives ridge r2_mean -0.663, and the snapped Kaggle rerun "
+     "(fno_kaggle_snap/checkpoints/layout_repr_test/verdict_v2.json, main worktree) gives -0.656: -0.66 either way. -0.674 "
+     "is the pre-snap value in report 9.15b's table, for which no result file survives, so the README value predates the "
+     "snap"},
     {"id": "pcg_iterations", "readme": "20–50 iterations", "finding": 3,
      "note": "results/cost_accuracy.json holds PCG at 10/20/30/50 iterations. No single tolerance gives 20-50: matching the "
-     "direct FV solve's |peak| and det.MAE to 1e-4 K gives 30-50 (g4 50, g5 30, g6 30); to 5e-4 or 1e-3 K gives 20-30"},
-    {"id": "artefact_peak_inflation", "readme": "spurious peaks up to 14 K", "finding": 4,
-     "note": "report 9.32 gives medians 0.5 / 2.1 / 4.1 K and a 14 K maximum (g4 / g5 / g6). results/artefact_learning/ "
-     "reproduces the g5 and g6 medians (truth_old.excess_K: 2.10, 4.13; maxima 7.5 and 6.6 K) but has no geometry4 file, "
-     "where the 14 K must come from"},
+     "direct FV solve's |peak| and det.MAE to 1e-4 K gives 30-50 (g4 50, g5 30, g6 30); to 5e-4 or 1e-3 K gives 20-30. "
+     "The README's 20-50 is the first count whose hotspot location equals the direct solve's and whose |peak| error "
+     "is within 2e-4 K of it (g4 50, g5 20, g6 20), i.e. a reading of the report 9.32 table at its printed precision; "
+     "the range depends on that threshold"},
 ]
 
 
