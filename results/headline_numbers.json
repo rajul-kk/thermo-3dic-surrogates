@@ -1,0 +1,171 @@
+[
+ {
+  "id": "ridge_spatial_r2_v5",
+  "finding": 1,
+  "value": "0.93–0.98",
+  "readme": "spatial R² 0.93–0.98",
+  "source": [
+   "results/v5/baselines_geometry1.json",
+   "results/v5/baselines_geometry2a.json",
+   "results/v5/baselines_geometry3.json",
+   "results/v5/baselines_geometry4.json",
+   "results/v5/baselines_geometry5.json",
+   "results/v5/baselines_geometry6.json"
+  ],
+  "how": "min and max of summary.ridge.spatial_r2 over the six v5 geometries",
+  "detail": {
+   "min": 0.933132641229234,
+   "max": 0.9817023353630653
+  }
+ },
+ {
+  "id": "g6_ridge_median_r2",
+  "finding": 2,
+  "value": "negative",
+  "readme": "on geometry6 its median R² is negative",
+  "source": [
+   "results/v5/layout_cv_geometry6.json"
+  ],
+  "how": "sign of results.ridge.r2_median (5-fold CV, n=45)",
+  "detail": {
+   "r2_median": -0.30311921024120414
+  }
+ },
+ {
+  "id": "backbone_ms",
+  "finding": 3,
+  "value": "10–25 ms",
+  "readme": "about 10–25 ms",
+  "source": [
+   "results/backbone_eval.json"
+  ],
+  "how": "backbone_sec_per_solve on the grid-aligned chiplet geometries, rounded outward to 5 ms",
+  "detail": {
+   "min_ms": 10.276000015437603,
+   "max_ms": 23.39620003476739,
+   "rounding": "outward to 5 ms"
+  }
+ },
+ {
+  "id": "backbone_peak_err",
+  "finding": 3,
+  "value": "0.06–0.15 K",
+  "readme": "hotspot to 0.06–0.15 K",
+  "source": [
+   "results/backbone_eval.json"
+  ],
+  "how": "models.backbone.abs_peak_err_K on the grid-aligned chiplet geometries",
+  "detail": {
+   "min_K": 0.06136856059678419,
+   "max_K": 0.15424282488722837
+  }
+ },
+ {
+  "id": "backbone_loc_err",
+  "finding": 3,
+  "value": "0–250 µm",
+  "readme": "peak error and 0–250 µm location",
+  "source": [
+   "results/backbone_eval.json"
+  ],
+  "how": "models.backbone.loc_err_um_median on the grid-aligned chiplet geometries",
+  "detail": {
+   "min_um": 0.0,
+   "max_um": 250.0
+  }
+ },
+ {
+  "id": "icb_s4_fixed",
+  "finding": 5,
+  "value": "3.15 ± 0.07 K",
+  "readme": "S4 3.15 ± 0.07 K",
+  "source": [
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed0_fixed.json",
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed1_fixed.json",
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed2_fixed.json"
+  ],
+  "how": "mean ± sample sd of level4.rmse, v2 seeds 0-2, fixed orientation",
+  "detail": {
+   "seeds": [
+    3.214444503769353,
+    3.1389585867062237,
+    3.0842297999289476
+   ]
+  }
+ },
+ {
+  "id": "icb_s5_fixed",
+  "finding": 5,
+  "value": "7.30 ± 0.51 K",
+  "readme": "S5 zero-shot 7.30 ± 0.51 K",
+  "source": [
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed0_fixed.json",
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed1_fixed.json",
+   "results/icb_thermono_fixed/icb_fixed_results/icb_thermono_level4_v2_seed2_fixed.json"
+  ],
+  "how": "mean ± sample sd of level5.rmse (S4-trained, zero-shot), v2 seeds 0-2, fixed orientation",
+  "detail": {
+   "seeds": [
+    6.7846415531764706,
+    7.30930573111808,
+    7.811159212290475
+   ]
+  }
+ },
+ {
+  "id": "field_vs_vector_r2",
+  "finding": 2,
+  "value": null,
+  "readme": "R² 0.95 from the per-cell power field and −0.67 from the block vector",
+  "source": null,
+  "note": "report 9.15c quotes 'about 0.95' over CV values 0.936/0.951/0.954; the -0.67 file was not located"
+ },
+ {
+  "id": "pcg_iterations",
+  "finding": 3,
+  "value": null,
+  "readme": "20–50 iterations",
+  "source": null,
+  "note": "scripts/backbone_pcg.py prints its table; no result file is written"
+ },
+ {
+  "id": "artefact_peak_inflation",
+  "finding": 4,
+  "value": null,
+  "readme": "spurious peaks up to 14 K",
+  "source": null,
+  "note": "report 9.32; result file not located"
+ },
+ {
+  "id": "thermono_prefix_advantage",
+  "finding": 4,
+  "value": null,
+  "readme": "2.6–5.4×",
+  "source": null,
+  "note": "report 9.26 and 9.32, pre-fix data; derived from results/thermono_kaggle/, rule not yet written down"
+ },
+ {
+  "id": "label_swap_beta",
+  "finding": 4,
+  "value": null,
+  "readme": "β 0.77–0.95",
+  "source": null,
+  "note": "report 9.32; results/artefact_learning/ holds geometry5 and geometry6 seed 0 only"
+ },
+ {
+  "id": "fno_label_swap_beta",
+  "finding": 4,
+  "value": null,
+  "readme": "β 0.35 and 0.26",
+  "source": null,
+  "note": "report 9.32; results/fno_artefact/ is not readable from this account"
+ },
+ {
+  "id": "icb_ridge_orientation_change",
+  "finding": 5,
+  "value": null,
+  "readme": "≤ 0.34%",
+  "source": null,
+  "note": "report 9.13 table, ridge-per-geom on S3; results/icb_orientation/baselines_{old,fixed}.json, rule not yet written down"
+ }
+]
