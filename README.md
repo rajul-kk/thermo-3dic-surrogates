@@ -162,6 +162,17 @@ pip install -r requirements.txt
 
 Requires Python 3.8+, PyTorch, NumPy, SciPy, PyYAML, Matplotlib. See [`docs/installation.md`](docs/installation.md) for 3D-ICE/WSL2 setup.
 
+**Tests and CI.** `pytest tests` and `pytest tools/iceforge/tests` (after `pip install -e "tools/iceforge[test,yaml,diff]"`).
+`.github/workflows/ci.yml` runs both on push to `main` and on pull requests, on Linux with CPU-only PyTorch. Tests that need
+something the runner does not have skip themselves:
+
+| Skips when absent | Tests | Local Windows run, 10 Nov 2026 |
+|---|---|---|
+| generated datasets under `data/` (ignored by git) | `test_dataset_integrity`, `test_fno_crossgeom`, `test_lint`, `test_fv_solver`, `test_geometry_field_fno`, `test_resolve_from_metadata`, `test_thermal_service` | 33 skipped of 388 in `tests/` |
+| 3D-ICE through WSL (`~/3d-ice-4.0`) or a native backend | `test_ice_pin`, `test_hotspot_vs_3dice`, iceforge tests marked `solver` | ran locally; skip on CI |
+| a HotSpot build with SuperLU (`HOTSPOT_EXECUTABLE`) | iceforge tests marked `hotspot` | 6 skipped of 155 in iceforge |
+| the `threedice` wheel | `test_pip_backend` | 1 skipped |
+
 ### 2. Generate training data (requires 3D-ICE, WSL2 on Windows)
 
 ```bash
