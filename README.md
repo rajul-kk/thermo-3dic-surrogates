@@ -181,6 +181,15 @@ python src/main.py --all-geometries --simulator 3d-ice \
     --output data/3d-ice --verbose
 ```
 
+To check that a dataset on disk is the one the results were computed on, and that 3D-ICE still produces it:
+```bash
+python scripts/verify_dataset.py data/3d-ice --out results/3dice_version_check/dataset_verify.json --per-geometry 2
+```
+It writes a sha256 fingerprint of every file's `coords` and `temp` per geometry, and re-solves a fixed sample of files from
+their own metadata with the pinned 3D-ICE build. The committed `results/3dice_version_check/dataset_verify.json` (13 Nov 2026) re-solved 12 files,
+2 per geometry: 9 identical, 3 within 0.001 K (3D-ICE writes temperatures to 3 decimals). Compare the per-geometry `digest`
+values to tell whether regenerated data is the same data.
+
 For development without 3D-ICE (synthetic data):
 ```bash
 python src/main.py --all-geometries --simulator mock --output data/3d-ice-mock
