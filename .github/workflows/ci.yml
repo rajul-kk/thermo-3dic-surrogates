@@ -20,6 +20,19 @@ jobs:
       - name: tests (data, 3D-ICE, HotSpot and GPU tests skip themselves)
         run: pytest tests -rs -p no:cacheprovider
 
+  fieldlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: pip install -e "tools/fieldlint[test]"
+      - name: fieldlint tests (real-data tests skip without the datasets)
+        run: pytest tools/fieldlint/tests -rs -p no:cacheprovider
+
   iceforge:
     runs-on: ubuntu-latest
     timeout-minutes: 30
