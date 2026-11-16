@@ -20,6 +20,7 @@ test = ["pytest", "h5py", "scipy", "pyyaml"]
 
 [project.scripts]
 fieldlint = "fieldlint.cli:main"
+fieldlint-labelswap = "fieldlint.labelswap:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

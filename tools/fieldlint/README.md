@@ -328,6 +328,16 @@ Prediction audit (cards, written before any run): correct for ConDiff (F008 appl
 * F006 is a screening heuristic on a block-averaged, subsampled problem, not a certificate of linearity.
 * The `3dice` adapter reads pickled metadata (`allow_pickle`): only use it on files you trust.
 
+## Label-swap test
+
+`fieldlint-labelswap` asks whether a model learned an artefact in its training labels: train the same model on the
+labels as shipped and on corrected labels, and project the difference of their held-out predictions onto the label
+difference, against a same-label seed-noise null. Spec, power calculation and worked examples: `docs/labelswap.md`.
+
+```
+fieldlint-labelswap predictions.npz --json verdict.json   # T_old, T_new (n, ...); pred_old, pred_new (seeds, n, ...)
+```
+
 ## Tests
 
 ```
