@@ -4,18 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fieldlint"
-version = "0.1.0"
+version = "0.2.0"
 description = "Physics-aware linter for PDE-surrogate benchmark datasets (steady diffusion / heat-type fields)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+authors = [{ name = "Rajul Kabeer" }]
 dependencies = ["numpy>=1.22"]
+keywords = ["pde", "surrogate", "neural-operator", "benchmark", "dataset", "linter", "heat", "diffusion"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/rajul-kk/thermo-3dic-surrogates/tree/main/tools/fieldlint"
+Issues = "https://github.com/rajul-kk/thermo-3dic-surrogates/issues"
 
 [project.optional-dependencies]
 h5 = ["h5py"]
 mat = ["scipy", "h5py"]
 yaml = ["pyyaml"]
 all = ["h5py", "scipy", "pyyaml"]
+labelswap = ["scipy"]
 test = ["pytest", "h5py", "scipy", "pyyaml"]
 
 [project.scripts]

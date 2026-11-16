@@ -250,3 +250,12 @@ def test_time_dependent_flag_and_affine_in_config(tmp_path, darcy_like):
     r = {x.code: x for x in run(ds, rules=['F002', 'F003', 'F008', 'F009']).results}
     assert all(x.status == 'skipped' and 'time-dependent' in x.summary for x in r.values())
     ds.close()
+
+
+def test_package_version_matches_pyproject():
+    import re
+    from pathlib import Path
+
+    import fieldlint
+    text = (Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text(encoding='utf-8')
+    assert re.search(r'^version = "([^"]+)"', text, re.MULTILINE).group(1) == fieldlint.__version__
