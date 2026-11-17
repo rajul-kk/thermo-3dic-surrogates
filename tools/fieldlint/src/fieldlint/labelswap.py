@@ -143,7 +143,7 @@ def wilcoxon_p(a, b):
     return float(stats.wilcoxon(d).pvalue)
 
 
-def _per_seed_matrix(records, key, field):
+def per_seed_matrix(records, key, field):
     """(n_scenarios, n_entries) array of scores in a list-valued record entry."""
     with np.errstate(all='ignore'):
         return np.array([[x[field] for x in rec[key]] for rec in records], np.float64)
@@ -167,9 +167,9 @@ def analyse(records, field='beta', n_boot=4000):
     ci = boot_ci(a['mean'], n_boot)
     out['mean'] = {'mean': ci[0], 'lo': ci[1], 'hi': ci[2], 'wilcoxon_p_vs_null_nn': wilcoxon_p(a['mean'], a['null_nn']),
                    'wilcoxon_p_vs_null_oo': wilcoxon_p(a['mean'], a['null_oo']), 'decision': decide(ci, null_ci)}
-    S = _per_seed_matrix(records, 'single', field)
-    NN = _per_seed_matrix(records, 'null_nn', field)
-    OO = _per_seed_matrix(records, 'null_oo', field)
+    S = per_seed_matrix(records, 'single', field)
+    NN = per_seed_matrix(records, 'null_nn', field)
+    OO = per_seed_matrix(records, 'null_oo', field)
     per, decs = [], []
     for k in range(S.shape[1]):
         nn, oo = NN[:, k % NN.shape[1]], OO[:, k % OO.shape[1]]
@@ -201,12 +201,12 @@ def min_detectable_beta(null_scores, n=None, z=1.96, learned_lo=LEARNED_LO):
     return max(learned_lo, float(x.mean()) + half) + half
 
 
-def _json_safe(x):
+def json_safe(x):
     """NaN and inf become null, so the file is strict JSON."""
     if isinstance(x, dict):
-        return {k: _json_safe(v) for k, v in x.items()}
+        return {k: json_safe(v) for k, v in x.items()}
     if isinstance(x, (list, tuple)):
-        return [_json_safe(v) for v in x]
+        return [json_safe(v) for v in x]
     if isinstance(x, (float, np.floating)):
         return float(x) if np.isfinite(x) else None
     if isinstance(x, np.integer):
@@ -253,7 +253,7 @@ def main(argv=None):
     if a.json:
         tmp = a.json + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as fh:
-            json.dump(_json_safe({'decision_rule': RULE, 'analysis': analysis}), fh, indent=1, allow_nan=False)
+            json.dump(json_safe({'decision_rule': RULE, 'analysis': analysis}), fh, indent=1, allow_nan=False)
         os.replace(tmp, a.json)
     return 0
 
