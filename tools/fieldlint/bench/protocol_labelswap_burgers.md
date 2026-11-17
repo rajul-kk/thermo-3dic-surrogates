@@ -1,6 +1,6 @@
 # Label-swap test on PDEBench 1D Burgers (pre-registration)
 
-**STATUS: DRAFT** (frozen when the commit adding the run's first prediction file lands; this file's text at that commit
+**STATUS: RUN, outcome in section 6** (frozen when the commit adding the run's first prediction file lands; this file's text at that commit
 is binding). Written 2026-11-16, before any model was trained on these labels. Script: `scripts/labelswap_burgers.py`.
 Method: `fieldlint.labelswap`, spec `tools/fieldlint/docs/labelswap.md`.
 
@@ -89,3 +89,31 @@ about 3x for the same seed noise.
 ## 5. Amendments
 
 None.
+
+## 6. Outcome (2026-11-17)
+
+Run as frozen: 30 trainings on three Kaggle CPU sessions (torch 2.11.0+cpu, numpy 2.1.3, 4 cores; seed 0 and 2 on
+Intel Xeon 2.20 GHz, 4244 s and 4203 s; seed 1 on AMD EPYC 7B12, 2994 s), merged with no missing or conflicting
+unit. Nothing was rerun. Numbers from `results/labelswap_burgers/verdict.json` and `session_s*.json`.
+
+**Decision: inconclusive, from lack of power.** The minimum detectable beta is 103, 197 and 127 for the three null
+pairs, far above the 0.5 that section 3.3 sets for reading "inconclusive" as evidence against learning.
+
+| field | mean (95% CI) | same-label null N-N (95% CI) | per-seed decisions | decision |
+|---|---|---|---|---|
+| `beta` (primary) | +1.68 [-0.14, +4.11] | -91.6 [-218.8, -4.8] | inconclusive x3 | inconclusive |
+| `corr` | +0.051 [+0.033, +0.069] | -0.025 [-0.035, -0.015] | inconclusive x3 | inconclusive |
+| `beta_s` (support, 272 samples) | +0.017 [+0.003, +0.030] | -0.52 [-0.95, -0.12] | not learned, inconclusive, not learned | inconclusive |
+| `corr_s` (support) | +0.026 [-0.019, +0.069] | -0.030 [-0.057, -0.004] | not learned, inconclusive, inconclusive | inconclusive |
+
+RMSE against its own labels: 0.130 (old) and 0.131 (new). The label difference has rms 0.0024 against 0.68 for the
+field, so the model's own error is about 54 times the artefact it was asked to copy. With all 1024 nodes in the
+projection, seed-to-seed noise swamps D, hence the null betas near -90 and the MDB above 100. On the support nodes
+(`|D| > 0.01`) the null is tighter and beta_s is small and positive, +0.017 [+0.003, +0.030]: well under the 0.2
+"learned" threshold, but its interval lies above the null's, so it is not "not learned" either.
+
+Reading: at n = 400 and this model size, the test cannot tell whether this FNO reproduces PDEBench's Burgers
+nu = 0.001 solver error, because the error is about 2% of the FNO's own. The secondary fields point the same way
+(at most a few percent of D reproduced on the support), but the rule makes no call on them. A decisive test needs
+a model whose error is well below the artefact (a longer schedule or a larger FNO), which would be a new
+pre-registration, not a rerun of this one.
